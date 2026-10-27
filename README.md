@@ -165,6 +165,12 @@ Found a bug? Open an issue.
 Have an idea? Open a feature request first — we'll agree on the approach before you write code. See [CONTRIBUTING.md](CONTRIBUTING.md).
 Want to just say it's cool? A star goes a long way.
 
+## Keep it blooming
+
+Bloom runs on spring physics. I run on coffee.
+
+[Buy me a coffee ↗](https://buymeacoffee.com/sehaz)
+
 Licensed under [GPLv3](LICENSE).
 
 ---
