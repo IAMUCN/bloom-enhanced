@@ -68,7 +68,8 @@ import {
 	ChevronRight,
 	Inbox,
 	Music,
-	Zap
+	Zap,
+	Activity
 } from "lucide-react";
 
 /**
@@ -4087,6 +4088,19 @@ function App() {
 													title="System Tray"
 												>
 													<TrayIcon />
+												</button>
+												<button
+													className="cc-circular-btn"
+													onClick={(e) => {
+														e.stopPropagation();
+														invoke("open_system_action", { action: "task-manager" }).catch(
+															console.error
+														);
+													}}
+													title="Task Manager"
+													aria-label="Task Manager"
+												>
+													<Activity size={18} strokeWidth={2.5} />
 												</button>
 												<button
 													className="cc-circular-btn"
