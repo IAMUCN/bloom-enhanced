@@ -459,28 +459,22 @@ pub async fn change_dock_mode(app: AppHandle, mode: String) {
 }
 
 #[tauri::command]
-pub async fn change_notch_mode(app: AppHandle, mode: String) {
+pub async fn change_notch_mode(app: AppHandle) {
     if let Some(main_win) = app.get_webview_window("main") {
-        if mode == "fixed" {
-            crate::services::apply_main_appbar_mode(&app, true);
-        } else {
-            if crate::utils::notch_enabled() {
-                let _ = main_win.show();
-            }
-            // Locked helper so a concurrent display/power event cannot
-            // interleave between the mode decision and the AppBar call.
-            crate::services::apply_main_appbar_mode(&app, false);
-
-            let main_clone = main_win.clone();
-            tauri::async_runtime::spawn(async move {
-                tokio::time::sleep(tokio::time::Duration::from_millis(100)).await;
-                if !MAIN_APPBAR_REGISTERED.load(Ordering::Relaxed) {
-                    if let Ok(hwnd) = main_clone.hwnd() {
-                        re_assert_topmost(hwnd);
-                    }
-                }
-            });
+        // Every mode is an overlay; the mode only decides whether the
+        // notch hides itself (smart, peek) or stays visible (fixed).
+        if crate::utils::notch_enabled() {
+            let _ = main_win.show();
         }
+        crate::services::reconcile_main_appbar(&app);
+
+        let main_clone = main_win.clone();
+        tauri::async_runtime::spawn(async move {
+            tokio::time::sleep(tokio::time::Duration::from_millis(100)).await;
+            if let Ok(hwnd) = main_clone.hwnd() {
+                re_assert_topmost(hwnd);
+            }
+        });
         // Reposition window to span the full primary monitor so CSS justify-content:center works
         if let Ok(Some(monitor)) = main_win.primary_monitor() {
             let m_pos = monitor.position();
@@ -3041,7 +3035,6 @@ pub fn release_appbars(handle: &AppHandle) {
             unregister_appbar_native(hwnd);
         }
     }
-    MAIN_APPBAR_REGISTERED.store(false, Ordering::Relaxed);
     DOCK_APPBAR_REGISTERED.store(false, Ordering::Relaxed);
 }
 

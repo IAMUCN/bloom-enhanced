@@ -43,11 +43,11 @@ Edit `settings.json` with any text editor while Bloom is running. Changes are ap
 
 | Key                      | Type                             | Default   | Description                                                                                                                    |
 | ------------------------ | -------------------------------- | --------- | ------------------------------------------------------------------------------------------------------------------------------ |
-| `bloom-notch-enabled`    | `"true"` / `"false"`             | `"true"`  | Show the notch at all. `"false"` hides its window, releases its reserved top strip and stops its hover/edge interactions. Settings stay reachable from the tray menu. |
-| `bloom-notch-mode`       | `"fixed"` / `"smart"` / `"peek"` | `"fixed"` | Notch (top bar) visibility behavior. Same modes as dock. **peek** shows the notch briefly on media events and notifications.   |
+| `bloom-notch-enabled`    | `"true"` / `"false"`             | `"true"`  | Show the notch at all. `"false"` hides its window and stops its hover/edge interactions. Settings stay reachable from the tray menu. |
+| `bloom-notch-mode`       | `"fixed"` / `"smart"` / `"peek"` | `"fixed"` | Notch (top bar) visibility behavior. The notch is always an overlay and never reserves screen space. **fixed** = always visible over windows. **smart** = hides when a window overlaps it. **peek** = hidden until the cursor reaches the top edge; also shows briefly on media events and notifications. |
 | `bloom-notch-edge-delay` | milliseconds `"0"`–`"2000"`      | `"200"`   | In smart/peek mode, how long the cursor must rest against the top screen edge before the notch peeks. `"0"` reveals instantly. |
 | `bloom-notch-style`      | `"notch"` / `"pill"` / `"minimal"` | `"notch"` | Idle look. **notch** = attached to the top edge with flares. **pill** = floating capsule below the edge. **minimal** = thin bar while idle; content shows on hover, music, or alerts. |
-| `bloom-notch-scale`      | float string `"0.8"`–`"1.3"`     | (unset)   | Size of the notch only. Unset = follows `bloom-scale`. Changing it re-registers the notch AppBar. |
+| `bloom-notch-scale`      | float string `"0.8"`–`"1.3"`     | (unset)   | Size of the notch only. Unset = follows `bloom-scale`. |
 | `bloom-notch-panel-scales` | JSON object, panel → `0.8`–`1.3` | `"{}"` | Per-panel notch size on top of `bloom-notch-scale`, e.g. `{"calendar":1.2,"music":0.9}`. Panels: `calendar`, `command-center` (incl. Wi-Fi/Bluetooth), `devices`, `music`, `shelf`. Missing panels use 1. |
 
 ### Weather
@@ -205,6 +205,6 @@ with open(path, 'w') as f: json.dump(settings, f)
 - All boolean values are strings (`"true"` / `"false"`) for consistency with `localStorage`.
 - The `useSettingsSync` hook auto-converts `"true"` / `"false"` strings to booleans.
 - `auto-hide` mode values in `bloom-dock-mode` and `bloom-notch-mode` are legacy aliases for `smart` — they are mapped automatically.
-- Changing `bloom-scale` triggers AppBar re-registration to adjust reserved screen space.
+- Changing `bloom-scale` or `bloom-dock-scale` re-registers the dock AppBar (fixed dock mode) to adjust its reserved screen space. The notch never reserves screen space: it is an overlay in every mode.
 - Settings → General → Reset to Defaults removes every `bloom-` key from `settings.json` and `localStorage` (except the `bloom-first-run` / `bloom-app-version` lifecycle sentinels), then restarts Bloom. Pinned apps (`pinned_apps.json`) and uploaded icons (`custom_icons/`) are preserved.
 - Theme changes (`bloom-theme-*`) are applied by reading all theme values from `localStorage` and calling `applyTheme()` — the theme system depends on all five theme keys being in sync.

@@ -8,7 +8,6 @@ use std::sync::{
 use tauri::{AppHandle, PhysicalPosition, PhysicalSize};
 
 pub static COMMAND_SENDER: OnceLock<Sender<SystemCommand>> = OnceLock::new();
-pub static MAIN_APPBAR_REGISTERED: AtomicBool = AtomicBool::new(false);
 pub static DOCK_APPBAR_REGISTERED: AtomicBool = AtomicBool::new(false);
 pub static CURRENT_DOCK_OVERLAP: AtomicI32 = AtomicI32::new(-1);
 pub static CURRENT_NOTCH_OVERLAP: AtomicI32 = AtomicI32::new(-1);

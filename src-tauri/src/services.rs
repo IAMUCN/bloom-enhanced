@@ -2583,15 +2583,14 @@ fn update_main_interaction(
     // dwell-gated, and fixed mode (always visible) skips it entirely. This is
     // about showing the notch — the hit-testing continuity below is separate
     // and must stay immediate.
-    let edge_armed = if notch_mode_reserves_work_area(
-        get_setting_str(app_handle, "bloom-notch-mode").as_deref(),
-    ) {
-        MH_TOP_EDGE_ENTER_MS.store(0, Ordering::Relaxed);
-        MH_TOP_EDGE_ARMED.store(false, Ordering::Relaxed);
-        false
-    } else {
-        top_edge_armed_for(app_handle, cursor, now, scale)
-    };
+    let edge_armed =
+        if notch_always_visible(get_setting_str(app_handle, "bloom-notch-mode").as_deref()) {
+            MH_TOP_EDGE_ENTER_MS.store(0, Ordering::Relaxed);
+            MH_TOP_EDGE_ARMED.store(false, Ordering::Relaxed);
+            false
+        } else {
+            top_edge_armed_for(app_handle, cursor, now, scale)
+        };
 
     let mut is_notch_hovered = false;
     if edge_armed || in_notch_hover {
@@ -3562,119 +3561,6 @@ pub fn sync_overlays(app: &AppHandle) {
     }
 }
 
-pub fn register_appbar(window: tauri::WebviewWindow) {
-    if let Ok(Some(monitor)) = window.app_handle().primary_monitor() {
-        let m_size = monitor.size();
-        let m_pos = monitor.position();
-        let hwnd = window.hwnd().unwrap();
-        let scale = monitor.scale_factor();
-        let bloom_scale = crate::utils::get_surface_scale(window.app_handle(), "bloom-notch-scale");
-        let ph = ((420.0 * bloom_scale) * scale) as i32;
-        let pr = ((40.0 * bloom_scale) * scale) as i32; // Scale the reserved top screen space
-
-        unsafe {
-            use windows::Win32::Foundation::RECT;
-            use windows::Win32::UI::Shell::{
-                SHAppBarMessage, ABE_TOP, ABM_NEW, ABM_QUERYPOS, ABM_REMOVE, ABM_SETPOS, APPBARDATA,
-            };
-            use windows::Win32::UI::WindowsAndMessaging::{
-                GetWindowLongPtrW, GetWindowRect, SetWindowLongPtrW, SetWindowPos, GWL_EXSTYLE,
-                SWP_FRAMECHANGED, SWP_NOACTIVATE, SWP_NOZORDER, WS_EX_NOACTIVATE as WS_EX_NA,
-                WS_EX_TOOLWINDOW,
-            };
-
-            // Set styles first
-            let mut ex_style = GetWindowLongPtrW(hwnd, GWL_EXSTYLE) as usize;
-            ex_style |= (WS_EX_TOOLWINDOW.0 | WS_EX_NA.0) as usize;
-            let _ = SetWindowLongPtrW(hwnd, GWL_EXSTYLE, ex_style as isize);
-
-            let mut abd = APPBARDATA {
-                cbSize: std::mem::size_of::<APPBARDATA>() as u32,
-                hWnd: hwnd,
-                uCallbackMessage: 0x8041, // WM_APP + 0x41, reserved for the notch AppBar
-                ..Default::default()
-            };
-
-            if !MAIN_APPBAR_REGISTERED.load(Ordering::Relaxed) {
-                let _ = SHAppBarMessage(ABM_REMOVE, &mut abd);
-                let registered = SHAppBarMessage(ABM_NEW, &mut abd);
-                crate::diagnostics::record(
-                    "main_appbar",
-                    &format!("registration_result={registered}"),
-                );
-                if registered == 0 {
-                    eprintln!("Bloom: notch AppBar registration failed");
-                    return;
-                }
-                MAIN_APPBAR_REGISTERED.store(true, Ordering::Relaxed);
-            }
-
-            abd.uEdge = ABE_TOP;
-            abd.rc = RECT {
-                left: m_pos.x,
-                top: m_pos.y,
-                right: m_pos.x + m_size.width as i32,
-                bottom: m_pos.y + pr,
-            };
-
-            SHAppBarMessage(ABM_QUERYPOS, &mut abd);
-            SHAppBarMessage(ABM_SETPOS, &mut abd);
-
-            // Use the shell-approved rect for the final position, but keep our ph height for the window
-            let final_width = abd.rc.right - abd.rc.left;
-
-            let mut current_rect = RECT::default();
-            let mut already_positioned = false;
-            if GetWindowRect(hwnd, &mut current_rect).is_ok() {
-                let current_width = current_rect.right - current_rect.left;
-                let current_height = current_rect.bottom - current_rect.top;
-                if current_rect.left == abd.rc.left
-                    && current_rect.top == abd.rc.top
-                    && current_width == final_width
-                    && current_height == ph
-                {
-                    already_positioned = true;
-                }
-            }
-
-            if !already_positioned {
-                let _ = SetWindowPos(
-                    hwnd,
-                    None,
-                    abd.rc.left,
-                    abd.rc.top,
-                    final_width,
-                    ph,
-                    SWP_NOZORDER | SWP_NOACTIVATE | SWP_FRAMECHANGED,
-                );
-            }
-
-            // Re-assert topmost after repositioning — use re_assert_topmost instead of
-            // set_always_on_top(true) to include SWP_NOACTIVATE and re-stamp WS_EX_NOACTIVATE.
-            // This prevents WM_ACTIVATE from reaching WebView2, which caused bloom windows
-            // to blank/hide when other windows were minimized or closed.
-            re_assert_topmost(hwnd);
-
-            if !window.is_visible().unwrap_or(false) {
-                let _ = window.show();
-            }
-        }
-    } else {
-        let w = window.clone();
-        tauri::async_runtime::spawn(async move {
-            for _ in 0..10 {
-                tokio::time::sleep(std::time::Duration::from_millis(500)).await;
-                if let Ok(Some(_monitor)) = w.app_handle().primary_monitor() {
-                    // Reconcile rather than register directly: the notch mode
-                    // may have changed while waiting for the monitor.
-                    reconcile_main_appbar(w.app_handle());
-                    break;
-                }
-            }
-        });
-    }
-}
-
 /// Serializes main AppBar register/unregister decisions. Mode switches and
 /// display/power events can otherwise interleave between reading the notch mode
 /// and applying it, leaving the reservation in the wrong state until the next
@@ -3685,57 +3571,36 @@ fn lock_main_appbar() -> std::sync::MutexGuard<'static, ()> {
     MAIN_APPBAR_LOCK.lock().unwrap_or_else(|e| e.into_inner())
 }
 
-/// Apply a reservation decision to the main window. Callers must hold
-/// `MAIN_APPBAR_LOCK`.
-fn set_main_appbar_reservation(main_win: tauri::WebviewWindow, reserve: bool) {
-    if !crate::utils::notch_enabled() {
+/// The notch is an overlay in every mode: it never reserves a strip of the
+/// work area, so maximized windows keep the full screen height. Releasing on
+/// every reconcile also clears a reservation left by older versions, which
+/// reserved the strip in fixed mode, and one Explorer may restore after a
+/// restart. Callers must hold `MAIN_APPBAR_LOCK`.
+fn release_main_appbar(main_win: tauri::WebviewWindow) {
+    let enabled = crate::utils::notch_enabled();
+    if !enabled {
         let _ = main_win.hide();
-        if let Ok(hwnd) = main_win.hwnd() {
-            unregister_appbar_native(hwnd);
-        }
-        MAIN_APPBAR_REGISTERED.store(false, Ordering::Relaxed);
-        return;
     }
-    if reserve {
-        register_appbar(main_win);
-    } else if let Ok(hwnd) = main_win.hwnd() {
-        // Ask the shell to remove the reservation unconditionally: the flag
-        // may look clean while the shell still holds the strip.
+    if let Ok(hwnd) = main_win.hwnd() {
         unregister_appbar_native(hwnd);
-        MAIN_APPBAR_REGISTERED.store(false, Ordering::Relaxed);
-        re_assert_topmost(hwnd);
+        if enabled {
+            re_assert_topmost(hwnd);
+        }
     }
 }
 
-/// Whether the notch's 40px top strip should currently be reserved as an AppBar.
-/// Only fixed mode reserves screen space; smart and peek hide the notch freely.
-/// An unset mode defaults to fixed, matching SETTINGS.md and `re_register_appbars`.
-fn notch_mode_reserves_work_area(mode: Option<&str>) -> bool {
+/// Fixed mode keeps the notch always visible; smart and peek hide it freely.
+/// An unset mode defaults to fixed, matching SETTINGS.md.
+fn notch_always_visible(mode: Option<&str>) -> bool {
     mode.map(|m| m == "fixed").unwrap_or(true)
 }
 
-/// Bring the main AppBar registration in line with the configured notch mode.
-///
-/// `MAIN_APPBAR_REGISTERED` can drift from the setting: a DPI/scale change used
-/// to register the window unconditionally, and subsequent power/display events
-/// kept re-registering it from the stale flag, leaving the work-area gap in
-/// smart/peek mode until restart (issue #109). Deciding from the mode makes
-/// every re-registration path self-healing.
+/// Keep the notch window an un-reserved, topmost overlay (or hidden when the
+/// notch is off). Display, power and Explorer events call this to self-heal.
 pub fn reconcile_main_appbar(app: &AppHandle) {
     let _guard = lock_main_appbar();
-    let mode = get_setting_str(app, "bloom-notch-mode");
     if let Some(main_win) = app.get_webview_window("main") {
-        set_main_appbar_reservation(main_win, notch_mode_reserves_work_area(mode.as_deref()));
-    }
-}
-
-/// Apply an explicit mode to the main AppBar. `change_notch_mode` knows the
-/// target mode even when the settings cache has not caught up yet, so it cannot
-/// rely on a reconcile read.
-pub fn apply_main_appbar_mode(app: &AppHandle, reserve: bool) {
-    let _guard = lock_main_appbar();
-    if let Some(main_win) = app.get_webview_window("main") {
-        set_main_appbar_reservation(main_win, reserve);
+        release_main_appbar(main_win);
     }
 }
 
@@ -3894,7 +3759,7 @@ fn register_dock_appbar_inner(window: tauri::WebviewWindow, attempt: i32) {
                 return;
             }
 
-            // Re-assert topmost — same reason as register_appbar.
+            // Re-assert topmost: repositioning can drop the window in z-order.
             re_assert_topmost(hwnd);
 
             // Always ensure the window is visible — show() is idempotent
@@ -4416,7 +4281,6 @@ unsafe extern "system" fn display_monitor_proc(
     if msg != 0 && msg == TASKBAR_CREATED_MESSAGE.load(Ordering::Relaxed) {
         // Explorer has rebuilt its AppBar list. A primary-monitor DPI change
         // can send the same broadcast, so re-register in either case.
-        MAIN_APPBAR_REGISTERED.store(false, Ordering::Relaxed);
         DOCK_APPBAR_REGISTERED.store(false, Ordering::Relaxed);
         if let Some(app_handle) = DISPLAY_MONITOR_HANDLE.get() {
             let ah = app_handle.clone();
@@ -4609,8 +4473,8 @@ mod tests {
 
     use super::{
         is_helper_name, is_launchable_entry, is_primary_monitor, is_start_menu_process_path,
-        notch_mode_reserves_work_area, pack_cursor, process_exe_name, trim_thumbnail_cache,
-        unpack_cursor, win_number_index,
+        notch_always_visible, pack_cursor, process_exe_name, trim_thumbnail_cache, unpack_cursor,
+        win_number_index,
     };
 
     #[test]
@@ -4672,13 +4536,13 @@ mod tests {
 
     #[test]
     fn only_fixed_notch_mode_reserves_the_work_area() {
-        assert!(notch_mode_reserves_work_area(Some("fixed")));
-        assert!(!notch_mode_reserves_work_area(Some("smart")));
-        assert!(!notch_mode_reserves_work_area(Some("peek")));
+        assert!(notch_always_visible(Some("fixed")));
+        assert!(!notch_always_visible(Some("smart")));
+        assert!(!notch_always_visible(Some("peek")));
         // Legacy alias for smart
-        assert!(!notch_mode_reserves_work_area(Some("auto-hide")));
+        assert!(!notch_always_visible(Some("auto-hide")));
         // Unset defaults to fixed, matching SETTINGS.md
-        assert!(notch_mode_reserves_work_area(None));
+        assert!(notch_always_visible(None));
     }
 
     #[test]
