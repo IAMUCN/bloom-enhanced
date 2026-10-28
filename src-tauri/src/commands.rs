@@ -3100,6 +3100,134 @@ pub async fn close_window(hwnd: isize) {
     .unwrap_or_default();
 }
 
+/// Processes that host the shell or windows of unrelated apps. End Task never
+/// terminates them: it would take down the desktop or every app they host.
+fn is_shared_host(path: &str) -> bool {
+    std::path::Path::new(path).file_name().is_some_and(|name| {
+        let name = name.to_string_lossy();
+        name.eq_ignore_ascii_case("explorer.exe")
+            || name.eq_ignore_ascii_case("ApplicationFrameHost.exe")
+    })
+}
+
+/// The process behind a window. A UWP app's visible window is a frame owned by
+/// ApplicationFrameHost; the app itself runs in the process of a child window.
+/// ponytail: a minimized UWP app detaches that child, so the frame resolves to
+/// ApplicationFrameHost and End Task refuses; matching the app by its AUMID
+/// across top-level CoreWindows would lift that.
+unsafe fn window_app_pid(hwnd: HWND) -> u32 {
+    use windows::Win32::UI::WindowsAndMessaging::{
+        EnumChildWindows, GetClassNameW, GetWindowThreadProcessId,
+    };
+    let mut pid = 0u32;
+    GetWindowThreadProcessId(hwnd, Some(&mut pid));
+    let mut class = [0u16; 64];
+    let len = GetClassNameW(hwnd, &mut class) as usize;
+    if String::from_utf16_lossy(&class[..len]) != "ApplicationFrameWindow" {
+        return pid;
+    }
+    unsafe extern "system" fn find_app(child: HWND, param: LPARAM) -> windows::core::BOOL {
+        let found = &mut *(param.0 as *mut (u32, u32));
+        let mut pid = 0u32;
+        GetWindowThreadProcessId(child, Some(&mut pid));
+        if pid != 0 && pid != found.0 {
+            found.1 = pid;
+            return false.into();
+        }
+        true.into()
+    }
+    let mut found = (pid, pid);
+    let _ = EnumChildWindows(
+        Some(hwnd),
+        Some(find_app),
+        LPARAM(&mut found as *mut (u32, u32) as isize),
+    );
+    found.1
+}
+
+#[derive(serde::Serialize)]
+pub struct TaskProcess {
+    pid: u32,
+    name: String,
+}
+
+/// The processes End Task would terminate for these windows, or why it won't.
+fn end_task_targets(hwnds: &[isize]) -> Result<Vec<TaskProcess>, String> {
+    let mut targets: Vec<TaskProcess> = Vec::new();
+    for &hwnd in hwnds {
+        let pid = unsafe { window_app_pid(HWND(hwnd as *mut _)) };
+        if pid == 0 || targets.iter().any(|t| t.pid == pid) {
+            continue;
+        }
+        if pid == std::process::id() {
+            return Err("Bloom can't end its own task. Quit it from the tray menu.".into());
+        }
+        let path = unsafe { process_image_path(pid) }
+            .ok_or("This app runs with higher privileges, so Bloom can't end it.")?;
+        let name = std::path::Path::new(&path)
+            .file_name()
+            .map(|n| n.to_string_lossy().into_owned())
+            .unwrap_or(path.clone());
+        if is_shared_host(&path) {
+            return Err(format!(
+                "{name} also runs Windows or other apps, so Bloom won't end it. Close the window instead."
+            ));
+        }
+        targets.push(TaskProcess { pid, name });
+    }
+    if targets.is_empty() {
+        return Err("This app has no window left to end.".into());
+    }
+    Ok(targets)
+}
+
+/// What End Task would terminate, for the confirmation prompt.
+#[tauri::command]
+pub async fn end_task_preview(hwnds: Vec<isize>) -> Result<Vec<TaskProcess>, String> {
+    tauri::async_runtime::spawn_blocking(move || end_task_targets(&hwnds))
+        .await
+        .map_err(|e| e.to_string())?
+}
+
+/// Force-terminates the processes behind `hwnds`, but only those the user
+/// confirmed (`pids`): targets are recomputed now, so a window that closed or a
+/// process id reused since the prompt is never terminated by mistake.
+fn end_tasks(hwnds: &[isize], pids: &[u32]) -> Result<(), String> {
+    use windows::Win32::Foundation::CloseHandle;
+    use windows::Win32::System::Threading::{OpenProcess, TerminateProcess, PROCESS_TERMINATE};
+    let mut failed = Vec::new();
+    for target in end_task_targets(hwnds)?
+        .into_iter()
+        .filter(|t| pids.contains(&t.pid))
+    {
+        let ended = unsafe {
+            OpenProcess(PROCESS_TERMINATE, false, target.pid).is_ok_and(|handle| {
+                let ended = TerminateProcess(handle, 1).is_ok();
+                let _ = CloseHandle(handle);
+                ended
+            })
+        };
+        if !ended {
+            failed.push(target.name);
+        }
+    }
+    if failed.is_empty() {
+        Ok(())
+    } else {
+        Err(format!(
+            "Couldn't end {}. It may be running as administrator.",
+            failed.join(", ")
+        ))
+    }
+}
+
+#[tauri::command]
+pub async fn end_task(hwnds: Vec<isize>, pids: Vec<u32>) -> Result<(), String> {
+    tauri::async_runtime::spawn_blocking(move || end_tasks(&hwnds, &pids))
+        .await
+        .map_err(|e| e.to_string())?
+}
+
 /// Show or remove the notch after `bloom-notch-enabled` changes. A hidden notch
 /// also drops its AppBar (see `set_main_appbar_reservation`).
 fn apply_notch_enabled(app: &AppHandle) {
@@ -4441,4 +4569,93 @@ pub async fn activate_tray_icon(tray_id: String) -> Result<(), String> {
     tauri::async_runtime::spawn_blocking(move || crate::tray::interact(&tray_id, false))
         .await
         .map_err(|e| e.to_string())?
+}
+
+#[cfg(test)]
+mod end_task_tests {
+    use super::{end_task_targets, end_tasks, is_shared_host};
+    use windows::Win32::Foundation::{HWND, LPARAM, WPARAM};
+    use windows::Win32::UI::WindowsAndMessaging::{
+        EnumWindows, GetClassNameW, GetWindowTextW, IsWindow, IsWindowVisible, PostMessageW,
+        WM_CLOSE,
+    };
+
+    /// The newest visible top-level window with this class and title prefix.
+    fn find_window(class: &str, title: &str) -> Option<isize> {
+        let mut found: (String, String, Option<isize>) = (class.into(), title.into(), None);
+        unsafe extern "system" fn visit(hwnd: HWND, param: LPARAM) -> windows::core::BOOL {
+            let found = &mut *(param.0 as *mut (String, String, Option<isize>));
+            let mut buf = [0u16; 256];
+            let len = GetClassNameW(hwnd, &mut buf) as usize;
+            let class = String::from_utf16_lossy(&buf[..len]);
+            let len = GetWindowTextW(hwnd, &mut buf) as usize;
+            let title = String::from_utf16_lossy(&buf[..len]);
+            if IsWindowVisible(hwnd).as_bool() && class == found.0 && title.starts_with(&found.1) {
+                found.2 = Some(hwnd.0 as isize);
+                return false.into();
+            }
+            true.into()
+        }
+        unsafe {
+            let _ = EnumWindows(Some(visit), LPARAM(&mut found as *mut _ as isize));
+        }
+        found.2
+    }
+
+    fn wait_for_window(class: &str, title: &str) -> isize {
+        for _ in 0..40 {
+            if let Some(hwnd) = find_window(class, title) {
+                return hwnd;
+            }
+            std::thread::sleep(std::time::Duration::from_millis(250));
+        }
+        panic!("no {class} window titled {title}");
+    }
+
+    #[test]
+    #[ignore = "opens and ends Calculator and opens a File Explorer window"]
+    fn live_end_task() {
+        // A UWP app ends through its own process, not ApplicationFrameHost.
+        // Both launchers hand off to the real app and exit.
+        std::process::Command::new("calc.exe").status().unwrap();
+        let calc = wait_for_window("ApplicationFrameWindow", "Calculator");
+        // The app's content window joins its frame shortly after the frame shows.
+        std::thread::sleep(std::time::Duration::from_secs(2));
+        let targets = end_task_targets(&[calc]).unwrap();
+        let names: Vec<_> = targets.iter().map(|t| t.name.as_str()).collect();
+        println!("Calculator targets: {names:?}");
+        assert!(names
+            .iter()
+            .all(|n| !n.eq_ignore_ascii_case("ApplicationFrameHost.exe")));
+        let pids: Vec<u32> = targets.iter().map(|t| t.pid).collect();
+        end_tasks(&[calc], &pids).unwrap();
+        std::thread::sleep(std::time::Duration::from_secs(2));
+        assert!(find_window("ApplicationFrameWindow", "Calculator").is_none());
+
+        // File Explorer is the shell: refused, then closed normally.
+        std::process::Command::new("explorer.exe")
+            .arg(std::env::temp_dir())
+            .status()
+            .unwrap();
+        let folder = wait_for_window("CabinetWClass", "");
+        let refused = end_task_targets(&[folder]).err().unwrap();
+        println!("File Explorer: {refused}");
+        assert!(refused.contains("explorer.exe"));
+        unsafe {
+            let _ = PostMessageW(Some(HWND(folder as *mut _)), WM_CLOSE, WPARAM(0), LPARAM(0));
+            std::thread::sleep(std::time::Duration::from_secs(1));
+            assert!(!IsWindow(Some(HWND(folder as *mut _))).as_bool());
+        }
+    }
+
+    #[test]
+    fn never_ends_the_shell_or_shared_app_hosts() {
+        assert!(is_shared_host(r"C:\Windows\explorer.exe"));
+        assert!(is_shared_host(
+            r"C:\Windows\System32\ApplicationFrameHost.exe"
+        ));
+        assert!(is_shared_host(r"C:\WINDOWS\EXPLORER.EXE"));
+        assert!(!is_shared_host(r"C:\Program Files\App\notepad.exe"));
+        assert!(!is_shared_host(r"C:\Tools\explorer-plus.exe"));
+    }
 }

@@ -106,6 +106,9 @@ export function isSameApp(a: AppInfo, b: AppInfo): boolean {
 	return normExe(aExe) === normExe(bExe);
 }
 
+const windowHandles = (app: AppInfo): number[] =>
+	app.all_hwnds?.map(([hwnd]) => hwnd) ?? (app.hwnd ? [app.hwnd] : []);
+
 const fileOf = (p: string) =>
 	(p.split("/").pop()?.split("\\").pop()?.toLowerCase() || "").replace(/\.lnk$/, "");
 
@@ -756,6 +759,24 @@ const Dock = memo(function Dock() {
 
 	const menuRef = useRef<HTMLDivElement>(null);
 	const popupRef = useRef<HTMLDivElement>(null);
+
+	// Force-quits the app after confirmation. Closing asks the app politely;
+	// this does not, so the prompt names exactly which processes end.
+	const endTask = async (app: AppInfo) => {
+		closeMenu();
+		const hwnds = windowHandles(app);
+		try {
+			const targets = await invoke<{ pid: number; name: string }[]>("end_task_preview", { hwnds });
+			const { ask } = await import("@tauri-apps/plugin-dialog");
+			const confirmed = await ask(
+				`End ${app.name} (${targets.map((t) => t.name).join(", ")})? It closes immediately and any unsaved work in it is lost.`,
+				{ title: "End Task", kind: "warning", okLabel: "End Task", cancelLabel: "Cancel" }
+			);
+			if (confirmed) await invoke("end_task", { hwnds, pids: targets.map((t) => t.pid) });
+		} catch (error) {
+			showActionError(error);
+		}
+	};
 
 	const showActionError = (error: unknown) => {
 		if (toastTimerRef.current) clearTimeout(toastTimerRef.current);
@@ -1990,21 +2011,32 @@ const Dock = memo(function Dock() {
 										<div className="menu-divider" />
 									)}
 									<div
-										className="menu-item quit"
+										className="menu-item"
 										onClick={async () => {
-											// Close every window of the item, like the taskbar's
-											// "Close all windows", not just the first one.
+											// The most recently used window; all_hwnds is newest first.
 											const app = contextMenu.app;
-											const hwnds =
-												app?.all_hwnds?.map(([hwnd]) => hwnd) ?? (app?.hwnd ? [app.hwnd] : []);
-											await Promise.all(hwnds.map((hwnd) => invoke("close_window", { hwnd })));
+											const hwnd = app?.all_hwnds?.[0]?.[0] ?? app?.hwnd;
+											if (hwnd) await invoke("close_window", { hwnd });
 											closeMenu();
 										}}
 									>
-										Close{" "}
-										{contextMenu.app.all_hwnds && contextMenu.app.all_hwnds.length > 1
-											? "all windows"
-											: "window"}
+										Close Window
+									</div>
+									{contextMenu.app.all_hwnds && contextMenu.app.all_hwnds.length > 1 && (
+										<div
+											className="menu-item"
+											onClick={async () => {
+												// Every window of the item, like the taskbar's "Close all windows".
+												const hwnds = windowHandles(contextMenu.app!);
+												await Promise.all(hwnds.map((hwnd) => invoke("close_window", { hwnd })));
+												closeMenu();
+											}}
+										>
+											Close All Windows
+										</div>
+									)}
+									<div className="menu-item quit" onClick={() => endTask(contextMenu.app!)}>
+										End Task
 									</div>
 								</>
 							)}
