@@ -47,9 +47,9 @@ describe("dock tray lifecycle", () => {
 			hwnd: 33,
 			all_hwnds: [[33, "Steam"]] as [number, string][]
 		};
-		const selected = selectDockTrayApps([helper], [steam], new Set(), () => false);
-		expect(selected.visible).toEqual([steam]);
-		expect(mergeTrayApps([helper], selected.visible)).toMatchObject([
+		const visible = selectDockTrayApps([helper], [steam], () => false);
+		expect(visible).toEqual([steam]);
+		expect(mergeTrayApps([helper], visible)).toMatchObject([
 			{ path: helper.path, tray_ids: ["42"], is_background: false }
 		]);
 	});
@@ -64,30 +64,54 @@ describe("dock tray lifecycle", () => {
 		expect(mergeTrayApps([browserWindow], [browserTray])).toHaveLength(2);
 	});
 	test("does not show every tray app when the dock starts", () => {
-		const selected = selectDockTrayApps([], [tray], new Set(), () => false);
-		expect(selected.visible).toEqual([]);
-		expect(selected.observed.size).toBe(0);
+		expect(selectDockTrayApps([], [tray], () => false)).toEqual([]);
 	});
-	test("shows an unpinned app only after its window was observed, then forgets it on exit", () => {
-		const opened = selectDockTrayApps([windowApp], [tray], new Set(), () => false);
-		expect(opened.visible).toEqual([tray]);
-		const background = selectDockTrayApps([], [tray], opened.observed, () => false);
-		expect(mergeTrayApps([], background.visible)[0].is_background).toBe(true);
-		const exited = selectDockTrayApps([], [], background.observed, () => false);
-		expect(exited.observed.size).toBe(0);
-		expect(selectDockTrayApps([], [tray], exited.observed, () => false).visible).toEqual([]);
+	// Quick Look keeps its process and tray icon alive after the preview closes.
+	const quickLookTray: TrayApp = {
+		name: "QuickLook",
+		path: "C:\\Program Files\\WindowsApps\\QuickLook\\QuickLook.exe",
+		tray_ids: ["7"],
+		window_handles: [70, 71]
+	};
+	const quickLookPreview: AppInfo = {
+		name: "QuickLook",
+		path: quickLookTray.path,
+		icon: null,
+		is_running: true,
+		hwnd: 71,
+		all_hwnds: [[71, "QuickLook - photo.png"]]
+	};
+	const dock = (windows: AppInfo[], isPinned = () => false) =>
+		mergeTrayApps(windows, selectDockTrayApps(windows, [quickLookTray], isPinned));
+	test("shows Quick Look as a normal window while its preview is open", () => {
+		expect(dock([quickLookPreview])).toMatchObject([
+			{ path: quickLookTray.path, is_background: false, tray_ids: ["7"] }
+		]);
+	});
+	test("removes unpinned Quick Look when the preview closes but its tray icon remains", () => {
+		dock([quickLookPreview]);
+		expect(dock([])).toEqual([]);
+	});
+	test("removes an unpinned app closed to the tray", () => {
+		expect(selectDockTrayApps([windowApp], [tray], () => false)).toEqual([tray]);
+		expect(mergeTrayApps([], selectDockTrayApps([], [tray], () => false))).toEqual([]);
+	});
+	test("keeps pinned Quick Look as a background dot, never as an open window", () => {
+		const apps = dock([], () => true);
+		expect(apps).toHaveLength(1);
+		expect(apps[0]).toMatchObject({ is_running: true, is_background: true, all_hwnds: [] });
+		expect(apps[0].hwnd).toBeUndefined();
 	});
 	test("shows a pinned app's background dot immediately at startup", () => {
-		const selected = selectDockTrayApps([], [tray], new Set(), (app) => app.path === tray.path);
-		expect(mergeTrayApps([], selected.visible)[0]).toMatchObject({
+		const visible = selectDockTrayApps([], [tray], (app) => app.path === tray.path);
+		expect(mergeTrayApps([], visible)[0]).toMatchObject({
 			is_background: true,
 			tray_ids: ["42"]
 		});
-		expect(selected.observed.size).toBe(0);
 	});
 	test("does not treat an unrelated same-name window as opening the tray app", () => {
 		const other = { ...windowApp, hwnd: 99, all_hwnds: [[99, "Discord"]] as [number, string][] };
-		expect(selectDockTrayApps([other], [tray], new Set(), () => false).visible).toEqual([]);
+		expect(selectDockTrayApps([other], [tray], () => false)).toEqual([]);
 	});
 	test("keeps a zero-window app running with exactly the tray identity", () => {
 		const apps = mergeTrayApps([], [tray]);
@@ -168,8 +192,7 @@ describe("packaged executable identity", () => {
 			all_hwnds: [[55, pin.name]] as [number, string][]
 		};
 		const icon = { ...tray, ...executable, window_handles: [] };
-		const selected = selectDockTrayApps([window], [icon], new Set(), () => false);
-		expect(selected.visible).toEqual([icon]);
+		expect(selectDockTrayApps([window], [icon], () => false)).toEqual([icon]);
 		expect(mergeTrayApps([window], [icon])).toMatchObject([
 			{ path: pin.path, tray_ids: icon.tray_ids }
 		]);

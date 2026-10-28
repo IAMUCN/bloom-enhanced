@@ -218,7 +218,6 @@ const Dock = memo(function Dock() {
 	} | null>(null);
 	const [activeSubmenu, setActiveSubmenu] = useState<string | null>(null);
 	const [activeOrder, setActiveOrder] = useState<string[]>([]);
-	const observedTrayPathsRef = useRef(new Set<string>());
 	const [isDragging, setIsDragging] = useState(false);
 	const [hoveredApp, setHoveredApp] = useState<string | null>(null);
 	const [pressedApp, setPressedApp] = useState<string | null>(null);
@@ -537,7 +536,7 @@ const Dock = memo(function Dock() {
 			// Ignore responses that arrive out of order: an older poll must never
 			// overwrite a newer state, which would resurrect closed apps.
 			if (stopped || seq !== pollSeq) return;
-			const selected = selectDockTrayApps(windows, tray, observedTrayPathsRef.current, (app) =>
+			const visibleTray = selectDockTrayApps(windows, tray, (app) =>
 				pinnedApps.some((pinned) =>
 					isSameApp(pinned, {
 						name: app.name,
@@ -548,8 +547,7 @@ const Dock = memo(function Dock() {
 					})
 				)
 			);
-			observedTrayPathsRef.current = selected.observed;
-			const running = mergeTrayApps(windows, selected.visible);
+			const running = mergeTrayApps(windows, visibleTray);
 			setActiveApps((prev) => (sameRunningApps(prev, running) ? prev : running));
 
 			setActiveOrder((prev) => {

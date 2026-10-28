@@ -1,9 +1,9 @@
 # Dock background apps and system actions
 
-An unpinned app remains in the dock after its last window closes only if Bloom
-observed that app with a window during the current session and it still has a
-live notification icon. Other tray-only apps do not fill the dock. Pinned apps
-show a grey dot from startup when they are already active in the tray. Windowed
+An unpinned app leaves the dock when its last visible window closes, even if
+its process keeps a live notification icon (Quick Look, apps closed to the
+tray). Tray-only apps never fill the dock. Pinned apps stay and show a grey
+"Running in background" dot whenever they are active only in the tray. Windowed
 apps retain their normal window dots and previews.
 Running unpinned apps appear to the right of the pinned group. Settings > Dock >
 App Separator controls the thin theme-aware divider; it is on by default and
@@ -72,9 +72,14 @@ Manual acceptance checks (required before merging):
 1. On Bloom startup, unrelated tray-only apps stay out of the dock; pinned apps
    already active in the tray show a grey dot.
 2. Start an unpinned Discord with one window: one normal dot, no duplicate entry.
-3. Close Discord to the tray: one grey dot, no window thumbnail.
-4. Right-click its dock icon: Discord's own menu appears and its actions work.
-5. Click the background icon: Discord responds through its tray default action.
+3. Close Discord to the tray: the unpinned icon disappears. Pin Discord and
+   close it to the tray again: one grey dot, no window thumbnail.
+4. Right-click the pinned background icon: Discord's own menu appears and its
+   actions work.
+5. Click the pinned background icon: Discord responds through its tray default
+   action.
+   Preview an image with Quick Look from File Explorer and close the preview:
+   the unpinned Quick Look icon disappears.
 6. Quit Discord through its native menu: unpinned icon disappears; pinned dot clears
    within the 10-second safety poll.
 7. Repeat with an icon in overflow, a promoted icon, and an app with multiple icons.
