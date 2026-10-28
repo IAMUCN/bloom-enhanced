@@ -1279,19 +1279,30 @@ pub fn get_setting_str(_app: &tauri::AppHandle, key: &str) -> Option<String> {
     guard.get(key)?.as_str().map(|s| s.to_string())
 }
 
-fn dock_setting_enabled(value: Option<&serde_json::Value>) -> bool {
+fn module_setting_enabled(value: Option<&serde_json::Value>) -> bool {
     value.is_none_or(|value| value.as_str() == Some("true"))
 }
 
-/// An absent setting uses the fresh-install default; any explicit value other
-/// than the string "true" leaves Windows' taskbar in charge.
-pub fn dock_enabled() -> bool {
+/// A module switch: an absent setting uses the fresh-install default (on); any
+/// explicit value other than the string "true" turns the module off.
+fn module_enabled(key: &str) -> bool {
     crate::state::SETTINGS_CACHE.get().is_none_or(|cache| {
         cache
             .lock()
-            .map(|settings| dock_setting_enabled(settings.get("bloom-dock-enabled")))
+            .map(|settings| module_setting_enabled(settings.get(key)))
             .unwrap_or(false)
     })
+}
+
+/// Off leaves Windows' taskbar in charge.
+pub fn dock_enabled() -> bool {
+    module_enabled("bloom-dock-enabled")
+}
+
+/// Off hides the notch window, releases its reserved strip and stops its
+/// hover and edge interactions (the mouse hook skips a hidden notch).
+pub fn notch_enabled() -> bool {
+    module_enabled("bloom-notch-enabled")
 }
 
 /// Makes a window click-through or not by its WS_EX_TRANSPARENT bit alone,
@@ -1845,12 +1856,12 @@ mod tests {
 
     #[test]
     fn dock_setting_defaults_on_but_rejects_explicit_invalid_values() {
-        use super::dock_setting_enabled;
+        use super::module_setting_enabled;
 
-        assert!(dock_setting_enabled(None));
-        assert!(dock_setting_enabled(Some(&serde_json::json!("true"))));
-        assert!(!dock_setting_enabled(Some(&serde_json::json!("false"))));
-        assert!(!dock_setting_enabled(Some(&serde_json::json!("invalid"))));
-        assert!(!dock_setting_enabled(Some(&serde_json::json!(true))));
+        assert!(module_setting_enabled(None));
+        assert!(module_setting_enabled(Some(&serde_json::json!("true"))));
+        assert!(!module_setting_enabled(Some(&serde_json::json!("false"))));
+        assert!(!module_setting_enabled(Some(&serde_json::json!("invalid"))));
+        assert!(!module_setting_enabled(Some(&serde_json::json!(true))));
     }
 }

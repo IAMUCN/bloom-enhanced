@@ -211,6 +211,8 @@ function SettingsApp() {
 					)}
 					{activeTab === "notch" && (
 						<NotchTab
+							notchEnabled={settings.notchEnabled}
+							toggleNotch={settings.toggleNotch}
 							notchMode={settings.notchMode}
 							setNotchModeValue={settings.setNotchModeValue}
 							notchEdgeDelay={settings.notchEdgeDelay}

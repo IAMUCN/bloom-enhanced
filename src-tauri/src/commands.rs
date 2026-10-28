@@ -464,7 +464,9 @@ pub async fn change_notch_mode(app: AppHandle, mode: String) {
         if mode == "fixed" {
             crate::services::apply_main_appbar_mode(&app, true);
         } else {
-            let _ = main_win.show();
+            if crate::utils::notch_enabled() {
+                let _ = main_win.show();
+            }
             // Locked helper so a concurrent display/power event cannot
             // interleave between the mode decision and the AppBar call.
             crate::services::apply_main_appbar_mode(&app, false);
@@ -3098,6 +3100,17 @@ pub async fn close_window(hwnd: isize) {
     .unwrap_or_default();
 }
 
+/// Show or remove the notch after `bloom-notch-enabled` changes. A hidden notch
+/// also drops its AppBar (see `set_main_appbar_reservation`).
+fn apply_notch_enabled(app: &AppHandle) {
+    if crate::utils::notch_enabled() {
+        if let Some(main_win) = app.get_webview_window("main") {
+            let _ = main_win.show();
+        }
+    }
+    crate::services::reconcile_main_appbar(app);
+}
+
 fn re_register_appbars(app: &AppHandle, settings: &HashMap<String, serde_json::Value>) {
     // Reconcile the notch from the live mode: a scale change alters the
     // reserved strip height, and peek/smart must never hold a reservation.
@@ -3138,6 +3151,9 @@ pub fn save_setting(app: AppHandle, key: String, value: serde_json::Value) -> Re
         serde_json::json!({ "key": &key, "value": &settings[&key] }),
     );
 
+    if key == "bloom-notch-enabled" {
+        apply_notch_enabled(&app);
+    }
     if crate::utils::SCALE_KEYS.contains(&key.as_str()) {
         re_register_appbars(&app, &settings);
     }
@@ -3816,7 +3832,10 @@ fn apply_imported_settings(app: &AppHandle, settings: &str) -> Result<(), String
         );
     }
 
-    if crate::utils::SCALE_KEYS.iter().any(|key| imported.contains_key(*key)) {
+    if crate::utils::SCALE_KEYS
+        .iter()
+        .any(|key| imported.contains_key(*key))
+    {
         re_register_appbars(app, &imported);
     }
 
@@ -3972,11 +3991,19 @@ pub fn setup_settings_watcher(app: AppHandle) {
                             serde_json::json!({ "key": key, "value": value }),
                         );
                     }
-                    for key in removed {
+                    for key in &removed {
                         let _ = app.emit(
                             "settings-external-changed",
                             serde_json::json!({ "key": key, "value": null }),
                         );
+                    }
+                    if changed
+                        .iter()
+                        .map(|(key, _)| key)
+                        .chain(&removed)
+                        .any(|key| key == "bloom-notch-enabled")
+                    {
+                        apply_notch_enabled(&app);
                     }
                 }
             }

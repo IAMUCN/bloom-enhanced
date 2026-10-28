@@ -2306,7 +2306,9 @@ fn apply_capture_ui_state(app: &AppHandle, active: bool) {
             }
             let _ = main_win.hide();
         } else {
-            let _ = main_win.show();
+            if crate::utils::notch_enabled() {
+                let _ = main_win.show();
+            }
             reconcile_main_appbar(app);
         }
     }
@@ -3686,6 +3688,14 @@ fn lock_main_appbar() -> std::sync::MutexGuard<'static, ()> {
 /// Apply a reservation decision to the main window. Callers must hold
 /// `MAIN_APPBAR_LOCK`.
 fn set_main_appbar_reservation(main_win: tauri::WebviewWindow, reserve: bool) {
+    if !crate::utils::notch_enabled() {
+        let _ = main_win.hide();
+        if let Ok(hwnd) = main_win.hwnd() {
+            unregister_appbar_native(hwnd);
+        }
+        MAIN_APPBAR_REGISTERED.store(false, Ordering::Relaxed);
+        return;
+    }
     if reserve {
         register_appbar(main_win);
     } else if let Ok(hwnd) = main_win.hwnd() {

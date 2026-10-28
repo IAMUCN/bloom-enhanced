@@ -43,6 +43,7 @@ Edit `settings.json` with any text editor while Bloom is running. Changes are ap
 
 | Key                      | Type                             | Default   | Description                                                                                                                    |
 | ------------------------ | -------------------------------- | --------- | ------------------------------------------------------------------------------------------------------------------------------ |
+| `bloom-notch-enabled`    | `"true"` / `"false"`             | `"true"`  | Show the notch at all. `"false"` hides its window, releases its reserved top strip and stops its hover/edge interactions. Settings stay reachable from the tray menu. |
 | `bloom-notch-mode`       | `"fixed"` / `"smart"` / `"peek"` | `"fixed"` | Notch (top bar) visibility behavior. Same modes as dock. **peek** shows the notch briefly on media events and notifications.   |
 | `bloom-notch-edge-delay` | milliseconds `"0"`–`"2000"`      | `"200"`   | In smart/peek mode, how long the cursor must rest against the top screen edge before the notch peeks. `"0"` reveals instantly. |
 | `bloom-notch-style`      | `"notch"` / `"pill"` / `"minimal"` | `"notch"` | Idle look. **notch** = attached to the top edge with flares. **pill** = floating capsule below the edge. **minimal** = thin bar while idle; content shows on hover, music, or alerts. |

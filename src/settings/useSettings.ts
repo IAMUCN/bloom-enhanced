@@ -45,6 +45,7 @@ export function useSettings() {
 	const saveFailed = useRef(false);
 	const [autostart, setAutostart] = useState(false);
 	const [weatherEnabled, setWeatherEnabled] = useState(true);
+	const [notchEnabled, setNotchEnabled] = useState(true);
 	const [calendarEnabled, setCalendarEnabled] = useState(true);
 	const [controlsPanelEnabled, setControlsPanelEnabled] = useState(true);
 	const [devicesPanelEnabled, setDevicesPanelEnabled] = useState(false);
@@ -223,6 +224,7 @@ export function useSettings() {
 			};
 
 			apply(getVal("bloom-weather-enabled"), setWeatherEnabled, readBool);
+			apply(getVal("bloom-notch-enabled"), setNotchEnabled, readBool);
 			apply(getVal("bloom-calendar-enabled"), setCalendarEnabled, readBool);
 			apply(getVal("bloom-notch-command-center-enabled"), setControlsPanelEnabled, readBool);
 			apply(getVal("bloom-notch-devices-enabled"), setDevicesPanelEnabled, readBool);
@@ -403,6 +405,7 @@ export function useSettings() {
 		"bloom-dock-extras-folders": setDockExtrasFolders,
 		"bloom-dock-extras-custom-folders": setDockExtrasCustomFolders,
 		"bloom-weather-enabled": setWeatherEnabled,
+		"bloom-notch-enabled": setNotchEnabled,
 		"bloom-calendar-enabled": setCalendarEnabled,
 		"bloom-notch-command-center-enabled": setControlsPanelEnabled,
 		"bloom-notch-devices-enabled": setDevicesPanelEnabled,
@@ -569,6 +572,12 @@ export function useSettings() {
 	// The notch needs at least one panel, so the last one on can't be turned off.
 	const enabledPanelCount =
 		Number(calendarEnabled) + Number(controlsPanelEnabled) + Number(devicesPanelEnabled);
+
+	const toggleNotch = () => {
+		const next = !notchEnabled;
+		setNotchEnabled(next);
+		saveSetting("bloom-notch-enabled", String(next));
+	};
 
 	const toggleCalendar = () => {
 		const next = !calendarEnabled;
@@ -1047,6 +1056,8 @@ export function useSettings() {
 		setNotchModeValue,
 		notchEdgeDelay,
 		handleNotchEdgeDelayChange,
+		notchEnabled,
+		toggleNotch,
 		calendarEnabled,
 		toggleCalendar,
 		controlsPanelEnabled,
