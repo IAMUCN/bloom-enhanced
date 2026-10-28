@@ -66,6 +66,13 @@ img {
 	transition: --notch-bg 0.3s ease;
 }
 
+/* Minimal notch style while idle: only the bar shows; its content returns when
+   the bar grows on hover or for a live activity. Visibility, not opacity: the
+   children's opacity is animated inline by Framer Motion. */
+.bloom.minimal-idle > :not(.edge-surface) {
+	visibility: hidden;
+}
+
 .bloom.expanded {
 	--notch-bg: var(--bloom-bg-expanded, rgba(0, 0, 0, 0.92));
 }

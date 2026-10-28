@@ -15,7 +15,13 @@ import {
 	DEFAULT_ENABLED_FOLDERS
 } from "../dockExtras";
 import type { WidgetConfig } from "./types";
-import { parsePanelScales, type PanelScales, type SizedPanel } from "../notchPanelScale";
+import {
+	asNotchStyle,
+	parsePanelScales,
+	type NotchStyle,
+	type PanelScales,
+	type SizedPanel
+} from "../notchLayout";
 
 function readBool(val: string | null): boolean {
 	return val === "true";
@@ -169,6 +175,9 @@ export function useSettings() {
 	const [notchPanelScales, setNotchPanelScales] = useState<PanelScales>(() =>
 		parsePanelScales(localStorage.getItem("bloom-notch-panel-scales"))
 	);
+	const [notchStyle, setNotchStyle] = useState<NotchStyle>(() =>
+		asNotchStyle(localStorage.getItem("bloom-notch-style"))
+	);
 	const [themeMode, setThemeMode] = useState(
 		() => localStorage.getItem("bloom-theme-mode") || "dark"
 	);
@@ -254,6 +263,7 @@ export function useSettings() {
 			apply(getVal("bloom-dock-scale"), setDockScaleOwn, parseFloat);
 			apply(getVal("bloom-notch-scale"), setNotchScaleOwn, parseFloat);
 			apply(getVal("bloom-notch-panel-scales"), setNotchPanelScales, parsePanelScales);
+			apply(getVal("bloom-notch-style"), setNotchStyle, asNotchStyle);
 			apply(getVal("bloom-low-battery-threshold"), setLowBatteryThreshold, parseInt);
 
 			apply(getVal("bloom-notch-mode"), setNotchMode, (v) => (v === "auto-hide" ? "smart" : v));
@@ -413,6 +423,7 @@ export function useSettings() {
 		"bloom-dock-scale": setDockScaleOwn,
 		"bloom-notch-scale": setNotchScaleOwn,
 		"bloom-notch-panel-scales": (v) => setNotchPanelScales(parsePanelScales(v)),
+		"bloom-notch-style": (v) => setNotchStyle(asNotchStyle(v)),
 		"bloom-temp-unit": (v) => setTempUnitFahrenheit(v === "fahrenheit"),
 		"bloom-auto-update": setAutoUpdate,
 		"bloom-volume-overlay-enabled": setVolumeOverlayEnabled,
@@ -827,6 +838,11 @@ export function useSettings() {
 		saveSetting("bloom-notch-scale", val.toString());
 	};
 
+	const handleNotchStyleChange = (style: NotchStyle) => {
+		setNotchStyle(style);
+		saveSetting("bloom-notch-style", style);
+	};
+
 	const handlePanelScaleChange = (panel: SizedPanel, val: number) => {
 		const next = { ...notchPanelScales, [panel]: val };
 		setNotchPanelScales(next);
@@ -1009,6 +1025,8 @@ export function useSettings() {
 		handleNotchScaleChange,
 		notchPanelScales,
 		handlePanelScaleChange,
+		notchStyle,
+		handleNotchStyleChange,
 		cornersEnabled,
 		toggleCorners,
 

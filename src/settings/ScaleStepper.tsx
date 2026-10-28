@@ -1,4 +1,4 @@
-import { MAX_SCALE, MIN_SCALE } from "../notchPanelScale";
+import { MAX_SCALE, MIN_SCALE } from "../notchLayout";
 
 const step = (value: number, delta: number) =>
 	Math.min(MAX_SCALE, Math.max(MIN_SCALE, parseFloat((value + delta).toFixed(1))));

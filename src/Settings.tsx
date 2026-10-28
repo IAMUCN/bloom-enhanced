@@ -257,6 +257,8 @@ function SettingsApp() {
 							handleNotchScaleChange={settings.handleNotchScaleChange}
 							notchPanelScales={settings.notchPanelScales}
 							handlePanelScaleChange={settings.handlePanelScaleChange}
+							notchStyle={settings.notchStyle}
+							handleNotchStyleChange={settings.handleNotchStyleChange}
 						/>
 					)}
 					{activeTab === "dock" && (

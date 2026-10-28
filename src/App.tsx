@@ -12,7 +12,12 @@ import {
 	notchPillBox,
 	type RegionRect
 } from "./windowRegion";
-import { parsePanelScales, type PanelScales, type SizedPanel } from "./notchPanelScale";
+import {
+	asNotchStyle,
+	parsePanelScales,
+	type PanelScales,
+	type SizedPanel
+} from "./notchLayout";
 import "./App.css";
 import { initTheme } from "./theme";
 import {
@@ -640,6 +645,9 @@ function App() {
 	const [notchPanelScales, setNotchPanelScales] = useState<PanelScales>(() =>
 		parsePanelScales(localStorage.getItem("bloom-notch-panel-scales"))
 	);
+	const [notchStyle, setNotchStyle] = useState(() =>
+		asNotchStyle(localStorage.getItem("bloom-notch-style"))
+	);
 	const [timeFormat24h, setTimeFormat24h] = useState(
 		() => localStorage.getItem("bloom-time-format-24h") === "true"
 	);
@@ -1216,6 +1224,7 @@ function App() {
 				const notchScaleVal = getVal("bloom-notch-scale");
 				if (notchScaleVal !== null) setNotchScale(parseFloat(notchScaleVal));
 				setNotchPanelScales(parsePanelScales(getVal("bloom-notch-panel-scales")));
+				setNotchStyle(asNotchStyle(getVal("bloom-notch-style")));
 
 				const widgetsVal = getVal("bloom-status-widgets");
 				if (widgetsVal) {
@@ -1294,6 +1303,7 @@ function App() {
 			"bloom-scale": setGlobalScale,
 			"bloom-notch-scale": setNotchScale,
 			"bloom-notch-panel-scales": (v: unknown) => setNotchPanelScales(parsePanelScales(v)),
+			"bloom-notch-style": (v: unknown) => setNotchStyle(asNotchStyle(v)),
 			"bloom-low-battery-threshold": setLowBatteryThreshold,
 			"bloom-dock-enabled": setDockEnabled,
 			"bloom-dock-mode": setDockMode,
@@ -3053,6 +3063,20 @@ function App() {
 					: null;
 	const pillZoom =
 		scale * (sizedPanel && isExpanded && isVisible && !isHidden ? (notchPanelScales[sizedPanel] ?? 1) : 1);
+
+	// Notch style (Settings > Notch > Style). "pill" floats below the edge
+	// with no flares; "minimal" shrinks the idle notch to a thin bar that shows
+	// its content again on hover or when a live activity or alert appears.
+	const attachedToEdge = isImpacted && notchStyle !== "pill";
+	const minimalIdle =
+		notchStyle === "minimal" &&
+		bloomMode === "status" &&
+		!isHovered &&
+		!isOpen &&
+		!isMusicMode &&
+		!showPowerPulse &&
+		!showLowBatteryPulse &&
+		!showUpdatePulse;
 	// A media session remains reachable on hover after its activity fades, or
 	// whenever the compact music display is disabled.
 	const showMusicOnStatusHover =
@@ -3065,6 +3089,7 @@ function App() {
 
 	// Calculate width dynamically based on enabled features
 	const getDynamicWidth = () => {
+		if (minimalIdle) return 72;
 		if (bloomMode === "announcement" && announcement && !announcementDismissed) return 380;
 		if (bloomMode === "device" && deviceAlert) return 330;
 		if (isCalendarMode) return 480;
@@ -3094,6 +3119,7 @@ function App() {
 		if (!isExpanded || !isVisible || isHidden) {
 			return isImpacted ? 28.9 : 44.2;
 		}
+		if (minimalIdle) return 8;
 		// Announcement card: body is line-clamped, so a fixed size fits both cases.
 		if (bloomMode === "announcement" && announcement && !announcementDismissed) {
 			return announcement.url ? 168 : 148;
@@ -3142,7 +3168,15 @@ function App() {
 	// The pill's target geometry: the animation springs toward it, and the
 	// window region below is cut from it, so the region is already at the
 	// final size while the pill animates.
-	const pillTargetY = !isReady ? 250 : isVisible ? (isHidden ? -100 : 0) : -150;
+	const pillTargetY = !isReady
+		? 250
+		: isVisible
+			? isHidden
+				? -100
+				: notchStyle === "pill"
+					? 6
+					: 0
+			: -150;
 	const pillTargetWidth = !isReady
 		? 34
 		: isExpanded && isVisible && !isHidden
@@ -3202,7 +3236,7 @@ function App() {
 				<DeviceArtDefs />
 				<motion.div
 					ref={bloomRef}
-					className={`bloom ${isHovered ? "expanded" : ""} ${isImpacted ? "is-impacted" : ""} ${isDragHovering ? "drag-hover" : ""}`}
+					className={`bloom ${isHovered ? "expanded" : ""} ${isImpacted ? "is-impacted" : ""} ${minimalIdle ? "minimal-idle" : ""} ${isDragHovering ? "drag-hover" : ""}`}
 					onMouseEnter={() => setIsNotchHovered(true)}
 					onMouseLeave={() => setIsNotchHovered(false)}
 					onWheel={handleWheel}
@@ -3225,10 +3259,10 @@ function App() {
 						opacity: isVisible ? 1 : 0,
 						scaleX: 1,
 						scaleY: 1,
-						borderTopLeftRadius: isImpacted ? 0 : 18,
-						borderTopRightRadius: isImpacted ? 0 : 18,
-						borderBottomLeftRadius: isCalendarMode ? 28 : 18,
-						borderBottomRightRadius: isCalendarMode ? 28 : 18,
+						borderTopLeftRadius: attachedToEdge ? 0 : 18,
+						borderTopRightRadius: attachedToEdge ? 0 : 18,
+						borderBottomLeftRadius: minimalIdle ? 4 : isCalendarMode ? 28 : 18,
+						borderBottomRightRadius: minimalIdle ? 4 : isCalendarMode ? 28 : 18,
 						filter: isVisible ? "blur(0px)" : "blur(8px)",
 						pointerEvents: isVisible ? "auto" : "none"
 					}}
@@ -3256,7 +3290,7 @@ function App() {
 						default: { type: "spring", stiffness: 500, damping: 30, mass: 1 }
 					}}
 				>
-					<EdgeSurface edge="top" flares={isImpacted} />
+					<EdgeSurface edge="top" flares={attachedToEdge} />
 					<AnimatePresence>
 						{isMusicMode && settingsAmbienceEnabled && albumArtUrl && isOpen && !isCalendarMode && (
 							<motion.div

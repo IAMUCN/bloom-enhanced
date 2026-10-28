@@ -17,7 +17,13 @@ import {
 } from "lucide-react";
 import { SettingRow } from "./SettingRow";
 import { ScaleStepper } from "./ScaleStepper";
-import { SIZED_PANELS, type PanelScales, type SizedPanel } from "../notchPanelScale";
+import {
+	NOTCH_STYLES,
+	SIZED_PANELS,
+	type NotchStyle,
+	type PanelScales,
+	type SizedPanel
+} from "../notchLayout";
 import { StatusWidgetConfig } from "../components/StatusWidgetConfig";
 import type { WidgetConfig } from "./types";
 import type { NotchPanelChoice } from "./useSettings";
@@ -81,6 +87,8 @@ interface NotchTabProps {
 	handleNotchScaleChange: (val: number) => void;
 	notchPanelScales: PanelScales;
 	handlePanelScaleChange: (panel: SizedPanel, val: number) => void;
+	notchStyle: NotchStyle;
+	handleNotchStyleChange: (style: NotchStyle) => void;
 }
 
 export function NotchTab({
@@ -129,7 +137,9 @@ export function NotchTab({
 	notchScale,
 	handleNotchScaleChange,
 	notchPanelScales,
-	handlePanelScaleChange
+	handlePanelScaleChange,
+	notchStyle,
+	handleNotchStyleChange
 }: NotchTabProps) {
 	const panelOn: Record<NotchPanelChoice, boolean> = {
 		calendar: calendarEnabled,
@@ -179,6 +189,30 @@ export function NotchTab({
 						/>
 					</SettingRow>
 				)}
+
+				<SettingRow
+					icon={PanelTop}
+					label="Style"
+					desc={
+						notchStyle === "pill"
+							? "Floating capsule below the screen edge"
+							: notchStyle === "minimal"
+								? "Thin bar until hovered or something is playing"
+								: "Attached to the top edge"
+					}
+				>
+					<select
+						className="settings-select"
+						value={notchStyle}
+						onChange={(e) => handleNotchStyleChange(e.target.value as NotchStyle)}
+					>
+						{NOTCH_STYLES.map(([style, label]) => (
+							<option key={style} value={style}>
+								{label}
+							</option>
+						))}
+					</select>
+				</SettingRow>
 
 				<SettingRow icon={Maximize2} label="Notch Size" desc="Size of the notch only; the dock keeps its own">
 					<ScaleStepper value={notchScale} onChange={handleNotchScaleChange} label="notch size" />

@@ -1,5 +1,5 @@
 import { expect, test } from "bun:test";
-import { parsePanelScales } from "../src/notchPanelScale";
+import { parsePanelScales } from "../src/notchLayout";
 
 test("reads each panel's own scale", () => {
 	expect(parsePanelScales('{"calendar":1.2,"music":0.9}')).toEqual({ calendar: 1.2, music: 0.9 });
