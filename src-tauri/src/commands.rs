@@ -872,7 +872,25 @@ pub async fn get_active_windows() -> Vec<AppInfo> {
             None
         };
 
-        let mut result_apps: Vec<AppInfo> = grouped.into_values().collect();
+        // Launch order, like the taskbar: the earliest-started process behind
+        // each app's windows. HashMap order would reshuffle the dock's running
+        // apps every time Bloom starts. Apps sharing one process (web apps of
+        // one browser) fall back to their key, which keeps them stable.
+        let mut launched: Vec<(u64, String, AppInfo)> = grouped
+            .into_iter()
+            .map(|(key, app)| {
+                let started = app
+                    .all_hwnds
+                    .iter()
+                    .flatten()
+                    .map(|(hwnd, _)| unsafe { window_process_started(HWND(*hwnd as *mut _)) })
+                    .min()
+                    .unwrap_or(u64::MAX);
+                (started, key, app)
+            })
+            .collect();
+        launched.sort_by(|a, b| (a.0, &a.1).cmp(&(b.0, &b.1)));
+        let mut result_apps: Vec<AppInfo> = launched.into_iter().map(|(_, _, app)| app).collect();
 
         for app in &mut result_apps {
             if let Some(ref mut hwnds) = app.all_hwnds {
@@ -3101,6 +3119,35 @@ fn is_shared_host(path: &str) -> bool {
         name.eq_ignore_ascii_case("explorer.exe")
             || name.eq_ignore_ascii_case("ApplicationFrameHost.exe")
     })
+}
+
+/// When the process behind a window started (FILETIME ticks), or u64::MAX if
+/// it can't be read, which sorts such apps last.
+unsafe fn window_process_started(hwnd: HWND) -> u64 {
+    use windows::Win32::Foundation::{CloseHandle, FILETIME};
+    use windows::Win32::System::Threading::{
+        GetProcessTimes, OpenProcess, PROCESS_QUERY_LIMITED_INFORMATION,
+    };
+    let Ok(process) = OpenProcess(
+        PROCESS_QUERY_LIMITED_INFORMATION,
+        false,
+        window_app_pid(hwnd),
+    ) else {
+        return u64::MAX;
+    };
+    let (mut created, mut exited, mut kernel, mut user) = (
+        FILETIME::default(),
+        FILETIME::default(),
+        FILETIME::default(),
+        FILETIME::default(),
+    );
+    let read = GetProcessTimes(process, &mut created, &mut exited, &mut kernel, &mut user).is_ok();
+    let _ = CloseHandle(process);
+    if read {
+        ((created.dwHighDateTime as u64) << 32) | created.dwLowDateTime as u64
+    } else {
+        u64::MAX
+    }
 }
 
 /// The process behind a window. A UWP app's visible window is a frame owned by
