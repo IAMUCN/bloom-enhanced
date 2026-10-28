@@ -373,7 +373,11 @@ unsafe extern "system" fn window_change_event_proc(
         }
         let mut pid = 0u32;
         GetWindowThreadProcessId(hwnd, Some(&mut pid));
-        if pid == std::process::id() {
+        // Bloom's own windows are not apps, except Settings: the dock must
+        // drop its icon as soon as Settings closes.
+        if pid == std::process::id()
+            && hwnd.0 as isize != crate::state::SETTINGS_HWND.load(Ordering::Relaxed)
+        {
             return;
         }
     }

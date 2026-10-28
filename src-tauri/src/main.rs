@@ -408,6 +408,9 @@ fn main() {
                 {
                     let _ = window_vibrancy::apply_mica(&settings_win, None);
                 }
+                if let Ok(hwnd) = settings_win.hwnd() {
+                    SETTINGS_HWND.store(hwnd.0 as isize, Ordering::Relaxed);
+                }
                 let win_clone = settings_win.clone();
                 settings_win.on_window_event(move |event| {
                     if let tauri::WindowEvent::CloseRequested { api, .. } = event {

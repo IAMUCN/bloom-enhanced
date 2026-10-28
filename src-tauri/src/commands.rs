@@ -1062,6 +1062,13 @@ fn last_focused_window() -> Option<HWND> {
 
 #[tauri::command]
 pub async fn focus_window(app: AppHandle, hwnd: isize) -> bool {
+    // Show Settings through tauri: a raw ShowWindow would leave tao believing
+    // the window is hidden, and its close button and WM_CLOSE (which only call
+    // hide()) would then do nothing.
+    if hwnd == SETTINGS_HWND.load(Ordering::Relaxed) {
+        open_settings_window(app);
+        return true;
+    }
     let dock = app
         .get_webview_window("dock")
         .and_then(|window| window.hwnd().ok())
