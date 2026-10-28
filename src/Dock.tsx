@@ -233,9 +233,15 @@ const Dock = memo(function Dock() {
 	const [popupBottom, setPopupBottom] = useState(56);
 	const pinnedItemsRef = useRef<AppInfo[]>([]);
 	const handleAppClickRef = useRef<(app: AppInfo) => void>(() => {});
-	const [scale, setScale] = useState(() =>
+	const [globalScale, setGlobalScale] = useState(() =>
 		parseFloat(localStorage.getItem("bloom-scale") || "1.0")
 	);
+	// The dock's own size; until it is set the dock follows the global scale.
+	const [dockScale, setDockScale] = useState<number | null>(() => {
+		const value = localStorage.getItem("bloom-dock-scale");
+		return value ? parseFloat(value) : null;
+	});
+	const scale = dockScale ?? globalScale;
 	const [viewportWidth, setViewportWidth] = useState(() => window.innerWidth);
 
 	useEffect(() => {
@@ -409,7 +415,9 @@ const Dock = memo(function Dock() {
 			if (extrasPosition) setDockExtrasPosition(extrasPosition);
 
 			const scaleVal = getVal("bloom-scale");
-			if (scaleVal !== null) setScale(parseFloat(scaleVal));
+			if (scaleVal !== null) setGlobalScale(parseFloat(scaleVal));
+			const dockScaleVal = getVal("bloom-dock-scale");
+			if (dockScaleVal !== null) setDockScale(parseFloat(dockScaleVal));
 
 			const pinned = await invoke<AppInfo[]>("load_pinned_apps");
 			setPinnedApps(pinned.map((a) => ({ ...a, is_pinned: true })));
@@ -478,7 +486,8 @@ const Dock = memo(function Dock() {
 		"bloom-dock-adaptive": setDockAdaptive,
 		"bloom-dock-task-view": setDockTaskView,
 		"bloom-start-icon": setStartIcon,
-		"bloom-scale": setScale,
+		"bloom-scale": setGlobalScale,
+		"bloom-dock-scale": setDockScale,
 		"bloom-dock-extras-position": setDockExtrasPosition,
 		"bloom-dock-extras-drives": () => setDockExtrasRevision((r) => r + 1),
 		"bloom-dock-extras-recycle-bin": () => setDockExtrasRevision((r) => r + 1),

@@ -15,6 +15,7 @@ import {
 	DEFAULT_ENABLED_FOLDERS
 } from "../dockExtras";
 import type { WidgetConfig } from "./types";
+import { parsePanelScales, type PanelScales, type SizedPanel } from "../notchPanelScale";
 
 function readBool(val: string | null): boolean {
 	return val === "true";
@@ -156,6 +157,18 @@ export function useSettings() {
 	const [scale, setScale] = useState(() =>
 		parseFloat(localStorage.getItem("bloom-scale") || "1.0")
 	);
+	// The dock's and notch's own sizes; null until set, meaning "follow scale".
+	const [dockScaleOwn, setDockScaleOwn] = useState<number | null>(() => {
+		const value = localStorage.getItem("bloom-dock-scale");
+		return value ? parseFloat(value) : null;
+	});
+	const [notchScaleOwn, setNotchScaleOwn] = useState<number | null>(() => {
+		const value = localStorage.getItem("bloom-notch-scale");
+		return value ? parseFloat(value) : null;
+	});
+	const [notchPanelScales, setNotchPanelScales] = useState<PanelScales>(() =>
+		parsePanelScales(localStorage.getItem("bloom-notch-panel-scales"))
+	);
 	const [themeMode, setThemeMode] = useState(
 		() => localStorage.getItem("bloom-theme-mode") || "dark"
 	);
@@ -238,6 +251,9 @@ export function useSettings() {
 
 			apply(getVal("bloom-temp-unit"), setTempUnitFahrenheit, (v) => v === "fahrenheit");
 			apply(getVal("bloom-scale"), setScale, parseFloat);
+			apply(getVal("bloom-dock-scale"), setDockScaleOwn, parseFloat);
+			apply(getVal("bloom-notch-scale"), setNotchScaleOwn, parseFloat);
+			apply(getVal("bloom-notch-panel-scales"), setNotchPanelScales, parsePanelScales);
 			apply(getVal("bloom-low-battery-threshold"), setLowBatteryThreshold, parseInt);
 
 			apply(getVal("bloom-notch-mode"), setNotchMode, (v) => (v === "auto-hide" ? "smart" : v));
@@ -394,6 +410,9 @@ export function useSettings() {
 		"bloom-time-format-24h": setTimeFormat24h,
 		"bloom-low-battery-threshold": setLowBatteryThreshold,
 		"bloom-scale": setScale,
+		"bloom-dock-scale": setDockScaleOwn,
+		"bloom-notch-scale": setNotchScaleOwn,
+		"bloom-notch-panel-scales": (v) => setNotchPanelScales(parsePanelScales(v)),
 		"bloom-temp-unit": (v) => setTempUnitFahrenheit(v === "fahrenheit"),
 		"bloom-auto-update": setAutoUpdate,
 		"bloom-volume-overlay-enabled": setVolumeOverlayEnabled,
@@ -798,6 +817,22 @@ export function useSettings() {
 		saveSetting("bloom-scale", val.toString());
 	};
 
+	const handleDockScaleChange = (val: number) => {
+		setDockScaleOwn(val);
+		saveSetting("bloom-dock-scale", val.toString());
+	};
+
+	const handleNotchScaleChange = (val: number) => {
+		setNotchScaleOwn(val);
+		saveSetting("bloom-notch-scale", val.toString());
+	};
+
+	const handlePanelScaleChange = (panel: SizedPanel, val: number) => {
+		const next = { ...notchPanelScales, [panel]: val };
+		setNotchPanelScales(next);
+		saveSetting("bloom-notch-panel-scales", JSON.stringify(next));
+	};
+
 	const handleWidgetsChange = (config: WidgetConfig) => {
 		setStatusWidgets(config);
 		saveSetting("bloom-status-widgets", JSON.stringify(config));
@@ -968,6 +1003,12 @@ export function useSettings() {
 		toggleUpdateIndicator,
 		scale,
 		handleScaleChange,
+		dockScale: dockScaleOwn ?? scale,
+		handleDockScaleChange,
+		notchScale: notchScaleOwn ?? scale,
+		handleNotchScaleChange,
+		notchPanelScales,
+		handlePanelScaleChange,
 		cornersEnabled,
 		toggleCorners,
 

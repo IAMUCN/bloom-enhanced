@@ -21,6 +21,7 @@ import {
 	X
 } from "lucide-react";
 import { SettingRow } from "./SettingRow";
+import { ScaleStepper } from "./ScaleStepper";
 import {
 	KNOWN_FOLDER_OPTIONS,
 	driveLetter,
@@ -135,6 +136,8 @@ interface DockTabProps {
 	handleRemoveDockExtraFolder: (path: string) => void;
 	startIcon: string;
 	handleStartIconChange: (icon: string) => void;
+	dockScale: number;
+	handleDockScaleChange: (val: number) => void;
 }
 
 export function DockTab({
@@ -170,7 +173,9 @@ export function DockTab({
 	handleAddDockExtraFolder,
 	handleRemoveDockExtraFolder,
 	startIcon,
-	handleStartIconChange
+	handleStartIconChange,
+	dockScale,
+	handleDockScaleChange
 }: DockTabProps) {
 	const handleStartIconUpload = (e: ChangeEvent<HTMLInputElement>) => {
 		const file = e.target.files?.[0];
@@ -233,6 +238,10 @@ export function DockTab({
 								/>
 							</SettingRow>
 						)}
+
+						<SettingRow icon={Maximize2} label="Dock Size" desc="Size of the dock only; the notch keeps its own">
+							<ScaleStepper value={dockScale} onChange={handleDockScaleChange} label="dock size" />
+						</SettingRow>
 
 						<SettingRow icon={Eye} label="Show App Previews" desc="Show window thumbnails on hover">
 							<label className="toggle-switch">

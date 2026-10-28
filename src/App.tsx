@@ -12,6 +12,7 @@ import {
 	notchPillBox,
 	type RegionRect
 } from "./windowRegion";
+import { parsePanelScales, type PanelScales, type SizedPanel } from "./notchPanelScale";
 import "./App.css";
 import { initTheme } from "./theme";
 import {
@@ -627,8 +628,17 @@ function App() {
 	const isOpenRef = useRef(false);
 	isOpenRef.current = isOpen;
 	const [isReady, setIsReady] = useState(false);
-	const [scale, setScale] = useState(() =>
+	const [globalScale, setGlobalScale] = useState(() =>
 		parseFloat(localStorage.getItem("bloom-scale") || "1.0")
+	);
+	// The notch's own size; until it is set the notch follows the global scale.
+	const [notchScale, setNotchScale] = useState<number | null>(() => {
+		const value = localStorage.getItem("bloom-notch-scale");
+		return value ? parseFloat(value) : null;
+	});
+	const scale = notchScale ?? globalScale;
+	const [notchPanelScales, setNotchPanelScales] = useState<PanelScales>(() =>
+		parsePanelScales(localStorage.getItem("bloom-notch-panel-scales"))
 	);
 	const [timeFormat24h, setTimeFormat24h] = useState(
 		() => localStorage.getItem("bloom-time-format-24h") === "true"
@@ -1202,7 +1212,10 @@ function App() {
 				}
 
 				const scaleVal = getVal("bloom-scale");
-				if (scaleVal !== null) setScale(parseFloat(scaleVal));
+				if (scaleVal !== null) setGlobalScale(parseFloat(scaleVal));
+				const notchScaleVal = getVal("bloom-notch-scale");
+				if (notchScaleVal !== null) setNotchScale(parseFloat(notchScaleVal));
+				setNotchPanelScales(parsePanelScales(getVal("bloom-notch-panel-scales")));
 
 				const widgetsVal = getVal("bloom-status-widgets");
 				if (widgetsVal) {
@@ -1278,7 +1291,9 @@ function App() {
 			"bloom-media-compact-glow-enabled": setSettingsCompactGlowEnabled,
 			"bloom-media-layout": setMediaLayout,
 			"bloom-corners-enabled": setSettingsCornersEnabled,
-			"bloom-scale": setScale,
+			"bloom-scale": setGlobalScale,
+			"bloom-notch-scale": setNotchScale,
+			"bloom-notch-panel-scales": (v: unknown) => setNotchPanelScales(parsePanelScales(v)),
 			"bloom-low-battery-threshold": setLowBatteryThreshold,
 			"bloom-dock-enabled": setDockEnabled,
 			"bloom-dock-mode": setDockMode,
@@ -3024,6 +3039,20 @@ function App() {
 
 	// Music mode shows any time we have media info (playing or paused) and music mode setting is enabled
 	const isMusicMode = mediaInfo.has_media && bloomMode === "music" && settingsMusicModeEnabled;
+
+	// Each panel has its own size (Settings > Notch > Panel Sizes). While one
+	// is showing, the whole notch is zoomed by it, so the panel's layout scales
+	// as a unit and the other panels keep their sizes.
+	const sizedPanel: SizedPanel | null =
+		bloomMode === "calendar" || bloomMode === "devices" || bloomMode === "shelf"
+			? bloomMode
+			: bloomMode === "command-center" || bloomMode === "wifi" || bloomMode === "bluetooth"
+				? "command-center"
+				: isMusicMode && isOpen
+					? "music"
+					: null;
+	const pillZoom =
+		scale * (sizedPanel && isExpanded && isVisible && !isHidden ? (notchPanelScales[sizedPanel] ?? 1) : 1);
 	// A media session remains reachable on hover after its activity fades, or
 	// whenever the compact music display is disabled.
 	const showMusicOnStatusHover =
@@ -3125,7 +3154,7 @@ function App() {
 	// Shadow and the edge flares beside the pill.
 	pillTargetRef.current = notchPillBox(
 		window.innerWidth,
-		scale,
+		pillZoom,
 		pillTargetY,
 		pillTargetWidth,
 		pillTargetHeight,
@@ -3163,7 +3192,7 @@ function App() {
 
 			<div
 				style={{
-					zoom: scale,
+					zoom: pillZoom,
 					width: "100%",
 					display: "flex",
 					justifyContent: "center",

@@ -3566,7 +3566,7 @@ pub fn register_appbar(window: tauri::WebviewWindow) {
         let m_pos = monitor.position();
         let hwnd = window.hwnd().unwrap();
         let scale = monitor.scale_factor();
-        let bloom_scale = crate::utils::get_bloom_scale(window.app_handle());
+        let bloom_scale = crate::utils::get_surface_scale(window.app_handle(), "bloom-notch-scale");
         let ph = ((420.0 * bloom_scale) * scale) as i32;
         let pr = ((40.0 * bloom_scale) * scale) as i32; // Scale the reserved top screen space
 
@@ -3760,7 +3760,7 @@ fn register_dock_appbar_inner(window: tauri::WebviewWindow, attempt: i32) {
             return;
         };
         let scale = monitor.scale_factor();
-        let bloom_scale = crate::utils::get_bloom_scale(window.app_handle());
+        let bloom_scale = crate::utils::get_surface_scale(window.app_handle(), "bloom-dock-scale");
 
         // ph = full physical window height. outer_size() can return 0 before the
         // window has rendered. Never guess a value — bail and let the retry wrapper handle it.

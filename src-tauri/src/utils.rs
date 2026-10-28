@@ -1261,6 +1261,17 @@ pub fn get_bloom_scale(_app: &tauri::AppHandle) -> f64 {
         .unwrap_or(1.0)
 }
 
+/// Settings keys that change a reserved AppBar strip when they change.
+pub const SCALE_KEYS: [&str; 3] = ["bloom-scale", "bloom-dock-scale", "bloom-notch-scale"];
+
+/// The dock's or notch's own scale (`bloom-dock-scale` / `bloom-notch-scale`),
+/// falling back to the global `bloom-scale` until that surface has been sized.
+pub fn get_surface_scale(app: &tauri::AppHandle, key: &str) -> f64 {
+    get_setting_str(app, key)
+        .and_then(|s| s.parse::<f64>().ok())
+        .unwrap_or_else(|| get_bloom_scale(app))
+}
+
 /// Read any string value from the settings cache. Returns None if the key is absent.
 pub fn get_setting_str(_app: &tauri::AppHandle, key: &str) -> Option<String> {
     let cache = crate::state::SETTINGS_CACHE.get()?;

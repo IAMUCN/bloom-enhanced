@@ -12,9 +12,12 @@ import {
 	Archive,
 	Headphones,
 	SlidersHorizontal,
+	Maximize2,
 	X
 } from "lucide-react";
 import { SettingRow } from "./SettingRow";
+import { ScaleStepper } from "./ScaleStepper";
+import { SIZED_PANELS, type PanelScales, type SizedPanel } from "../notchPanelScale";
 import { StatusWidgetConfig } from "../components/StatusWidgetConfig";
 import type { WidgetConfig } from "./types";
 import type { NotchPanelChoice } from "./useSettings";
@@ -74,6 +77,10 @@ interface NotchTabProps {
 	handleCityClear: () => void;
 	statusWidgets: WidgetConfig;
 	handleWidgetsChange: (config: WidgetConfig) => void;
+	notchScale: number;
+	handleNotchScaleChange: (val: number) => void;
+	notchPanelScales: PanelScales;
+	handlePanelScaleChange: (panel: SizedPanel, val: number) => void;
 }
 
 export function NotchTab({
@@ -118,7 +125,11 @@ export function NotchTab({
 	selectCity,
 	handleCityClear,
 	statusWidgets,
-	handleWidgetsChange
+	handleWidgetsChange,
+	notchScale,
+	handleNotchScaleChange,
+	notchPanelScales,
+	handlePanelScaleChange
 }: NotchTabProps) {
 	const panelOn: Record<NotchPanelChoice, boolean> = {
 		calendar: calendarEnabled,
@@ -169,6 +180,9 @@ export function NotchTab({
 					</SettingRow>
 				)}
 
+				<SettingRow icon={Maximize2} label="Notch Size" desc="Size of the notch only; the dock keeps its own">
+					<ScaleStepper value={notchScale} onChange={handleNotchScaleChange} label="notch size" />
+				</SettingRow>
 			</div>
 
 			<div className="setting-group-label">Panels</div>
@@ -341,6 +355,25 @@ export function NotchTab({
 						<span className="slider"></span>
 					</label>
 				</SettingRow>
+			</div>
+
+			<div className="setting-group-label">Panel Sizes</div>
+			<div className="setting-group">
+				{SIZED_PANELS.map(([panel, label], index) => (
+					<SettingRow
+						key={panel}
+						icon={Maximize2}
+						label={label}
+						desc="Resizes this panel only"
+						divider={index < SIZED_PANELS.length - 1}
+					>
+						<ScaleStepper
+							value={notchPanelScales[panel] ?? 1}
+							onChange={(val) => handlePanelScaleChange(panel, val)}
+							label={`${label} size`}
+						/>
+					</SettingRow>
+				))}
 			</div>
 
 			<div className="setting-group-label">Weather</div>

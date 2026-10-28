@@ -1,5 +1,6 @@
 import { Palette, Droplet, Contrast, Droplets, Sun, Square, Maximize2 } from "lucide-react";
 import { SettingRow } from "./SettingRow";
+import { ScaleStepper } from "./ScaleStepper";
 
 interface AppearanceTabProps {
 	themeMode: string;
@@ -139,28 +140,10 @@ export function AppearanceTab({
 				<SettingRow
 					icon={Maximize2}
 					label="UI & Font Scale"
-					desc={`Adjust desktop size (${Math.round(scale * 100)}%)`}
+					desc="Settings and overlays; also the dock and notch until they get their own size"
 					divider={false}
 				>
-					<div className="scale-button-container">
-						<button
-							onClick={() => handleScaleChange(Math.max(0.8, parseFloat((scale - 0.1).toFixed(1))))}
-							disabled={scale <= 0.8}
-							className="scale-adjust-btn"
-							title="Decrease Scale"
-						>
-							—
-						</button>
-						<span className="scale-display-value">{Math.round(scale * 100)}%</span>
-						<button
-							onClick={() => handleScaleChange(Math.min(1.3, parseFloat((scale + 0.1).toFixed(1))))}
-							disabled={scale >= 1.3}
-							className="scale-adjust-btn"
-							title="Increase Scale"
-						>
-							+
-						</button>
-					</div>
+					<ScaleStepper value={scale} onChange={handleScaleChange} label="Scale" />
 				</SettingRow>
 			</div>
 		</>

@@ -253,6 +253,10 @@ function SettingsApp() {
 							handleCityClear={settings.handleCityClear}
 							statusWidgets={settings.statusWidgets}
 							handleWidgetsChange={settings.handleWidgetsChange}
+							notchScale={settings.notchScale}
+							handleNotchScaleChange={settings.handleNotchScaleChange}
+							notchPanelScales={settings.notchPanelScales}
+							handlePanelScaleChange={settings.handlePanelScaleChange}
 						/>
 					)}
 					{activeTab === "dock" && (
@@ -290,6 +294,8 @@ function SettingsApp() {
 							handleRemoveDockExtraFolder={settings.handleRemoveDockExtraFolder}
 							startIcon={settings.startIcon}
 							handleStartIconChange={settings.handleStartIconChange}
+							dockScale={settings.dockScale}
+							handleDockScaleChange={settings.handleDockScaleChange}
 						/>
 					)}
 					{activeTab === "overlays" && (
