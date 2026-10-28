@@ -234,7 +234,7 @@ const Dock = memo(function Dock() {
 	const toastTimerRef = useRef<any>(null);
 	const dockRef = useRef<HTMLDivElement>(null);
 	const [popupBottom, setPopupBottom] = useState(56);
-	const pinnedItemsRef = useRef<AppInfo[]>([]);
+	const winNumberItemsRef = useRef<AppInfo[]>([]);
 	const handleAppClickRef = useRef<(app: AppInfo) => void>(() => {});
 	const [globalScale, setGlobalScale] = useState(() =>
 		parseFloat(localStorage.getItem("bloom-scale") || "1.0")
@@ -1110,15 +1110,17 @@ const Dock = memo(function Dock() {
 
 	// Latest state for the Win+Number listener, which subscribes only once.
 	useEffect(() => {
-		pinnedItemsRef.current = pinnedItems;
+		// Win+N counts dock icons as shown, like the taskbar: pinned apps, then
+		// running unpinned ones. Start is not numbered.
+		winNumberItemsRef.current = [...pinnedItems, ...unpinnedItems];
 		handleAppClickRef.current = handleAppClick;
 	});
 
 	useEffect(() => {
 		// The backend claims Win+1-9 while the native taskbar is hidden and reports
-		// which pinned slot was pressed; behaviour matches a click on that icon.
+		// which slot was pressed; behaviour matches a click on that icon.
 		const unlisten = listen<number>("dock-win-number", (event) => {
-			const app = pinnedItemsRef.current[event.payload];
+			const app = winNumberItemsRef.current[event.payload];
 			if (app) handleAppClickRef.current(app);
 		});
 		return () => {

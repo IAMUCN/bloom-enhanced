@@ -282,7 +282,7 @@ export function DockTab({
 						<SettingRow
 							icon={Keyboard}
 							label="Win+Number Shortcuts"
-							desc="Open pinned apps with Win+1 through Win+9"
+							desc="Open dock apps with Win+1 through Win+9, in dock order"
 							divider={dockMode === "fixed"}
 						>
 							<label className="toggle-switch">
