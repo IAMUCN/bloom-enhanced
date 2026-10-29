@@ -160,6 +160,7 @@ fn main() {
             clipboard::clipboard_delete_many,
             clipboard::clipboard_set_note,
             clipboard::clipboard_group,
+            clipboard::clipboard_take_out,
             clipboard::clipboard_drag_text,
             shelf_prune,
             shelf_open,

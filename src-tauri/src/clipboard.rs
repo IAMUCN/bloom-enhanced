@@ -1210,6 +1210,45 @@ pub fn clipboard_group(app: AppHandle, ids: Vec<String>) {
     }
 }
 
+/// Takes one file out of a file group and returns it as its own item, placed
+/// right after the group. A group left with one file stays a one-file item.
+pub fn take_out(history: &mut Vec<ClipItem>, id: &str, path: &str) -> Option<ClipItem> {
+    let pos = history
+        .iter()
+        .position(|it| it.id == id && it.kind == ClipKind::Files)?;
+    let group = &mut history[pos];
+    let at = group.paths.iter().position(|p| p == path)?;
+    if group.paths.len() < 2 {
+        return None;
+    }
+    group.paths.remove(at);
+    let item = ClipItem {
+        id: new_id(),
+        paths: vec![path.to_string()],
+        hits: 1,
+        pinned: false,
+        note: None,
+        ..group.clone()
+    };
+    history.insert(pos + 1, item.clone());
+    Some(item)
+}
+
+/// Removes one file from a group: kept as its own item, or deleted.
+#[tauri::command]
+pub fn clipboard_take_out(app: AppHandle, id: String, path: String, delete: bool) {
+    let mut history = HISTORY.lock().unwrap();
+    let Some(item) = take_out(&mut history, &id, &path) else {
+        return;
+    };
+    if delete {
+        history.retain(|it| it.id != item.id);
+        commit(&app, &history, &[item]);
+    } else {
+        commit(&app, &history, &[]);
+    }
+}
+
 /// Drags text out of the shelf into another app (the drag plugin only drags
 /// files). Runs the OLE drag loop on the main thread while the button is held.
 #[tauri::command]
@@ -1404,6 +1443,28 @@ mod tests {
             Some("<b>hi</b>")
         );
         assert_eq!(cf_html_fragment(b"no header"), None);
+    }
+
+    #[test]
+    fn takes_one_file_out_of_a_group() {
+        let mut g = text("g", "", 1);
+        g.kind = ClipKind::Files;
+        g.text = None;
+        g.paths = vec!["a".into(), "b".into(), "c".into()];
+        g.pinned = true;
+        let mut h = vec![g, text("t", "x", 1)];
+        let out = take_out(&mut h, "g", "b").unwrap();
+        assert_eq!(h[0].paths, ["a", "c"]);
+        assert_eq!(h[1].id, out.id);
+        assert_eq!(h[1].paths, ["b"]);
+        assert!(!h[1].pinned);
+        assert!(take_out(&mut h, "g", "zz").is_none());
+        take_out(&mut h, "g", "a").unwrap();
+        assert!(
+            take_out(&mut h, "g", "c").is_none(),
+            "a one-file group stays"
+        );
+        assert_eq!(h.len(), 4);
     }
 
     #[test]

@@ -50,6 +50,8 @@ import { deviceLookFor } from "./devices/deviceLooks";
 import type { BudLevel, BudsBattery } from "./devices/connectedDevices";
 import { ConnectedDevicesPanel } from "./components/ConnectedDevicesPanel";
 import { ClipboardPanel } from "./components/ClipboardPanel";
+import { useClipboardSettings } from "./hooks/useClipboardSettings";
+import { clipSounds } from "./clipboardSounds";
 import { releaseTextKeyboard, useTextInputKeyboard } from "./hooks/useTextInputKeyboard";
 import { useConnectedDevices } from "./hooks/useConnectedDevices";
 import { isWiredAudio, usbArtFor, usbDisplayName, type UsbIdentity } from "./devices/usbArtFor";
@@ -913,7 +915,7 @@ function App() {
 	const isHidden =
 		!startupAnimating &&
 		!deviceAlertOnScreen &&
-		((notchMode === "smart" && isOverlapped && interactionState === "none") ||
+		((notchMode === "smart" && isOverlapped && interactionState === "none" && !eventPeek) ||
 			(notchMode === "peek" && interactionState === "none" && !eventPeek));
 
 	useEffect(() => {
@@ -1101,26 +1103,30 @@ function App() {
 	const clipboardInNotch = settingsClipboardEnabled && clipboardPosition === "notch";
 	const clipboardInNotchRef = useRef(clipboardInNotch);
 	clipboardInNotchRef.current = clipboardInNotch;
-	// A short "Copied" pulse in the notch whenever the history captures something.
+	// A short "Copied" pulse in the notch (and the copy sound) whenever the
+	// history captures something.
+	const clipOptions = useClipboardSettings();
 	const [clipboardCopyIndicator, setClipboardCopyIndicator] = useState(
 		() => localStorage.getItem("bloom-clipboard-copy-indicator") !== "false"
 	);
 	const [showCopyPulse, setShowCopyPulse] = useState(false);
 	useEffect(() => {
-		if (windowLabel !== "main" || !settingsClipboardEnabled || !clipboardCopyIndicator) return;
+		if (windowLabel !== "main" || !settingsClipboardEnabled) return;
 		let timer: ReturnType<typeof setTimeout> | undefined;
 		const unlisten = listen("clipboard-captured", () => {
+			if (clipOptions.sounds) clipSounds.copy();
+			if (!clipboardCopyIndicator) return;
 			setShowCopyPulse(true);
-			if (notchMode === "peek") triggerEventPeek(1200);
+			if (notchMode !== "fixed") triggerEventPeek(1600);
 			clearTimeout(timer);
-			timer = setTimeout(() => setShowCopyPulse(false), 1200);
+			timer = setTimeout(() => setShowCopyPulse(false), 1600);
 		});
 		return () => {
 			clearTimeout(timer);
 			setShowCopyPulse(false);
 			unlisten.then((fn) => fn());
 		};
-	}, [windowLabel, settingsClipboardEnabled, clipboardCopyIndicator, notchMode, triggerEventPeek]);
+	}, [windowLabel, settingsClipboardEnabled, clipboardCopyIndicator, clipOptions.sounds, notchMode, triggerEventPeek]);
 	const [settingsTimerSoundEnabled, setSettingsTimerSoundEnabled] = useState(
 		() => localStorage.getItem("bloom-timer-sound-enabled") !== "false"
 	);

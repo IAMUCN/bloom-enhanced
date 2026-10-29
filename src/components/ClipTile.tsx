@@ -143,8 +143,8 @@ export function ClipTile(props: ClipTileProps) {
 							<ExternalLink size={11} />
 						</button>
 					)}
-					{group && props.onUngroup && (
-						<button title="Ungroup" onClick={stop(props.onUngroup)}>
+					{props.onUngroup && (
+						<button title={group ? "Ungroup" : "Take out of the group"} onClick={stop(props.onUngroup)}>
 							<Ungroup size={11} />
 						</button>
 					)}

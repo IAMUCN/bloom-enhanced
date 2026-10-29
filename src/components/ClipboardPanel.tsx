@@ -193,7 +193,13 @@ export function ClipboardPanel({ dragIcon, dropEvent, onDragStart, onDragEnd }: 
 		setSelecting(false);
 	};
 
-	const tile = (it: ClipItem, key = it.id, paths = filePaths(it), onClick?: (e: React.MouseEvent) => void) => (
+	const tile = (
+		it: ClipItem,
+		key = it.id,
+		paths = filePaths(it),
+		onClick?: (e: React.MouseEvent) => void,
+		subActions: Partial<React.ComponentProps<typeof ClipTile>> = {}
+	) => (
 		<ClipTile
 			key={key}
 			item={it}
@@ -207,12 +213,15 @@ export function ClipboardPanel({ dragIcon, dropEvent, onDragStart, onDragEnd }: 
 			onPointerMove={(e) => movePointer(e, key, onClick ? null : it, paths, it.kind === "text" ? it.text : undefined)}
 			onClick={onClick ?? ((e) => clickItem(e, it))}
 			{...(onClick
-				? {}
+				? subActions
 				: {
 						onPin: () => pin([it.id], !it.pinned),
 						onDelete: () => remove([it.id]),
 						onOpenLink: it.is_url && it.text ? () => openLink(it.text!) : undefined,
-						onUngroup: () => invoke("clipboard_split", { id: it.id }).catch(() => {}),
+						onUngroup:
+							it.kind === "files" && (it.paths?.length ?? 0) > 1
+								? () => invoke("clipboard_split", { id: it.id }).catch(() => {})
+								: undefined,
 						onSaveNote: (note: string) => {
 							if (note.trim() !== (it.note ?? "")) invoke("clipboard_set_note", { id: it.id, note }).catch(() => {});
 						}
@@ -374,6 +383,13 @@ export function ClipboardPanel({ dragIcon, dropEvent, onDragStart, onDragEnd }: 
 								(e) => {
 									e.stopPropagation();
 									if (!wasDrag(path)) copyPaths([path], path);
+								},
+								{
+									onUngroup: () => invoke("clipboard_take_out", { id: group.id, path, delete: false }).catch(() => {}),
+									onDelete: () => {
+										sound("delete");
+										invoke("clipboard_take_out", { id: group.id, path, delete: true }).catch(() => {});
+									}
 								}
 							)
 						)

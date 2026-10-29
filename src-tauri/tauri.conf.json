@@ -12,6 +12,7 @@
   "app": {
     "windows": [
       {
+        "additionalBrowserArgs": "--disable-features=msWebOOUI,msPdfOOUI,msSmartScreenProtection --autoplay-policy=no-user-gesture-required",
         "label": "main",
         "title": "bloom",
         "width": 1920,
@@ -33,6 +34,7 @@
         "dragDropEnabled": true
       },
       {
+        "additionalBrowserArgs": "--disable-features=msWebOOUI,msPdfOOUI,msSmartScreenProtection --autoplay-policy=no-user-gesture-required",
         "label": "settings",
         "title": "Settings",
         "url": "settings.html",
@@ -53,6 +55,7 @@
         "center": true
       },
       {
+        "additionalBrowserArgs": "--disable-features=msWebOOUI,msPdfOOUI,msSmartScreenProtection --autoplay-policy=no-user-gesture-required",
         "label": "overlay",
         "title": "Overlay",
         "url": "overlay.html",
@@ -74,6 +77,7 @@
         "visible": false
       },
       {
+        "additionalBrowserArgs": "--disable-features=msWebOOUI,msPdfOOUI,msSmartScreenProtection --autoplay-policy=no-user-gesture-required",
         "label": "dock",
         "title": "Bloom Dock",
         "url": "dock.html",
@@ -95,6 +99,7 @@
         "visible": false
       },
       {
+        "additionalBrowserArgs": "--disable-features=msWebOOUI,msPdfOOUI,msSmartScreenProtection --autoplay-policy=no-user-gesture-required",
         "label": "clipshelf",
         "title": "Clipboard",
         "url": "clipshelf.html",
