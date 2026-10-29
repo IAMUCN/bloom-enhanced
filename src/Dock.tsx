@@ -456,6 +456,16 @@ const Dock = memo(function Dock() {
 			} catch (_) {}
 		});
 
+		// Settings were imported: pins and custom icons came with them.
+		const unlistenReloadPins = listen("dock-reload-pins", async () => {
+			try {
+				const pinned = await invoke<AppInfo[]>("load_pinned_apps");
+				setPinnedApps(pinned.map((a) => ({ ...a, is_pinned: true })));
+				pinned.forEach((app) => fetchIcon(app.path, app.name));
+				setCustomIcons(await invoke<Record<string, string>>("get_custom_icons"));
+			} catch (_) {}
+		});
+
 		const unlistenOverlap = listen<boolean>("dock-overlap", (event) => {
 			setIsOverlapped(event.payload);
 		});
@@ -474,6 +484,7 @@ const Dock = memo(function Dock() {
 
 		return () => {
 			unlistenOverlap.then((f) => f());
+			unlistenReloadPins.then((f) => f());
 			unlistenInstalledApps.then((f) => f());
 			unlistenEdgeHover.then((f) => f());
 			unlistenVisibility.then((f) => f());

@@ -116,14 +116,14 @@ export function AboutTab({
 				<SettingRow
 					icon={FileDown}
 					label={getExportLabel()}
-					desc="Save settings to a file"
+					desc="Every preference (notch, dock, shelf, radial menu…), pinned dock apps and custom icons"
 					action
 					onClick={handleExportSettings}
 				/>
 				<SettingRow
 					icon={Upload}
 					label={getImportLabel()}
-					desc="Load settings from a file"
+					desc="From a Bloom Enhanced or Bloom settings file; applies right away"
 					action
 					divider={false}
 					onClick={handleImportSettings}

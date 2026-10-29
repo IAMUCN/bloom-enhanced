@@ -3911,25 +3911,31 @@ pub async fn export_settings_to_file(
     if window.label() != "settings" {
         return Err("Settings export is only available from the Settings window".into());
     }
-    let source = app
-        .path()
-        .app_config_dir()
-        .map_err(|e| e.to_string())?
-        .join("settings.json");
+    let dir = app.path().app_config_dir().map_err(|e| e.to_string())?;
+    let source = dir.join("settings.json");
     if !source.exists() {
         return Err("No settings file found".into());
     }
-    let content = std::fs::read_to_string(&source).map_err(|e| e.to_string())?;
-    // Validate it's valid JSON before offering it for export.
-    crate::utils::read_settings_file(&source)?;
+    let settings = crate::utils::read_settings_file(&source)?;
+    let pinned = std::fs::read_to_string(dir.join("pinned_apps.json"))
+        .ok()
+        .and_then(|text| serde_json::from_str::<Vec<AppInfo>>(&text).ok());
+    let icons = get_custom_icons(app.clone()).await.unwrap_or_default();
+    let exported = build_settings_export(
+        &settings,
+        pinned,
+        icons.into_iter().collect(),
+        &app.package_info().version.to_string(),
+    );
+    let content = serde_json::to_string_pretty(&exported).map_err(|e| e.to_string())?;
 
     let picked = tauri::async_runtime::spawn_blocking(move || {
         use tauri_plugin_dialog::DialogExt;
         app.dialog()
             .file()
             .set_parent(&window)
-            .set_title("Export Bloom Settings")
-            .set_file_name("bloom-settings.json")
+            .set_title("Export Bloom Enhanced Settings")
+            .set_file_name("bloom-enhanced-settings.json")
             .add_filter("JSON", &["json"])
             .blocking_save_file()
     })
@@ -3959,7 +3965,7 @@ pub async fn import_settings_from_file(
             app.dialog()
                 .file()
                 .set_parent(&window)
-                .set_title("Import Bloom Settings")
+                .set_title("Import Bloom Enhanced Settings")
                 .add_filter("JSON", &["json"])
                 .blocking_pick_file()
         }
@@ -3977,14 +3983,213 @@ pub async fn import_settings_from_file(
         .map_err(|e| format!("Failed to inspect file: {}", e))?
         .len();
     if size > MAX_SETTINGS_IMPORT_BYTES {
-        return Err("Settings file exceeds the 1 MiB import limit".into());
+        return Err("Settings file exceeds the 8 MiB import limit".into());
     }
     let content = read_settings_import(file)?;
-    apply_imported_settings(&app, &content)?;
+    let imported = parse_settings_import(&content)?;
+    apply_imported_settings(&app, &imported.preferences)?;
+    import_dock_items(&app, imported.pinned_apps, imported.custom_icons);
     Ok(Some(path.to_string_lossy().into_owned()))
 }
 
-const MAX_SETTINGS_IMPORT_BYTES: u64 = 1024 * 1024;
+/// Room for the dock's custom icons, which travel in the file.
+const MAX_SETTINGS_IMPORT_BYTES: u64 = 8 * 1024 * 1024;
+
+/// Version of the exported settings file. 1 was Bloom's flat settings.json.
+const SETTINGS_EXPORT_FORMAT: u64 = 2;
+
+/// Settings-file keys that are state, not preferences: never exported, and
+/// kept from the current file on import.
+const STATE_KEYS: [&str; 6] = [
+    "bloom-first-run",
+    "bloom-app-version",
+    "bloom-announcement-dismissed",
+    "bloom-notch-last-panel",
+    "bloom-weather-cached-condition",
+    "bloom-weather-cached-temp",
+];
+
+/// Keys of removed features: dropped on export and import.
+const OBSOLETE_KEYS: [&str; 2] = ["bloom-corners-enabled", "bloom-files-first-mode"];
+
+/// The Settings page a preference lives on: the sections of the exported file.
+fn preference_section(key: &str) -> &'static str {
+    const SECTIONS: [(&str, &[&str]); 6] = [
+        (
+            "notch",
+            &[
+                "bloom-notch-",
+                "bloom-calendar-",
+                "bloom-music-",
+                "bloom-media-",
+                "bloom-visualizer-",
+                "bloom-weather-",
+                "bloom-temp-unit",
+                "bloom-status-widgets",
+                "bloom-shelf-persist",
+                "bloom-device-looks",
+            ],
+        ),
+        ("dock", &["bloom-dock-", "bloom-start-icon"]),
+        ("shelf", &["bloom-clipboard-"]),
+        ("radialMenu", &["bloom-files-"]),
+        ("overlays", &["bloom-volume-", "bloom-brightness-"]),
+        ("appearance", &["bloom-theme-", "bloom-scale"]),
+    ];
+    SECTIONS
+        .iter()
+        .find(|(_, prefixes)| prefixes.iter().any(|p| key.starts_with(p)))
+        .map_or("general", |(section, _)| section)
+}
+
+fn is_preference(key: &str) -> bool {
+    !STATE_KEYS.contains(&key) && !OBSOLETE_KEYS.contains(&key)
+}
+
+/// The exported file: every preference grouped by Settings page (general,
+/// appearance, notch, dock, shelf, radialMenu, overlays), and the dock's
+/// pinned apps and custom icons.
+fn build_settings_export(
+    settings: &HashMap<String, serde_json::Value>,
+    pinned_apps: Option<Vec<AppInfo>>,
+    custom_icons: std::collections::BTreeMap<String, String>,
+    app_version: &str,
+) -> serde_json::Value {
+    let mut sections: std::collections::BTreeMap<&str, serde_json::Map<String, serde_json::Value>> =
+        std::collections::BTreeMap::new();
+    for (key, value) in settings {
+        if key.starts_with("bloom-") && is_preference(key) {
+            sections
+                .entry(preference_section(key))
+                .or_default()
+                .insert(key.clone(), value.clone());
+        }
+    }
+    // Pins without what only matters to a running dock (icons, windows).
+    let pinned_apps = pinned_apps.map(|apps| {
+        apps.into_iter()
+            .map(|app| AppInfo {
+                icon: None,
+                is_running: false,
+                hwnd: None,
+                all_hwnds: None,
+                ..app
+            })
+            .collect::<Vec<_>>()
+    });
+    serde_json::json!({
+        "app": "Bloom Enhanced",
+        "format": SETTINGS_EXPORT_FORMAT,
+        "appVersion": app_version,
+        "preferences": sections,
+        "dock": {
+            "pinnedApps": pinned_apps,
+            "customIcons": custom_icons,
+        },
+    })
+}
+
+struct SettingsImport {
+    preferences: HashMap<String, serde_json::Value>,
+    pinned_apps: Option<Vec<AppInfo>>,
+    /// Cache key → PNG data URI.
+    custom_icons: Vec<(String, String)>,
+}
+
+/// Reads an exported file: the sectioned format, or Bloom's flat
+/// settings.json (format 1). State and removed-feature keys are left out.
+fn parse_settings_import(text: &str) -> Result<SettingsImport, String> {
+    let value: serde_json::Value = serde_json::from_str(text.trim_start_matches('\u{feff}'))
+        .map_err(|e| format!("Invalid JSON: {}", e))?;
+    let object = value.as_object().ok_or("This isn't a settings file.")?;
+    let Some(sections) = object.get("preferences") else {
+        // Bloom's flat file: every key is a setting.
+        return Ok(SettingsImport {
+            preferences: object
+                .iter()
+                .filter(|(key, _)| is_preference(key))
+                .map(|(key, value)| (key.clone(), value.clone()))
+                .collect(),
+            pinned_apps: None,
+            custom_icons: Vec::new(),
+        });
+    };
+    if object.get("format").and_then(|f| f.as_u64()).unwrap_or(0) > SETTINGS_EXPORT_FORMAT {
+        return Err("This file was made by a newer version of Bloom Enhanced.".into());
+    }
+    let mut preferences = HashMap::new();
+    for section in sections
+        .as_object()
+        .ok_or("The preferences in this file are damaged.")?
+        .values()
+    {
+        for (key, value) in section.as_object().into_iter().flatten() {
+            if key.starts_with("bloom-") && is_preference(key) {
+                preferences.insert(key.clone(), value.clone());
+            }
+        }
+    }
+    let dock = object.get("dock");
+    let pinned_apps = dock
+        .and_then(|d| d.get("pinnedApps"))
+        .filter(|v| !v.is_null())
+        .map(|v| serde_json::from_value::<Vec<AppInfo>>(v.clone()))
+        .transpose()
+        .map_err(|e| format!("The pinned apps in this file are damaged: {e}"))?;
+    let custom_icons = dock
+        .and_then(|d| d.get("customIcons"))
+        .and_then(|v| v.as_object())
+        .into_iter()
+        .flatten()
+        .filter_map(|(key, uri)| Some((key.clone(), uri.as_str()?.to_string())))
+        .filter(|(_, uri)| uri.starts_with("data:image/png;base64,"))
+        .collect();
+    Ok(SettingsImport {
+        preferences,
+        pinned_apps,
+        custom_icons,
+    })
+}
+
+/// Restores the dock's pinned apps and custom icons from an imported file,
+/// then has the dock load them again.
+fn import_dock_items(
+    app: &AppHandle,
+    pinned_apps: Option<Vec<AppInfo>>,
+    custom_icons: Vec<(String, String)>,
+) {
+    if let Some(apps) = pinned_apps {
+        let _ = save_pinned_apps(app.clone(), apps);
+    }
+    if let Ok(dir) = get_custom_icons_dir(app) {
+        let manifest_path = dir.join("custom_icons.json");
+        let mut manifest: HashMap<String, String> = std::fs::read_to_string(&manifest_path)
+            .ok()
+            .and_then(|text| serde_json::from_str(&text).ok())
+            .unwrap_or_default();
+        for (key, uri) in custom_icons {
+            use base64::Engine;
+            let Ok(png) = base64::engine::general_purpose::STANDARD
+                .decode(uri.trim_start_matches("data:image/png;base64,"))
+            else {
+                continue;
+            };
+            // Only real images get written.
+            if image::load_from_memory_with_format(&png, image::ImageFormat::Png).is_err() {
+                continue;
+            }
+            let name = sanitize_filename(&key);
+            if std::fs::write(dir.join(format!("{name}.png")), &png).is_ok() {
+                manifest.insert(name, key);
+            }
+        }
+        let _ = std::fs::write(
+            &manifest_path,
+            serde_json::to_string(&manifest).unwrap_or_default(),
+        );
+    }
+    let _ = app.emit_to("dock", "dock-reload-pins", ());
+}
 
 fn read_settings_import(reader: impl std::io::Read) -> Result<String, String> {
     use std::io::Read;
@@ -3996,15 +4201,16 @@ fn read_settings_import(reader: impl std::io::Read) -> Result<String, String> {
         .read_to_end(&mut bytes)
         .map_err(|e| format!("Failed to read file: {}", e))?;
     if bytes.len() as u64 > MAX_SETTINGS_IMPORT_BYTES {
-        return Err("Settings file exceeds the 1 MiB import limit".into());
+        return Err("Settings file exceeds the 8 MiB import limit".into());
     }
     String::from_utf8(bytes).map_err(|e| format!("Settings file is not valid UTF-8: {}", e))
 }
 
-fn apply_imported_settings(app: &AppHandle, settings: &str) -> Result<(), String> {
-    let imported: HashMap<String, serde_json::Value> =
-        serde_json::from_str(settings.trim_start_matches('\u{feff}'))
-            .map_err(|e| format!("Invalid JSON: {}", e))?;
+fn apply_imported_settings(
+    app: &AppHandle,
+    preferences: &HashMap<String, serde_json::Value>,
+) -> Result<(), String> {
+    let mut imported = preferences.clone();
 
     let path = app
         .path()
@@ -4016,6 +4222,12 @@ fn apply_imported_settings(app: &AppHandle, settings: &str) -> Result<(), String
     }
     let _guard = SETTINGS_FILE_LOCK.lock().map_err(|e| e.to_string())?;
     let previous = crate::utils::read_settings_file(&path)?;
+    // State (first-run marker, weather cache...) stays as it is here.
+    for key in STATE_KEYS {
+        if let Some(value) = previous.get(key) {
+            imported.insert(key.to_string(), value.clone());
+        }
+    }
     crate::utils::write_settings_file(&path, &imported)?;
     crate::utils::replace_settings_cache(imported.clone());
     drop(_guard);
@@ -4231,8 +4443,75 @@ pub fn setup_settings_watcher(app: AppHandle) {
 
 #[cfg(test)]
 mod settings_import_tests {
-    use super::{read_settings_import, MAX_SETTINGS_IMPORT_BYTES};
+    use super::{
+        build_settings_export, parse_settings_import, read_settings_import, AppInfo,
+        MAX_SETTINGS_IMPORT_BYTES,
+    };
     use std::io::{Cursor, Read};
+
+    #[test]
+    fn export_groups_preferences_and_import_reads_them_back() {
+        let settings: std::collections::HashMap<String, serde_json::Value> = [
+            ("bloom-notch-mode", "smart"),
+            ("bloom-dock-mode", "peek"),
+            ("bloom-start-icon", "bloom-biscuit"),
+            ("bloom-clipboard-position", "left"),
+            ("bloom-files-key", "ctrl"),
+            ("bloom-volume-edge-enabled", "true"),
+            ("bloom-theme-mode", "light"),
+            ("bloom-time-format-24h", "true"),
+            ("bloom-weather-cached-temp", "21"),
+            ("bloom-corners-enabled", "true"),
+        ]
+        .into_iter()
+        .map(|(k, v)| (k.to_string(), serde_json::json!(v)))
+        .collect();
+        let pin = AppInfo {
+            name: "Notepad".into(),
+            path: "C:\\Windows\\notepad.exe".into(),
+            icon: Some("data:big".into()),
+            is_running: true,
+            hwnd: Some(7),
+            executable: Some("notepad.exe".into()),
+            all_hwnds: None,
+        };
+        let icons = [(
+            "notepad".to_string(),
+            "data:image/png;base64,AAAA".to_string(),
+        )]
+        .into();
+        let file = build_settings_export(&settings, Some(vec![pin]), icons, "0.1.0");
+        let p = &file["preferences"];
+        assert_eq!(p["notch"]["bloom-notch-mode"], "smart");
+        assert_eq!(p["dock"]["bloom-start-icon"], "bloom-biscuit");
+        assert_eq!(p["shelf"]["bloom-clipboard-position"], "left");
+        assert_eq!(p["radialMenu"]["bloom-files-key"], "ctrl");
+        assert_eq!(p["overlays"]["bloom-volume-edge-enabled"], "true");
+        assert_eq!(p["appearance"]["bloom-theme-mode"], "light");
+        assert_eq!(p["general"]["bloom-time-format-24h"], "true");
+        // State and removed features stay out; pins lose their live icon.
+        assert!(p["notch"].get("bloom-weather-cached-temp").is_none());
+        assert!(p["general"].get("bloom-corners-enabled").is_none());
+        assert!(file["dock"]["pinnedApps"][0]["icon"].is_null());
+
+        let back = parse_settings_import(&file.to_string()).unwrap();
+        assert_eq!(back.preferences.len(), 8);
+        assert_eq!(back.preferences["bloom-files-key"], "ctrl");
+        assert_eq!(back.pinned_apps.unwrap()[0].name, "Notepad");
+        assert_eq!(back.custom_icons.len(), 1);
+    }
+
+    #[test]
+    fn imports_bloom_flat_files_and_refuses_newer_formats() {
+        let flat = parse_settings_import(
+            r#"{"bloom-dock-mode":"fixed","bloom-first-run":"done","bloom-corners-enabled":"true"}"#,
+        )
+        .unwrap();
+        assert_eq!(flat.preferences.len(), 1);
+        assert!(flat.pinned_apps.is_none());
+        assert!(parse_settings_import(r#"{"format":9,"preferences":{}}"#).is_err());
+        assert!(parse_settings_import("[1,2]").is_err());
+    }
 
     #[test]
     fn accepts_utf8_settings_at_the_size_limit() {
@@ -4248,7 +4527,7 @@ mod settings_import_tests {
     fn rejects_oversized_input_without_reading_the_rest() {
         let mut reader = Cursor::new(vec![b' '; MAX_SETTINGS_IMPORT_BYTES as usize + 100]);
         let error = read_settings_import(&mut reader).unwrap_err();
-        assert!(error.contains("1 MiB"));
+        assert!(error.contains("8 MiB"));
         assert_eq!(reader.position(), MAX_SETTINGS_IMPORT_BYTES + 1);
     }
 

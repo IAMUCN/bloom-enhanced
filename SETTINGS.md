@@ -185,6 +185,35 @@ Example:
 | `bloom-first-run`   | sentinel | Set to `"done"` after first launch. Triggers splash screen if absent.                 |
 | `bloom-app-version` | string   | Last known app version. If it differs from current, splash screen is shown on update. |
 
+## Export and Import
+
+Settings › About › Export Settings writes `bloom-enhanced-settings.json`:
+
+```json
+{
+  "app": "Bloom Enhanced",
+  "format": 2,
+  "appVersion": "0.1.0",
+  "preferences": {
+    "general":    { "bloom-time-format-24h": "true" },
+    "appearance": { "bloom-theme-mode": "dark" },
+    "notch":      { "bloom-notch-mode": "smart", "bloom-notch-panel-order": "[...]" },
+    "dock":       { "bloom-dock-mode": "fixed", "bloom-start-icon": "bloom-biscuit" },
+    "shelf":      { "bloom-clipboard-position": "left" },
+    "radialMenu": { "bloom-files-key": "shift", "bloom-files-order": "{...}" },
+    "overlays":   { "bloom-volume-edge-enabled": "true" }
+  },
+  "dock": {
+    "pinnedApps": [{ "name": "File Explorer", "path": "C:\Windows\explorer.exe", "executable": "explorer.exe" }],
+    "customIcons": { "<icon key>": "data:image/png;base64,..." }
+  }
+}
+```
+
+- Every preference is included, grouped by the Settings page it is on.
+- Left out: state rather than preferences (`bloom-first-run`, `bloom-app-version`, `bloom-announcement-dismissed`, `bloom-notch-last-panel`, the weather cache) and keys of removed features (`bloom-corners-enabled`, `bloom-files-first-mode`). The clipboard history itself is data, not a preference, and is not exported.
+- Import reads this format and Bloom's flat `settings.json` (format 1), up to 8 MiB. It replaces all preferences (keeping the state keys above), restores the pinned apps and custom icons, and every window picks the changes up at once.
+
 ## Event System
 
 Bloom uses two Tauri events for settings synchronization:
