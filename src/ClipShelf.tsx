@@ -51,7 +51,8 @@ function ClipShelf() {
 				setOpen(e.payload.open);
 				if (!e.payload.open) releaseTextKeyboard();
 			}),
-			listen("clipshelf-drag-enter", () => setDragHover(true)),
+			// Our own tile dragged within the shelf (to group it) keeps the history.
+			listen("clipshelf-drag-enter", () => setDragHover(!selfDrag.current)),
 			listen("clipshelf-drag-leave", () => setDragHover(false)),
 			listen<{ paths?: string[]; text?: string }>("clipshelf-drag-drop", (e) => {
 				setDragHover(false);
@@ -74,6 +75,7 @@ function ClipShelf() {
 			<ClipboardPanel
 				dragIcon={dragIcon}
 				dropEvent="clipshelf-drag-drop"
+				dragOver={dragHover}
 				onDragStart={() => {
 					selfDrag.current = true;
 				}}

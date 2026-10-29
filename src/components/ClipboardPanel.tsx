@@ -3,7 +3,7 @@ import { invoke } from "@tauri-apps/api/core";
 import { listen } from "@tauri-apps/api/event";
 import { openUrl } from "@tauri-apps/plugin-opener";
 import { startDrag } from "@crabnebula/tauri-plugin-drag";
-import { ArrowLeft, Copy, Eraser, Layers, ListChecks, Pin, Search, Trash2, Ungroup, X } from "lucide-react";
+import { ArrowLeft, Copy, Eraser, Inbox, Layers, ListChecks, Pin, Search, Trash2, Ungroup, X } from "lucide-react";
 import { releaseTextKeyboard } from "../hooks/useTextInputKeyboard";
 import { useClipboardSettings } from "../hooks/useClipboardSettings";
 import { clipSounds } from "../clipboardSounds";
@@ -31,11 +31,14 @@ interface ClipboardPanelProps {
 	 *  stays open meanwhile and releases its hover afterwards. */
 	onDragStart: () => void;
 	onDragEnd: () => void;
+	/** Something from another app is being dragged over: show only where to
+	 *  drop it, not the history. */
+	dragOver?: boolean;
 }
 
 const openLink = (url: string) => openUrl(/^https?:/i.test(url) ? url : `https://${url}`);
 
-export function ClipboardPanel({ dragIcon, dropEvent, onDragStart, onDragEnd }: ClipboardPanelProps) {
+export function ClipboardPanel({ dragIcon, dropEvent, onDragStart, onDragEnd, dragOver }: ClipboardPanelProps) {
 	const options = useClipboardSettings();
 	const [items, setItems] = useState<ClipItem[]>([]);
 	const [query, setQuery] = useState("");
@@ -241,6 +244,12 @@ export function ClipboardPanel({ dragIcon, dropEvent, onDragStart, onDragEnd }: 
 				if (e.key === "Escape" && (selected.size || selecting)) endSelection();
 			}}
 		>
+			{dragOver && (
+				<div className="clip-drop">
+					<Inbox size={22} strokeWidth={1.5} />
+					<span>Drop files or selected text here</span>
+				</div>
+			)}
 			<div className="clip-toolbar">
 				<div className="clip-search">
 					<Search size={12} />

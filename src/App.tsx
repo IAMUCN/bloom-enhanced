@@ -4032,6 +4032,7 @@ function App() {
 											<ClipboardPanel
 												dragIcon={shelfDragIcon}
 												dropEvent="shelf-drag-drop"
+												dragOver={isDragHovering && !clipboardSelfDragRef.current}
 												onDragStart={() => {
 													clipboardSelfDragRef.current = true;
 													clearShelfCollapse();
