@@ -21,6 +21,8 @@ import {
 } from "lucide-react";
 import { useClipboardSettings } from "../hooks/useClipboardSettings";
 import { SettingRow } from "./SettingRow";
+import { Choice } from "./Choice";
+import { ScaleStepper } from "./ScaleStepper";
 
 interface ClipboardTabProps {
 	enabled: boolean;
@@ -76,10 +78,10 @@ export function shortcutFrom(e: React.KeyboardEvent): string | null {
 const LIMITS = [50, 100, 200, 500, 1000];
 const RETENTION: [number, string][] = [
 	[0, "Never"],
-	[1, "After 1 hour"],
-	[24, "After 1 day"],
-	[168, "After 7 days"],
-	[720, "After 30 days"]
+	[1, "1 hour"],
+	[24, "1 day"],
+	[168, "7 days"],
+	[720, "30 days"]
 ];
 
 export function ClipboardTab({
@@ -148,11 +150,16 @@ export function ClipboardTab({
 							label="Position"
 							desc="In the notch, or a shelf that slides out of the middle of the left or right screen edge"
 						>
-							<select className="settings-select" value={position} onChange={(e) => changePosition(e.target.value)}>
-								<option value="notch">Notch</option>
-								<option value="left">Left edge</option>
-								<option value="right">Right edge</option>
-							</select>
+							<Choice
+								value={position}
+								options={[
+									["notch", "Notch"],
+									["left", "Left edge"],
+									["right", "Right edge"]
+								]}
+								onChange={changePosition}
+								label="Shelf position"
+							/>
 						</SettingRow>
 
 						{position === "notch" && (
@@ -170,18 +177,12 @@ export function ClipboardTab({
 
 						{position !== "notch" && monitors.length > 1 && (
 							<SettingRow icon={Monitor} label="Shelf Monitor" desc="Which screen's edge the shelf slides out of">
-								<select
-									className="settings-select"
+								<Choice
 									value={options.monitor}
-									onChange={(e) => saveSetting("bloom-clipboard-monitor", e.target.value)}
-								>
-									<option value="">Primary</option>
-									{monitors.map((name, i) => (
-										<option key={name} value={name}>
-											Display {i + 1}
-										</option>
-									))}
-								</select>
+									options={[["", "Primary"], ...monitors.map((name, i) => [name, `Display ${i + 1}`] as const)]}
+									onChange={(v) => saveSetting("bloom-clipboard-monitor", v)}
+									label="Shelf display"
+								/>
 							</SettingRow>
 						)}
 
@@ -221,11 +222,16 @@ export function ClipboardTab({
 				</SettingRow>
 
 				<SettingRow icon={Image} label="Thumbnail Size" desc="Preview size of images and files" divider={false}>
-					<select className="settings-select" value={thumbSize} onChange={(e) => changeThumbSize(e.target.value)}>
-						<option value="small">Small</option>
-						<option value="medium">Medium</option>
-						<option value="large">Large</option>
-					</select>
+					<Choice
+						value={thumbSize}
+						options={[
+							["small", "Small"],
+							["medium", "Medium"],
+							["large", "Large"]
+						]}
+						onChange={changeThumbSize}
+						label="Thumbnail size"
+					/>
 				</SettingRow>
 			</div>
 
@@ -258,31 +264,27 @@ export function ClipboardTab({
 			<div className="setting-group-label">History</div>
 			<div className="setting-group">
 				<SettingRow icon={History} label="History Size" desc="Oldest items go first; pinned items stay">
-					<select
-						className="settings-select"
-						value={LIMITS.includes(limit) ? limit : 200}
-						onChange={(e) => changeLimit(Number(e.target.value))}
-					>
-						{LIMITS.map((n) => (
-							<option key={n} value={n}>
-								{n} items
-							</option>
-						))}
-					</select>
+					<ScaleStepper
+						value={Math.max(0, LIMITS.indexOf(LIMITS.includes(limit) ? limit : 200))}
+						min={0}
+						max={LIMITS.length - 1}
+						stepSize={1}
+						format={(i) => `${LIMITS[i]} items`}
+						onChange={(i) => changeLimit(LIMITS[i])}
+						label="history size"
+					/>
 				</SettingRow>
 
 				<SettingRow icon={Timer} label="Auto-Delete" desc="Remove unpinned items after a while">
-					<select
-						className="settings-select"
-						value={RETENTION.some(([h]) => h === retentionHours) ? retentionHours : 0}
-						onChange={(e) => changeRetention(Number(e.target.value))}
-					>
-						{RETENTION.map(([h, label]) => (
-							<option key={h} value={h}>
-								{label}
-							</option>
-						))}
-					</select>
+					<ScaleStepper
+						value={Math.max(0, RETENTION.findIndex(([h]) => h === retentionHours))}
+						min={0}
+						max={RETENTION.length - 1}
+						stepSize={1}
+						format={(i) => RETENTION[i][1]}
+						onChange={(i) => changeRetention(RETENTION[i][0])}
+						label="auto-delete time"
+					/>
 				</SettingRow>
 
 				<SettingRow

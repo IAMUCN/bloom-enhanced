@@ -19,7 +19,6 @@ import {
 	PanelRight
 } from "lucide-react";
 import { useState } from "react";
-import { motion } from "framer-motion";
 import { SettingRow } from "./SettingRow";
 
 /** Notch behavior (`bloom-notch-mode`): name and what it does. */
@@ -37,6 +36,7 @@ const NOTCH_MODES = [
 	]
 ] as const;
 import { ScaleStepper } from "./ScaleStepper";
+import { Choice } from "./Choice";
 import {
 	NOTCH_STYLES,
 	SIZED_PANELS,
@@ -82,7 +82,7 @@ function RowSizes({ saveSetting }: { saveSetting: (key: string, value: string | 
 const PANEL_CHOICES: readonly (readonly [NotchPanelChoice, string])[] = [
 	["calendar", "Calendar"],
 	["command-center", "Command Center"],
-	["devices", "Connected devices"]
+	["devices", "Devices"]
 ];
 
 interface NotchTabProps {
@@ -233,26 +233,12 @@ export function NotchTab({
 							label="When It Shows"
 							desc={NOTCH_MODES.find(([m]) => m === notchMode)?.[2] ?? NOTCH_MODES[0][2]}
 						>
-							<div className="scale-button-container seg-toggle" role="radiogroup" aria-label="When the notch shows">
-								{NOTCH_MODES.map(([mode, name]) => (
-									<button
-										key={mode}
-										role="radio"
-										aria-checked={notchMode === mode}
-										className={`seg-btn${notchMode === mode ? " active" : ""}`}
-										onClick={() => setNotchModeValue(mode)}
-									>
-										{notchMode === mode && (
-											<motion.span
-												layoutId="notch-mode-pill"
-												className="seg-pill"
-												transition={{ type: "spring", stiffness: 500, damping: 30 }}
-											/>
-										)}
-										<span>{name}</span>
-									</button>
-								))}
-							</div>
+							<Choice
+								value={notchMode}
+								options={NOTCH_MODES.map(([mode, name]) => [mode, name] as const)}
+								onChange={setNotchModeValue}
+								label="When the notch shows"
+							/>
 						</SettingRow>
 
 						{notchMode !== "fixed" && (
@@ -288,17 +274,12 @@ export function NotchTab({
 										: "Attached to the top edge"
 							}
 						>
-							<select
-								className="settings-select"
+							<Choice
 								value={notchStyle}
-								onChange={(e) => handleNotchStyleChange(e.target.value as NotchStyle)}
-							>
-								{NOTCH_STYLES.map(([style, label]) => (
-									<option key={style} value={style}>
-										{label}
-									</option>
-								))}
-							</select>
+								options={NOTCH_STYLES}
+								onChange={(v) => handleNotchStyleChange(v as NotchStyle)}
+								label="Notch style"
+							/>
 						</SettingRow>
 
 						<SettingRow
@@ -398,17 +379,12 @@ export function NotchTab({
 								label="Default Panel"
 								desc="Open this panel when you click the notch"
 							>
-								<select
-									className="settings-select"
+								<Choice
 									value={panelOn[notchDefaultPanel] ? notchDefaultPanel : firstPanelOn}
-									onChange={(e) => changeNotchDefaultPanel(e.target.value as NotchPanelChoice)}
-								>
-									{PANEL_CHOICES.map(([panel, label]) => (
-										<option key={panel} value={panel} disabled={!panelOn[panel]}>
-											{label}
-										</option>
-									))}
-								</select>
+									options={PANEL_CHOICES.filter(([panel]) => panelOn[panel])}
+									onChange={changeNotchDefaultPanel}
+									label="Default panel"
+								/>
 							</SettingRow>
 						)}
 					</div>

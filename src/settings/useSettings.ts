@@ -1054,6 +1054,28 @@ export function useSettings() {
 	// ── Export / Import ──
 	// The backend opens the native dialog and owns the file path, so these
 	// cannot be used to read or write arbitrary files from a webview.
+	/** Settings › "Reset this page": the page's keys back to defaults, then a
+	 *  restart, like the full reset. */
+	const resetPage = async (page: string, prefixes: string[]) => {
+		try {
+			const { ask } = await import("@tauri-apps/plugin-dialog");
+			const confirmed = await ask(`The ${page} settings return to their defaults and Bloom restarts.`, {
+				title: `Reset ${page}`,
+				kind: "warning",
+				okLabel: "Reset and Restart",
+				cancelLabel: "Cancel"
+			});
+			if (!confirmed) return;
+			await invoke("reset_settings", { prefixes });
+			for (const key of Object.keys(localStorage)) {
+				if (prefixes.some((p) => key.startsWith(p))) localStorage.removeItem(key);
+			}
+			await invoke("restart_bloom").catch(console.error);
+		} catch (e) {
+			console.error("Reset failed:", e);
+		}
+	};
+
 	const handleExportSettings = async () => {
 		setExportStatus("exporting");
 		try {
@@ -1258,6 +1280,7 @@ export function useSettings() {
 		// Utilities
 		restartBloom: () => invoke("restart_bloom"),
 		resetToDefaults,
+		resetPage,
 		quitBloom: () => invoke("quit_bloom")
 	};
 }

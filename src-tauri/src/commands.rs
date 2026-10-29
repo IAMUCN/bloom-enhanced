@@ -4020,8 +4020,10 @@ fn apply_imported_settings(app: &AppHandle, settings: &str) -> Result<(), String
     Ok(())
 }
 
+/// Resets every Bloom setting, or with `prefixes` only the keys starting with
+/// one of them (Settings › "Reset this page").
 #[tauri::command]
-pub fn reset_settings(app: AppHandle) -> Result<(), String> {
+pub fn reset_settings(app: AppHandle, prefixes: Option<Vec<String>>) -> Result<(), String> {
     let path = app
         .path()
         .app_config_dir()
@@ -4041,6 +4043,11 @@ pub fn reset_settings(app: AppHandle) -> Result<(), String> {
     let removed: Vec<String> = settings
         .keys()
         .filter(|key| key.starts_with("bloom-") && !keep.contains(&key.as_str()))
+        .filter(|key| {
+            prefixes
+                .as_ref()
+                .is_none_or(|list| list.iter().any(|p| key.starts_with(p.as_str())))
+        })
         .cloned()
         .collect();
     for key in &removed {

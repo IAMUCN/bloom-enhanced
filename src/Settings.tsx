@@ -4,7 +4,20 @@ import { getCurrentWebviewWindow } from "@tauri-apps/api/webviewWindow";
 import { Effect } from "@tauri-apps/api/window";
 import { invoke } from "@tauri-apps/api/core";
 import { openUrl } from "@tauri-apps/plugin-opener";
-import { X, Settings, Palette, PanelTop, Monitor, Layers, Info, Megaphone, ClipboardList, Orbit } from "lucide-react";
+import {
+	X,
+	Settings,
+	Palette,
+	PanelTop,
+	Monitor,
+	Layers,
+	Info,
+	Megaphone,
+	ClipboardList,
+	Orbit,
+	Search,
+	RotateCcw
+} from "lucide-react";
 import {
 	useSettings,
 	GeneralTab,
@@ -46,10 +59,95 @@ const TAB_COPY: Record<SettingsTab, string> = {
 	about: "Version, updates and your settings data."
 };
 
+/** Keys each page's "Reset this page" puts back to defaults. */
+const PAGE_KEYS: Partial<Record<SettingsTab, string[]>> = {
+	general: ["bloom-time-format-24h", "bloom-show-update-indicator", "bloom-low-battery-threshold"],
+	appearance: ["bloom-theme-", "bloom-corners-enabled", "bloom-scale"],
+	notch: [
+		"bloom-notch-",
+		"bloom-calendar-",
+		"bloom-music-",
+		"bloom-media-",
+		"bloom-visualizer-enabled",
+		"bloom-weather-",
+		"bloom-temp-unit",
+		"bloom-status-widgets",
+		"bloom-shelf-persist"
+	],
+	dock: ["bloom-dock-", "bloom-start-icon"],
+	clipboard: ["bloom-clipboard-"],
+	files: ["bloom-files-"],
+	overlays: ["bloom-volume-", "bloom-brightness-"]
+};
+
+interface Hit {
+	tab: SettingsTab;
+	label: string;
+	desc: string;
+	row: HTMLElement;
+}
+
+/** Rows of every page whose label, description or page name holds
+ *  all the words typed. */
+function findSettings(root: HTMLElement | null, query: string): Hit[] {
+	const words = query.toLowerCase().split(/\s+/).filter(Boolean);
+	if (!root || !words.length) return [];
+	const hits: Hit[] = [];
+	root.querySelectorAll<HTMLElement>("section[data-tab]").forEach((section) => {
+		const tab = section.dataset.tab as SettingsTab;
+		const page = TABS.find((t) => t.id === tab)?.label ?? "";
+		section.querySelectorAll<HTMLElement>(".setting-item, .settings-disclosure > summary").forEach((row) => {
+			const label = row.querySelector(".setting-label")?.textContent ?? row.firstChild?.textContent ?? "";
+			const desc = (row.querySelector(".setting-desc") ?? row.querySelector("span"))?.textContent ?? "";
+			const text = `${label} ${desc} ${page}`.toLowerCase();
+			if (label && words.every((w) => text.includes(w))) hits.push({ tab, label, desc, row });
+		});
+	});
+	return hits;
+}
+
 function SettingsApp() {
 	const [activeTab, setActiveTab] = useState<SettingsTab>("general");
 	const [previewFocus, setPreviewFocus] = useState("");
 	const contentRef = useRef<HTMLDivElement>(null);
+	const searchRef = useRef<HTMLInputElement>(null);
+	const [query, setQuery] = useState("");
+	const [hits, setHits] = useState<Hit[]>([]);
+	// While searching no page shows; the results do.
+	const shown = query.trim() ? null : activeTab;
+	useEffect(() => setHits(findSettings(contentRef.current, query)), [query]);
+
+	const jumpTo = (hit: Hit) => {
+		setQuery("");
+		setActiveTab(hit.tab);
+		requestAnimationFrame(() => {
+			for (let el = hit.row.parentElement; el; el = el.parentElement)
+				if (el instanceof HTMLDetailsElement) el.open = true;
+			hit.row.scrollIntoView({ block: "center", behavior: "smooth" });
+			hit.row.classList.remove("search-hit");
+			void hit.row.offsetWidth;
+			hit.row.classList.add("search-hit");
+			hit.row.querySelector<HTMLElement>("input, button, [tabindex='0']")?.focus({ preventScroll: true });
+		});
+	};
+
+	// Ctrl+F searches; Esc clears the search, or closes Settings.
+	useEffect(() => {
+		const onKey = (e: KeyboardEvent) => {
+			if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === "f") {
+				e.preventDefault();
+				searchRef.current?.focus();
+				searchRef.current?.select();
+			} else if (e.key === "Escape" && !e.defaultPrevented) {
+				const field = e.target instanceof HTMLInputElement && e.target.type !== "checkbox" ? e.target : null;
+				if (searchRef.current?.value) setQuery("");
+				else if (field && field !== searchRef.current) field.blur();
+				else appWindow.hide().catch(() => {});
+			}
+		};
+		window.addEventListener("keydown", onKey);
+		return () => window.removeEventListener("keydown", onKey);
+	}, []);
 	const settings = useSettings();
 	const { announcement, dismissed, dismiss } = useAnnouncement();
 
@@ -106,11 +204,29 @@ function SettingsApp() {
 			<div className="settings-body">
 				<div className="settings-sidebar">
 					<div className="settings-sidebar-intro"><strong>Bloom</strong><span>Make it yours</span></div>
+					<label className="settings-search">
+						<Search size={13} strokeWidth={1.75} />
+						<input
+							ref={searchRef}
+							value={query}
+							placeholder="Search settings"
+							aria-label="Search settings"
+							spellCheck={false}
+							onChange={(e) => setQuery(e.target.value)}
+							onKeyDown={(e) => {
+								if (e.key === "Enter" && hits[0]) jumpTo(hits[0]);
+							}}
+						/>
+					</label>
 					{TABS.map(({ id, label, icon: Icon }) => (
 						<button
 							key={id}
-							className={`sidebar-tab ${activeTab === id ? "active" : ""}`}
-							onClick={() => setActiveTab(id)}
+							className={`sidebar-tab ${shown === id ? "active" : ""}`}
+							aria-current={shown === id ? "page" : undefined}
+							onClick={() => {
+								setQuery("");
+								setActiveTab(id);
+							}}
 						>
 							<div className="sidebar-tab-icon">
 								<Icon size={14} strokeWidth={1.5} />
@@ -173,16 +289,34 @@ function SettingsApp() {
 							</button>
 						</div>
 					)}
-					<div className="settings-page-heading">
-						<h1>{TABS.find((tab) => tab.id === activeTab)?.label}</h1>
-						<p>{TAB_COPY[activeTab]}</p>
-					</div>
-					<FeaturePreview
-						tab={activeTab}
-						settings={settings}
-						focus={previewFocus}
-					/>
-					{activeTab === "general" && (
+					{shown ? (
+						<>
+							<div className="settings-page-heading">
+								<h1>{TABS.find((tab) => tab.id === shown)?.label}</h1>
+								<p>{TAB_COPY[shown]}</p>
+							</div>
+							<FeaturePreview tab={shown} settings={settings} focus={previewFocus} />
+						</>
+					) : (
+						<div className="settings-search-results" role="list">
+							<div className="settings-page-heading">
+								<h1>Search</h1>
+								<p>
+									{hits.length
+										? `${hits.length} setting${hits.length === 1 ? "" : "s"} match. Enter opens the first.`
+										: "Nothing matches. Try another word."}
+								</p>
+							</div>
+							{hits.map((hit, i) => (
+								<button key={i} role="listitem" className="search-result" onClick={() => jumpTo(hit)}>
+									<span className="search-result-page">{TABS.find((t) => t.id === hit.tab)?.label}</span>
+									<span className="search-result-label">{hit.label}</span>
+									{hit.desc && <span className="search-result-desc">{hit.desc}</span>}
+								</button>
+							))}
+						</div>
+					)}
+					<section data-tab="general" hidden={shown !== "general"}>
 						<GeneralTab
 							autostart={settings.autostart}
 							toggleAutostart={settings.toggleAutostart}
@@ -196,8 +330,8 @@ function SettingsApp() {
 							resetToDefaults={settings.resetToDefaults}
 							quitBloom={settings.quitBloom}
 						/>
-					)}
-					{activeTab === "appearance" && (
+					</section>
+					<section data-tab="appearance" hidden={shown !== "appearance"}>
 						<AppearanceTab
 							themeMode={settings.themeMode}
 							handleThemeModeChange={settings.handleThemeModeChange}
@@ -214,8 +348,8 @@ function SettingsApp() {
 							scale={settings.scale}
 							handleScaleChange={settings.handleScaleChange}
 						/>
-					)}
-					{activeTab === "notch" && (
+					</section>
+					<section data-tab="notch" hidden={shown !== "notch"}>
 						<NotchTab
 							saveSetting={settings.saveSetting}
 							notchEnabled={settings.notchEnabled}
@@ -269,8 +403,8 @@ function SettingsApp() {
 							notchStyle={settings.notchStyle}
 							handleNotchStyleChange={settings.handleNotchStyleChange}
 						/>
-					)}
-					{activeTab === "dock" && (
+					</section>
+					<section data-tab="dock" hidden={shown !== "dock"}>
 						<DockTab
 							dockEnabled={settings.dockEnabled}
 							toggleDock={settings.toggleDock}
@@ -308,8 +442,8 @@ function SettingsApp() {
 							dockScale={settings.dockScale}
 							handleDockScaleChange={settings.handleDockScaleChange}
 						/>
-					)}
-					{activeTab === "clipboard" && (
+					</section>
+					<section data-tab="clipboard" hidden={shown !== "clipboard"}>
 						<ClipboardTab
 							enabled={settings.clipboardEnabled}
 							toggleEnabled={settings.toggleClipboard}
@@ -330,9 +464,11 @@ function SettingsApp() {
 							changeShortcut={settings.changeClipboardShortcut}
 							saveSetting={settings.saveSetting}
 						/>
-					)}
-					{activeTab === "files" && <FilesTab saveSetting={settings.saveSetting} />}
-					{activeTab === "overlays" && (
+					</section>
+					<section data-tab="files" hidden={shown !== "files"}>
+						<FilesTab saveSetting={settings.saveSetting} />
+					</section>
+					<section data-tab="overlays" hidden={shown !== "overlays"}>
 						<OverlaysTab
 							volumeOverlayEnabled={settings.volumeOverlayEnabled}
 							toggleVolumeOverlay={settings.toggleVolumeOverlay}
@@ -343,8 +479,8 @@ function SettingsApp() {
 							brightnessEdgeEnabled={settings.brightnessEdgeEnabled}
 							toggleBrightnessEdge={settings.toggleBrightnessEdge}
 						/>
-					)}
-					{activeTab === "about" && (
+					</section>
+					<section data-tab="about" hidden={shown !== "about"}>
 						<AboutTab
 							appVersion={settings.appVersion}
 							autoUpdate={settings.autoUpdate}
@@ -358,6 +494,18 @@ function SettingsApp() {
 							handleExportSettings={settings.handleExportSettings}
 							handleImportSettings={settings.handleImportSettings}
 						/>
+					</section>
+					{shown && PAGE_KEYS[shown] && (
+						<div className="settings-page-reset">
+							<button
+								onClick={() =>
+									settings.resetPage(TABS.find((t) => t.id === shown)?.label ?? "", PAGE_KEYS[shown] ?? [])
+								}
+							>
+								<RotateCcw size={12} strokeWidth={1.75} />
+								Reset this page
+							</button>
+						</div>
 					)}
 				</div>
 			</div>

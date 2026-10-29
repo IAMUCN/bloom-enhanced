@@ -1244,20 +1244,13 @@ input:checked + .slider:before {
 	background: rgba(255, 255, 255, 0.1);
 }
 
+/* City matches: a list in the page under the field (Settings has no
+   dropdowns). */
 .city-dropdown {
-	position: absolute;
-	top: calc(100% + 4px);
-	left: 0;
-	right: 0;
-	background: var(--bloom-group-bg, rgba(30, 30, 30, 0.95));
+	margin-top: 6px;
 	border: 1px solid var(--bloom-border, rgba(255, 255, 255, 0.08));
 	border-radius: 8px;
 	padding: 4px;
-	z-index: 100;
-	box-shadow: 0 8px 24px rgba(0, 0, 0, 0.4);
-	backdrop-filter: blur(20px);
-	max-height: 180px;
-	overflow-y: auto;
 }
 
 .city-dropdown-item {
@@ -1818,4 +1811,126 @@ input:checked + .slider:before {
 
 .clip-preview-pill.wide {
 	width: 200px;
+}
+
+/* ── Search (sidebar box, results page, the row it jumps to) ── */
+.settings-search {
+	display: flex;
+	align-items: center;
+	gap: 7px;
+	margin: 0 4px 10px;
+	padding: 6px 9px;
+	border-radius: 8px;
+	border: 1px solid var(--bloom-border, rgba(255, 255, 255, 0.08));
+	background: rgba(255, 255, 255, 0.04);
+	color: var(--text-muted);
+	transition: border-color 0.15s ease;
+}
+.settings-search:focus-within {
+	border-color: var(--bloom-accent, #007aff);
+}
+.settings-search input {
+	flex: 1;
+	min-width: 0;
+	border: none;
+	outline: none;
+	background: transparent;
+	color: var(--text-color);
+	font: inherit;
+	font-size: 12px;
+}
+.light-mode .settings-search {
+	background: rgba(0, 0, 0, 0.03);
+}
+
+.settings-search-results {
+	display: flex;
+	flex-direction: column;
+	gap: 4px;
+}
+.search-result {
+	display: grid;
+	grid-template-columns: auto 1fr;
+	column-gap: 10px;
+	align-items: baseline;
+	padding: 9px 12px;
+	border: none;
+	border-radius: 9px;
+	background: var(--bloom-group-bg, rgba(255, 255, 255, 0.04));
+	color: var(--text-color);
+	text-align: left;
+	cursor: pointer;
+	transition: background 0.12s ease;
+}
+.search-result:hover,
+.search-result:focus-visible {
+	background: rgba(255, 255, 255, 0.09);
+}
+.light-mode .search-result:hover,
+.light-mode .search-result:focus-visible {
+	background: rgba(0, 0, 0, 0.06);
+}
+.search-result-page {
+	font-size: 10px;
+	font-weight: 600;
+	text-transform: uppercase;
+	letter-spacing: 0.4px;
+	color: var(--bloom-accent, #007aff);
+}
+.search-result-label {
+	font-size: 13px;
+	font-weight: 500;
+}
+.search-result-desc {
+	grid-column: 2;
+	font-size: 11px;
+	color: var(--text-muted);
+}
+
+@keyframes search-hit {
+	0%,
+	60% {
+		background: color-mix(in srgb, var(--bloom-accent, #007aff) 22%, transparent);
+	}
+	100% {
+		background: transparent;
+	}
+}
+.search-hit {
+	animation: search-hit 1.6s ease-out;
+	border-radius: 8px;
+}
+
+/* ── Reset this page ── */
+.settings-page-reset {
+	display: flex;
+	justify-content: flex-end;
+	margin: 18px 2px 4px;
+}
+.settings-page-reset button {
+	display: inline-flex;
+	align-items: center;
+	gap: 6px;
+	padding: 6px 11px;
+	border-radius: 8px;
+	border: 1px solid var(--bloom-border, rgba(255, 255, 255, 0.08));
+	background: transparent;
+	color: var(--text-muted);
+	font: inherit;
+	font-size: 11.5px;
+	cursor: pointer;
+	transition: color 0.15s ease, border-color 0.15s ease;
+}
+.settings-page-reset button:hover {
+	color: #ff453a;
+	border-color: #ff453a;
+}
+
+/* ── Keyboard: a visible focus ring on every control ── */
+.settings-container :is(button, input, summary, [tabindex]):focus-visible {
+	outline: 2px solid var(--bloom-accent, #007aff);
+	outline-offset: 2px;
+}
+.settings-search input:focus-visible {
+	outline: none;
 }

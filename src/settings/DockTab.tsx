@@ -1,5 +1,6 @@
 import { useEffect, useState, type ChangeEvent, type CSSProperties } from "react";
 import { invoke } from "@tauri-apps/api/core";
+import { Choice } from "./Choice";
 import {
 	Monitor,
 	Eye,
@@ -203,18 +204,25 @@ export function DockTab({
 					<>
 						<SettingRow
 							icon={dockMode === "fixed" ? EyeOff : Eye}
-							label="Behavior"
-							desc="Choose how the dock appears"
+							label="When It Shows"
+							desc={
+								dockMode === "smart"
+									? "Hides while an app covers the bottom of the screen; touch the bottom edge to bring it back"
+									: dockMode === "peek"
+										? "Stays hidden until you touch the bottom edge"
+										: "Always on screen"
+							}
 						>
-							<select
-								className="settings-select"
+							<Choice
 								value={dockMode}
-								onChange={(e) => setDockModeValue(e.target.value)}
-							>
-								<option value="fixed">Fixed</option>
-								<option value="smart">Smart</option>
-								<option value="peek">Peek</option>
-							</select>
+								options={[
+									["fixed", "Fixed"],
+									["smart", "Smart"],
+									["peek", "Peek"]
+								]}
+								onChange={setDockModeValue}
+								label="When the dock shows"
+							/>
 						</SettingRow>
 
 						{dockMode !== "fixed" && (
@@ -314,15 +322,16 @@ export function DockTab({
 							label="Dock Extras"
 							desc="Show drives, folders and the Recycle Bin beside the apps"
 						>
-							<select
-								className="settings-select"
+							<Choice
 								value={dockExtrasPosition}
-								onChange={(e) => handleDockExtrasPositionChange(e.target.value)}
-							>
-								<option value="off">Off</option>
-								<option value="left">Left</option>
-								<option value="right">Right</option>
-							</select>
+								options={[
+									["off", "Off"],
+									["left", "Left"],
+									["right", "Right"]
+								]}
+								onChange={handleDockExtrasPositionChange}
+								label="Dock extras"
+							/>
 						</SettingRow>
 
 						{dockExtrasPosition !== "off" && (

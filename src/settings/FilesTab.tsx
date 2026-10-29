@@ -6,6 +6,7 @@ import { useSettingsSync } from "../hooks/useSettingsSync";
 import { MODE_LABEL, ordered, parseLayout, type OrbitLayout, type OrbitMode, type OrbitOp } from "../orbitOps";
 import { ORBIT_ICONS } from "../orbitIcons";
 import { ScaleStepper } from "./ScaleStepper";
+import { Choice } from "./Choice";
 import { SettingRow } from "./SettingRow";
 
 const TRIGGER_KEYS = [
@@ -156,20 +157,12 @@ export function FilesTab({ saveSetting }: { saveSetting: (key: string, value: st
 				{enabled && (
 					<>
 						<SettingRow icon={Keyboard} label="Trigger Key" desc={`Tap it while dragging, or press it twice with files selected; it also switches menus`}>
-							<div className="scale-button-container seg-toggle" role="radiogroup" aria-label="Trigger key">
-								{TRIGGER_KEYS.map(([v, name]) => (
-									<button
-										key={v}
-										role="radio"
-										aria-checked={triggerKey === v}
-										className={`seg-btn${triggerKey === v ? " active" : ""}`}
-										onClick={() => save("bloom-files-key", v)}
-									>
-										{triggerKey === v && <motion.span layoutId="key-pill" className="seg-pill" transition={SPRING} />}
-										<span>{name}</span>
-									</button>
-								))}
-							</div>
+							<Choice
+								value={triggerKey}
+								options={TRIGGER_KEYS}
+								onChange={(v) => save("bloom-files-key", v)}
+								label="Trigger key"
+							/>
 						</SettingRow>
 
 						<SettingRow
@@ -222,20 +215,15 @@ export function FilesTab({ saveSetting }: { saveSetting: (key: string, value: st
 					<div className="setting-group-label">Progress</div>
 					<div className="setting-group">
 						<SettingRow icon={MapPin} label="Show Progress" desc="Where the percentage and the result appear">
-							<div className="scale-button-container seg-toggle" role="radiogroup" aria-label="Show progress">
-								{(["pointer", "notch"] as const).map((v) => (
-									<button
-										key={v}
-										role="radio"
-										aria-checked={statusAt === v}
-										className={`seg-btn${statusAt === v ? " active" : ""}`}
-										onClick={() => save("bloom-files-status-at", v)}
-									>
-										{statusAt === v && <motion.span layoutId="seg-pill" className="seg-pill" transition={SPRING} />}
-										<span>{v === "pointer" ? "Pointer" : "Notch"}</span>
-									</button>
-								))}
-							</div>
+							<Choice
+								value={statusAt}
+								options={[
+									["pointer", "Pointer"],
+									["notch", "Notch"]
+								]}
+								onChange={(v) => save("bloom-files-status-at", v)}
+								label="Show progress"
+							/>
 						</SettingRow>
 						<SettingRow icon={Timer} label="Result Stays For" desc="How long the result shows (errors a bit longer, Canceled briefly)" divider={false}>
 							<ScaleStepper
