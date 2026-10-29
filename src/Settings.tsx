@@ -316,6 +316,10 @@ function SettingsApp() {
 							retentionHours={settings.clipboardRetentionHours}
 							changeRetention={settings.changeClipboardRetention}
 							clearHistory={settings.clearClipboardHistory}
+							groupFiles={settings.clipboardGroupFiles}
+							toggleGroupFiles={settings.toggleClipboardGroupFiles}
+							thumbSize={settings.clipboardThumbSize}
+							changeThumbSize={settings.changeClipboardThumbSize}
 						/>
 					)}
 					{activeTab === "overlays" && (

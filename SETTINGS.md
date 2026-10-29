@@ -85,6 +85,8 @@ Edit `settings.json` with any text editor while Bloom is running. Changes are ap
 | `bloom-clipboard-incognito` | `"true"` / `"false"` | `"false"` | Pause capture; anything copied while on is never recorded. |
 | `bloom-clipboard-limit` | number string | `"200"` | Unpinned items kept; the oldest go first. |
 | `bloom-clipboard-retention-hours` | number string | `"0"` | Delete unpinned items older than this many hours; `"0"` keeps them until the limit removes them. |
+| `bloom-clipboard-group-files` | `"true"` / `"false"` | `"true"` | Several files copied at once are one stack (expand or ungroup it in the panel). `"false"` records each file as its own item. |
+| `bloom-clipboard-thumb-size` | `"small"` / `"medium"` / `"large"` | `"small"` | Thumbnail size in the Clipboard panel (32 / 48 / 72 px). |
 
 ### Shelf
 

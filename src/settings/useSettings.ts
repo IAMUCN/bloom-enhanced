@@ -53,6 +53,8 @@ export function useSettings() {
 	const [clipboardIncognito, setClipboardIncognito] = useState(false);
 	const [clipboardLimit, setClipboardLimit] = useState(200);
 	const [clipboardRetentionHours, setClipboardRetentionHours] = useState(0);
+	const [clipboardGroupFiles, setClipboardGroupFiles] = useState(true);
+	const [clipboardThumbSize, setClipboardThumbSize] = useState("small");
 	const [timerSoundEnabled, setTimerSoundEnabled] = useState(
 		() => localStorage.getItem("bloom-timer-sound-enabled") !== "false"
 	);
@@ -236,6 +238,8 @@ export function useSettings() {
 			apply(getVal("bloom-clipboard-incognito"), setClipboardIncognito, readBool);
 			apply(getVal("bloom-clipboard-limit"), setClipboardLimit, Number);
 			apply(getVal("bloom-clipboard-retention-hours"), setClipboardRetentionHours, Number);
+			apply(getVal("bloom-clipboard-group-files"), setClipboardGroupFiles, readBool);
+			apply(getVal("bloom-clipboard-thumb-size"), setClipboardThumbSize, String);
 			apply(getVal("bloom-timer-sound-enabled"), setTimerSoundEnabled, readBool);
 			apply(getVal("bloom-music-mode-enabled"), setMusicModeEnabled, readBool);
 			apply(getVal("bloom-notch-remember-panel") ?? getVal("bloom-notch-click-to-open"),
@@ -421,6 +425,8 @@ export function useSettings() {
 		"bloom-clipboard-incognito": setClipboardIncognito,
 		"bloom-clipboard-limit": setClipboardLimit,
 		"bloom-clipboard-retention-hours": setClipboardRetentionHours,
+		"bloom-clipboard-group-files": setClipboardGroupFiles,
+		"bloom-clipboard-thumb-size": (v: unknown) => setClipboardThumbSize(String(v)),
 		"bloom-timer-sound-enabled": setTimerSoundEnabled,
 		"bloom-music-mode-enabled": setMusicModeEnabled,
 		"bloom-notch-remember-panel": setNotchRememberPanel,
@@ -632,6 +638,17 @@ export function useSettings() {
 	const changeClipboardRetention = (hours: number) => {
 		setClipboardRetentionHours(hours);
 		saveSetting("bloom-clipboard-retention-hours", String(hours));
+	};
+
+	const toggleClipboardGroupFiles = () => {
+		const next = !clipboardGroupFiles;
+		setClipboardGroupFiles(next);
+		saveSetting("bloom-clipboard-group-files", String(next));
+	};
+
+	const changeClipboardThumbSize = (size: string) => {
+		setClipboardThumbSize(size);
+		saveSetting("bloom-clipboard-thumb-size", size);
 	};
 
 	const clearClipboardHistory = async () => {
@@ -1119,6 +1136,10 @@ export function useSettings() {
 		clipboardRetentionHours,
 		changeClipboardRetention,
 		clearClipboardHistory,
+		clipboardGroupFiles,
+		toggleClipboardGroupFiles,
+		clipboardThumbSize,
+		changeClipboardThumbSize,
 		timerSoundEnabled,
 		toggleTimerSound,
 		musicModeEnabled,

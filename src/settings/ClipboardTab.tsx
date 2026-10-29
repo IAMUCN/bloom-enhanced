@@ -1,4 +1,4 @@
-import { ClipboardList, EyeOff, History, Timer, Trash2 } from "lucide-react";
+import { ClipboardList, EyeOff, History, Image, Layers, Timer, Trash2 } from "lucide-react";
 import { SettingRow } from "./SettingRow";
 
 interface ClipboardTabProps {
@@ -11,6 +11,10 @@ interface ClipboardTabProps {
 	retentionHours: number;
 	changeRetention: (hours: number) => void;
 	clearHistory: () => void;
+	groupFiles: boolean;
+	toggleGroupFiles: () => void;
+	thumbSize: string;
+	changeThumbSize: (size: string) => void;
 }
 
 const LIMITS = [50, 100, 200, 500, 1000];
@@ -31,7 +35,11 @@ export function ClipboardTab({
 	changeLimit,
 	retentionHours,
 	changeRetention,
-	clearHistory
+	clearHistory,
+	groupFiles,
+	toggleGroupFiles,
+	thumbSize,
+	changeThumbSize
 }: ClipboardTabProps) {
 	return (
 		<>
@@ -61,6 +69,28 @@ export function ClipboardTab({
 						</label>
 					</SettingRow>
 				)}
+			</div>
+
+			<div className="setting-group-label">Items</div>
+			<div className="setting-group">
+				<SettingRow
+					icon={Layers}
+					label="Group Copied Files"
+					desc="Several files or images copied at once stay one stack; off records each on its own"
+				>
+					<label className="toggle-switch">
+						<input type="checkbox" checked={groupFiles} onChange={toggleGroupFiles} />
+						<span className="slider"></span>
+					</label>
+				</SettingRow>
+
+				<SettingRow icon={Image} label="Thumbnail Size" desc="Preview size of images and files" divider={false}>
+					<select className="settings-select" value={thumbSize} onChange={(e) => changeThumbSize(e.target.value)}>
+						<option value="small">Small</option>
+						<option value="medium">Medium</option>
+						<option value="large">Large</option>
+					</select>
+				</SettingRow>
 			</div>
 
 			<div className="setting-group-label">History</div>

@@ -1547,6 +1547,8 @@ function App() {
 	// True while our own drag-out is running, so the drag-enter we receive when
 	// it starts over the notch does not flash the hover outline or re-open it.
 	const shelfSelfDragRef = useRef(false);
+	// Set while an item is dragged out of the Clipboard panel.
+	const clipboardSelfDragRef = useRef(false);
 	const handleShelfPointerDown = (e: React.PointerEvent<HTMLDivElement>, item: ShelfItem) => {
 		if (e.button !== 0) return;
 		// Text items have no native drag-out; a click copies them.
@@ -1848,7 +1850,8 @@ function App() {
 			console.info("[shelf] drag-enter:", event.payload.paths ?? event.payload.text);
 			setIsDragHovering(true);
 			const prev = bloomModeRef.current;
-			if (prev === "announcement" || prev === "shelf") return;
+			// The open Clipboard panel takes drops itself.
+			if (prev === "announcement" || prev === "shelf" || prev === "clipboard") return;
 			shelfPrevModeRef.current = prev;
 			shelfPrevOpenRef.current = isOpenRef.current;
 			shelfDragActiveRef.current = true;
@@ -1871,6 +1874,11 @@ function App() {
 			shelfSelfDropAtRef.current = Date.now();
 			const paths = event.payload.paths ?? [];
 			const text = event.payload.text;
+			if (bloomModeRef.current === "clipboard") {
+				// Dropping our own drag back onto the panel is a no-op.
+				if (!clipboardSelfDragRef.current) invoke("clipboard_add", { paths, text }).catch(() => {});
+				return;
+			}
 			console.info("[shelf] drop:", paths.length > 0 ? paths : text);
 			if (paths.length === 0 && !text) return;
 			if (paths.length > 0) addShelfItems(paths);
@@ -3948,8 +3956,12 @@ function App() {
 										>
 											<ClipboardPanel
 												dragIcon={shelfDragIcon}
-												onDragStart={clearShelfCollapse}
+												onDragStart={() => {
+													clipboardSelfDragRef.current = true;
+													clearShelfCollapse();
+												}}
 												onDragEnd={() => {
+													clipboardSelfDragRef.current = false;
 													// The native drag owned the pointer, so the webview never saw it leave.
 													releaseNotchHover();
 													invoke("set_notch_hovered", { hovered: false }).catch(() => {});

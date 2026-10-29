@@ -497,11 +497,112 @@ fn watch(app: AppHandle) {
         last_key = key;
         last_at = Instant::now();
 
-        let mut history = HISTORY.lock().unwrap();
-        let mut removed = add_item(&mut history, item);
-        removed.extend(cleanup(&mut history, limit(), max_age_ms(), now_ms()));
-        commit(&app, &history, &removed);
+        add_all(&app, grouped(item));
     }
+}
+
+/// Adds captures (front to back) and applies retention.
+fn add_all(app: &AppHandle, items: Vec<ClipItem>) {
+    let mut history = HISTORY.lock().unwrap();
+    let mut removed = Vec::new();
+    for item in items.into_iter().rev() {
+        removed.extend(add_item(&mut history, item));
+    }
+    removed.extend(cleanup(&mut history, limit(), max_age_ms(), now_ms()));
+    commit(app, &history, &removed);
+}
+
+/// A multi-file copy stays one group unless `bloom-clipboard-group-files` is
+/// "false", which records each file on its own.
+fn grouped(item: ClipItem) -> Vec<ClipItem> {
+    if setting("bloom-clipboard-group-files").as_deref() == Some("false") {
+        split_files(item)
+    } else {
+        vec![item]
+    }
+}
+
+/// One item per file of a file group, first file first; anything else as is.
+pub fn split_files(item: ClipItem) -> Vec<ClipItem> {
+    if item.kind != ClipKind::Files || item.paths.len() < 2 {
+        return vec![item];
+    }
+    item.paths
+        .iter()
+        .map(|path| ClipItem {
+            id: new_id(),
+            paths: vec![path.clone()],
+            hits: 1,
+            ..item.clone()
+        })
+        .collect()
+}
+
+fn text_item(text: String) -> ClipItem {
+    ClipItem {
+        id: new_id(),
+        kind: ClipKind::Text,
+        is_url: is_url(&text),
+        text: Some(text),
+        paths: Vec::new(),
+        image: None,
+        width: 0,
+        height: 0,
+        bytes: 0,
+        captured_at: now_ms(),
+        pinned: false,
+        hits: 1,
+    }
+}
+
+/// Files or text dropped onto the shelf. Recorded like a copy, without
+/// touching the clipboard.
+#[tauri::command]
+pub fn clipboard_add(app: AppHandle, paths: Vec<String>, text: Option<String>) {
+    let item = match text.map(|t| normalize_text(&t)) {
+        Some(text) if !text.is_empty() && text.len() <= MAX_TEXT_BYTES => text_item(text),
+        _ if !paths.is_empty() => ClipItem {
+            kind: ClipKind::Files,
+            text: None,
+            is_url: false,
+            paths,
+            ..text_item(String::new())
+        },
+        _ => return,
+    };
+    add_all(&app, grouped(item));
+}
+
+/// Breaks a file group into one item per file, in its place.
+#[tauri::command]
+pub fn clipboard_split(app: AppHandle, id: String) {
+    let mut history = HISTORY.lock().unwrap();
+    let Some(pos) = history.iter().position(|it| it.id == id) else {
+        return;
+    };
+    let item = history.remove(pos);
+    let pinned = item.pinned;
+    for (i, mut part) in split_files(item).into_iter().enumerate() {
+        part.pinned = pinned;
+        history.insert(pos + i, part);
+    }
+    commit(&app, &history, &[]);
+}
+
+/// Copies some files of a group (or any file list) to the clipboard.
+#[tauri::command]
+pub fn clipboard_copy_paths(paths: Vec<String>) -> Result<(), String> {
+    set_files(&paths)
+}
+
+/// Deletes several items at once (the panel's scoped "Clear").
+#[tauri::command]
+pub fn clipboard_delete_many(app: AppHandle, ids: Vec<String>) {
+    let mut history = HISTORY.lock().unwrap();
+    let (removed, kept): (Vec<ClipItem>, Vec<ClipItem>) =
+        history.drain(..).partition(|it| ids.contains(&it.id));
+    *history = kept;
+    commit(&app, &history, &removed);
 }
 
 // ── Writing back ──
@@ -674,6 +775,25 @@ mod tests {
         assert_eq!(h[0].hits, 2);
         assert!(h[0].pinned);
         assert_eq!(h[0].captured_at, 3);
+    }
+
+    #[test]
+    fn splits_file_groups_in_order() {
+        let mut group = text("g", "", 5);
+        group.kind = ClipKind::Files;
+        group.text = None;
+        group.paths = vec!["a".into(), "b".into()];
+        let parts = split_files(group);
+        assert_eq!(parts.len(), 2);
+        assert_eq!(parts[0].paths, ["a"]);
+        assert_eq!(parts[1].paths, ["b"]);
+        assert_ne!(parts[0].id, parts[1].id);
+        // Adding back to front leaves the first file on top.
+        let mut h = Vec::new();
+        for p in parts.into_iter().rev() {
+            add_item(&mut h, p);
+        }
+        assert_eq!(h[0].paths, ["a"]);
     }
 
     #[test]
