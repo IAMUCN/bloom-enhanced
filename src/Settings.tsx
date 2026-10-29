@@ -208,7 +208,7 @@ function SettingsApp() {
 
 			<div className="settings-body">
 				<div className="settings-sidebar">
-					<div className="settings-sidebar-intro"><strong>Bloom</strong><span>Make it yours</span></div>
+					<div className="settings-sidebar-intro"><strong>Bloom Enhanced</strong><span>Make it yours</span></div>
 					<label className="settings-search">
 						<Search size={13} strokeWidth={1.75} />
 						<input
