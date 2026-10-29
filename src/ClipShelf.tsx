@@ -7,6 +7,7 @@ import ReactDOM from "react-dom/client";
 import { invoke } from "@tauri-apps/api/core";
 import { listen } from "@tauri-apps/api/event";
 import { ClipboardPanel } from "./components/ClipboardPanel";
+import { EdgeSurface } from "./components/EdgeSurface";
 import { useTextInputKeyboard, releaseTextKeyboard } from "./hooks/useTextInputKeyboard";
 import { useSettingsSync } from "./hooks/useSettingsSync";
 import { parsePanelScales } from "./notchLayout";
@@ -69,6 +70,7 @@ function ClipShelf() {
 			className={`clipshelf ${side} ${open ? "open" : ""} ${dragHover ? "drop-hover" : ""}`}
 			style={{ zoom: globalScale * panelScale }}
 		>
+			<EdgeSurface edge={side} />
 			<ClipboardPanel
 				dragIcon={dragIcon}
 				dropEvent="clipshelf-drag-drop"

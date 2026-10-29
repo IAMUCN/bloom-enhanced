@@ -307,11 +307,11 @@ export function ClipboardPanel({ dragIcon, dropEvent, onDragStart, onDragEnd }: 
 			) : selected.size || selecting ? (
 				<div className="clip-bar">
 					<span className="clip-bar-title">{selected.size ? `${selected.size} selected` : "Click items to select"}</span>
-					{pickedFiles.length >= 2 && (
+					{picked.length >= 2 && (
 						<button
-							title="Group into one stack"
+							title="Group into one stack (text becomes a .txt file)"
 							onClick={() =>
-								invoke("clipboard_group", { ids: pickedFiles.map((it) => it.id) })
+								invoke("clipboard_group", { ids: picked.map((it) => it.id) })
 									.then(() => {
 										sound("pop");
 										endSelection();

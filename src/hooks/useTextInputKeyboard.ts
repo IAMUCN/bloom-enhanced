@@ -36,12 +36,20 @@ export function useTextInputKeyboard() {
 				.then(() => field.focus())
 				.catch(() => {});
 		};
+		// A field focused from code, like the note box that opens focused.
+		const focusIn = (e: FocusEvent) => {
+			if (!isTextField(e.target) || held) return;
+			held = true;
+			invoke("keyboard_focus", { focus: true }).catch(() => {});
+		};
 		const out = (e: FocusEvent) => {
 			if (isTextField(e.target) && !isTextField(e.relatedTarget)) release();
 		};
 		document.addEventListener("pointerdown", down, true);
 		document.addEventListener("focusout", out, true);
+		document.addEventListener("focusin", focusIn, true);
 		return () => {
+			document.removeEventListener("focusin", focusIn, true);
 			document.removeEventListener("pointerdown", down, true);
 			document.removeEventListener("focusout", out, true);
 			release();

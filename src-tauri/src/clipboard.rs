@@ -916,6 +916,16 @@ fn ensure_shelf_window(app: &AppHandle, wanted: bool) {
         if let Ok(hwnd) = win.hwnd() {
             crate::utils::re_assert_topmost(hwnd);
         }
+        // WebView2 creates its render child only once the window is shown, so
+        // the drop target registered at load misses it; register again.
+        let app = app.clone();
+        tauri::async_runtime::spawn(async move {
+            for ms in [150, 1500] {
+                tokio::time::sleep(Duration::from_millis(ms)).await;
+                let inner = app.clone();
+                let _ = app.run_on_main_thread(move || crate::shelf::setup(&inner, "clipshelf"));
+            }
+        });
     } else {
         SHELF_OPEN.store(false, Ordering::Relaxed);
         let _ = win.hide();
@@ -1117,45 +1127,85 @@ pub fn clipboard_set_note(app: AppHandle, id: String, note: String) {
     }
 }
 
-/// Puts the files of `ids` (in that order) into one file group at the place of
-/// the first; text items are left alone. Grouping after copying, like
-/// stacking items in Edge-Drop.
-pub fn group_items(history: &mut Vec<ClipItem>, ids: &[String]) -> bool {
-    let members: Vec<usize> = ids
+/// Puts the items of `ids` (in that order) into one file group at the place
+/// of the first, like stacking items in Edge-Drop. Text joins as the file
+/// `text_file` writes for it (None leaves that item out).
+pub fn group_items(
+    history: &mut Vec<ClipItem>,
+    ids: &[String],
+    text_file: impl Fn(&ClipItem) -> Option<String>,
+) -> bool {
+    let members: Vec<(usize, Vec<String>)> = ids
         .iter()
         .filter_map(|id| history.iter().position(|it| &it.id == id))
-        .filter(|&i| history[i].kind != ClipKind::Text)
+        .filter_map(|i| {
+            let it = &history[i];
+            let files = if it.kind == ClipKind::Text {
+                vec![text_file(it)?]
+            } else {
+                it.file_paths()
+            };
+            Some((i, files))
+        })
         .collect();
     if members.len() < 2 {
         return false;
     }
     let mut paths: Vec<String> = Vec::new();
-    for &i in &members {
-        for p in history[i].file_paths() {
+    for (_, files) in &members {
+        for p in files.iter().cloned() {
             if !paths.contains(&p) {
                 paths.push(p);
             }
         }
     }
-    let first = members[0];
+    let first = members[0].0;
     let mut group = history[first].clone();
     group.kind = ClipKind::Files;
     group.paths = paths;
+    group.text = None;
+    group.html = None;
+    group.is_url = false;
     group.image = None;
     group.width = 0;
     group.height = 0;
     group.bytes = 0;
-    group.pinned = members.iter().any(|&i| history[i].pinned);
-    let keep_ids: Vec<String> = members.iter().map(|&i| history[i].id.clone()).collect();
+    group.pinned = members.iter().any(|&(i, _)| history[i].pinned);
+    let keep_ids: Vec<String> = members
+        .iter()
+        .map(|&(i, _)| history[i].id.clone())
+        .collect();
     history[first] = group;
     history.retain(|it| it.id == keep_ids[0] || !keep_ids.contains(&it.id));
     true
 }
 
+/// Writes a text item to `<images>/<first words>-<id>.txt` (ours to delete
+/// with the group) so it can sit in a file group and be dragged out as a file.
+fn text_file(item: &ClipItem) -> Option<String> {
+    let text = item.text.as_deref()?;
+    let words: String = text
+        .chars()
+        .map(|c| if c.is_alphanumeric() { c } else { ' ' })
+        .collect::<String>()
+        .split_whitespace()
+        .take(5)
+        .collect::<Vec<_>>()
+        .join(" ");
+    let name = if words.is_empty() {
+        "Text".to_string()
+    } else {
+        words.chars().take(40).collect()
+    };
+    let path = IMAGES_DIR.get()?.join(format!("{name} {}.txt", item.id));
+    std::fs::write(&path, text).ok()?;
+    Some(path.to_string_lossy().into_owned())
+}
+
 #[tauri::command]
 pub fn clipboard_group(app: AppHandle, ids: Vec<String>) {
     let mut history = HISTORY.lock().unwrap();
-    if group_items(&mut history, &ids) {
+    if group_items(&mut history, &ids, text_file) {
         commit(&app, &history, &[]);
     }
 }
@@ -1357,7 +1407,7 @@ mod tests {
     }
 
     #[test]
-    fn groups_files_and_images_but_not_text() {
+    fn groups_files_images_and_text() {
         let mut a = text("a", "", 3);
         a.kind = ClipKind::Image;
         a.text = None;
@@ -1368,15 +1418,21 @@ mod tests {
         b.paths = vec!["x.pdf".into(), "img/a.png".into()];
         b.pinned = true;
         let t = text("t", "words", 1);
-        let mut h = vec![a, t, b];
-        assert!(group_items(&mut h, &["a".into(), "t".into(), "b".into()]));
+        let u = text("u", "unwritable", 1);
+        let as_file = |it: &ClipItem| (it.id == "t").then(|| "t.txt".to_string());
+        let mut h = vec![a, t, u, b];
+        assert!(group_items(
+            &mut h,
+            &["a".into(), "t".into(), "u".into(), "b".into()],
+            as_file
+        ));
         assert_eq!(h.len(), 2);
         assert_eq!(h[0].id, "a");
         assert_eq!(h[0].kind, ClipKind::Files);
-        assert_eq!(h[0].paths, ["img/a.png", "x.pdf"]);
+        assert_eq!(h[0].paths, ["img/a.png", "t.txt", "x.pdf"]);
         assert!(h[0].pinned);
-        assert_eq!(h[1].id, "t");
-        assert!(!group_items(&mut h, &["t".into()]));
+        assert_eq!(h[1].id, "u");
+        assert!(!group_items(&mut h, &["u".into()], as_file));
     }
 
     #[test]

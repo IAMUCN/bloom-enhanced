@@ -18,11 +18,17 @@ body,
 	user-select: none;
 }
 
+/* Drawn by EdgeSurface like the notch and the volume HUD: a pill rounded on
+   the screen side, with concave flares into the edge above and below. The
+   flares take 13px at the top and bottom of the window. */
 .clipshelf {
+	--surface-bg: var(--bloom-bg-expanded, rgba(0, 0, 0, 0.92));
+	position: relative;
+	isolation: isolate;
 	width: 100%;
-	height: 100%;
+	height: calc(100% - 26px);
+	margin-top: 13px;
 	color: var(--bloom-text, white);
-	background: var(--bloom-bg-expanded, rgba(0, 0, 0, 0.92));
 	transition:
 		transform 0.18s cubic-bezier(0.2, 0.8, 0.2, 1),
 		opacity 0.18s ease;
@@ -44,7 +50,7 @@ body,
 	opacity: 1;
 }
 
-.clipshelf.drop-hover {
+.clipshelf.drop-hover .qp {
 	box-shadow: inset 0 0 0 2px rgba(255, 255, 255, 0.35);
 }
 

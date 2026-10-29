@@ -6,6 +6,7 @@ let ctx: AudioContext | null = null;
 function tone(from: number, to: number, ms: number, gain: number, type: OscillatorType = "sine") {
 	try {
 		ctx ??= new AudioContext();
+		if (ctx.state === "suspended") ctx.resume().catch(() => {});
 		const now = ctx.currentTime;
 		const osc = ctx.createOscillator();
 		const amp = ctx.createGain();

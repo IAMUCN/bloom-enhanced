@@ -1111,6 +1111,7 @@ function App() {
 		let timer: ReturnType<typeof setTimeout> | undefined;
 		const unlisten = listen("clipboard-captured", () => {
 			setShowCopyPulse(true);
+			if (notchMode === "peek") triggerEventPeek(1200);
 			clearTimeout(timer);
 			timer = setTimeout(() => setShowCopyPulse(false), 1200);
 		});
@@ -1119,7 +1120,7 @@ function App() {
 			setShowCopyPulse(false);
 			unlisten.then((fn) => fn());
 		};
-	}, [settingsClipboardEnabled, clipboardCopyIndicator]);
+	}, [windowLabel, settingsClipboardEnabled, clipboardCopyIndicator, notchMode, triggerEventPeek]);
 	const [settingsTimerSoundEnabled, setSettingsTimerSoundEnabled] = useState(
 		() => localStorage.getItem("bloom-timer-sound-enabled") !== "false"
 	);
