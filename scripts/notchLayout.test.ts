@@ -13,7 +13,7 @@ test("resizing one panel leaves the others unset", () => {
 
 test("drops unknown panels, out-of-range and non-numeric values", () => {
 	expect(
-		parsePanelScales('{"calendar":5,"shelf":"1.1","devices":0.5,"nope":1,"command-center":1.3}')
+		parsePanelScales('{"calendar":5,"shelf":"1.1","devices":0.4,"nope":1,"command-center":1.3}')
 	).toEqual({ "command-center": 1.3 });
 });
 

@@ -16,8 +16,8 @@ export const SIZED_PANELS = [
 export type SizedPanel = (typeof SIZED_PANELS)[number][0];
 export type PanelScales = Partial<Record<SizedPanel, number>>;
 
-export const MIN_SCALE = 0.8;
-export const MAX_SCALE = 1.3;
+export const MIN_SCALE = 0.5;
+export const MAX_SCALE = 1.5;
 
 const isSizedPanel = (id: string): id is SizedPanel => SIZED_PANELS.some(([panel]) => panel === id);
 

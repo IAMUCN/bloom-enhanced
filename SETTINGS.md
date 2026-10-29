@@ -23,7 +23,7 @@ Edit `settings.json` with any text editor while Bloom is running. Changes are ap
 | ---------------------------------- | -------------------------------- | ------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | `bloom-dock-enabled`               | `"true"` / `"false"`             | `"true"`      | Show or hide the Bloom Dock (taskbar replacement).                                                                                                                               |
 | `bloom-dock-mode`                  | `"fixed"` / `"smart"` / `"peek"` | `"smart"`     | Dock visibility behavior. **fixed** = always visible as AppBar. **smart** = auto-hide when overlapped by fullscreen apps. **peek** = hidden until cursor approaches bottom edge. |
-| `bloom-dock-scale`                 | float string `"0.8"`–`"1.3"`     | (unset)       | Size of the dock only. Unset = follows `bloom-scale`. Changing it re-registers the dock AppBar. |
+| `bloom-dock-scale`                 | float string `"0.5"`–`"1.5"`     | (unset)       | Size of the dock only. Unset = follows `bloom-scale`. Changing it re-registers the dock AppBar. |
 | `bloom-dock-edge-delay`            | milliseconds `"0"`–`"2000"`      | `"200"`       | In smart/peek mode, how long the cursor must rest against the bottom screen edge before the dock appears. `"0"` reveals instantly.                                               |
 | `bloom-dock-preview-enabled`       | `"true"` / `"false"`             | `"true"`      | Show window thumbnail previews when hovering dock icons.                                                                                                                         |
 | `bloom-dock-icon-only`             | `"true"` / `"false"`             | `"false"`     | Minimal icon-only style (no background/padding around icons).                                                                                                                    |
@@ -47,8 +47,8 @@ Edit `settings.json` with any text editor while Bloom is running. Changes are ap
 | `bloom-notch-mode`       | `"fixed"` / `"smart"` / `"peek"` | `"fixed"` | Notch (top bar) visibility behavior. The notch is always an overlay and never reserves screen space. **fixed** = always visible over windows. **smart** = hides when a window overlaps it. **peek** = hidden until the cursor reaches the top edge; also shows briefly on media events and notifications. |
 | `bloom-notch-edge-delay` | milliseconds `"0"`–`"2000"`      | `"200"`   | In smart/peek mode, how long the cursor must rest against the top screen edge before the notch peeks. `"0"` reveals instantly. |
 | `bloom-notch-style`      | `"notch"` / `"pill"` / `"minimal"` | `"notch"` | Idle look. **notch** = attached to the top edge with flares. **pill** = floating capsule below the edge. **minimal** = thin bar while idle; content shows on hover, music, or alerts. |
-| `bloom-notch-scale`      | float string `"0.8"`–`"1.3"`     | (unset)   | Size of the notch only. Unset = follows `bloom-scale`. |
-| `bloom-notch-panel-scales` | JSON object, panel → `0.8`–`1.3` | `"{}"` | Per-panel notch size on top of `bloom-notch-scale`, e.g. `{"calendar":1.2,"music":0.9}`. Panels: `calendar`, `command-center` (incl. Wi-Fi/Bluetooth), `devices`, `music`, `shelf`. Missing panels use 1. |
+| `bloom-notch-scale`      | float string `"0.5"`–`"1.5"`     | (unset)   | Size of the notch only. Unset = follows `bloom-scale`. |
+| `bloom-notch-panel-scales` | JSON object, panel → `0.5`–`1.5` | `"{}"` | Per-panel notch size on top of `bloom-notch-scale`, e.g. `{"calendar":1.2,"music":0.9}`. Panels: `calendar`, `command-center` (incl. Wi-Fi/Bluetooth), `devices`, `music`, `shelf`, `clipboard`. Missing panels use 1. |
 
 ### Weather
 
@@ -140,7 +140,7 @@ Example:
 
 | Key                            | Type                 | Default   | Description                                                                                          |
 | ------------------------------ | -------------------- | --------- | ---------------------------------------------------------------------------------------------------- |
-| `bloom-scale`                  | float string         | `"1.0"`   | UI scale factor (0.8 to 1.3) for Settings and overlays, and for the dock/notch while `bloom-dock-scale` / `bloom-notch-scale` are unset. Changing this re-registers AppBars to resize the reserved screen area. |
+| `bloom-scale`                  | float string         | `"1.0"`   | UI scale factor (0.5 to 1.5) for Settings and overlays, and for the dock/notch while `bloom-dock-scale` / `bloom-notch-scale` are unset. Changing this re-registers AppBars to resize the reserved screen area. |
 | `bloom-low-battery-threshold`  | integer string       | `"20"`    | Battery percentage that triggers the low-battery alert pulse (5 to 50, step 5).                      |
 | `bloom-auto-update`            | `"true"` / `"false"` | `"false"` | Check for and download updates automatically on startup.                                             |
 | `bloom-show-update-indicator`  | `"true"` / `"false"` | `"true"`  | Show a green dot on the notch when an update is available.                                           |
