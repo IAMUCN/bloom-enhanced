@@ -242,6 +242,7 @@ fn main() {
             // rest of this hook runs.
             crate::utils::init_settings_cache(app.handle());
             clipboard::start(app.handle().clone());
+            clipboard::start_shortcut(app.handle().clone());
             // Crash-recovery: if a previous session was force-killed while the native
             // taskbar was hidden, restore it now. Runs before the frontend re-hides it
             // (init_dock fires after a delay), so the flag must be removed first.

@@ -87,6 +87,8 @@ Edit `settings.json` with any text editor while Bloom is running. Changes are ap
 | `bloom-clipboard-retention-hours` | number string | `"0"` | Delete unpinned items older than this many hours; `"0"` keeps them until the limit removes them. |
 | `bloom-clipboard-group-files` | `"true"` / `"false"` | `"true"` | Several files copied at once are one stack (expand or ungroup it in the panel). `"false"` records each file as its own item. |
 | `bloom-clipboard-thumb-size` | `"small"` / `"medium"` / `"large"` | `"small"` | Thumbnail size in the Clipboard panel (32 / 48 / 72 px). |
+| `bloom-clipboard-position` | `"notch"` / `"left"` / `"right"` | `"notch"` | Where the history lives: the notch's Clipboard panel, or a shelf that slides out of the middle third of the left or right screen edge. That edge's volume/brightness hover keeps its top and bottom thirds. |
+| `bloom-clipboard-shortcut` | e.g. `"Alt+C"`, `"Ctrl+Shift+V"`, `"F9"` | `"Alt+C"` | Global shortcut that opens/closes the clipboard (notch panel or edge shelf). `""` = no shortcut. Letters, digits and Space need a modifier. |
 
 ### Shelf
 

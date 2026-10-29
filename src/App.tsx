@@ -50,6 +50,7 @@ import { deviceLookFor } from "./devices/deviceLooks";
 import type { BudLevel, BudsBattery } from "./devices/connectedDevices";
 import { ConnectedDevicesPanel } from "./components/ConnectedDevicesPanel";
 import { ClipboardPanel } from "./components/ClipboardPanel";
+import { releaseTextKeyboard, useTextInputKeyboard } from "./hooks/useTextInputKeyboard";
 import { useConnectedDevices } from "./hooks/useConnectedDevices";
 import { isWiredAudio, usbArtFor, usbDisplayName, type UsbIdentity } from "./devices/usbArtFor";
 import type { DeviceArtKey } from "./devices/art";
@@ -1092,6 +1093,11 @@ function App() {
 	const [settingsClipboardEnabled, setSettingsClipboardEnabled] = useState(
 		() => localStorage.getItem("bloom-clipboard-enabled") !== "false"
 	);
+	// "notch" keeps the history here; "left"/"right" move it to the edge shelf.
+	const [clipboardPosition, setClipboardPosition] = useState(
+		() => localStorage.getItem("bloom-clipboard-position") || "notch"
+	);
+	const clipboardInNotch = settingsClipboardEnabled && clipboardPosition === "notch";
 	const [settingsTimerSoundEnabled, setSettingsTimerSoundEnabled] = useState(
 		() => localStorage.getItem("bloom-timer-sound-enabled") !== "false"
 	);
@@ -1170,6 +1176,7 @@ function App() {
 				);
 				setSettingsDevicesPanelEnabled(getVal("bloom-notch-devices-enabled", "false") === "true");
 				setSettingsClipboardEnabled(getVal("bloom-clipboard-enabled", "true") !== "false");
+				setClipboardPosition(getVal("bloom-clipboard-position", "notch") || "notch");
 				setSettingsTimerSoundEnabled(getVal("bloom-timer-sound-enabled", "true") !== "false");
 				setSettingsMusicModeEnabled(getVal("bloom-music-mode-enabled", "true") !== "false");
 				setRememberPanelEnabled(
@@ -1294,6 +1301,7 @@ function App() {
 			"bloom-notch-command-center-enabled": setSettingsControlsPanelEnabled,
 			"bloom-notch-devices-enabled": setSettingsDevicesPanelEnabled,
 			"bloom-clipboard-enabled": setSettingsClipboardEnabled,
+			"bloom-clipboard-position": (v: unknown) => setClipboardPosition(String(v || "notch")),
 			"bloom-timer-sound-enabled": setSettingsTimerSoundEnabled,
 			"bloom-music-mode-enabled": setSettingsMusicModeEnabled,
 			"bloom-notch-remember-panel": setRememberPanelEnabled,
@@ -1678,6 +1686,7 @@ function App() {
 			releaseDeferredRef.current = true;
 			return;
 		}
+		releaseTextKeyboard();
 		setIsHovered(false);
 		setIsNotchHovered(false);
 		if (isOpenRef.current) {
@@ -1830,6 +1839,28 @@ function App() {
 		}
 	};
 
+	// Text fields in the notch (clipboard search, Wi-Fi password) need the
+	// keyboard handed to this no-activate window.
+	useTextInputKeyboard();
+
+	// The clipboard shortcut (clipboard.rs) toggles the Clipboard panel while
+	// the history lives in the notch.
+	useEffect(() => {
+		if (windowLabel !== "main") return;
+		const unlisten = listen("clipboard-shortcut", () => {
+			if (bloomModeRef.current === "clipboard" && isOpenRef.current) {
+				setIsOpen(false);
+				setBloomMode(restingModeRef.current);
+			} else if (bloomModeRef.current !== "announcement") {
+				setIsOpen(true);
+				setBloomMode("clipboard");
+			}
+		});
+		return () => {
+			unlisten.then((fn) => fn());
+		};
+	}, [windowLabel]);
+
 	// Shelf drag-and-drop plumbing. The backend registers its own OLE drop
 	// target (src-tauri/src/shelf.rs) because wry's target can go stale when
 	// WebView2 recreates its render child; it emits the shelf-drag-* events
@@ -1956,7 +1987,7 @@ function App() {
 	function panelEnabled(panel: NotchPanel) {
 		if (panel === "calendar") return settingsCalendarEnabled;
 		if (panel === "command-center") return settingsControlsPanelEnabled;
-		if (panel === "clipboard") return settingsClipboardEnabled;
+		if (panel === "clipboard") return clipboardInNotch;
 		return settingsDevicesPanelEnabled;
 	}
 
@@ -2239,7 +2270,7 @@ function App() {
 		settingsCalendarEnabled,
 		settingsControlsPanelEnabled,
 		settingsDevicesPanelEnabled,
-		settingsClipboardEnabled,
+		clipboardInNotch,
 		bloomMode,
 		isOpen
 	]);

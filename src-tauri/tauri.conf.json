@@ -93,6 +93,27 @@
         "skipTaskbar": true,
         "shadow": false,
         "visible": false
+      },
+      {
+        "label": "clipshelf",
+        "title": "Clipboard",
+        "url": "clipshelf.html",
+        "width": 360,
+        "height": 560,
+        "x": -32000,
+        "y": -32000,
+        "decorations": false,
+        "transparent": true,
+        "resizable": false,
+        "maximizable": false,
+        "minimizable": false,
+        "closable": false,
+        "alwaysOnTop": true,
+        "visibleOnAllWorkspaces": true,
+        "focus": false,
+        "skipTaskbar": true,
+        "shadow": false,
+        "visible": false
       }
     ],
     "security": {

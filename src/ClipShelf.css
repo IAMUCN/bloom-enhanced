@@ -1,0 +1,57 @@
+/* The edge clipboard shelf window. The panel (ClipboardPanel / .qp) fills
+   it and slides in from the edge it is attached to. */
+* {
+	box-sizing: border-box;
+}
+
+html,
+body,
+#root {
+	margin: 0;
+	width: 100%;
+	height: 100%;
+	overflow: hidden;
+	background: transparent;
+	font-family: "Inter", "Segoe UI Variable Text", "Segoe UI", sans-serif;
+	-webkit-font-smoothing: antialiased;
+	user-select: none;
+}
+
+.clipshelf {
+	width: 100%;
+	height: 100%;
+	color: var(--bloom-text, white);
+	background: var(--bloom-bg-expanded, rgba(0, 0, 0, 0.92));
+	transition:
+		transform 0.18s cubic-bezier(0.2, 0.8, 0.2, 1),
+		opacity 0.18s ease;
+	opacity: 0;
+}
+
+.clipshelf.left {
+	border-radius: 0 18px 18px 0;
+	transform: translateX(-100%);
+}
+
+.clipshelf.right {
+	border-radius: 18px 0 0 18px;
+	transform: translateX(100%);
+}
+
+.clipshelf.open {
+	transform: none;
+	opacity: 1;
+}
+
+.clipshelf.drop-hover {
+	box-shadow: inset 0 0 0 2px rgba(255, 255, 255, 0.35);
+}
+
+/* The panel's notch layout leaves room for the notch strip; here it fills
+   the shelf. */
+.clipshelf .qp {
+	top: 0;
+	height: 100%;
+	padding: 12px 12px 10px;
+	border-radius: inherit;
+}

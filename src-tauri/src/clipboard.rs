@@ -12,6 +12,7 @@
 //! Nothing here logs or transmits clipboard content.
 
 use std::path::PathBuf;
+use std::sync::atomic::{AtomicBool, AtomicU64, Ordering};
 use std::sync::Mutex;
 use std::time::{Duration, Instant, SystemTime, UNIX_EPOCH};
 
@@ -702,6 +703,265 @@ pub fn clipboard_clear(app: AppHandle, include_pinned: bool) {
     commit(&app, &history, &removed);
 }
 
+// ── Edge shelf ──
+//
+// With `bloom-clipboard-position` = left/right the history lives in its own
+// window (`clipshelf`) that slides out of the middle third of that screen
+// edge, like Edge-Drop's blade. The volume (left) and brightness (right)
+// edge hovers keep the outer thirds. The window stays shown and parks off
+// screen while closed, so opening it never activates or re-shows a window.
+
+#[derive(Clone, Copy, PartialEq, Debug)]
+pub enum ShelfSide {
+    Left,
+    Right,
+}
+
+/// Where the edge shelf is, or None when the history lives in the notch (or
+/// the module is off).
+pub fn shelf_side() -> Option<ShelfSide> {
+    if !crate::utils::clipboard_enabled() {
+        return None;
+    }
+    match setting("bloom-clipboard-position").as_deref() {
+        Some("left") => Some(ShelfSide::Left),
+        Some("right") => Some(ShelfSide::Right),
+        _ => None,
+    }
+}
+
+/// The shelf's trigger band: the middle third of the edge.
+pub fn in_shelf_band(y: i32, mon_y: i32, mon_h: i32) -> bool {
+    y >= mon_y + mon_h / 3 && y <= mon_y + mon_h * 2 / 3
+}
+
+/// True when the edge hover at `side` belongs to the shelf, so the volume or
+/// brightness hover must not open there.
+pub fn shelf_owns_edge(side: ShelfSide, y: i32, mon_y: i32, mon_h: i32) -> bool {
+    shelf_side() == Some(side) && in_shelf_band(y, mon_y, mon_h)
+}
+
+const PARKED: i32 = -32000;
+/// The shelf closes this long after the cursor leaves it.
+const SHELF_LINGER_MS: u64 = 400;
+
+static SHELF_SHOWN: AtomicBool = AtomicBool::new(false);
+static SHELF_OPEN: AtomicBool = AtomicBool::new(false);
+/// Opened by the shortcut: stays open until the cursor has been in it.
+static SHELF_HELD: AtomicBool = AtomicBool::new(false);
+static SHELF_EXPIRY: AtomicU64 = AtomicU64::new(0);
+static SHELF_GEN: AtomicU64 = AtomicU64::new(0);
+static SHELF_RECT: Mutex<(i32, i32, i32, i32)> = Mutex::new((0, 0, 0, 0));
+
+/// Edge shelf size: `bloom-scale` times the clipboard panel's own size.
+fn shelf_scale() -> f64 {
+    let global = setting("bloom-scale")
+        .and_then(|v| v.parse::<f64>().ok())
+        .unwrap_or(1.0);
+    let panel = setting("bloom-notch-panel-scales")
+        .and_then(|v| serde_json::from_str::<serde_json::Value>(&v).ok())
+        .and_then(|v| v.get("clipboard").and_then(|s| s.as_f64()))
+        .filter(|s| (0.5..=1.5).contains(s))
+        .unwrap_or(1.0);
+    global * panel
+}
+
+/// Shows the parked shelf window when an edge position is chosen, hides it
+/// otherwise.
+fn ensure_shelf_window(app: &AppHandle, wanted: bool) {
+    if SHELF_SHOWN.swap(wanted, Ordering::Relaxed) == wanted {
+        return;
+    }
+    let Some(win) = app.get_webview_window("clipshelf") else {
+        return;
+    };
+    if wanted {
+        let _ = win.set_position(tauri::PhysicalPosition::new(PARKED, PARKED));
+        let _ = win.show();
+        if let Ok(hwnd) = win.hwnd() {
+            crate::utils::re_assert_topmost(hwnd);
+        }
+    } else {
+        SHELF_OPEN.store(false, Ordering::Relaxed);
+        let _ = win.hide();
+    }
+}
+
+fn set_shelf_open(app: &AppHandle, side: ShelfSide, open: bool) {
+    if SHELF_OPEN.swap(open, Ordering::Relaxed) == open {
+        return;
+    }
+    let Some(win) = app.get_webview_window("clipshelf") else {
+        return;
+    };
+    let generation = SHELF_GEN.fetch_add(1, Ordering::Relaxed) + 1;
+    let side_name = if side == ShelfSide::Left {
+        "left"
+    } else {
+        "right"
+    };
+    let payload = serde_json::json!({ "open": open, "side": side_name });
+    if open {
+        let Ok(Some(mon)) = app.primary_monitor() else {
+            return;
+        };
+        let (pos, size, sf) = (mon.position(), mon.size(), mon.scale_factor());
+        let scale = shelf_scale() * sf;
+        let w = (360.0 * scale) as i32;
+        let h = ((560.0 * scale) as i32).min(size.height as i32 * 4 / 5);
+        let x = if side == ShelfSide::Left {
+            pos.x
+        } else {
+            pos.x + size.width as i32 - w
+        };
+        let y = pos.y + (size.height as i32 - h) / 2;
+        *SHELF_RECT.lock().unwrap() = (x, y, w, h);
+        let _ = win.set_size(tauri::PhysicalSize::new(w as u32, h as u32));
+        let _ = win.set_position(tauri::PhysicalPosition::new(x, y));
+        if let Ok(hwnd) = win.hwnd() {
+            crate::utils::re_assert_topmost(hwnd);
+        }
+        let _ = app.emit_to("clipshelf", "clipshelf-open", payload);
+    } else {
+        // Let the slide-out play, then park the window unless it reopened.
+        let _ = app.emit_to("clipshelf", "clipshelf-open", payload);
+        let app = app.clone();
+        tauri::async_runtime::spawn(async move {
+            tokio::time::sleep(Duration::from_millis(200)).await;
+            if SHELF_GEN.load(Ordering::Relaxed) == generation {
+                if let Some(win) = app.get_webview_window("clipshelf") {
+                    let _ = win.set_position(tauri::PhysicalPosition::new(PARKED, PARKED));
+                }
+            }
+        });
+    }
+}
+
+/// Called by the mouse worker on every cursor move with the primary monitor
+/// rect: opens the shelf at its edge band and keeps it open while the cursor
+/// is over it.
+pub fn update_edge_shelf(
+    app: &AppHandle,
+    x: i32,
+    y: i32,
+    mon: (i32, i32, i32, i32),
+    fullscreen: bool,
+) {
+    let side = shelf_side();
+    ensure_shelf_window(app, side.is_some());
+    let Some(side) = side else {
+        return;
+    };
+    let (mon_x, mon_y, mon_w, mon_h) = mon;
+    let now = now_ms();
+
+    let at_edge = !fullscreen
+        && in_shelf_band(y, mon_y, mon_h)
+        && match side {
+            ShelfSide::Left => x <= mon_x + 8,
+            ShelfSide::Right => x >= mon_x + mon_w - 8,
+        };
+    let (rx, ry, rw, rh) = *SHELF_RECT.lock().unwrap();
+    let inside =
+        SHELF_OPEN.load(Ordering::Relaxed) && x >= rx && x < rx + rw && y >= ry && y < ry + rh;
+    if inside {
+        SHELF_HELD.store(false, Ordering::Relaxed);
+    }
+    if at_edge || inside || SHELF_HELD.load(Ordering::Relaxed) {
+        SHELF_EXPIRY.store(now + SHELF_LINGER_MS, Ordering::Relaxed);
+    }
+    set_shelf_open(app, side, now < SHELF_EXPIRY.load(Ordering::Relaxed));
+}
+
+/// The clipboard shortcut: toggles the edge shelf, or asks the notch to open
+/// its Clipboard panel.
+fn toggle_from_shortcut(app: &AppHandle) {
+    match shelf_side() {
+        Some(side) => {
+            let open = !SHELF_OPEN.load(Ordering::Relaxed);
+            SHELF_HELD.store(open, Ordering::Relaxed);
+            SHELF_EXPIRY.store(if open { u64::MAX } else { 0 }, Ordering::Relaxed);
+            set_shelf_open(app, side, open);
+        }
+        None if crate::utils::clipboard_enabled() => {
+            let _ = app.emit_to("main", "clipboard-shortcut", ());
+        }
+        None => {}
+    }
+}
+
+/// Parses "Alt+C", "Ctrl+Shift+V", "Win+F9"... into RegisterHotKey modifiers
+/// and a virtual key. Needs at least one modifier, except for F-keys.
+pub fn parse_shortcut(text: &str) -> Option<(u32, u32)> {
+    const ALT: u32 = 0x1;
+    const CTRL: u32 = 0x2;
+    const SHIFT: u32 = 0x4;
+    const WIN: u32 = 0x8;
+    let mut mods = 0;
+    let mut key = None;
+    for part in text.split('+').map(str::trim) {
+        match part.to_ascii_lowercase().as_str() {
+            "alt" => mods |= ALT,
+            "ctrl" | "control" => mods |= CTRL,
+            "shift" => mods |= SHIFT,
+            "win" | "meta" | "super" => mods |= WIN,
+            "space" => key = Some(0x20),
+            k if k.len() == 1 && k.as_bytes()[0].is_ascii_alphanumeric() => {
+                key = Some(k.to_ascii_uppercase().as_bytes()[0] as u32)
+            }
+            k if k.starts_with('f') && k.len() <= 3 => {
+                let n: u32 = k[1..].parse().ok()?;
+                if !(1..=24).contains(&n) {
+                    return None;
+                }
+                key = Some(0x70 + n - 1)
+            }
+            _ => return None,
+        }
+    }
+    let key = key?;
+    (mods != 0 || (0x70..=0x87).contains(&key)).then_some((mods, key))
+}
+
+/// Registers `bloom-clipboard-shortcut` (default Alt+C, empty = none) with
+/// RegisterHotKey and re-registers when it changes.
+pub fn start_shortcut(app: AppHandle) {
+    use windows::Win32::UI::Input::KeyboardAndMouse::{
+        RegisterHotKey, UnregisterHotKey, HOT_KEY_MODIFIERS, MOD_NOREPEAT,
+    };
+    use windows::Win32::UI::WindowsAndMessaging::{PeekMessageW, MSG, PM_REMOVE, WM_HOTKEY};
+    const ID: i32 = 0xC11;
+    std::thread::spawn(move || {
+        let mut current: Option<String> = None;
+        loop {
+            // ponytail: polls the setting every 100ms instead of being woken on
+            // change; cheap, and the hotkey thread needs a message pump anyway.
+            let wanted = if crate::utils::clipboard_enabled() {
+                setting("bloom-clipboard-shortcut").unwrap_or_else(|| "Alt+C".into())
+            } else {
+                String::new()
+            };
+            if current.as_deref() != Some(wanted.as_str()) {
+                unsafe {
+                    let _ = UnregisterHotKey(None, ID);
+                    if let Some((mods, vk)) = parse_shortcut(&wanted) {
+                        let _ =
+                            RegisterHotKey(None, ID, HOT_KEY_MODIFIERS(mods) | MOD_NOREPEAT, vk);
+                    }
+                }
+                current = Some(wanted);
+            }
+            let mut msg = MSG::default();
+            while unsafe { PeekMessageW(&mut msg, None, 0, 0, PM_REMOVE) }.as_bool() {
+                if msg.message == WM_HOTKEY && msg.wParam.0 == ID as usize {
+                    toggle_from_shortcut(&app);
+                }
+            }
+            std::thread::sleep(Duration::from_millis(100));
+        }
+    });
+}
+
 /// The notch and the edge shelf never take focus on click (WS_EX_NOACTIVATE),
 /// so a text field in them can't receive typing. The field calls this with
 /// `true` when clicked: the calling window takes the keyboard, remembering
@@ -794,6 +1054,26 @@ mod tests {
             add_item(&mut h, p);
         }
         assert_eq!(h[0].paths, ["a"]);
+    }
+
+    #[test]
+    fn parses_shortcuts() {
+        assert_eq!(parse_shortcut("Alt+C"), Some((0x1, b'C' as u32)));
+        assert_eq!(parse_shortcut("ctrl + shift + v"), Some((0x6, b'V' as u32)));
+        assert_eq!(parse_shortcut("Win+Space"), Some((0x8, 0x20)));
+        assert_eq!(parse_shortcut("F9"), Some((0, 0x78)));
+        assert_eq!(parse_shortcut("C"), None);
+        assert_eq!(parse_shortcut("Alt+F25"), None);
+        assert_eq!(parse_shortcut("Alt+Tab"), None);
+        assert_eq!(parse_shortcut(""), None);
+    }
+
+    #[test]
+    fn shelf_band_is_middle_third() {
+        assert!(!in_shelf_band(299, 0, 900));
+        assert!(in_shelf_band(300, 0, 900));
+        assert!(in_shelf_band(600, 0, 900));
+        assert!(!in_shelf_band(601, 0, 900));
     }
 
     #[test]

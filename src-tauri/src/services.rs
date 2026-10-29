@@ -3115,8 +3115,16 @@ fn process_mouse_position(app_handle: &AppHandle, cursor: windows::Win32::Founda
 
         // --- Left Edge (Volume) ---
         if !fg_fs {
-            let at_left_edge =
-                cursor.x <= (mon_x + 8) && cursor.y >= mon_y && cursor.y <= (mon_y + mon_h);
+            // The clipboard shelf, when on this edge, owns its middle third.
+            let at_left_edge = cursor.x <= (mon_x + 8)
+                && cursor.y >= mon_y
+                && cursor.y <= (mon_y + mon_h)
+                && !crate::clipboard::shelf_owns_edge(
+                    crate::clipboard::ShelfSide::Left,
+                    cursor.y,
+                    mon_y,
+                    mon_h,
+                );
 
             // The collapsed card extends past the 8px edge band, so once the
             // edge hover is established, keep it alive while the cursor is
@@ -3165,8 +3173,15 @@ fn process_mouse_position(app_handle: &AppHandle, cursor: windows::Win32::Founda
 
         // --- Right Edge (Brightness) ---
         if !fg_fs {
-            let at_right_edge =
-                cursor.x >= (mon_x + mon_w - 8) && cursor.y >= mon_y && cursor.y <= (mon_y + mon_h);
+            let at_right_edge = cursor.x >= (mon_x + mon_w - 8)
+                && cursor.y >= mon_y
+                && cursor.y <= (mon_y + mon_h)
+                && !crate::clipboard::shelf_owns_edge(
+                    crate::clipboard::ShelfSide::Right,
+                    cursor.y,
+                    mon_y,
+                    mon_h,
+                );
 
             if at_right_edge {
                 MH_RIGHT_EXPIRY_MS.store(now + 500, Ordering::Relaxed);
@@ -3186,6 +3201,15 @@ fn process_mouse_position(app_handle: &AppHandle, cursor: windows::Win32::Founda
                 MH_LAST_RIGHT_EDGE_HOVER.store(0, Ordering::Relaxed);
             }
         }
+
+        // --- Edge clipboard shelf ---
+        crate::clipboard::update_edge_shelf(
+            app_handle,
+            cursor.x,
+            cursor.y,
+            (mon_x, mon_y, mon_w, mon_h),
+            fg_fs,
+        );
 
         // --- Overlay cursor passthrough ---
         if let Some(ov_win) = app_handle.get_webview_window("overlay") {

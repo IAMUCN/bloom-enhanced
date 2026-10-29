@@ -1,4 +1,6 @@
-//! OS drop target for the notch (files and selected text).
+//! OS drop target for the notch and the edge clipboard shelf (files and
+//! selected text). Each window's events carry its own prefix:
+//! `shelf-drag-*` for the notch, `clipshelf-drag-*` for the edge shelf.
 //!
 //! Tauri/wry registers its own drop targets on the WebView2 child windows that
 //! exist when the webview is built. The notch window is created hidden and
@@ -36,7 +38,8 @@ const MAX_TEXT_UNITS: usize = 1 << 17;
 struct TargetStore(#[allow(dead_code)] Vec<IDropTarget>);
 unsafe impl Send for TargetStore {}
 
-static SHELF_DROP_TARGETS: Mutex<Option<TargetStore>> = Mutex::new(None);
+/// Live targets per window label.
+static SHELF_DROP_TARGETS: Mutex<Vec<(String, TargetStore)>> = Mutex::new(Vec::new());
 
 /// What a drag carries that we accept.
 enum DragPayload {
@@ -48,6 +51,8 @@ enum DragPayload {
 struct ShelfDropTarget {
     app: AppHandle,
     hwnd: HWND,
+    /// Event name prefix of the window this target serves.
+    prefix: &'static str,
     enter_valid: UnsafeCell<bool>,
     cursor_effect: UnsafeCell<DROPEFFECT>,
 }
@@ -167,14 +172,14 @@ impl IDropTarget_Impl for ShelfDropTarget_Impl {
         match payload {
             DragPayload::Files(paths, hdrop) => {
                 let _ = self.app.emit(
-                    "shelf-drag-enter",
+                    &format!("{}-drag-enter", self.prefix),
                     serde_json::json!({ "paths": paths, "position": { "x": point.x, "y": point.y } }),
                 );
                 unsafe { DragFinish(hdrop) };
             }
             DragPayload::Text(text) => {
                 let _ = self.app.emit(
-                    "shelf-drag-enter",
+                    &format!("{}-drag-enter", self.prefix),
                     serde_json::json!({ "text": text, "position": { "x": point.x, "y": point.y } }),
                 );
             }
@@ -195,7 +200,7 @@ impl IDropTarget_Impl for ShelfDropTarget_Impl {
     fn DragLeave(&self) -> windows::core::Result<()> {
         if unsafe { *self.enter_valid.get() } {
             unsafe { *self.enter_valid.get() = false };
-            let _ = self.app.emit("shelf-drag-leave", ());
+            let _ = self.app.emit(&format!("{}-drag-leave", self.prefix), ());
         }
         Ok(())
     }
@@ -214,15 +219,17 @@ impl IDropTarget_Impl for ShelfDropTarget_Impl {
                 .and_then(|data| unsafe { ShelfDropTarget::extract(data) });
             match payload {
                 Some(DragPayload::Files(paths, hdrop)) => {
-                    let _ = self
-                        .app
-                        .emit("shelf-drag-drop", serde_json::json!({ "paths": paths }));
+                    let _ = self.app.emit(
+                        &format!("{}-drag-drop", self.prefix),
+                        serde_json::json!({ "paths": paths }),
+                    );
                     unsafe { DragFinish(hdrop) };
                 }
                 Some(DragPayload::Text(text)) => {
-                    let _ = self
-                        .app
-                        .emit("shelf-drag-drop", serde_json::json!({ "text": text }));
+                    let _ = self.app.emit(
+                        &format!("{}-drag-drop", self.prefix),
+                        serde_json::json!({ "text": text }),
+                    );
                 }
                 None => {}
             }
@@ -231,10 +238,16 @@ impl IDropTarget_Impl for ShelfDropTarget_Impl {
     }
 }
 
-/// (Re)registers the shelf drop target on the main window and all its current
-/// descendants. Safe to call repeatedly; existing registrations are replaced.
-pub fn setup(app: &AppHandle) {
-    let Some(win) = app.get_webview_window("main") else {
+/// (Re)registers the drop target on a window (`main` or `clipshelf`) and all
+/// its current descendants. Safe to call repeatedly; that window's existing
+/// registrations are replaced.
+pub fn setup(app: &AppHandle, label: &str) {
+    let prefix = if label == "clipshelf" {
+        "clipshelf"
+    } else {
+        "shelf"
+    };
+    let Some(win) = app.get_webview_window(label) else {
         return;
     };
     let Ok(hwnd) = win.hwnd() else {
@@ -243,12 +256,13 @@ pub fn setup(app: &AppHandle) {
 
     struct Ctx {
         app: AppHandle,
+        prefix: &'static str,
         targets: Vec<IDropTarget>,
     }
 
     unsafe extern "system" fn child_proc(child: HWND, lparam: LPARAM) -> BOOL {
         let ctx = &mut *(lparam.0 as *mut Ctx);
-        unsafe { inject(child, &ctx.app, &mut ctx.targets) };
+        unsafe { inject(child, &ctx.app, ctx.prefix, &mut ctx.targets) };
         BOOL(1)
     }
 
@@ -256,24 +270,27 @@ pub fn setup(app: &AppHandle) {
         let _ = CoInitializeEx(None, COINIT_APARTMENTTHREADED);
         let mut ctx = Ctx {
             app: app.clone(),
+            prefix,
             targets: Vec::new(),
         };
-        inject(hwnd, app, &mut ctx.targets);
+        inject(hwnd, app, prefix, &mut ctx.targets);
         let _ = EnumChildWindows(
             Some(hwnd),
             Some(child_proc),
             LPARAM(&mut ctx as *mut Ctx as isize),
         );
         if let Ok(mut guard) = SHELF_DROP_TARGETS.lock() {
-            *guard = Some(TargetStore(ctx.targets));
+            guard.retain(|(l, _)| l != label);
+            guard.push((label.to_string(), TargetStore(ctx.targets)));
         }
     }
 }
 
-unsafe fn inject(hwnd: HWND, app: &AppHandle, out: &mut Vec<IDropTarget>) {
+unsafe fn inject(hwnd: HWND, app: &AppHandle, prefix: &'static str, out: &mut Vec<IDropTarget>) {
     let target: IDropTarget = ShelfDropTarget {
         app: app.clone(),
         hwnd,
+        prefix,
         enter_valid: UnsafeCell::new(false),
         cursor_effect: UnsafeCell::new(DROPEFFECT_NONE),
     }

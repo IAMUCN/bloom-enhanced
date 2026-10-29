@@ -20,6 +20,7 @@ import {
 	Ungroup
 } from "lucide-react";
 import { useSettingsSync } from "../hooks/useSettingsSync";
+import { releaseTextKeyboard } from "../hooks/useTextInputKeyboard";
 import {
 	CLEAR_WINDOWS,
 	CLIP_FILTERS,
@@ -74,7 +75,6 @@ export function ClipboardPanel({ dragIcon, onDragStart, onDragEnd }: ClipboardPa
 	);
 	const pointer = useRef<{ id: string; x: number; y: number; dragging: boolean } | null>(null);
 	const searchRef = useRef<HTMLInputElement>(null);
-	const hasKeyboard = useRef(false);
 
 	useEffect(() => {
 		invoke<Record<string, string>>("load_settings")
@@ -83,20 +83,9 @@ export function ClipboardPanel({ dragIcon, onDragStart, onDragEnd }: ClipboardPa
 	}, []);
 	useSettingsSync({ "bloom-clipboard-thumb-size": (v) => setThumbSize(asThumbSize(v)) });
 
-	// The window can't take focus by itself (see keyboard_focus in clipboard.rs).
-	const takeKeyboard = () => {
-		hasKeyboard.current = true;
-		invoke("keyboard_focus", { focus: true })
-			.then(() => searchRef.current?.focus())
-			.catch(() => {});
-	};
-	const releaseKeyboard = () => {
-		if (!hasKeyboard.current) return;
-		hasKeyboard.current = false;
-		invoke("keyboard_focus", { focus: false }).catch(() => {});
-	};
-	// Closing the panel while typing hands the keyboard back too.
-	useEffect(() => releaseKeyboard, []);
+	// Typing works through useTextInputKeyboard (in the window's root); closing
+	// the panel while typing hands the keyboard back too.
+	useEffect(() => releaseTextKeyboard, []);
 
 	useEffect(() => {
 		const load = () => invoke<ClipItem[]>("clipboard_history").then(setItems).catch(() => {});
@@ -199,8 +188,6 @@ export function ClipboardPanel({ dragIcon, onDragStart, onDragEnd }: ClipboardPa
 						ref={searchRef}
 						value={query}
 						onChange={(e) => setQuery(e.target.value)}
-						onPointerDown={takeKeyboard}
-						onBlur={releaseKeyboard}
 						onKeyDown={(e) => {
 							if (e.key === "Escape") {
 								setQuery("");

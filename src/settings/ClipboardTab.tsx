@@ -1,4 +1,4 @@
-import { ClipboardList, EyeOff, History, Image, Layers, Timer, Trash2 } from "lucide-react";
+import { ClipboardList, EyeOff, History, Image, Keyboard, Layers, PanelLeft, Timer, Trash2 } from "lucide-react";
 import { SettingRow } from "./SettingRow";
 
 interface ClipboardTabProps {
@@ -15,6 +15,30 @@ interface ClipboardTabProps {
 	toggleGroupFiles: () => void;
 	thumbSize: string;
 	changeThumbSize: (size: string) => void;
+	position: string;
+	changePosition: (position: string) => void;
+	shortcut: string;
+	changeShortcut: (shortcut: string) => void;
+}
+
+const MODIFIER_KEYS = ["Control", "Alt", "Shift", "Meta"];
+
+/** "Ctrl+Shift+V" from a key press, or null while only modifiers are held. */
+function shortcutFrom(e: React.KeyboardEvent): string | null {
+	if (MODIFIER_KEYS.includes(e.key)) return null;
+	const key =
+		e.code.startsWith("Key") || e.code.startsWith("Digit")
+			? e.code.slice(-1)
+			: /^F\d{1,2}$/.test(e.key)
+				? e.key
+				: e.code === "Space"
+					? "Space"
+					: null;
+	if (!key) return null;
+	const mods = [e.ctrlKey && "Ctrl", e.altKey && "Alt", e.shiftKey && "Shift", e.metaKey && "Win"].filter(Boolean);
+	// Letters, digits and Space need a modifier so typing never triggers it.
+	if (!mods.length && !key.startsWith("F")) return null;
+	return [...mods, key].join("+");
 }
 
 const LIMITS = [50, 100, 200, 500, 1000];
@@ -39,7 +63,11 @@ export function ClipboardTab({
 	groupFiles,
 	toggleGroupFiles,
 	thumbSize,
-	changeThumbSize
+	changeThumbSize,
+	position,
+	changePosition,
+	shortcut,
+	changeShortcut
 }: ClipboardTabProps) {
 	return (
 		<>
@@ -70,6 +98,44 @@ export function ClipboardTab({
 					</SettingRow>
 				)}
 			</div>
+
+			{enabled && (
+				<>
+					<div className="setting-group-label">Shelf</div>
+					<div className="setting-group">
+						<SettingRow
+							icon={PanelLeft}
+							label="Position"
+							desc="In the notch, or a shelf that slides out of the middle of the left or right screen edge"
+						>
+							<select className="settings-select" value={position} onChange={(e) => changePosition(e.target.value)}>
+								<option value="notch">Notch</option>
+								<option value="left">Left edge</option>
+								<option value="right">Right edge</option>
+							</select>
+						</SettingRow>
+
+						<SettingRow
+							icon={Keyboard}
+							label="Shortcut"
+							desc="Click the box and press keys to change it; Backspace turns it off"
+							divider={false}
+						>
+							<input
+								className="settings-select clip-shortcut"
+								readOnly
+								value={shortcut || "Off"}
+								onKeyDown={(e) => {
+									e.preventDefault();
+									if (e.key === "Backspace" || e.key === "Delete") changeShortcut("");
+									const next = shortcutFrom(e);
+									if (next) changeShortcut(next);
+								}}
+							/>
+						</SettingRow>
+					</div>
+				</>
+			)}
 
 			<div className="setting-group-label">Items</div>
 			<div className="setting-group">

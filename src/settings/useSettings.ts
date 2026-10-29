@@ -55,6 +55,8 @@ export function useSettings() {
 	const [clipboardRetentionHours, setClipboardRetentionHours] = useState(0);
 	const [clipboardGroupFiles, setClipboardGroupFiles] = useState(true);
 	const [clipboardThumbSize, setClipboardThumbSize] = useState("small");
+	const [clipboardPosition, setClipboardPosition] = useState("notch");
+	const [clipboardShortcut, setClipboardShortcut] = useState("Alt+C");
 	const [timerSoundEnabled, setTimerSoundEnabled] = useState(
 		() => localStorage.getItem("bloom-timer-sound-enabled") !== "false"
 	);
@@ -240,6 +242,8 @@ export function useSettings() {
 			apply(getVal("bloom-clipboard-retention-hours"), setClipboardRetentionHours, Number);
 			apply(getVal("bloom-clipboard-group-files"), setClipboardGroupFiles, readBool);
 			apply(getVal("bloom-clipboard-thumb-size"), setClipboardThumbSize, String);
+			apply(getVal("bloom-clipboard-position"), setClipboardPosition, String);
+			apply(getVal("bloom-clipboard-shortcut"), setClipboardShortcut, String);
 			apply(getVal("bloom-timer-sound-enabled"), setTimerSoundEnabled, readBool);
 			apply(getVal("bloom-music-mode-enabled"), setMusicModeEnabled, readBool);
 			apply(getVal("bloom-notch-remember-panel") ?? getVal("bloom-notch-click-to-open"),
@@ -427,6 +431,8 @@ export function useSettings() {
 		"bloom-clipboard-retention-hours": setClipboardRetentionHours,
 		"bloom-clipboard-group-files": setClipboardGroupFiles,
 		"bloom-clipboard-thumb-size": (v: unknown) => setClipboardThumbSize(String(v)),
+		"bloom-clipboard-position": (v: unknown) => setClipboardPosition(String(v)),
+		"bloom-clipboard-shortcut": (v: unknown) => setClipboardShortcut(String(v ?? "")),
 		"bloom-timer-sound-enabled": setTimerSoundEnabled,
 		"bloom-music-mode-enabled": setMusicModeEnabled,
 		"bloom-notch-remember-panel": setNotchRememberPanel,
@@ -649,6 +655,16 @@ export function useSettings() {
 	const changeClipboardThumbSize = (size: string) => {
 		setClipboardThumbSize(size);
 		saveSetting("bloom-clipboard-thumb-size", size);
+	};
+
+	const changeClipboardPosition = (position: string) => {
+		setClipboardPosition(position);
+		saveSetting("bloom-clipboard-position", position);
+	};
+
+	const changeClipboardShortcut = (shortcut: string) => {
+		setClipboardShortcut(shortcut);
+		saveSetting("bloom-clipboard-shortcut", shortcut);
 	};
 
 	const clearClipboardHistory = async () => {
@@ -1140,6 +1156,10 @@ export function useSettings() {
 		toggleClipboardGroupFiles,
 		clipboardThumbSize,
 		changeClipboardThumbSize,
+		clipboardPosition,
+		changeClipboardPosition,
+		clipboardShortcut,
+		changeClipboardShortcut,
 		timerSoundEnabled,
 		toggleTimerSound,
 		musicModeEnabled,

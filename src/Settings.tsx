@@ -320,6 +320,10 @@ function SettingsApp() {
 							toggleGroupFiles={settings.toggleClipboardGroupFiles}
 							thumbSize={settings.clipboardThumbSize}
 							changeThumbSize={settings.changeClipboardThumbSize}
+							position={settings.clipboardPosition}
+							changePosition={settings.changeClipboardPosition}
+							shortcut={settings.clipboardShortcut}
+							changeShortcut={settings.changeClipboardShortcut}
 						/>
 					)}
 					{activeTab === "overlays" && (
