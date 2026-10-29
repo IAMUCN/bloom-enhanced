@@ -453,10 +453,14 @@ function RangeRing({
 	const [text, setText] = useState("");
 	const [hover, setHover] = useState(HUB);
 	const field = useRef<HTMLInputElement>(null);
-	useEffect(() => {
+	// Takes the keyboard on open, and again on any click in the box (another
+	// window may have taken it meanwhile).
+	const grab = () =>
 		invoke("orbit_focus")
 			.catch(() => {})
 			.finally(() => field.current?.focus());
+	useEffect(() => {
+		grab();
 	}, []);
 	const presets = pages ? splitPresets(pages, files) : [];
 	const parsed = pages ? parseRanges(text, pages) : null;
@@ -516,6 +520,7 @@ function RangeRing({
 							spellCheck={false}
 							disabled={pages === null}
 							className={typeof parsed === "string" ? "bad" : ""}
+							onPointerDown={grab}
 							onChange={(e) => setText(e.target.value)}
 							onKeyDown={(e) => {
 								if (e.key === "Enter" && Array.isArray(parsed)) onPick(formatRanges(parsed));

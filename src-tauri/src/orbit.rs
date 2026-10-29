@@ -406,6 +406,19 @@ pub fn orbit_focus(window: tauri::WebviewWindow) {
         PREV_FOCUS.store(prev, Ordering::Relaxed);
     }
     OPEN.store(BY_SHORTCUT, Ordering::Relaxed);
+    // open_wheel marks the wheel no-activate (re_assert_topmost), which keeps
+    // it from ever taking the keyboard; lift that until the next open.
+    if let Ok(hwnd) = window.hwnd() {
+        use windows::Win32::UI::WindowsAndMessaging::{
+            GetWindowLongPtrW, SetForegroundWindow, SetWindowLongPtrW, GWL_EXSTYLE,
+            WS_EX_NOACTIVATE,
+        };
+        unsafe {
+            let ex = GetWindowLongPtrW(hwnd, GWL_EXSTYLE);
+            SetWindowLongPtrW(hwnd, GWL_EXSTYLE, ex & !(WS_EX_NOACTIVATE.0 as isize));
+            let _ = SetForegroundWindow(hwnd);
+        }
+    }
     let _ = window.set_focus();
 }
 
@@ -1162,40 +1175,87 @@ fn split_pdf(path: &Path, ranges: &str) -> Result<PathBuf, String> {
     })
 }
 
-/// Word and PowerPoint files to PDF with the installed Office's own export.
-/// Paths go in through the environment, never into the script text. Office
-/// is only quit when nothing of the user's is open in it.
-fn office_pdf(path: &Path) -> Result<PathBuf, String> {
+/// Word and PowerPoint files to PDF with the installed Office's own export,
+/// one Office start per kind for the whole batch. Jobs ("source<TAB>output"
+/// lines) go in through the environment, never into the script text; the
+/// script prints a line per file done, and stops before the next file once
+/// the stop file exists (Esc). Office is only quit when nothing of the
+/// user's is open in it.
+fn office_pdfs(paths: &[PathBuf]) -> Vec<Result<PathBuf, String>> {
+    use std::io::BufRead;
     use std::os::windows::process::CommandExt;
-    const WORD: &str = "$ErrorActionPreference='Stop'; $a=New-Object -ComObject Word.Application; \
-        try { $a.DisplayAlerts=0; $d=$a.Documents.Open($env:KLYRO_SRC,$false,$true,$false); \
-        $d.ExportAsFixedFormat($env:KLYRO_OUT,17); $d.Close(0) } \
-        finally { if ($a.Documents.Count -eq 0) { $a.Quit() } }";
-    const POWERPOINT: &str = "$ErrorActionPreference='Stop'; $a=New-Object -ComObject PowerPoint.Application; \
-        try { $d=$a.Presentations.Open($env:KLYRO_SRC,-1,0,0); $d.SaveAs($env:KLYRO_OUT,32); $d.Close() } \
-        finally { if ($a.Presentations.Count -eq 0) { $a.Quit() } }";
-    let script = if WORD_EXTS.contains(&ext_of(path).as_str()) {
-        WORD
-    } else {
-        POWERPOINT
-    };
-    let out = temp_in(&std::env::temp_dir()).with_extension("pdf");
-    progress(0.2);
-    // ponytail: one Office start per file; a big batch would want one
-    // script converting them all.
-    let _ = std::process::Command::new("powershell.exe")
-        .args(["-NoProfile", "-NonInteractive", "-Command", script])
-        .env("KLYRO_SRC", path)
-        .env("KLYRO_OUT", &out)
-        .creation_flags(0x0800_0000) // CREATE_NO_WINDOW
-        .output();
-    let bytes = std::fs::read(&out);
-    let _ = std::fs::remove_file(&out);
-    let bytes = bytes.map_err(|_| {
-        "Office couldn't convert it (is Word or PowerPoint installed, and the file not locked?)"
-            .to_string()
-    })?;
-    save_bytes(path, "pdf", None, &bytes)
+    const LOOP: &str = "foreach ($j in $env:KLYRO_JOBS -split \"`n\") { \
+        if (Test-Path -LiteralPath $env:KLYRO_STOP) { break }; $s, $o = $j -split \"`t\"; \
+        try { CONVERT } catch {}; [Console]::Out.WriteLine('done'); [Console]::Out.Flush() }";
+    let word = format!(
+        "$a=New-Object -ComObject Word.Application; try {{ $a.DisplayAlerts=0; {} }} \
+         finally {{ if ($a.Documents.Count -eq 0) {{ $a.Quit() }} }}",
+        LOOP.replace(
+            "CONVERT",
+            "$d=$a.Documents.Open($s,$false,$true,$false); $d.ExportAsFixedFormat($o,17); $d.Close(0)"
+        )
+    );
+    let powerpoint = format!(
+        "$a=New-Object -ComObject PowerPoint.Application; try {{ {} }} \
+         finally {{ if ($a.Presentations.Count -eq 0) {{ $a.Quit() }} }}",
+        LOOP.replace(
+            "CONVERT",
+            "$d=$a.Presentations.Open($s,-1,0,0); $d.SaveAs($o,32); $d.Close()"
+        )
+    );
+    let base = temp_in(&std::env::temp_dir());
+    let outs: Vec<PathBuf> = (0..paths.len())
+        .map(|i| base.with_extension(format!("{i}.pdf")))
+        .collect();
+    let stop = base.with_extension("stop");
+    let mut done = 0;
+    progress(0.1);
+    for (script, is_word) in [(&word, true), (&powerpoint, false)] {
+        let jobs: Vec<String> = paths
+            .iter()
+            .zip(&outs)
+            .filter(|(p, _)| WORD_EXTS.contains(&ext_of(p).as_str()) == is_word)
+            .map(|(p, o)| format!("{}\t{}", p.display(), o.display()))
+            .collect();
+        if jobs.is_empty() || CANCEL.load(Ordering::Relaxed) {
+            continue;
+        }
+        let child = std::process::Command::new("powershell.exe")
+            .args(["-NoProfile", "-NonInteractive", "-Command", script])
+            .env("KLYRO_JOBS", jobs.join("\n"))
+            .env("KLYRO_STOP", &stop)
+            .stdout(std::process::Stdio::piped())
+            .stderr(std::process::Stdio::null())
+            .creation_flags(0x0800_0000) // CREATE_NO_WINDOW
+            .spawn();
+        let Ok(mut child) = child else { continue };
+        if let Some(out) = child.stdout.take() {
+            for _ in std::io::BufReader::new(out).lines() {
+                done += 1;
+                FILE.store(done, Ordering::Relaxed);
+                progress(0.0);
+                if CANCEL.load(Ordering::Relaxed) {
+                    let _ = std::fs::write(&stop, b"");
+                }
+            }
+        }
+        let _ = child.wait();
+    }
+    let _ = std::fs::remove_file(&stop);
+    paths
+        .iter()
+        .zip(outs)
+        .map(|(path, out)| {
+            let bytes = std::fs::read(&out);
+            let _ = std::fs::remove_file(&out);
+            canceled()?;
+            let bytes = bytes.map_err(|_| {
+                "Office couldn't convert it (is Word or PowerPoint installed, and the file not locked?)"
+                    .to_string()
+            })?;
+            save_bytes(path, "pdf", None, &bytes)
+        })
+        .collect()
 }
 
 const WORD_EXTS: [&str; 4] = ["doc", "docx", "rtf", "odt"];
@@ -1522,6 +1582,19 @@ fn run(app: &AppHandle, op: &str, paths: &[PathBuf]) -> Vec<Outcome> {
         _ => None,
     };
 
+    if op == "convert.pdf"
+        && paths
+            .iter()
+            .all(|p| OFFICE_EXTS.contains(&ext_of(p).as_str()))
+    {
+        FILES.store(total as u32, Ordering::Relaxed);
+        return paths
+            .iter()
+            .zip(office_pdfs(paths))
+            .map(|(p, r)| outcome(p, r.map(Some)))
+            .collect();
+    }
+
     let mut outcomes = Vec::new();
     for (i, path) in paths.iter().enumerate() {
         if CANCEL.load(Ordering::Relaxed) {
@@ -1533,7 +1606,6 @@ fn run(app: &AppHandle, op: &str, paths: &[PathBuf]) -> Vec<Outcome> {
         progress(0.0);
         let ext = ext_of(path);
         let result = match op.split('.').collect::<Vec<_>>().as_slice() {
-            ["convert", "pdf"] if OFFICE_EXTS.contains(&ext.as_str()) => office_pdf(path),
             ["convert", to] if ext == "pdf" => convert_pdf(path, to),
             ["convert", "pdf"] => decode(path).and_then(|img| {
                 progress(0.5);
