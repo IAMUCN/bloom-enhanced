@@ -3,32 +3,17 @@ import { invoke } from "@tauri-apps/api/core";
 import { listen } from "@tauri-apps/api/event";
 import { openUrl } from "@tauri-apps/plugin-opener";
 import { startDrag } from "@crabnebula/tauri-plugin-drag";
-import {
-	Check,
-	ChevronDown,
-	Eraser,
-	ExternalLink,
-	File,
-	Image,
-	Layers,
-	Link,
-	Pin,
-	PinOff,
-	Search,
-	Trash2,
-	Type,
-	Ungroup
-} from "lucide-react";
-import { useSettingsSync } from "../hooks/useSettingsSync";
+import { ArrowLeft, Copy, Eraser, Layers, ListChecks, Pin, Search, Trash2, Ungroup, X } from "lucide-react";
 import { releaseTextKeyboard } from "../hooks/useTextInputKeyboard";
+import { useClipboardSettings } from "../hooks/useClipboardSettings";
+import { clipSounds } from "../clipboardSounds";
+import { ClipTile } from "./ClipTile";
 import {
 	CLEAR_WINDOWS,
 	CLIP_FILTERS,
 	THUMB_SIZES,
-	asThumbSize,
 	clearIds,
-	colorOf,
-	fileName,
+	filePaths,
 	visibleItems,
 	type ClipFilter,
 	type ClipItem
@@ -39,49 +24,34 @@ import "./ClipboardPanel.css";
 interface ClipboardPanelProps {
 	/** Fallback drag image for files without a thumbnail. */
 	dragIcon: string | null;
+	/** The window's drop event (`shelf-drag-drop` / `clipshelf-drag-drop`):
+	 *  dropping one of our own tiles onto another groups them. */
+	dropEvent: string;
 	/** Called when a drag out of the panel starts and ends, so the surface
 	 *  stays open meanwhile and releases its hover afterwards. */
 	onDragStart: () => void;
 	onDragEnd: () => void;
 }
 
-function timeAgo(ms: number): string {
-	const s = Math.max(0, Math.round((Date.now() - ms) / 1000));
-	if (s < 60) return "now";
-	if (s < 3600) return `${Math.floor(s / 60)}m`;
-	if (s < 86400) return `${Math.floor(s / 3600)}h`;
-	return `${Math.floor(s / 86400)}d`;
-}
+const openLink = (url: string) => openUrl(/^https?:/i.test(url) ? url : `https://${url}`);
 
-const label = (it: ClipItem) =>
-	it.kind === "text"
-		? it.text
-		: it.kind === "image"
-			? `Image · ${it.width}×${it.height}`
-			: it.paths!.length === 1
-				? fileName(it.paths![0])
-				: `${fileName(it.paths![0])} + ${it.paths!.length - 1} more`;
-
-export function ClipboardPanel({ dragIcon, onDragStart, onDragEnd }: ClipboardPanelProps) {
+export function ClipboardPanel({ dragIcon, dropEvent, onDragStart, onDragEnd }: ClipboardPanelProps) {
+	const options = useClipboardSettings();
 	const [items, setItems] = useState<ClipItem[]>([]);
 	const [query, setQuery] = useState("");
 	const [filter, setFilter] = useState<ClipFilter>("all");
 	const [copiedId, setCopiedId] = useState<string | null>(null);
-	const [expandedId, setExpandedId] = useState<string | null>(null);
+	const [groupId, setGroupId] = useState<string | null>(null);
+	const [selecting, setSelecting] = useState(false);
+	const [selected, setSelected] = useState<Set<string>>(new Set());
 	const [clearOpen, setClearOpen] = useState(false);
 	const [thumbs, setThumbs] = useState<Record<string, string | null>>({});
-	const [thumbSize, setThumbSize] = useState(() =>
-		asThumbSize(localStorage.getItem("bloom-clipboard-thumb-size"))
-	);
 	const pointer = useRef<{ id: string; x: number; y: number; dragging: boolean } | null>(null);
+	// The tile being dragged out, so dropping it back on another tile groups them.
+	const dragSource = useRef<string | null>(null);
 	const searchRef = useRef<HTMLInputElement>(null);
 
-	useEffect(() => {
-		invoke<Record<string, string>>("load_settings")
-			.then((s) => setThumbSize(asThumbSize(s["bloom-clipboard-thumb-size"])))
-			.catch(() => {});
-	}, []);
-	useSettingsSync({ "bloom-clipboard-thumb-size": (v) => setThumbSize(asThumbSize(v)) });
+	const sound = (name: keyof typeof clipSounds) => options.sounds && clipSounds[name]();
 
 	// Typing works through useTextInputKeyboard (in the window's root); closing
 	// the panel while typing hands the keyboard back too.
@@ -96,11 +66,44 @@ export function ClipboardPanel({ dragIcon, onDragStart, onDragEnd }: ClipboardPa
 		};
 	}, []);
 
-	// Thumbnails for images and files (every file of an open group), via the shelf's previewer.
 	useEffect(() => {
-		const wanted = items.flatMap((it) =>
-			it.image ? [it.image] : it.id === expandedId ? (it.paths ?? []) : (it.paths ?? []).slice(0, 1)
-		);
+		const unlisten = listen<{ position?: { x: number; y: number } }>(dropEvent, (e) => {
+			const source = dragSource.current;
+			const pos = e.payload.position;
+			if (!source || !pos) return;
+			const el = document.elementFromPoint(pos.x / devicePixelRatio, pos.y / devicePixelRatio);
+			const target = el?.closest<HTMLElement>("[data-clip-id]")?.dataset.clipId;
+			if (target && target !== source) {
+				invoke("clipboard_group", { ids: [target, source] })
+					.then(() => sound("pop"))
+					.catch(() => {});
+			}
+		});
+		return () => {
+			unlisten.then((fn) => fn());
+		};
+	}, [dropEvent, options.sounds]);
+
+	const group = groupId ? items.find((it) => it.id === groupId && it.kind === "files") : undefined;
+	useEffect(() => {
+		if (groupId && !group) setGroupId(null);
+	}, [groupId, group]);
+
+	// Drop selections of items that are gone; leave select mode when it's turned off.
+	useEffect(() => {
+		if (!options.multiSelect) setSelecting(false);
+		setSelected((prev) => {
+			const next = new Set([...prev].filter((id) => options.multiSelect && items.some((it) => it.id === id)));
+			return next.size === prev.size ? prev : next;
+		});
+	}, [items, options.multiSelect]);
+
+	const shown = useMemo(() => visibleItems(items, query, filter), [items, query, filter]);
+
+	// Thumbnails for images and files (the first three of a stack, or every
+	// file of the open group), via the shelf's previewer.
+	useEffect(() => {
+		const wanted = group ? (group.paths ?? []) : shown.flatMap((it) => filePaths(it).slice(0, 3));
 		for (const path of wanted) {
 			if (path in thumbs) continue;
 			setThumbs((prev) => ({ ...prev, [path]: null }));
@@ -108,11 +111,10 @@ export function ClipboardPanel({ dragIcon, onDragStart, onDragEnd }: ClipboardPa
 				.then((p) => setThumbs((prev) => ({ ...prev, [path]: p.thumb })))
 				.catch(() => {});
 		}
-	}, [items, thumbs, expandedId]);
-
-	const shown = useMemo(() => visibleItems(items, query, filter), [items, query, filter]);
+	}, [shown, group, thumbs]);
 
 	const flashCopied = (id: string) => {
+		sound("copy");
 		setCopiedId(id);
 		window.setTimeout(() => setCopiedId((c) => (c === id ? null : c)), 1200);
 	};
@@ -120,65 +122,114 @@ export function ClipboardPanel({ dragIcon, onDragStart, onDragEnd }: ClipboardPa
 		invoke("clipboard_copy", { id: it.id })
 			.then(() => flashCopied(it.id))
 			.catch((e) => console.error("[clipboard] copy failed:", e));
-	const copyPath = (path: string) =>
-		invoke("clipboard_copy_paths", { paths: [path] })
-			.then(() => flashCopied(path))
+	const copyPaths = (paths: string[], key: string) =>
+		invoke("clipboard_copy_paths", { paths })
+			.then(() => flashCopied(key))
 			.catch((e) => console.error("[clipboard] copy failed:", e));
+	const remove = (ids: string[]) => {
+		sound("delete");
+		invoke("clipboard_delete_many", { ids }).catch(() => {});
+	};
+	const pin = (ids: string[], pinned: boolean) => {
+		sound("pop");
+		ids.forEach((id) => invoke("clipboard_pin", { id, pinned }).catch(() => {}));
+	};
 
-	// Click copies; moving 6px with the button down drags the files out instead.
+	// Moving 6px with the button down drags the item out: files and images as
+	// files, text as text. Anything else is a click.
 	const beginPointer = (e: React.PointerEvent, key: string) => {
 		if (e.button === 0) pointer.current = { id: key, x: e.clientX, y: e.clientY, dragging: false };
 	};
-	const movePointer = (e: React.PointerEvent, key: string, paths: string[]) => {
+	const movePointer = (e: React.PointerEvent, key: string, source: ClipItem | null, paths: string[], text?: string) => {
 		const st = pointer.current;
-		if (!st || st.id !== key || st.dragging) return;
+		if (!st || st.id !== key || st.dragging || selecting) return;
 		if (Math.hypot(e.clientX - st.x, e.clientY - st.y) < 6) return;
-		const icon = thumbs[paths[0]] ?? dragIcon;
-		if (!paths.length || !icon) return;
+		const icon = (paths[0] && thumbs[paths[0]]) || dragIcon;
+		let drag: Promise<unknown>;
+		if (paths.length && icon) drag = startDrag({ item: paths, icon });
+		else if (text) drag = invoke("clipboard_drag_text", { text });
+		else return;
 		st.dragging = true;
+		dragSource.current = source?.id ?? null;
 		onDragStart();
-		startDrag({ item: paths, icon })
-			.catch((err) => console.error("[clipboard] drag out failed:", err))
-			.finally(onDragEnd);
+		drag.catch((err) => console.error("[clipboard] drag out failed:", err)).finally(() => {
+			// The drop event can land just after the drag call returns.
+			window.setTimeout(() => (dragSource.current = null), 300);
+			onDragEnd();
+		});
 	};
-	const clicked = (e: React.MouseEvent, key: string, action: () => unknown) => {
-		e.stopPropagation();
+	// True when this click ends a drag rather than being a click.
+	const wasDrag = (key: string) => {
 		const st = pointer.current;
 		pointer.current = null;
-		if (st && st.id === key && st.dragging) return;
-		action();
+		return !!st && st.id === key && st.dragging;
 	};
-	const act = (e: React.MouseEvent, fn: () => unknown) => {
+
+	const toggleSelected = (id: string) =>
+		setSelected((prev) => {
+			const next = new Set(prev);
+			if (!next.delete(id)) next.add(id);
+			return next;
+		});
+
+	const clickItem = (e: React.MouseEvent, it: ClipItem) => {
 		e.stopPropagation();
-		fn();
+		if (wasDrag(it.id)) return;
+		if (options.multiSelect && (selecting || e.ctrlKey || e.shiftKey)) return toggleSelected(it.id);
+		if (it.kind === "files" && (it.paths?.length ?? 0) > 1) return setGroupId(it.id);
+		copy(it);
 	};
 
 	const clear = (hours: number) => {
 		setClearOpen(false);
 		const ids = clearIds(shown, hours, Date.now());
-		if (ids.length) invoke("clipboard_delete_many", { ids }).catch(() => {});
+		if (ids.length) remove(ids);
 	};
 
-	const thumbPx = THUMB_SIZES[thumbSize];
-
-	const thumbFor = (it: ClipItem) => {
-		const color = colorOf(it);
-		if (color) return <span className="clip-swatch" style={{ background: color }} />;
-		const path = it.image ?? it.paths?.[0];
-		const thumb = path ? thumbs[path] : null;
-		if (thumb) return <img src={thumb} alt="" draggable={false} />;
-		if (it.kind === "image") return <Image size={14} />;
-		if (it.kind === "files") return it.paths!.length > 1 ? <Layers size={14} /> : <File size={14} />;
-		return it.is_url ? <Link size={14} /> : <Type size={14} />;
+	const picked = items.filter((it) => selected.has(it.id));
+	const pickedFiles = picked.filter((it) => it.kind !== "text");
+	const endSelection = () => {
+		setSelected(new Set());
+		setSelecting(false);
 	};
+
+	const tile = (it: ClipItem, key = it.id, paths = filePaths(it), onClick?: (e: React.MouseEvent) => void) => (
+		<ClipTile
+			key={key}
+			item={it}
+			thumbs={thumbs}
+			linkPreviews={options.linkPreviews}
+			notes={options.notes}
+			richText={options.richText}
+			copied={copiedId === key}
+			selected={selected.has(key)}
+			onPointerDown={(e) => beginPointer(e, key)}
+			onPointerMove={(e) => movePointer(e, key, onClick ? null : it, paths, it.kind === "text" ? it.text : undefined)}
+			onClick={onClick ?? ((e) => clickItem(e, it))}
+			{...(onClick
+				? {}
+				: {
+						onPin: () => pin([it.id], !it.pinned),
+						onDelete: () => remove([it.id]),
+						onOpenLink: it.is_url && it.text ? () => openLink(it.text!) : undefined,
+						onUngroup: () => invoke("clipboard_split", { id: it.id }).catch(() => {}),
+						onSaveNote: (note: string) => {
+							if (note.trim() !== (it.note ?? "")) invoke("clipboard_set_note", { id: it.id, note }).catch(() => {});
+						}
+					})}
+		/>
+	);
 
 	return (
 		<div
 			className="qp clip-panel"
-			style={{ "--clip-thumb": `${thumbPx}px` } as React.CSSProperties}
+			style={{ "--clip-tile": `${THUMB_SIZES[options.thumbSize]}px` } as React.CSSProperties}
 			onClick={(e) => {
 				e.stopPropagation();
 				setClearOpen(false);
+			}}
+			onKeyDown={(e) => {
+				if (e.key === "Escape" && (selected.size || selecting)) endSelection();
 			}}
 		>
 			<div className="clip-toolbar">
@@ -194,22 +245,44 @@ export function ClipboardPanel({ dragIcon, onDragStart, onDragEnd }: ClipboardPa
 								searchRef.current?.blur();
 							}
 						}}
-						placeholder="Search clipboard"
+						placeholder="Search clipboard and notes"
 						spellCheck={false}
 					/>
 				</div>
+				{options.multiSelect && (
+					<button
+						className={`qp-icon-btn ${selecting ? "on" : ""}`}
+						title={selecting ? "Done selecting" : "Select several (or Ctrl-click)"}
+						onClick={(e) => {
+							e.stopPropagation();
+							if (selecting) endSelection();
+							else setSelecting(true);
+						}}
+					>
+						<ListChecks size={13} />
+					</button>
+				)}
 				<div className="clip-clear">
 					<button
 						className="qp-icon-btn"
 						title="Clear unpinned items in this view"
-						onClick={(e) => act(e, () => setClearOpen((o) => !o))}
+						onClick={(e) => {
+							e.stopPropagation();
+							setClearOpen((o) => !o);
+						}}
 					>
 						<Eraser size={13} />
 					</button>
 					{clearOpen && (
 						<div className="clip-menu">
 							{CLEAR_WINDOWS.map(([hours, text]) => (
-								<button key={hours} onClick={(e) => act(e, () => clear(hours))}>
+								<button
+									key={hours}
+									onClick={(e) => {
+										e.stopPropagation();
+										clear(hours);
+									}}
+								>
 									{text}
 								</button>
 							))}
@@ -218,132 +291,98 @@ export function ClipboardPanel({ dragIcon, onDragStart, onDragEnd }: ClipboardPa
 				</div>
 			</div>
 
-			<div className="clip-filters">
-				{CLIP_FILTERS.map(([id, text]) => (
-					<button
-						key={id}
-						className={filter === id ? "active" : ""}
-						onClick={(e) => act(e, () => setFilter(id))}
-					>
-						{text}
+			{group ? (
+				<div className="clip-bar">
+					<button title="Back" onClick={() => setGroupId(null)}>
+						<ArrowLeft size={12} />
 					</button>
-				))}
-			</div>
+					<span className="clip-bar-title">{group.paths!.length} files</span>
+					<button title="Copy all files" onClick={() => copy(group)}>
+						<Copy size={11} /> {copiedId === group.id ? "Copied" : "Copy all"}
+					</button>
+					<button title="Ungroup into separate items" onClick={() => invoke("clipboard_split", { id: group.id })}>
+						<Ungroup size={11} /> Ungroup
+					</button>
+				</div>
+			) : selected.size || selecting ? (
+				<div className="clip-bar">
+					<span className="clip-bar-title">{selected.size ? `${selected.size} selected` : "Click items to select"}</span>
+					{pickedFiles.length >= 2 && (
+						<button
+							title="Group into one stack"
+							onClick={() =>
+								invoke("clipboard_group", { ids: pickedFiles.map((it) => it.id) })
+									.then(() => {
+										sound("pop");
+										endSelection();
+									})
+									.catch(() => {})
+							}
+						>
+							<Layers size={11} /> Group
+						</button>
+					)}
+					{pickedFiles.length > 0 && pickedFiles.length === picked.length && (
+						<button title="Copy all files" onClick={() => copyPaths(pickedFiles.flatMap(filePaths), "selection")}>
+							<Copy size={11} /> {copiedId === "selection" ? "Copied" : "Copy"}
+						</button>
+					)}
+					{picked.length > 0 && (
+						<>
+							<button title="Pin or unpin" onClick={() => pin(picked.map((it) => it.id), !picked.every((it) => it.pinned))}>
+								<Pin size={11} />
+							</button>
+							<button
+								title="Delete"
+								onClick={() => {
+									remove(picked.map((it) => it.id));
+									endSelection();
+								}}
+							>
+								<Trash2 size={11} />
+							</button>
+						</>
+					)}
+					<button title="Done" onClick={endSelection}>
+						<X size={12} />
+					</button>
+				</div>
+			) : (
+				<div className="clip-filters">
+					{CLIP_FILTERS.map(([id, text]) => (
+						<button
+							key={id}
+							className={filter === id ? "active" : ""}
+							onClick={(e) => {
+								e.stopPropagation();
+								setFilter(id);
+							}}
+						>
+							{text}
+						</button>
+					))}
+				</div>
+			)}
 
-			<div className="clip-list">
-				{shown.length === 0 && (
+			<div className="clip-grid">
+				{group
+					? group.paths!.map((path) =>
+							tile(
+								{ ...group, id: path, paths: [path], note: undefined, pinned: false, hits: 1 },
+								path,
+								[path],
+								(e) => {
+									e.stopPropagation();
+									if (!wasDrag(path)) copyPaths([path], path);
+								}
+							)
+						)
+					: shown.map((it) => tile(it))}
+				{!group && shown.length === 0 && (
 					<div className="clip-empty">
 						{query || filter !== "all" ? "Nothing here" : "Copied text, links, images and files appear here"}
 					</div>
 				)}
-				{shown.map((it) => {
-					const paths = it.image ? [it.image] : (it.paths ?? []);
-					const draggable = it.kind !== "text";
-					const group = it.kind === "files" && paths.length > 1;
-					const expanded = group && expandedId === it.id;
-					const color = colorOf(it);
-					return (
-						<div key={it.id} className={`clip-entry ${expanded ? "expanded" : ""}`}>
-							<div
-								className={`clip-row ${it.pinned ? "pinned" : ""}`}
-								title={draggable ? "Click to copy, drag into an app" : "Click to copy"}
-								onPointerDown={(e) => draggable && beginPointer(e, it.id)}
-								onPointerMove={(e) => movePointer(e, it.id, paths)}
-								onClick={(e) => clicked(e, it.id, () => copy(it))}
-							>
-								<div className={`clip-thumb ${group ? "stack" : ""}`}>
-									{thumbFor(it)}
-									{group && <span className="clip-count">{paths.length}</span>}
-								</div>
-								<div className="clip-body">
-									<span className={`clip-text ${it.is_url ? "url" : ""} ${color ? "mono" : ""}`}>
-										{label(it)}
-									</span>
-									<span className="clip-meta">
-										{copiedId === it.id ? (
-											<>
-												<Check size={10} /> Copied
-											</>
-										) : (
-											<>
-												{timeAgo(it.captured_at)}
-												{it.hits > 1 && ` · copied ${it.hits}×`}
-											</>
-										)}
-									</span>
-								</div>
-								<div className="clip-actions">
-									{group && (
-										<>
-											<button
-												className={`qp-icon-btn clip-expand ${expanded ? "on" : ""}`}
-												title={expanded ? "Collapse" : "Show files"}
-												onClick={(e) => act(e, () => setExpandedId(expanded ? null : it.id))}
-											>
-												<ChevronDown size={12} />
-											</button>
-											<button
-												className="qp-icon-btn"
-												title="Ungroup into separate items"
-												onClick={(e) => act(e, () => invoke("clipboard_split", { id: it.id }))}
-											>
-												<Ungroup size={12} />
-											</button>
-										</>
-									)}
-									{it.is_url && it.text && (
-										<button
-											className="qp-icon-btn"
-											title="Open link"
-											onClick={(e) =>
-												act(e, () => openUrl(/^https?:/i.test(it.text!) ? it.text! : `https://${it.text}`))
-											}
-										>
-											<ExternalLink size={12} />
-										</button>
-									)}
-									<button
-										className={`qp-icon-btn ${it.pinned ? "on" : ""}`}
-										title={it.pinned ? "Unpin" : "Pin (kept through cleanup)"}
-										onClick={(e) => act(e, () => invoke("clipboard_pin", { id: it.id, pinned: !it.pinned }))}
-									>
-										{it.pinned ? <PinOff size={12} /> : <Pin size={12} />}
-									</button>
-									<button
-										className="qp-icon-btn"
-										title="Delete"
-										onClick={(e) => act(e, () => invoke("clipboard_delete", { id: it.id }))}
-									>
-										<Trash2 size={12} />
-									</button>
-								</div>
-							</div>
-							{expanded &&
-								paths.map((path) => (
-									<div
-										key={path}
-										className="clip-row clip-sub"
-										title="Click to copy this file, drag into an app"
-										onPointerDown={(e) => beginPointer(e, path)}
-										onPointerMove={(e) => movePointer(e, path, [path])}
-										onClick={(e) => clicked(e, path, () => copyPath(path))}
-									>
-										<div className="clip-thumb">
-											{thumbs[path] ? <img src={thumbs[path]!} alt="" draggable={false} /> : <File size={12} />}
-										</div>
-										<div className="clip-body">
-											<span className="clip-text">{fileName(path)}</span>
-											{copiedId === path && (
-												<span className="clip-meta">
-													<Check size={10} /> Copied
-												</span>
-											)}
-										</div>
-									</div>
-								))}
-						</div>
-					);
-				})}
 			</div>
 		</div>
 	);

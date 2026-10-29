@@ -1,3 +1,4 @@
+@import url("https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&display=swap");
 /* The edge clipboard shelf window. The panel (ClipboardPanel / .qp) fills
    it and slides in from the edge it is attached to. */
 * {

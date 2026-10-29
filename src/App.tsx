@@ -71,7 +71,8 @@ import {
 	Inbox,
 	Music,
 	Zap,
-	Activity
+	Activity,
+	ClipboardCheck
 } from "lucide-react";
 
 /**
@@ -1098,6 +1099,27 @@ function App() {
 		() => localStorage.getItem("bloom-clipboard-position") || "notch"
 	);
 	const clipboardInNotch = settingsClipboardEnabled && clipboardPosition === "notch";
+	const clipboardInNotchRef = useRef(clipboardInNotch);
+	clipboardInNotchRef.current = clipboardInNotch;
+	// A short "Copied" pulse in the notch whenever the history captures something.
+	const [clipboardCopyIndicator, setClipboardCopyIndicator] = useState(
+		() => localStorage.getItem("bloom-clipboard-copy-indicator") !== "false"
+	);
+	const [showCopyPulse, setShowCopyPulse] = useState(false);
+	useEffect(() => {
+		if (windowLabel !== "main" || !settingsClipboardEnabled || !clipboardCopyIndicator) return;
+		let timer: ReturnType<typeof setTimeout> | undefined;
+		const unlisten = listen("clipboard-captured", () => {
+			setShowCopyPulse(true);
+			clearTimeout(timer);
+			timer = setTimeout(() => setShowCopyPulse(false), 1200);
+		});
+		return () => {
+			clearTimeout(timer);
+			setShowCopyPulse(false);
+			unlisten.then((fn) => fn());
+		};
+	}, [settingsClipboardEnabled, clipboardCopyIndicator]);
 	const [settingsTimerSoundEnabled, setSettingsTimerSoundEnabled] = useState(
 		() => localStorage.getItem("bloom-timer-sound-enabled") !== "false"
 	);
@@ -1177,6 +1199,7 @@ function App() {
 				setSettingsDevicesPanelEnabled(getVal("bloom-notch-devices-enabled", "false") === "true");
 				setSettingsClipboardEnabled(getVal("bloom-clipboard-enabled", "true") !== "false");
 				setClipboardPosition(getVal("bloom-clipboard-position", "notch") || "notch");
+				setClipboardCopyIndicator(getVal("bloom-clipboard-copy-indicator", "true") !== "false");
 				setSettingsTimerSoundEnabled(getVal("bloom-timer-sound-enabled", "true") !== "false");
 				setSettingsMusicModeEnabled(getVal("bloom-music-mode-enabled", "true") !== "false");
 				setRememberPanelEnabled(
@@ -1302,6 +1325,7 @@ function App() {
 			"bloom-notch-devices-enabled": setSettingsDevicesPanelEnabled,
 			"bloom-clipboard-enabled": setSettingsClipboardEnabled,
 			"bloom-clipboard-position": (v: unknown) => setClipboardPosition(String(v || "notch")),
+			"bloom-clipboard-copy-indicator": (v: unknown) => setClipboardCopyIndicator(v !== false && v !== "false"),
 			"bloom-timer-sound-enabled": setSettingsTimerSoundEnabled,
 			"bloom-music-mode-enabled": setSettingsMusicModeEnabled,
 			"bloom-notch-remember-panel": setRememberPanelEnabled,
@@ -1887,13 +1911,14 @@ function App() {
 			shelfPrevOpenRef.current = isOpenRef.current;
 			shelfDragActiveRef.current = true;
 			setIsOpen(true);
-			setBloomMode("shelf");
+			// With clipboard history in the notch, drops go to it, not the shelf.
+			setBloomMode(clipboardInNotchRef.current ? "clipboard" : "shelf");
 		};
 		const leave = () => {
 			setIsDragHovering(false);
 			if (shelfDragActiveRef.current) {
 				shelfDragActiveRef.current = false;
-				if (bloomModeRef.current === "shelf") {
+				if (bloomModeRef.current === "shelf" || bloomModeRef.current === "clipboard") {
 					setIsOpen(shelfPrevOpenRef.current);
 					setBloomMode(shelfPrevModeRef.current);
 				}
@@ -3128,7 +3153,8 @@ function App() {
 		!isMusicMode &&
 		!showPowerPulse &&
 		!showLowBatteryPulse &&
-		!showUpdatePulse;
+		!showUpdatePulse &&
+		!showCopyPulse;
 	// A media session remains reachable on hover after its activity fades, or
 	// whenever the compact music display is disabled.
 	const showMusicOnStatusHover =
@@ -3156,7 +3182,7 @@ function App() {
 			return Math.max(Math.min(200 + totalWidgets * 50, 380) - clock24hTrim, statusFitWidth);
 		}
 		if (isMusicMode && isOpen) return mediaLayout === "compact" ? 300 : 340;
-		if ((showPowerPulse || showLowBatteryPulse || showUpdatePulse) && !isHovered) return 200;
+		if ((showPowerPulse || showLowBatteryPulse || showUpdatePulse || showCopyPulse) && !isHovered) return 200;
 
 		let w = 140 - clock24hTrim;
 		if (isMusicMode) {
@@ -3192,7 +3218,7 @@ function App() {
 			return devicesPanelHeight;
 		}
 		if (bloomMode === "wifi" || bloomMode === "bluetooth") return 300;
-		if (bloomMode === "clipboard") return 320;
+		if (bloomMode === "clipboard") return 360;
 		if (bloomMode === "status") return 36;
 		if (isMusicMode && isOpen) {
 			const hasProgressBar = (mediaInfo.duration_ms ?? 0) > 0;
@@ -3663,9 +3689,20 @@ function App() {
 												style={bloomMode === "device" || deviceAlertOnScreen ? { visibility: "hidden" } : undefined}
 											>
 												<AnimatePresence mode="wait">
-													{(showPowerPulse || showLowBatteryPulse || showUpdatePulse) &&
+													{(showPowerPulse || showLowBatteryPulse || showUpdatePulse || showCopyPulse) &&
 													!isHovered ? (
-														showUpdatePulse ? (
+														showCopyPulse ? (
+															<motion.div
+																key="copy-pulse-view"
+																initial={{ opacity: 0, scale: 0.95, filter: "blur(4px)" }}
+																animate={{ opacity: 1, scale: 1, filter: "blur(0px)" }}
+																exit={{ opacity: 0, scale: 1.05, filter: "blur(4px)" }}
+																className="power-pulse-content"
+															>
+																<ClipboardCheck size={14} />
+																<span className="label">Copied</span>
+															</motion.div>
+														) : showUpdatePulse ? (
 															<motion.div
 																key="update-pulse-view"
 																initial={{ opacity: 0, scale: 0.95, filter: "blur(4px)" }}
@@ -3987,6 +4024,7 @@ function App() {
 										>
 											<ClipboardPanel
 												dragIcon={shelfDragIcon}
+												dropEvent="shelf-drag-drop"
 												onDragStart={() => {
 													clipboardSelfDragRef.current = true;
 													clearShelfCollapse();
