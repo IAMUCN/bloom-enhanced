@@ -43,6 +43,8 @@ interface ClipboardTabProps {
 	shortcut: string;
 	changeShortcut: (shortcut: string) => void;
 	saveSetting: (key: string, value: string | null) => Promise<boolean>;
+	/** The notch is on; without it the "notch" position is the top edge. */
+	notchOn: boolean;
 }
 
 // Optional Edge-Drop features, each on by default and switchable here.
@@ -102,7 +104,8 @@ export function ClipboardTab({
 	changePosition,
 	shortcut,
 	changeShortcut,
-	saveSetting
+	saveSetting,
+	notchOn
 }: ClipboardTabProps) {
 	const options = useClipboardSettings();
 	const [monitors, setMonitors] = useState<string[]>([]);
@@ -148,12 +151,17 @@ export function ClipboardTab({
 						<SettingRow
 							icon={PanelLeft}
 							label="Position"
-							desc="In the notch, or a shelf that slides out of the middle of the left or right screen edge"
+							desc={
+								notchOn
+									? "In the notch, or a shelf that slides out of the middle of the left or right screen edge"
+									: "A shelf that slides out of the middle of the top, left or right screen edge"
+							}
 						>
 							<Choice
 								value={position}
 								options={[
-									["notch", "Notch"],
+									// Without the notch, "notch" is a shelf under the top edge.
+									["notch", notchOn ? "Notch" : "Top"],
 									["left", "Left edge"],
 									["right", "Right edge"]
 								]}
@@ -162,7 +170,7 @@ export function ClipboardTab({
 							/>
 						</SettingRow>
 
-						{position === "notch" && (
+						{position === "notch" && notchOn && (
 							<SettingRow icon={Maximize2} label="Wide in the Notch" desc="A wider Clipboard panel, so more and larger tiles fit">
 								<label className="toggle-switch">
 									<input
@@ -175,7 +183,7 @@ export function ClipboardTab({
 							</SettingRow>
 						)}
 
-						{position !== "notch" && monitors.length > 1 && (
+						{(position !== "notch" || !notchOn) && monitors.length > 1 && (
 							<SettingRow icon={Monitor} label="Shelf Monitor" desc="Which screen's edge the shelf slides out of">
 								<Choice
 									value={options.monitor}

@@ -18,7 +18,7 @@ document.addEventListener("contextmenu", (e) => e.preventDefault());
 
 function ClipShelf() {
 	const [open, setOpen] = useState(false);
-	const [side, setSide] = useState<"left" | "right">("left");
+	const [side, setSide] = useState<"left" | "right" | "top">("left");
 	const [dragHover, setDragHover] = useState(false);
 	const [dragIcon, setDragIcon] = useState<string | null>(null);
 	const [globalScale, setGlobalScale] = useState(1);
@@ -46,7 +46,7 @@ function ClipShelf() {
 
 	useEffect(() => {
 		const unlisteners = [
-			listen<{ open: boolean; side: "left" | "right" }>("clipshelf-open", (e) => {
+			listen<{ open: boolean; side: "left" | "right" | "top" }>("clipshelf-open", (e) => {
 				setSide(e.payload.side);
 				setOpen(e.payload.open);
 				if (!e.payload.open) releaseTextKeyboard();

@@ -41,6 +41,10 @@ unsafe extern "system" fn ctrl_handler(ctrl_type: u32) -> BOOL {
     BOOL(0)
 }
 
+/// Passed by the sign-in (autostart) entry; without it Bloom was started by
+/// hand and opens Settings.
+const AUTOSTART_ARG: &str = "--autostart";
+
 fn main() {
     let mut args = std::env::args_os();
     if args.nth(1).as_deref() == Some(std::ffi::OsStr::new("--taskbar-watchdog")) {
@@ -113,7 +117,8 @@ fn main() {
         .plugin(tauri_plugin_updater::Builder::new().build())
         .plugin(tauri_plugin_autostart::init(
             tauri_plugin_autostart::MacosLauncher::LaunchAgent,
-            Some(vec![]),
+            // Tells a sign-in start from one by hand (see AUTOSTART_ARG).
+            Some(vec![AUTOSTART_ARG]),
         ))
         .invoke_handler(tauri::generate_handler![
             hide_native_osd,
@@ -410,6 +415,25 @@ fn main() {
             bluetooth::setup_bluetooth_notifications(app.handle().clone());
             usb::setup_usb_notifications(app.handle().clone());
             jack::setup_jack_notifications(app.handle().clone());
+
+            // Started by hand (the Start menu entry, a shortcut) rather than at
+            // sign-in: open Settings, as launching it again while it runs does.
+            // Sign-in entries written before AUTOSTART_ARG existed are
+            // rewritten with it.
+            {
+                use tauri_plugin_autostart::ManagerExt;
+                let launcher = app.autolaunch();
+                if launcher.is_enabled().unwrap_or(false) {
+                    let _ = launcher.enable();
+                }
+            }
+            if !std::env::args().any(|a| a == AUTOSTART_ARG) {
+                let app_handle = app.handle().clone();
+                std::thread::spawn(move || {
+                    std::thread::sleep(std::time::Duration::from_millis(1500));
+                    crate::commands::open_settings_window(app_handle);
+                });
+            }
 
             // Listen for second-instance signal to open settings
             if let Some(&h_event) = SINGLE_INSTANCE_EVENT_HANDLE.get() {

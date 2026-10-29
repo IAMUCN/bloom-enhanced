@@ -95,7 +95,9 @@ function Orbit() {
 	// Settings › Radial Menu.
 	const [raw, setRaw] = useState<Record<string, unknown>>({});
 	const layout: OrbitLayout = parseLayout(raw["bloom-files-hidden"], raw["bloom-files-order"], raw["bloom-files-mode-order"]);
-	const inNotch = raw["bloom-files-status-at"] === "notch";
+	// Progress goes to the notch only while there is one.
+	const inNotch =
+		raw["bloom-files-status-at"] === "notch" && raw["bloom-notch-enabled"] !== false && raw["bloom-notch-enabled"] !== "false";
 	const seconds = Number(raw["bloom-files-status-seconds"]) || 2;
 	const phaseRef = useRef(phase);
 	phaseRef.current = phase;
@@ -114,6 +116,7 @@ function Orbit() {
 		"bloom-files-order": keep("bloom-files-order"),
 		"bloom-files-mode-order": keep("bloom-files-mode-order"),
 		"bloom-files-status-at": keep("bloom-files-status-at"),
+		"bloom-notch-enabled": keep("bloom-notch-enabled"),
 		"bloom-files-status-seconds": keep("bloom-files-status-seconds")
 	});
 

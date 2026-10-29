@@ -87,9 +87,6 @@ export function useSettings() {
 	const [mediaLayout, setMediaLayout] = useState<"classic" | "compact">(
 		() => (localStorage.getItem("bloom-media-layout") as "classic" | "compact") || "classic"
 	);
-	const [cornersEnabled, setCornersEnabled] = useState(
-		() => localStorage.getItem("bloom-corners-enabled") === "true"
-	);
 	const [showUpdateIndicator, setShowUpdateIndicator] = useState(
 		() => localStorage.getItem("bloom-show-update-indicator") !== "false"
 	);
@@ -255,7 +252,6 @@ export function useSettings() {
 			apply(getVal("bloom-brightness-overlay-enabled"), setBrightnessOverlayEnabled, readBool);
 			apply(getVal("bloom-media-ambience-enabled"), setMediaAmbienceEnabled, readBool);
 			apply(getVal("bloom-media-compact-glow-enabled"), setMediaCompactGlowEnabled, readBool);
-			apply(getVal("bloom-corners-enabled"), setCornersEnabled, readBool);
 			apply(getVal("bloom-time-format-24h"), setTimeFormat24h, readBool);
 			apply(getVal("bloom-show-update-indicator"), setShowUpdateIndicator, readBool);
 			apply(getVal("bloom-auto-update"), setAutoUpdate, readBool);
@@ -442,7 +438,6 @@ export function useSettings() {
 		"bloom-media-ambience-enabled": setMediaAmbienceEnabled,
 		"bloom-media-compact-glow-enabled": setMediaCompactGlowEnabled,
 		"bloom-media-layout": setMediaLayout,
-		"bloom-corners-enabled": setCornersEnabled,
 		"bloom-show-update-indicator": setShowUpdateIndicator,
 		"bloom-time-format-24h": setTimeFormat24h,
 		"bloom-low-battery-threshold": setLowBatteryThreshold,
@@ -752,12 +747,6 @@ export function useSettings() {
 		const next = !mediaCompactGlowEnabled;
 		setMediaCompactGlowEnabled(next);
 		saveSetting("bloom-media-compact-glow-enabled", String(next));
-	};
-
-	const toggleCorners = () => {
-		const next = !cornersEnabled;
-		setCornersEnabled(next);
-		saveSetting("bloom-corners-enabled", String(next));
 	};
 
 	const toggleUpdateIndicator = () => {
@@ -1136,8 +1125,6 @@ export function useSettings() {
 		handlePanelScaleChange,
 		notchStyle,
 		handleNotchStyleChange,
-		cornersEnabled,
-		toggleCorners,
 
 		// Theme
 		themeMode,

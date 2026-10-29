@@ -90,7 +90,7 @@ Edit `settings.json` with any text editor while Bloom is running. Changes are ap
 | `bloom-clipboard-retention-hours` | number string | `"0"` | Delete items older than this many hours (pinned and noted items stay); `"0"` keeps them until the limit removes them. |
 | `bloom-clipboard-group-files` | `"true"` / `"false"` | `"true"` | Several files copied at once are one fanned stack (click it to see the files, or ungroup it). `"false"` records each file as its own item. Items can also be grouped later by dropping one tile on another or with multi-select; text joins a group as a .txt file. |
 | `bloom-clipboard-thumb-size` | `"small"` / `"medium"` / `"large"` | `"small"` | Minimum tile width in the clipboard grid (96 / 116 / 148 px); tiles stretch to fill the row. |
-| `bloom-clipboard-position` | `"notch"` / `"left"` / `"right"` | `"notch"` | Where the history lives: the notch's Clipboard panel, or a shelf that slides out of the left or right screen edge. On a shared edge the first of shelf and volume/brightness HUD to open keeps the edge until it closes. Dragging something in goes to the same place: the notch, or that edge. |
+| `bloom-clipboard-position` | `"notch"` / `"left"` / `"right"` | `"notch"` | Where the history lives: the notch's Clipboard panel (with the notch off, a shelf under the middle of the top edge), or a shelf that slides out of the left or right screen edge. On a shared edge the first of shelf and volume/brightness HUD to open keeps the edge until it closes. Dragging something in goes to the same place: the notch, or that edge. |
 | `bloom-clipboard-shortcut` | e.g. `"Alt+C"`, `"Ctrl+Shift+V"`, `"F9"` | `"Alt+C"` | Global shortcut that opens/closes the clipboard (notch panel or edge shelf). `""` = no shortcut. Letters, digits and Space need a modifier. |
 | `bloom-clipboard-monitor` | monitor device name as Windows reports it (ends in `DISPLAY2` etc.) | `""` | Screen whose edge the shelf uses; `""` = primary. Ignored when the clipboard is in the notch. |
 | `bloom-clipboard-notch-wide` | `"true"` / `"false"` | `"false"` | A wider Clipboard panel in the notch (560 instead of 380), so more and larger tiles fit. |
@@ -150,7 +150,6 @@ Edit `settings.json` with any text editor while Bloom is running. Changes are ap
 | `bloom-theme-opacity`    | float string                                     | `"0.80"`    | Background opacity (0.1 to 1.0).                                                                                                                            |
 | `bloom-theme-saturation` | float string                                     | `"0.50"`    | Color saturation for custom/adaptive themes (0.0 to 1.0).                                                                                                   |
 | `bloom-theme-brightness` | float string                                     | `"0.15"`    | Background brightness for custom/adaptive themes (0.0 to 1.0).                                                                                              |
-| `bloom-corners-enabled`  | `"true"` / `"false"`                             | `"false"`   | Render rounded screen corner overlays on top edges.                                                                                                         |
 
 ### Status Widgets
 

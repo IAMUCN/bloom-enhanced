@@ -97,6 +97,7 @@ export function FilesTab({ saveSetting }: { saveSetting: (key: string, value: st
 				"bloom-files-key",
 				"bloom-files-status-at",
 				"bloom-files-status-seconds",
+				"bloom-notch-enabled",
 				...KEYS
 			].map((k) => [k, keep(k)])
 		)
@@ -111,7 +112,9 @@ export function FilesTab({ saveSetting }: { saveSetting: (key: string, value: st
 	const shiftTap = on(s["bloom-files-shift-tap"]);
 	const doubleMs = Number(s["bloom-files-double-shift-ms"]) || 400;
 	const seconds = Number(s["bloom-files-status-seconds"]) || 2;
-	const statusAt = s["bloom-files-status-at"] === "notch" ? "notch" : "pointer";
+	// Without the notch, progress shows at the pointer.
+	const notchOn = s["bloom-notch-enabled"] !== false && s["bloom-notch-enabled"] !== "false";
+	const statusAt = notchOn && s["bloom-files-status-at"] === "notch" ? "notch" : "pointer";
 	const triggerKey = TRIGGER_KEYS.some(([k]) => k === s["bloom-files-key"]) ? String(s["bloom-files-key"]) : "shift";
 	const keyName = TRIGGER_KEYS.find(([k]) => k === triggerKey)?.[1] ?? "Shift";
 
@@ -214,13 +217,21 @@ export function FilesTab({ saveSetting }: { saveSetting: (key: string, value: st
 				<>
 					<div className="setting-group-label">Progress</div>
 					<div className="setting-group">
-						<SettingRow icon={MapPin} label="Show Progress" desc="Where the percentage and the result appear">
+						<SettingRow
+							icon={MapPin}
+							label="Show Progress"
+							desc={notchOn ? "Where the percentage and the result appear" : "At the pointer (the notch is off)"}
+						>
 							<Choice
 								value={statusAt}
-								options={[
-									["pointer", "Pointer"],
-									["notch", "Notch"]
-								]}
+								options={
+									notchOn
+										? [
+												["pointer", "Pointer"],
+												["notch", "Notch"]
+											]
+										: [["pointer", "Pointer"]]
+								}
 								onChange={(v) => save("bloom-files-status-at", v)}
 								label="Show progress"
 							/>

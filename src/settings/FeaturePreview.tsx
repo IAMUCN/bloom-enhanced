@@ -430,8 +430,7 @@ function previewDescription(feature: Feature, settings: Settings, fallback: stri
 				Math.round(settings.themeOpacity * 100) +
 				"% opacity · " +
 				Math.round(settings.scale * 100) +
-				"% scale · Screen corners " +
-				(settings.cornersEnabled ? "on" : "off")
+				"% scale"
 			);
 		case "resting":
 			return (
@@ -514,7 +513,6 @@ export function FeaturePreview({ tab, settings, focus }: FeaturePreviewProps) {
 				"Background Opacity": "theme",
 				"Color Saturation": "theme",
 				"Background Brightness": "theme",
-				"Screen Corners": "theme",
 				"UI & Font Scale": "theme"
 			},
 			notch: {
@@ -640,12 +638,6 @@ export function FeaturePreview({ tab, settings, focus }: FeaturePreviewProps) {
 						onBlur={() => setRevealed(false)}
 						tabIndex={0}
 					>
-						{tab === "appearance" && settings.cornersEnabled && (
-							<>
-								<span className="screen-corner top-left" />
-								<span className="screen-corner top-right" />
-							</>
-						)}
 						{(tab === "general" || tab === "notch" || tab === "appearance") && (
 							<>
 								<DeviceArtDefs />

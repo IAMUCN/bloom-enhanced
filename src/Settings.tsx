@@ -62,7 +62,7 @@ const TAB_COPY: Record<SettingsTab, string> = {
 /** Keys each page's "Reset this page" puts back to defaults. */
 const PAGE_KEYS: Partial<Record<SettingsTab, string[]>> = {
 	general: ["bloom-time-format-24h", "bloom-show-update-indicator", "bloom-low-battery-threshold"],
-	appearance: ["bloom-theme-", "bloom-corners-enabled", "bloom-scale"],
+	appearance: ["bloom-theme-", "bloom-scale"],
 	notch: [
 		"bloom-notch-",
 		"bloom-calendar-",
@@ -343,8 +343,6 @@ function SettingsApp() {
 							handleSaturationChange={settings.handleSaturationChange}
 							themeBrightness={settings.themeBrightness}
 							handleBrightnessChange={settings.handleBrightnessChange}
-							cornersEnabled={settings.cornersEnabled}
-							toggleCorners={settings.toggleCorners}
 							scale={settings.scale}
 							handleScaleChange={settings.handleScaleChange}
 						/>
@@ -463,6 +461,7 @@ function SettingsApp() {
 							shortcut={settings.clipboardShortcut}
 							changeShortcut={settings.changeClipboardShortcut}
 							saveSetting={settings.saveSetting}
+							notchOn={settings.notchEnabled}
 						/>
 					</section>
 					<section data-tab="files" hidden={shown !== "files"}>

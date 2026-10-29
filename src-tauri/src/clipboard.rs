@@ -805,7 +805,9 @@ pub fn clipboard_clear(app: AppHandle, include_pinned: bool) {
 //
 // With `bloom-clipboard-position` = left/right the history lives in its own
 // window (`clipshelf`) that slides out of the middle third of that screen
-// edge, like Edge-Drop's blade. The volume (left) and brightness (right)
+// edge, like Edge-Drop's blade. With "notch" but the notch turned off, it
+// hangs from the middle third of the top edge instead, so the shelf works
+// without the notch. The volume (left) and brightness (right)
 // edge hovers keep the outer thirds. The window stays shown and parks off
 // screen while closed, so opening it never activates or re-shows a window.
 
@@ -813,6 +815,7 @@ pub fn clipboard_clear(app: AppHandle, include_pinned: bool) {
 pub enum ShelfSide {
     Left,
     Right,
+    Top,
 }
 
 /// Where the edge shelf is, or None when the history lives in the notch (or
@@ -824,6 +827,7 @@ pub fn shelf_side() -> Option<ShelfSide> {
     match setting("bloom-clipboard-position").as_deref() {
         Some("left") => Some(ShelfSide::Left),
         Some("right") => Some(ShelfSide::Right),
+        _ if !crate::utils::notch_enabled() => Some(ShelfSide::Top),
         _ => None,
     }
 }
@@ -950,10 +954,10 @@ fn set_shelf_open(app: &AppHandle, side: ShelfSide, open: bool) {
         return;
     };
     let generation = SHELF_GEN.fetch_add(1, Ordering::Relaxed) + 1;
-    let side_name = if side == ShelfSide::Left {
-        "left"
-    } else {
-        "right"
+    let side_name = match side {
+        ShelfSide::Left => "left",
+        ShelfSide::Right => "right",
+        ShelfSide::Top => "top",
     };
     let payload = serde_json::json!({ "open": open, "side": side_name });
     if open {
@@ -961,14 +965,22 @@ fn set_shelf_open(app: &AppHandle, side: ShelfSide, open: bool) {
             return;
         };
         let scale = shelf_scale() * sf;
-        let w = (360.0 * scale) as i32;
-        let h = ((560.0 * scale) as i32).min(mh * 4 / 5);
-        let x = if side == ShelfSide::Left {
-            mx
-        } else {
-            mx + mw - w
+        // A tall blade on the sides; a wide panel under the top edge.
+        let (w, h) = match side {
+            ShelfSide::Top => (
+                ((560.0 * scale) as i32).min(mw * 9 / 10),
+                ((380.0 * scale) as i32).min(mh * 4 / 5),
+            ),
+            _ => (
+                (360.0 * scale) as i32,
+                ((560.0 * scale) as i32).min(mh * 4 / 5),
+            ),
         };
-        let y = my + (mh - h) / 2;
+        let (x, y) = match side {
+            ShelfSide::Left => (mx, my + (mh - h) / 2),
+            ShelfSide::Right => (mx + mw - w, my + (mh - h) / 2),
+            ShelfSide::Top => (mx + (mw - w) / 2, my),
+        };
         *SHELF_RECT.lock().unwrap() = (x, y, w, h);
         let _ = win.set_size(tauri::PhysicalSize::new(w as u32, h as u32));
         let _ = win.set_position(tauri::PhysicalPosition::new(x, y));
@@ -1016,14 +1028,15 @@ pub fn update_edge_shelf(
         && match side {
             ShelfSide::Left => huds_active.0,
             ShelfSide::Right => huds_active.1,
+            ShelfSide::Top => false,
         };
 
     let at_edge = !fullscreen
         && !hud_active
-        && in_shelf_band(y, mon_y, mon_h)
         && match side {
-            ShelfSide::Left => x <= mon_x + 8,
-            ShelfSide::Right => x >= mon_x + mon_w - 8,
+            ShelfSide::Left => x <= mon_x + 8 && in_shelf_band(y, mon_y, mon_h),
+            ShelfSide::Right => x >= mon_x + mon_w - 8 && in_shelf_band(y, mon_y, mon_h),
+            ShelfSide::Top => y <= mon_y + 2 && in_shelf_band(x, mon_x, mon_w),
         };
     let (rx, ry, rw, rh) = *SHELF_RECT.lock().unwrap();
     let inside =

@@ -45,6 +45,15 @@ body,
 	transform: translateX(100%);
 }
 
+/* Under the top edge (the shelf without the notch): flares left and right. */
+.clipshelf.top {
+	width: calc(100% - 26px);
+	height: 100%;
+	margin: 0 13px;
+	border-radius: 0 0 18px 18px;
+	transform: translateY(-100%);
+}
+
 .clipshelf.open {
 	transform: none;
 	opacity: 1;

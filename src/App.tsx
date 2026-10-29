@@ -902,12 +902,11 @@ function App() {
 		if (pillTargetRef.current) wanted.push(pillTargetRef.current);
 		// Each floating part, padded to cover what it paints outside its box: a
 		// tooltip card's shadow reaches 20px out plus a 6px drop, a bubble's
-		// glow less, and the screen corners nothing.
+		// glow less.
 		wanted.push(
 			...measureElements([
 				[".activity-bubble", 16],
-				[".status-tooltip", 28],
-				[".screen-corner", 0]
+				[".status-tooltip", 28]
 			])
 		);
 		sendNotchRegion(wanted);
@@ -1191,9 +1190,6 @@ function App() {
 	const [settingsCompactGlowEnabled, setSettingsCompactGlowEnabled] = useState(
 		() => localStorage.getItem("bloom-media-compact-glow-enabled") !== "false"
 	);
-	const [settingsCornersEnabled, setSettingsCornersEnabled] = useState(
-		() => localStorage.getItem("bloom-corners-enabled") === "true"
-	);
 	const [mediaLayout, setMediaLayout] = useState<"classic" | "compact">(
 		() => (localStorage.getItem("bloom-media-layout") as "classic" | "compact") || "classic"
 	);
@@ -1250,7 +1246,6 @@ function App() {
 				setSettingsCompactGlowEnabled(
 					getVal("bloom-media-compact-glow-enabled", "true") !== "false"
 				);
-				setSettingsCornersEnabled(getVal("bloom-corners-enabled", "false") === "true");
 				setTimeFormat24h(getVal("bloom-time-format-24h") === "true");
 
 				const thresholdStr = getVal("bloom-low-battery-threshold", "20");
@@ -1376,7 +1371,6 @@ function App() {
 			"bloom-media-ambience-enabled": setSettingsAmbienceEnabled,
 			"bloom-media-compact-glow-enabled": setSettingsCompactGlowEnabled,
 			"bloom-media-layout": setMediaLayout,
-			"bloom-corners-enabled": setSettingsCornersEnabled,
 			"bloom-scale": setGlobalScale,
 			"bloom-notch-scale": setNotchScale,
 			"bloom-notch-panel-scales": (v: unknown) => setNotchPanelScales(parsePanelScales(v)),
@@ -3330,26 +3324,6 @@ function App() {
 
 	return (
 		<div className="screen" style={{ overflow: "hidden" }}>
-			{/* Screen Corners (Top) */}
-			<AnimatePresence>
-				{isVisible && settingsCornersEnabled && (
-					<>
-						<motion.div
-							className="screen-corner top-left"
-							initial={{ opacity: 0 }}
-							animate={{ opacity: 1, filter: "blur(0px)" }}
-							exit={{ opacity: 0, filter: "blur(10px)" }}
-						/>
-						<motion.div
-							className="screen-corner top-right"
-							initial={{ opacity: 0 }}
-							animate={{ opacity: 1, filter: "blur(0px)" }}
-							exit={{ opacity: 0, filter: "blur(10px)" }}
-						/>
-					</>
-				)}
-			</AnimatePresence>
-
 			<div
 				style={{
 					zoom: pillZoom,
