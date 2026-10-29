@@ -4,7 +4,7 @@ import { getCurrentWebviewWindow } from "@tauri-apps/api/webviewWindow";
 import { Effect } from "@tauri-apps/api/window";
 import { invoke } from "@tauri-apps/api/core";
 import { openUrl } from "@tauri-apps/plugin-opener";
-import { X, Settings, Palette, PanelTop, Monitor, Layers, Info, Megaphone, ClipboardList } from "lucide-react";
+import { X, Settings, Palette, PanelTop, Monitor, Layers, Info, Megaphone, ClipboardList, Orbit } from "lucide-react";
 import {
 	useSettings,
 	GeneralTab,
@@ -13,6 +13,7 @@ import {
 	DockTab,
 	OverlaysTab,
 	ClipboardTab,
+	FilesTab,
 	AboutTab
 } from "./settings/index";
 import type { SettingsTab } from "./settings/index";
@@ -29,6 +30,7 @@ const TABS: { id: SettingsTab; label: string; icon: typeof Settings }[] = [
 	{ id: "notch", label: "Notch", icon: PanelTop },
 	{ id: "dock", label: "Dock", icon: Monitor },
 	{ id: "clipboard", label: "Clipboard", icon: ClipboardList },
+	{ id: "files", label: "Files", icon: Orbit },
 	{ id: "overlays", label: "Overlays", icon: Layers },
 	{ id: "about", label: "About", icon: Info }
 ];
@@ -39,6 +41,7 @@ const TAB_COPY: Record<SettingsTab, string> = {
 	notch: "Choose what appears at the top of your screen.",
 	dock: "Shape the taskbar replacement around your workflow.",
 	clipboard: "Everything you copy, kept on this PC and opened from the notch.",
+	files: "Convert and act on files from a wheel, without opening an app.",
 	overlays: "Keep quick controls visible only when you need them.",
 	about: "Version, updates and your settings data."
 };
@@ -327,6 +330,7 @@ function SettingsApp() {
 							saveSetting={settings.saveSetting}
 						/>
 					)}
+					{activeTab === "files" && <FilesTab saveSetting={settings.saveSetting} />}
 					{activeTab === "overlays" && (
 						<OverlaysTab
 							volumeOverlayEnabled={settings.volumeOverlayEnabled}

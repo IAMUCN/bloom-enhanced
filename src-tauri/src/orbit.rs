@@ -1,0 +1,1129 @@
+//! File utilities: OrbitDrop's radial wheel, recreated natively.
+//!
+//! Two ways in:
+//! - Drag files (in File Explorer, on the desktop, or from any app that drags
+//!   files) and tap Shift: the `orbit` window opens around the pointer as a
+//!   drop target, and letting go on an option runs it. Detection follows
+//!   OrbitDrop: the shell's `SysDragImage` window appearing, or OLE's drag loop
+//!   taking mouse capture (`CLIPBRDWNDCLASS`), arms the trigger until the
+//!   button is released. Keys are polled only while armed or open.
+//! - A shortcut (`bloom-files-shortcut`, default Ctrl+Alt+Space) opens the
+//!   wheel for the files selected in File Explorer or on the desktop.
+//!
+//! The wheel (src/Orbit.tsx) picks the option; [`orbit_run`] runs it. Every
+//! output is written next to the original through [`write_output`]: a temp
+//! file first, then a rename that never replaces an existing file
+//! (collisions get " (2)", " (3)" ...). Originals are only ever read, except
+//! by Move to, which is the point of it.
+
+use std::io::{Cursor, Write as _};
+use std::path::{Path, PathBuf};
+use std::sync::atomic::{AtomicBool, AtomicU8, Ordering};
+use std::time::Duration;
+
+use serde::Serialize;
+use tauri::{AppHandle, Emitter, Manager};
+use windows::core::{Interface, HSTRING, PCWSTR};
+use windows::Win32::Foundation::HWND;
+
+const PARKED: i32 = -32000;
+/// The wheel window's size in logical pixels.
+const WHEEL_SIZE: f64 = 360.0;
+
+static ARMED: AtomicBool = AtomicBool::new(false);
+static CANCEL: AtomicBool = AtomicBool::new(false);
+/// 0 = closed, 1 = opened by a drag, 2 = opened by the shortcut.
+static OPEN: AtomicU8 = AtomicU8::new(0);
+const BY_DRAG: u8 = 1;
+const BY_SHORTCUT: u8 = 2;
+
+fn setting(key: &str) -> Option<String> {
+    let cache = crate::state::SETTINGS_CACHE.get()?;
+    let guard = cache.lock().ok()?;
+    guard.get(key)?.as_str().map(str::to_string)
+}
+
+fn drag_gesture_on() -> bool {
+    crate::utils::files_enabled() && setting("bloom-files-drag").as_deref() != Some("false")
+}
+
+// ── Entry points ──
+
+/// Starts the drag detector and the shortcut on one thread, and parks the
+/// wheel window on screen (off view) so its drop target is live before the
+/// first drag.
+pub fn start(app: AppHandle) {
+    if let Some(win) = app.get_webview_window("orbit") {
+        let _ = win.set_position(tauri::PhysicalPosition::new(PARKED, PARKED));
+        let _ = win.show();
+        let inner = app.clone();
+        tauri::async_runtime::spawn(async move {
+            for ms in [300, 2000] {
+                tokio::time::sleep(Duration::from_millis(ms)).await;
+                let again = inner.clone();
+                let _ = inner.run_on_main_thread(move || crate::shelf::setup(&again, "orbit"));
+            }
+        });
+    }
+    std::thread::spawn(move || detector(app));
+}
+
+fn is_down(vk: u16) -> bool {
+    use windows::Win32::UI::Input::KeyboardAndMouse::GetAsyncKeyState;
+    unsafe { GetAsyncKeyState(vk as i32) as u16 & 0x8000 != 0 }
+}
+
+fn drag_button_down() -> bool {
+    use windows::Win32::UI::WindowsAndMessaging::{GetSystemMetrics, SM_SWAPBUTTON};
+    let swapped = unsafe { GetSystemMetrics(SM_SWAPBUTTON) } != 0;
+    is_down(if swapped { 0x02 } else { 0x01 })
+}
+
+fn class_of(hwnd: HWND) -> String {
+    use windows::Win32::UI::WindowsAndMessaging::GetClassNameW;
+    let mut buf = [0u16; 64];
+    let n = unsafe { GetClassNameW(hwnd, &mut buf) } as usize;
+    String::from_utf16_lossy(&buf[..n])
+}
+
+unsafe extern "system" fn on_win_event(
+    _hook: windows::Win32::UI::Accessibility::HWINEVENTHOOK,
+    event: u32,
+    hwnd: HWND,
+    id_object: i32,
+    _id_child: i32,
+    _thread: u32,
+    _time: u32,
+) {
+    use windows::Win32::UI::WindowsAndMessaging::{EVENT_OBJECT_SHOW, OBJID_WINDOW};
+    let drag_window = if event == EVENT_OBJECT_SHOW {
+        id_object == OBJID_WINDOW.0 && class_of(hwnd) == "SysDragImage"
+    } else {
+        // EVENT_SYSTEM_CAPTURESTART: apps that draw their own drag image
+        // (Chromium, Electron) still run OLE's drag loop.
+        class_of(hwnd) == "CLIPBRDWNDCLASS"
+    };
+    if drag_window && drag_button_down() && drag_gesture_on() {
+        ARMED.store(true, Ordering::Relaxed);
+    }
+}
+
+fn detector(app: AppHandle) {
+    use windows::Win32::System::Com::{CoInitializeEx, COINIT_APARTMENTTHREADED};
+    use windows::Win32::UI::Accessibility::SetWinEventHook;
+    use windows::Win32::UI::Input::KeyboardAndMouse::{
+        RegisterHotKey, UnregisterHotKey, HOT_KEY_MODIFIERS, MOD_NOREPEAT,
+    };
+    use windows::Win32::UI::WindowsAndMessaging::{
+        DispatchMessageW, PeekMessageW, EVENT_OBJECT_SHOW, EVENT_SYSTEM_CAPTURESTART, MSG,
+        PM_REMOVE, WINEVENT_OUTOFCONTEXT, WINEVENT_SKIPOWNPROCESS, WM_HOTKEY,
+    };
+    const HOTKEY: i32 = 0x0B17;
+    const VK_SHIFT: u16 = 0x10;
+    const VK_ESCAPE: u16 = 0x1B;
+
+    unsafe {
+        let _ = CoInitializeEx(None, COINIT_APARTMENTTHREADED);
+        let flags = WINEVENT_OUTOFCONTEXT | WINEVENT_SKIPOWNPROCESS;
+        for event in [EVENT_OBJECT_SHOW, EVENT_SYSTEM_CAPTURESTART] {
+            SetWinEventHook(event, event, None, Some(on_win_event), 0, 0, flags);
+        }
+    }
+    let mut hotkey: Option<String> = None;
+    let (mut shift, mut escape, mut button) = (false, false, false);
+    loop {
+        // ponytail: polls the setting like the clipboard shortcut does.
+        let wanted = if crate::utils::files_enabled() {
+            setting("bloom-files-shortcut").unwrap_or_else(|| "Ctrl+Alt+Space".into())
+        } else {
+            String::new()
+        };
+        if hotkey.as_deref() != Some(wanted.as_str()) {
+            unsafe {
+                let _ = UnregisterHotKey(None, HOTKEY);
+                if let Some((mods, vk)) = crate::clipboard::parse_shortcut(&wanted) {
+                    let _ =
+                        RegisterHotKey(None, HOTKEY, HOT_KEY_MODIFIERS(mods) | MOD_NOREPEAT, vk);
+                }
+            }
+            hotkey = Some(wanted);
+        }
+        let mut msg = MSG::default();
+        while unsafe { PeekMessageW(&mut msg, None, 0, 0, PM_REMOVE) }.as_bool() {
+            if msg.message == WM_HOTKEY && msg.wParam.0 == HOTKEY as usize {
+                let paths = explorer_selection();
+                if !paths.is_empty() {
+                    open_wheel(&app, paths, BY_SHORTCUT);
+                }
+            } else {
+                unsafe { DispatchMessageW(&msg) };
+            }
+        }
+
+        let open = OPEN.load(Ordering::Relaxed);
+        if !ARMED.load(Ordering::Relaxed) && open == 0 {
+            (shift, escape, button) = (is_down(VK_SHIFT), is_down(VK_ESCAPE), drag_button_down());
+            std::thread::sleep(Duration::from_millis(50));
+            continue;
+        }
+        let (now_shift, now_escape, now_button) =
+            (is_down(VK_SHIFT), is_down(VK_ESCAPE), drag_button_down());
+        if now_shift && !shift {
+            if open != 0 {
+                let _ = app.emit_to("orbit", "orbit-shift", ());
+            } else if now_button {
+                open_wheel(&app, Vec::new(), BY_DRAG);
+            }
+        }
+        if now_escape && !escape && open != 0 {
+            close_wheel(&app);
+        }
+        if !now_button && button {
+            ARMED.store(false, Ordering::Relaxed);
+            if open == BY_DRAG {
+                // The drop (if it landed on the wheel) arrives around now; the
+                // wheel closes itself shortly after unless a job started.
+                let _ = app.emit_to("orbit", "orbit-release", ());
+            }
+        }
+        if now_button && !button && open == BY_SHORTCUT && !cursor_in_wheel(&app) {
+            close_wheel(&app);
+        }
+        (shift, escape, button) = (now_shift, now_escape, now_button);
+        std::thread::sleep(Duration::from_millis(15));
+    }
+}
+
+fn cursor_in_wheel(app: &AppHandle) -> bool {
+    let Some(win) = app.get_webview_window("orbit") else {
+        return false;
+    };
+    let (Ok(pos), Ok(size)) = (win.outer_position(), win.outer_size()) else {
+        return false;
+    };
+    let (x, y) = cursor();
+    x >= pos.x && y >= pos.y && x < pos.x + size.width as i32 && y < pos.y + size.height as i32
+}
+
+fn cursor() -> (i32, i32) {
+    use windows::Win32::Foundation::POINT;
+    use windows::Win32::UI::WindowsAndMessaging::GetCursorPos;
+    let mut p = POINT::default();
+    let _ = unsafe { GetCursorPos(&mut p) };
+    (p.x, p.y)
+}
+
+/// Opens the wheel centred on the pointer, kept inside its monitor.
+fn open_wheel(app: &AppHandle, paths: Vec<String>, by: u8) {
+    let Some(win) = app.get_webview_window("orbit") else {
+        return;
+    };
+    let (x, y) = cursor();
+    let monitor = app.monitor_from_point(x as f64, y as f64).ok().flatten();
+    let scale = monitor.as_ref().map_or(1.0, |m| m.scale_factor());
+    let side = (WHEEL_SIZE * scale) as i32;
+    let (mut left, mut top) = (x - side / 2, y - side / 2);
+    if let Some(m) = monitor {
+        let (p, s) = (m.position(), m.size());
+        left = left.clamp(p.x, p.x + s.width as i32 - side);
+        top = top.clamp(p.y, p.y + s.height as i32 - side);
+    }
+    OPEN.store(by, Ordering::Relaxed);
+    let _ = win.set_size(tauri::PhysicalSize::new(side as u32, side as u32));
+    let _ = win.set_position(tauri::PhysicalPosition::new(left, top));
+    if let Ok(hwnd) = win.hwnd() {
+        crate::utils::re_assert_topmost(hwnd);
+    }
+    let _ = app.emit_to(
+        "orbit",
+        "orbit-open",
+        serde_json::json!({ "paths": paths, "drag": by == BY_DRAG }),
+    );
+}
+
+fn close_wheel(app: &AppHandle) {
+    OPEN.store(0, Ordering::Relaxed);
+    let _ = app.emit_to("orbit", "orbit-close", ());
+    if let Some(win) = app.get_webview_window("orbit") {
+        let _ = win.set_position(tauri::PhysicalPosition::new(PARKED, PARKED));
+    }
+}
+
+/// Parks the wheel (cancel, or after a job's status has been shown).
+#[tauri::command]
+pub fn orbit_close(app: AppHandle) {
+    close_wheel(&app);
+}
+
+/// Shrinks the open wheel to its status card (w × h logical pixels, same
+/// centre) so the rest of the square stops catching clicks while it shows.
+#[tauri::command]
+pub fn orbit_shrink(window: tauri::WebviewWindow, width: f64, height: f64) {
+    let (Ok(pos), Ok(size), Ok(scale)) = (
+        window.outer_position(),
+        window.outer_size(),
+        window.scale_factor(),
+    ) else {
+        return;
+    };
+    let (w, h) = ((width * scale) as i32, (height * scale) as i32);
+    let cx = pos.x + size.width as i32 / 2;
+    let cy = pos.y + size.height as i32 / 2;
+    let _ = window.set_size(tauri::PhysicalSize::new(w as u32, h as u32));
+    let _ = window.set_position(tauri::PhysicalPosition::new(cx - w / 2, cy - h / 2));
+}
+
+/// The files selected in the foreground File Explorer tab or on the desktop.
+fn explorer_selection() -> Vec<String> {
+    use windows::Win32::System::Com::{CoCreateInstance, IServiceProvider, CLSCTX_ALL};
+    use windows::Win32::System::Variant::VARIANT;
+    use windows::Win32::UI::Shell::{
+        IFolderView2, IShellBrowser, IShellWindows, SID_STopLevelBrowser, ShellWindows,
+        CSIDL_DESKTOP, SIGDN_FILESYSPATH, SWC_DESKTOP, SWFO_NEEDDISPATCH,
+    };
+    use windows::Win32::UI::WindowsAndMessaging::{FindWindowExW, GetForegroundWindow};
+
+    let foreground = unsafe { GetForegroundWindow() };
+    let class = class_of(foreground);
+    let desktop = matches!(class.as_str(), "Progman" | "WorkerW");
+    if !desktop && class != "CabinetWClass" {
+        return Vec::new();
+    }
+    let read = || -> windows::core::Result<Vec<String>> {
+        unsafe {
+            let shell: IShellWindows = CoCreateInstance(&ShellWindows, None, CLSCTX_ALL)?;
+            let browser_of = |disp: &windows::Win32::System::Com::IDispatch| {
+                disp.cast::<IServiceProvider>()
+                    .and_then(|sp| sp.QueryService::<IShellBrowser>(&SID_STopLevelBrowser))
+            };
+            let browser = if desktop {
+                let mut hwnd = 0;
+                let disp = shell.FindWindowSW(
+                    &VARIANT::from(CSIDL_DESKTOP as i32),
+                    &VARIANT::default(),
+                    SWC_DESKTOP,
+                    &mut hwnd,
+                    SWFO_NEEDDISPATCH,
+                )?;
+                browser_of(&disp)?
+            } else {
+                // Windows 11 tabs share one top-level window; the active tab is
+                // its topmost ShellTabWindowClass child.
+                let tab = FindWindowExW(
+                    Some(foreground),
+                    None,
+                    windows::core::w!("ShellTabWindowClass"),
+                    PCWSTR::null(),
+                )
+                .unwrap_or(foreground);
+                let mut found = None;
+                for i in 0..shell.Count()? {
+                    let Ok(disp) = shell.Item(&VARIANT::from(i)) else {
+                        continue;
+                    };
+                    let Ok(browser) = browser_of(&disp) else {
+                        continue;
+                    };
+                    if browser
+                        .GetWindow()
+                        .is_ok_and(|w| w == tab || w == foreground)
+                    {
+                        found = Some(browser);
+                        break;
+                    }
+                }
+                found.ok_or_else(windows::core::Error::empty)?
+            };
+            let view: IFolderView2 = browser.QueryActiveShellView()?.cast()?;
+            let items = view.GetSelection(false)?;
+            let mut paths = Vec::new();
+            for i in 0..items.GetCount()? {
+                let name = items.GetItemAt(i)?.GetDisplayName(SIGDN_FILESYSPATH)?;
+                paths.push(name.to_string().unwrap_or_default());
+                windows::Win32::System::Com::CoTaskMemFree(Some(name.0 as _));
+            }
+            Ok(paths.into_iter().filter(|p| !p.is_empty()).collect())
+        }
+    };
+    // Explorer can briefly reject automation calls while busy.
+    for attempt in 1..=3 {
+        match read() {
+            Ok(paths) => return paths,
+            Err(_) => std::thread::sleep(Duration::from_millis(60 * attempt)),
+        }
+    }
+    Vec::new()
+}
+
+// ── Safe output ──
+
+/// "photo (rotated) (2).png": the name for the `n`th try at a free name.
+fn candidate(stem: &str, ext: &str, n: u32) -> String {
+    let base = if n == 1 {
+        stem.to_string()
+    } else {
+        format!("{stem} ({n})")
+    };
+    if ext.is_empty() {
+        base
+    } else {
+        format!("{base}.{ext}")
+    }
+}
+
+/// Moves `from` (a file or folder) into `dir` as `stem.ext`, or the first free
+/// "stem (n).ext". Never replaces anything: the rename itself fails if a name
+/// was taken meanwhile, and the next one is tried.
+fn publish(
+    from: &Path,
+    dir: &Path,
+    stem: &str,
+    ext: &str,
+    copy_allowed: bool,
+) -> Result<PathBuf, String> {
+    use windows::Win32::Storage::FileSystem::{
+        MoveFileExW, MOVEFILE_COPY_ALLOWED, MOVE_FILE_FLAGS,
+    };
+    let flags = if copy_allowed {
+        MOVEFILE_COPY_ALLOWED
+    } else {
+        MOVE_FILE_FLAGS(0)
+    };
+    for n in 1..=999 {
+        let target = dir.join(candidate(stem, ext, n));
+        if target.exists() {
+            continue;
+        }
+        let moved = unsafe {
+            MoveFileExW(
+                &HSTRING::from(from.as_os_str()),
+                &HSTRING::from(target.as_os_str()),
+                flags,
+            )
+        };
+        match moved {
+            Ok(()) => return Ok(target),
+            Err(_) if target.exists() => continue,
+            Err(e) => return Err(e.message()),
+        }
+    }
+    Err("No free file name was found.".into())
+}
+
+fn temp_in(dir: &Path) -> PathBuf {
+    let nanos = std::time::SystemTime::now()
+        .duration_since(std::time::UNIX_EPOCH)
+        .map_or(0, |d| d.as_nanos());
+    dir.join(format!(".klyro-{nanos}.tmp"))
+}
+
+/// Writes a new file next to `source` named after it ("photo (rotated).png"):
+/// `write` fills a temp file in the same folder, which is published only if it
+/// is non-empty. On any failure the temp file is removed, so nothing partial
+/// is ever left behind.
+fn write_output(
+    source: &Path,
+    ext: &str,
+    suffix: Option<&str>,
+    write: impl FnOnce(&Path) -> Result<(), String>,
+) -> Result<PathBuf, String> {
+    let dir = source.parent().ok_or("The file has no folder.")?;
+    let stem = source.file_stem().unwrap_or_default().to_string_lossy();
+    let stem = match suffix {
+        Some(s) => format!("{stem} ({s})"),
+        None => stem.into_owned(),
+    };
+    let temp = temp_in(dir);
+    let result = write(&temp).and_then(|()| {
+        if CANCEL.load(Ordering::Relaxed) {
+            return Err("Canceled".into());
+        }
+        match std::fs::metadata(&temp) {
+            Ok(m) if m.len() > 0 => publish(&temp, dir, &stem, ext, false),
+            _ => Err("The output was empty.".into()),
+        }
+    });
+    let _ = std::fs::remove_file(&temp);
+    result
+}
+
+/// The folder version of [`write_output`]: `fill` populates a temp folder
+/// that is then renamed to `name` (or "name (2)" ...).
+fn write_folder(
+    dir: &Path,
+    name: &str,
+    fill: impl FnOnce(&Path) -> Result<(), String>,
+) -> Result<PathBuf, String> {
+    let temp = temp_in(dir);
+    std::fs::create_dir(&temp).map_err(|e| e.to_string())?;
+    let result = fill(&temp).and_then(|()| {
+        if CANCEL.load(Ordering::Relaxed) {
+            return Err("Canceled".into());
+        }
+        if std::fs::read_dir(&temp).map_or(true, |mut d| d.next().is_none()) {
+            return Err("Nothing was produced.".into());
+        }
+        publish(&temp, dir, name, "", false)
+    });
+    let _ = std::fs::remove_dir_all(&temp);
+    result
+}
+
+// ── Operations ──
+
+#[derive(Serialize)]
+pub struct Outcome {
+    source: String,
+    output: Option<String>,
+    error: Option<String>,
+}
+
+fn ext_of(path: &Path) -> String {
+    path.extension()
+        .map(|e| e.to_string_lossy().to_ascii_lowercase())
+        .unwrap_or_default()
+}
+
+fn decode(path: &Path) -> Result<image::DynamicImage, String> {
+    use image::ImageDecoder;
+    let reader = image::ImageReader::open(path)
+        .and_then(|r| r.with_guessed_format())
+        .map_err(|e| e.to_string())?;
+    let mut decoder = reader
+        .into_decoder()
+        .map_err(|_| "This isn't an image Klyro can read.".to_string())?;
+    let orientation = decoder.orientation().ok();
+    let mut img = image::DynamicImage::from_decoder(decoder)
+        .map_err(|e| format!("The image couldn't be read: {e}"))?;
+    if let Some(o) = orientation {
+        img.apply_orientation(o);
+    }
+    Ok(img)
+}
+
+/// Transparent pixels over white: JPEG and PDF have no alpha.
+fn flatten(img: &image::DynamicImage) -> image::RgbImage {
+    let rgba = img.to_rgba8();
+    image::RgbImage::from_fn(rgba.width(), rgba.height(), |x, y| {
+        let p = rgba.get_pixel(x, y).0;
+        let a = p[3] as u32;
+        let mix = |c: u8| ((c as u32 * a + 255 * (255 - a)) / 255) as u8;
+        image::Rgb([mix(p[0]), mix(p[1]), mix(p[2])])
+    })
+}
+
+fn jpeg_bytes(img: &image::DynamicImage, quality: u8) -> Result<Vec<u8>, String> {
+    let mut out = Vec::new();
+    image::codecs::jpeg::JpegEncoder::new_with_quality(&mut out, quality)
+        .encode_image(&flatten(img))
+        .map_err(|e| e.to_string())?;
+    Ok(out)
+}
+
+/// Encodes `img` as `ext` (png, jpg, webp, bmp, gif, tiff, ico).
+fn encode(img: &image::DynamicImage, ext: &str) -> Result<Vec<u8>, String> {
+    use image::ImageFormat as F;
+    let format = match ext {
+        "jpg" | "jpeg" | "jfif" => return jpeg_bytes(img, 92),
+        "png" => F::Png,
+        "webp" => F::WebP,
+        "bmp" => F::Bmp,
+        "gif" => F::Gif,
+        "tif" | "tiff" => F::Tiff,
+        "ico" => F::Ico,
+        _ => return Err(format!("Can't save as {ext}.")),
+    };
+    let fitted;
+    let img = if format == F::Ico && (img.width() > 256 || img.height() > 256) {
+        fitted = img.resize(256, 256, image::imageops::FilterType::Lanczos3);
+        &fitted
+    } else {
+        img
+    };
+    // WebP and GIF take 8-bit RGBA; 16-bit PNGs and the like are narrowed.
+    let img = image::DynamicImage::ImageRgba8(img.to_rgba8());
+    let mut out = Cursor::new(Vec::new());
+    img.write_to(&mut out, format).map_err(|e| e.to_string())?;
+    Ok(out.into_inner())
+}
+
+fn save_bytes(
+    source: &Path,
+    ext: &str,
+    suffix: Option<&str>,
+    bytes: &[u8],
+) -> Result<PathBuf, String> {
+    write_output(source, ext, suffix, |temp| {
+        std::fs::write(temp, bytes).map_err(|e| e.to_string())
+    })
+}
+
+/// A PDF with one page per JPEG, each page the picture's size at 96 dpi.
+pub fn pdf_from_jpegs(pages: &[(Vec<u8>, u32, u32)]) -> Vec<u8> {
+    let mut pdf = b"%PDF-1.4\n%\xE2\xE3\xCF\xD3\n".to_vec();
+    let mut offsets = Vec::new();
+    let n = pages.len();
+    // Objects: 1 catalog, 2 pages, then per page: page, image, content.
+    let kids: Vec<String> = (0..n).map(|i| format!("{} 0 R", 3 + i * 3)).collect();
+    let mut object = |pdf: &mut Vec<u8>, body: &[u8]| {
+        offsets.push(pdf.len());
+        pdf.extend_from_slice(format!("{} 0 obj\n", offsets.len()).as_bytes());
+        pdf.extend_from_slice(body);
+        pdf.extend_from_slice(b"\nendobj\n");
+    };
+    object(&mut pdf, b"<< /Type /Catalog /Pages 2 0 R >>");
+    object(
+        &mut pdf,
+        format!("<< /Type /Pages /Kids [{}] /Count {n} >>", kids.join(" ")).as_bytes(),
+    );
+    for (i, (jpeg, w, h)) in pages.iter().enumerate() {
+        let (pw, ph) = (*w as f64 * 0.75, *h as f64 * 0.75);
+        let first = 3 + i * 3;
+        object(
+            &mut pdf,
+            format!(
+                "<< /Type /Page /Parent 2 0 R /MediaBox [0 0 {pw:.2} {ph:.2}] /Resources << /XObject << /Im0 {} 0 R >> >> /Contents {} 0 R >>",
+                first + 1,
+                first + 2
+            )
+            .as_bytes(),
+        );
+        let mut image = format!(
+            "<< /Type /XObject /Subtype /Image /Width {w} /Height {h} /ColorSpace /DeviceRGB /BitsPerComponent 8 /Filter /DCTDecode /Length {} >>\nstream\n",
+            jpeg.len()
+        )
+        .into_bytes();
+        image.extend_from_slice(jpeg);
+        image.extend_from_slice(b"\nendstream");
+        object(&mut pdf, &image);
+        let draw = format!("q {pw:.2} 0 0 {ph:.2} 0 0 cm /Im0 Do Q");
+        object(
+            &mut pdf,
+            format!("<< /Length {} >>\nstream\n{draw}\nendstream", draw.len()).as_bytes(),
+        );
+    }
+    let xref = pdf.len();
+    pdf.extend_from_slice(
+        format!("xref\n0 {}\n0000000000 65535 f \n", offsets.len() + 1).as_bytes(),
+    );
+    for o in &offsets {
+        pdf.extend_from_slice(format!("{o:010} 00000 n \n").as_bytes());
+    }
+    pdf.extend_from_slice(
+        format!(
+            "trailer\n<< /Size {} /Root 1 0 R >>\nstartxref\n{xref}\n%%EOF\n",
+            offsets.len() + 1
+        )
+        .as_bytes(),
+    );
+    pdf
+}
+
+fn pdf_page(img: &image::DynamicImage) -> Result<(Vec<u8>, u32, u32), String> {
+    Ok((jpeg_bytes(img, 90)?, img.width(), img.height()))
+}
+
+/// Renders every page of a PDF with Windows' PDF engine, as PNG or JPG.
+fn pdf_pages(path: &Path, ext: &str) -> Result<Vec<Vec<u8>>, String> {
+    use windows::Data::Pdf::{PdfDocument, PdfPageRenderOptions};
+    use windows::Storage::StorageFile;
+    use windows::Storage::Streams::{DataReader, InMemoryRandomAccessStream};
+    let _ = unsafe {
+        windows::Win32::System::Com::CoInitializeEx(
+            None,
+            windows::Win32::System::Com::COINIT_MULTITHREADED,
+        )
+    };
+    let render = || -> windows::core::Result<Vec<Vec<u8>>> {
+        let file = StorageFile::GetFileFromPathAsync(&HSTRING::from(path.as_os_str()))?.get()?;
+        let document = PdfDocument::LoadFromFileAsync(&file)?.get()?;
+        let mut pages = Vec::new();
+        for i in 0..document.PageCount()? {
+            if CANCEL.load(Ordering::Relaxed) {
+                break;
+            }
+            let page = document.GetPage(i)?;
+            let options = PdfPageRenderOptions::new()?;
+            // 2× the page's size in points: sharp enough to read and print.
+            options.SetDestinationWidth((page.Size()?.Width * 2.0) as u32)?;
+            let stream = InMemoryRandomAccessStream::new()?;
+            page.RenderWithOptionsToStreamAsync(&stream, &options)?
+                .get()?;
+            let size = stream.Size()? as u32;
+            let reader = DataReader::CreateDataReader(&stream.GetInputStreamAt(0)?)?;
+            reader.LoadAsync(size)?.get()?;
+            let mut png = vec![0u8; size as usize];
+            reader.ReadBytes(&mut png)?;
+            pages.push(png);
+        }
+        Ok(pages)
+    };
+    let pages = render().map_err(|_| {
+        "The PDF couldn't be opened (it may be damaged or password-protected).".to_string()
+    })?;
+    if ext == "png" {
+        return Ok(pages);
+    }
+    pages
+        .iter()
+        .map(|png| {
+            image::load_from_memory(png)
+                .map_err(|e| e.to_string())
+                .and_then(|img| jpeg_bytes(&img, 92))
+        })
+        .collect()
+}
+
+fn convert_pdf(path: &Path, ext: &str) -> Result<PathBuf, String> {
+    let pages = pdf_pages(path, ext)?;
+    match pages.as_slice() {
+        [] => Err("The PDF has no pages.".into()),
+        [one] => save_bytes(path, ext, None, one),
+        many => {
+            let dir = path.parent().ok_or("The file has no folder.")?;
+            let stem = path.file_stem().unwrap_or_default().to_string_lossy();
+            write_folder(dir, &format!("{stem} (pages)"), |temp| {
+                for (i, bytes) in many.iter().enumerate() {
+                    std::fs::write(temp.join(format!("Page {}.{ext}", i + 1)), bytes)
+                        .map_err(|e| e.to_string())?;
+                }
+                Ok(())
+            })
+        }
+    }
+}
+
+/// Unpacks a ZIP into a new folder beside it. Entries that would land outside
+/// that folder ("../", absolute paths) are skipped.
+fn extract_zip(path: &Path) -> Result<PathBuf, String> {
+    let file = std::fs::File::open(path).map_err(|e| e.to_string())?;
+    let mut archive = zip::ZipArchive::new(file)
+        .map_err(|_| "This isn't a ZIP file Klyro can read.".to_string())?;
+    let dir = path.parent().ok_or("The file has no folder.")?;
+    let stem = path
+        .file_stem()
+        .unwrap_or_default()
+        .to_string_lossy()
+        .into_owned();
+    // ponytail: no size cap, so a zip bomb fills the disk like Explorer's own
+    // extractor would; add a free-space check if that ever matters.
+    write_folder(dir, &stem, |temp| {
+        for i in 0..archive.len() {
+            if CANCEL.load(Ordering::Relaxed) {
+                return Err("Canceled".into());
+            }
+            let mut entry = archive.by_index(i).map_err(|e| e.to_string())?;
+            let Some(name) = entry.enclosed_name() else {
+                continue;
+            };
+            let out = temp.join(name);
+            if entry.is_dir() {
+                std::fs::create_dir_all(&out).map_err(|e| e.to_string())?;
+                continue;
+            }
+            if let Some(parent) = out.parent() {
+                std::fs::create_dir_all(parent).map_err(|e| e.to_string())?;
+            }
+            let mut f = std::fs::File::create(&out).map_err(|e| e.to_string())?;
+            std::io::copy(&mut entry, &mut f).map_err(|_| {
+                "The ZIP file is damaged or uses an unsupported compression.".to_string()
+            })?;
+        }
+        Ok(())
+    })
+}
+
+/// Packs files and folders into one ZIP beside the first: "name.zip" for one
+/// item, "Archive.zip" for several.
+fn make_zip(paths: &[PathBuf]) -> Result<PathBuf, String> {
+    use zip::write::SimpleFileOptions;
+    let first = paths.first().ok_or("Nothing to zip.")?;
+    let name_from = if paths.len() == 1 {
+        first.clone()
+    } else {
+        first.with_file_name("Archive")
+    };
+    write_output(&name_from, "zip", None, |temp| {
+        let mut zip = zip::ZipWriter::new(std::fs::File::create(temp).map_err(|e| e.to_string())?);
+        let options = SimpleFileOptions::default().large_file(true);
+        let mut add = |file: &Path, name: String| -> Result<(), String> {
+            if CANCEL.load(Ordering::Relaxed) {
+                return Err("Canceled".into());
+            }
+            zip.start_file(name, options).map_err(|e| e.to_string())?;
+            let mut f = std::fs::File::open(file).map_err(|e| e.to_string())?;
+            std::io::copy(&mut f, &mut zip).map_err(|e| e.to_string())?;
+            Ok(())
+        };
+        for path in paths {
+            let root = path.parent().unwrap_or(path);
+            let mut stack = vec![path.clone()];
+            while let Some(p) = stack.pop() {
+                if p.is_dir() {
+                    for entry in std::fs::read_dir(&p).map_err(|e| e.to_string())?.flatten() {
+                        stack.push(entry.path());
+                    }
+                } else {
+                    let name = p
+                        .strip_prefix(root)
+                        .unwrap_or(&p)
+                        .to_string_lossy()
+                        .replace('\\', "/");
+                    add(&p, name)?;
+                }
+            }
+        }
+        zip.finish()
+            .map_err(|e| e.to_string())?
+            .flush()
+            .map_err(|e| e.to_string())
+    })
+}
+
+fn copy_tree(from: &Path, to: &Path) -> std::io::Result<()> {
+    if from.is_dir() {
+        std::fs::create_dir(to)?;
+        for entry in std::fs::read_dir(from)?.flatten() {
+            copy_tree(&entry.path(), &to.join(entry.file_name()))?;
+        }
+        Ok(())
+    } else {
+        std::fs::copy(from, to).map(|_| ())
+    }
+}
+
+/// Copies or moves one file or folder into `dir`, never replacing anything.
+fn transfer(path: &Path, dir: &Path, keep: bool) -> Result<PathBuf, String> {
+    let name = path.file_name().ok_or("No file name.")?.to_string_lossy();
+    let (stem, ext) = if path.is_dir() {
+        (name.to_string(), String::new())
+    } else {
+        let stem = path
+            .file_stem()
+            .unwrap_or_default()
+            .to_string_lossy()
+            .into_owned();
+        (
+            stem,
+            path.extension()
+                .map(|e| e.to_string_lossy().into_owned())
+                .unwrap_or_default(),
+        )
+    };
+    if !keep {
+        if path.parent() == Some(dir) {
+            return Ok(path.to_path_buf());
+        }
+        return publish(path, dir, &stem, &ext, true).map_err(|e| {
+            if path.is_dir() {
+                format!("Folders can only be moved within the same drive. ({e})")
+            } else {
+                e
+            }
+        });
+    }
+    let temp = temp_in(dir);
+    let result = copy_tree(path, &temp)
+        .map_err(|e| e.to_string())
+        .and_then(|()| publish(&temp, dir, &stem, &ext, false));
+    let _ = std::fs::remove_dir_all(&temp).or_else(|_| std::fs::remove_file(&temp));
+    result
+}
+
+fn set_wallpaper(path: &Path) -> Result<(), String> {
+    use std::os::windows::ffi::OsStrExt;
+    use windows::Win32::UI::WindowsAndMessaging::{
+        SystemParametersInfoW, SPIF_SENDCHANGE, SPIF_UPDATEINIFILE, SPI_SETDESKWALLPAPER,
+    };
+    let wide: Vec<u16> = path.as_os_str().encode_wide().chain([0]).collect();
+    unsafe {
+        SystemParametersInfoW(
+            SPI_SETDESKWALLPAPER,
+            0,
+            Some(wide.as_ptr() as *mut _),
+            SPIF_UPDATEINIFILE | SPIF_SENDCHANGE,
+        )
+    }
+    .map_err(|e| e.message())
+}
+
+/// One image tool: rotate, flip, grayscale, half size. Keeps the format.
+fn image_tool(path: &Path, tool: &str) -> Result<PathBuf, String> {
+    let img = decode(path)?;
+    let (img, suffix) = match tool {
+        "rotate-right" => (img.rotate90(), "rotated"),
+        "rotate-left" => (img.rotate270(), "rotated"),
+        "flip" => (img.fliph(), "flipped"),
+        "grayscale" => (
+            image::DynamicImage::ImageRgba8(img.grayscale().to_rgba8()),
+            "grayscale",
+        ),
+        "half" => (
+            img.resize(
+                img.width().div_ceil(2),
+                img.height().div_ceil(2),
+                image::imageops::FilterType::Lanczos3,
+            ),
+            "50%",
+        ),
+        "compress" => return save_bytes(path, "jpg", Some("compressed"), &jpeg_bytes(&img, 70)?),
+        _ => return Err("Unknown tool.".into()),
+    };
+    let ext = match ext_of(path).as_str() {
+        "jpeg" | "jfif" => "jpg".to_string(),
+        e => e.to_string(),
+    };
+    save_bytes(path, &ext, Some(suffix), &encode(&img, &ext)?)
+}
+
+/// Runs one wheel option on the files, one outcome per file (or one for the
+/// whole set, for options that make a single output).
+fn run(app: &AppHandle, op: &str, paths: &[PathBuf]) -> Vec<Outcome> {
+    let total = paths.len();
+    let outcome = |source: &Path, result: Result<Option<PathBuf>, String>| Outcome {
+        source: source.to_string_lossy().into_owned(),
+        output: result
+            .as_ref()
+            .ok()
+            .cloned()
+            .flatten()
+            .map(|p| p.to_string_lossy().into_owned()),
+        error: result.err(),
+    };
+    let first = paths.first().cloned().unwrap_or_default();
+    // Options that act on the whole set at once.
+    let whole: Option<Result<Option<PathBuf>, String>> = match op {
+        "action.copy-path" | "action.copy-name" => {
+            let text: Vec<String> = paths
+                .iter()
+                .map(|p| {
+                    if op == "action.copy-path" {
+                        p.to_string_lossy().into_owned()
+                    } else {
+                        p.file_name()
+                            .unwrap_or_default()
+                            .to_string_lossy()
+                            .into_owned()
+                    }
+                })
+                .collect();
+            use tauri_plugin_clipboard_manager::ClipboardExt;
+            Some(
+                app.clipboard()
+                    .write_text(text.join("\r\n"))
+                    .map(|()| None)
+                    .map_err(|e| e.to_string()),
+            )
+        }
+        "action.reveal" => {
+            let arg = format!("/select,\"{}\"", first.display());
+            use std::os::windows::process::CommandExt;
+            Some(
+                std::process::Command::new("explorer.exe")
+                    .raw_arg(arg)
+                    .spawn()
+                    .map(|_| None)
+                    .map_err(|e| e.to_string()),
+            )
+        }
+        "action.terminal" => {
+            let dir = if first.is_dir() {
+                first.clone()
+            } else {
+                first.parent().map(Path::to_path_buf).unwrap_or_default()
+            };
+            let wt = std::process::Command::new("wt.exe")
+                .arg("-d")
+                .arg(&dir)
+                .spawn();
+            Some(
+                wt.or_else(|_| {
+                    std::process::Command::new("cmd.exe")
+                        .args(["/c", "start", "cmd.exe"])
+                        .current_dir(&dir)
+                        .spawn()
+                })
+                .map(|_| None)
+                .map_err(|e| e.to_string()),
+            )
+        }
+        "action.shelf" => {
+            let list = paths
+                .iter()
+                .map(|p| p.to_string_lossy().into_owned())
+                .collect();
+            crate::clipboard::clipboard_add(app.clone(), list, None);
+            Some(Ok(None))
+        }
+        "action.wallpaper" => Some(set_wallpaper(&first).map(|()| None)),
+        "action.zip" => Some(make_zip(paths).map(Some)),
+        "tool.image.pdf-combine" => Some((|| {
+            let mut pages = Vec::new();
+            for p in paths {
+                if CANCEL.load(Ordering::Relaxed) {
+                    return Err("Canceled".to_string());
+                }
+                pages.push(pdf_page(&decode(p)?)?);
+            }
+            save_bytes(&first, "pdf", Some("combined"), &pdf_from_jpegs(&pages)).map(Some)
+        })()),
+        _ => None,
+    };
+    if let Some(result) = whole {
+        return vec![outcome(&first, result)];
+    }
+
+    let folder = match op {
+        "action.copy-to" | "action.move-to" => {
+            use tauri_plugin_dialog::DialogExt;
+            let title = if op == "action.copy-to" {
+                "Copy to"
+            } else {
+                "Move to"
+            };
+            match app.dialog().file().set_title(title).blocking_pick_folder() {
+                Some(f) => match f.into_path() {
+                    Ok(p) => Some(p),
+                    Err(_) => {
+                        return vec![outcome(&first, Err("That folder can't be used.".into()))]
+                    }
+                },
+                None => return vec![outcome(&first, Err("Canceled".into()))],
+            }
+        }
+        _ => None,
+    };
+
+    let mut outcomes = Vec::new();
+    for (i, path) in paths.iter().enumerate() {
+        if CANCEL.load(Ordering::Relaxed) {
+            outcomes.push(outcome(path, Err("Canceled".into())));
+            continue;
+        }
+        let _ = app.emit_to(
+            "orbit",
+            "orbit-progress",
+            serde_json::json!({ "done": i, "total": total }),
+        );
+        let ext = ext_of(path);
+        let result = match op.split('.').collect::<Vec<_>>().as_slice() {
+            ["convert", to] if ext == "pdf" => convert_pdf(path, to),
+            ["convert", "pdf"] => decode(path)
+                .and_then(|img| save_bytes(path, "pdf", None, &pdf_from_jpegs(&[pdf_page(&img)?]))),
+            ["convert", to] => {
+                decode(path).and_then(|img| save_bytes(path, to, None, &encode(&img, to)?))
+            }
+            ["tool", "image", tool] => image_tool(path, tool),
+            ["tool", "archive", "extract"] => extract_zip(path),
+            ["action", "copy-to" | "move-to"] => transfer(
+                path,
+                folder.as_deref().unwrap_or(Path::new("")),
+                op == "action.copy-to",
+            ),
+            _ => Err("Unknown option.".into()),
+        };
+        outcomes.push(outcome(path, result.map(Some)));
+    }
+    outcomes
+}
+
+/// Runs a wheel option on `paths`. Progress goes to the wheel as
+/// `orbit-progress`; [`orbit_cancel`] stops between files (and between pages
+/// or archive entries).
+#[tauri::command]
+pub async fn orbit_run(
+    app: AppHandle,
+    op: String,
+    paths: Vec<String>,
+) -> Result<Vec<Outcome>, String> {
+    if !crate::utils::files_enabled() {
+        return Err("File utilities are turned off.".into());
+    }
+    CANCEL.store(false, Ordering::Relaxed);
+    let paths: Vec<PathBuf> = paths
+        .into_iter()
+        .map(PathBuf::from)
+        .filter(|p| p.exists())
+        .collect();
+    if paths.is_empty() {
+        return Err("The files are no longer there.".into());
+    }
+    tauri::async_runtime::spawn_blocking(move || run(&app, &op, &paths))
+        .await
+        .map_err(|e| e.to_string())
+}
+
+#[tauri::command]
+pub fn orbit_cancel() {
+    CANCEL.store(true, Ordering::Relaxed);
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn output_never_replaces_and_leaves_no_temp() {
+        let dir = std::env::temp_dir().join(format!("klyro-orbit-{}", std::process::id()));
+        let _ = std::fs::remove_dir_all(&dir);
+        std::fs::create_dir_all(&dir).unwrap();
+        let source = dir.join("photo.png");
+        std::fs::write(&source, b"original").unwrap();
+
+        let a = save_bytes(&source, "png", Some("rotated"), b"one").unwrap();
+        let b = save_bytes(&source, "png", Some("rotated"), b"two").unwrap();
+        let c = save_bytes(&source, "png", None, b"three").unwrap();
+        assert_eq!(a.file_name().unwrap(), "photo (rotated).png");
+        assert_eq!(b.file_name().unwrap(), "photo (rotated) (2).png");
+        assert_eq!(c.file_name().unwrap(), "photo (2).png");
+        assert_eq!(std::fs::read(&a).unwrap(), b"one");
+        assert_eq!(std::fs::read(&source).unwrap(), b"original");
+        assert!(
+            save_bytes(&source, "png", None, b"").is_err(),
+            "empty output is refused"
+        );
+
+        let moved = transfer(&b, &dir, false).unwrap();
+        assert_eq!(moved, b, "moving into its own folder changes nothing");
+        let copied = transfer(&a, &dir, true).unwrap();
+        assert_eq!(copied.file_name().unwrap(), "photo (rotated) (3).png");
+
+        let leftovers = std::fs::read_dir(&dir)
+            .unwrap()
+            .flatten()
+            .filter(|e| e.file_name().to_string_lossy().starts_with(".klyro-"))
+            .count();
+        assert_eq!(leftovers, 0);
+        let _ = std::fs::remove_dir_all(&dir);
+    }
+
+    #[test]
+    fn image_round_trip_and_pdf() {
+        let img = image::DynamicImage::ImageRgba8(image::RgbaImage::from_pixel(
+            300,
+            200,
+            image::Rgba([10, 20, 30, 128]),
+        ));
+        for ext in ["png", "jpg", "webp", "bmp", "gif", "tiff", "ico"] {
+            let bytes = encode(&img, ext).unwrap();
+            let back = image::load_from_memory(&bytes).unwrap();
+            let expect = if ext == "ico" { (256, 171) } else { (300, 200) };
+            assert_eq!((back.width(), back.height()), expect, "{ext}");
+        }
+        let pdf = pdf_from_jpegs(&[pdf_page(&img).unwrap(), pdf_page(&img).unwrap()]);
+        assert!(pdf.starts_with(b"%PDF-1.4") && pdf.ends_with(b"%%EOF\n"));
+        // Every xref offset points at its object (2 + 3 per page).
+        let xref = pdf.windows(6).rposition(|w| w == b"\nxref\n").unwrap() + 1;
+        let table = String::from_utf8_lossy(&pdf[xref..]);
+        let offsets: Vec<usize> = table
+            .lines()
+            .skip(3)
+            .take(8)
+            .map(|l| l[..10].parse().unwrap())
+            .collect();
+        assert_eq!(offsets.len(), 8);
+        for (i, at) in offsets.into_iter().enumerate() {
+            assert!(pdf[at..].starts_with(format!("{} 0 obj", i + 1).as_bytes()));
+        }
+    }
+}

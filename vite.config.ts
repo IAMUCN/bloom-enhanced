@@ -39,7 +39,8 @@ export default defineConfig(async () => ({
 				overlay: "overlay.html",
 				settings: "settings.html",
 				dock: "dock.html",
-				clipshelf: "clipshelf.html"
+				clipshelf: "clipshelf.html",
+				orbit: "orbit.html"
 			}
 		}
 	}

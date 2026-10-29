@@ -8,6 +8,7 @@ mod commands;
 mod diagnostics;
 mod dock_extras;
 mod jack;
+mod orbit;
 mod services;
 mod shelf;
 mod shelf_preview;
@@ -161,6 +162,10 @@ fn main() {
             clipboard::clipboard_set_note,
             clipboard::clipboard_group,
             clipboard::clipboard_take_out,
+            orbit::orbit_run,
+            orbit::orbit_cancel,
+            orbit::orbit_close,
+            orbit::orbit_shrink,
             clipboard::clipboard_drag_text,
             shelf_prune,
             shelf_open,
@@ -247,6 +252,7 @@ fn main() {
             crate::utils::init_settings_cache(app.handle());
             clipboard::start(app.handle().clone());
             clipboard::start_shortcut(app.handle().clone());
+            orbit::start(app.handle().clone());
             // Crash-recovery: if a previous session was force-killed while the native
             // taskbar was hidden, restore it now. Runs before the frontend re-hides it
             // (init_dock fires after a delay), so the flag must be removed first.

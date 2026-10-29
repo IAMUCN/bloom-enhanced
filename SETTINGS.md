@@ -97,6 +97,14 @@ Edit `settings.json` with any text editor while Bloom is running. Changes are ap
 | `bloom-clipboard-sounds` | `"true"` / `"false"` | `"true"` | Short synthesized sounds for copy, pin/group and delete in the panel. |
 | `bloom-clipboard-copy-indicator` | `"true"` / `"false"` | `"true"` | The notch briefly shows "Copied" when something is recorded. |
 
+### Files
+
+| Key | Type | Default | Description |
+| --- | --- | --- | --- |
+| `bloom-files-enabled` | `"true"` / `"false"` | `"true"` | The file wheel: convert, edit and act on files (images, PDF pages, ZIP). Results are written next to the original, never over it or over another file (" (2)" is added instead). `"false"` turns off both ways of opening it. |
+| `bloom-files-drag` | `"true"` / `"false"` | `"true"` | While dragging files, tapping Shift opens the wheel around the pointer; let go on an option to run it. Shift again switches Convert / Tools / Actions, Esc cancels. |
+| `bloom-files-shortcut` | e.g. `"Ctrl+Alt+Space"`, `"F8"` | `"Ctrl+Alt+Space"` | Opens the wheel for the files selected in File Explorer or on the desktop. `""` = no shortcut. Same format as `bloom-clipboard-shortcut`. |
+
 ### Shelf
 
 | Key                   | Type                 | Default   | Description                                                                                                    |

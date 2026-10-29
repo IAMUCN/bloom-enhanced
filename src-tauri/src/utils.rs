@@ -1310,6 +1310,11 @@ pub fn clipboard_enabled() -> bool {
     module_enabled("bloom-clipboard-enabled")
 }
 
+/// Off disables the file-utilities wheel: no drag trigger, no shortcut.
+pub fn files_enabled() -> bool {
+    module_enabled("bloom-files-enabled")
+}
+
 /// Makes a window click-through or not by its WS_EX_TRANSPARENT bit alone,
 /// keeping WS_EX_LAYERED set in both states.
 ///

@@ -196,10 +196,19 @@ impl IDropTarget_Impl for ShelfDropTarget_Impl {
     fn DragOver(
         &self,
         _keys: MODIFIERKEYS_FLAGS,
-        _pt: &POINTL,
+        pt: &POINTL,
         effect: *mut DROPEFFECT,
     ) -> windows::core::Result<()> {
         unsafe { *effect = *self.cursor_effect.get() };
+        // The file wheel highlights the option under the pointer.
+        if self.prefix == "orbit" && unsafe { *self.enter_valid.get() } {
+            let point = unsafe { self.client_point(pt) };
+            let _ = self.app.emit_to(
+                "orbit",
+                "orbit-drag-over",
+                serde_json::json!({ "x": point.x, "y": point.y }),
+            );
+        }
         Ok(())
     }
 
@@ -252,10 +261,10 @@ impl IDropTarget_Impl for ShelfDropTarget_Impl {
 /// its current descendants. Safe to call repeatedly; that window's existing
 /// registrations are replaced.
 pub fn setup(app: &AppHandle, label: &str) {
-    let prefix = if label == "clipshelf" {
-        "clipshelf"
-    } else {
-        "shelf"
+    let prefix = match label {
+        "clipshelf" => "clipshelf",
+        "orbit" => "orbit",
+        _ => "shelf",
     };
     let Some(win) = app.get_webview_window(label) else {
         return;

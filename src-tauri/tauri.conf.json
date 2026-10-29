@@ -119,6 +119,28 @@
         "skipTaskbar": true,
         "shadow": false,
         "visible": false
+      },
+      {
+        "additionalBrowserArgs": "--disable-features=msWebOOUI,msPdfOOUI,msSmartScreenProtection --autoplay-policy=no-user-gesture-required",
+        "label": "orbit",
+        "title": "File Wheel",
+        "url": "orbit.html",
+        "width": 360,
+        "height": 360,
+        "x": -32000,
+        "y": -32000,
+        "decorations": false,
+        "transparent": true,
+        "resizable": false,
+        "maximizable": false,
+        "minimizable": false,
+        "closable": false,
+        "alwaysOnTop": true,
+        "visibleOnAllWorkspaces": true,
+        "focus": false,
+        "skipTaskbar": true,
+        "shadow": false,
+        "visible": false
       }
     ],
     "security": {

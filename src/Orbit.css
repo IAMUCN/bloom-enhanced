@@ -1,0 +1,190 @@
+@import url("https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&display=swap");
+/* The file wheel window: a ring of options around a hub, in the notch's
+   colours (theme.ts tokens), and the status card it shrinks to. */
+* {
+	box-sizing: border-box;
+}
+
+html,
+body,
+#root {
+	margin: 0;
+	width: 100%;
+	height: 100%;
+	overflow: hidden;
+	background: transparent;
+	color: var(--bloom-text, #fff);
+	font-family: "Inter", "Segoe UI Variable Text", "Segoe UI", sans-serif;
+	-webkit-font-smoothing: antialiased;
+	user-select: none;
+}
+
+.orbit {
+	width: 100%;
+	height: 100%;
+	display: flex;
+	align-items: center;
+	justify-content: center;
+	animation: orbit-in 0.18s cubic-bezier(0.2, 0.8, 0.2, 1);
+}
+
+@keyframes orbit-in {
+	from {
+		transform: scale(0.82);
+		opacity: 0;
+	}
+}
+
+.orbit svg {
+	overflow: visible;
+	cursor: default;
+}
+
+.orbit-disc {
+	fill: var(--bloom-bg-expanded, rgba(0, 0, 0, 0.92));
+	stroke: var(--bloom-border, rgba(255, 255, 255, 0.08));
+	stroke-width: 1;
+	filter: drop-shadow(0 8px 24px rgba(0, 0, 0, 0.45));
+}
+
+.orbit-slice path {
+	fill: rgba(255, 255, 255, 0.06);
+	transition: fill 0.1s ease;
+}
+
+.orbit-slice.hover path {
+	fill: rgba(255, 255, 255, 0.22);
+}
+
+.orbit-label {
+	width: 100%;
+	height: 100%;
+	display: flex;
+	flex-direction: column;
+	align-items: center;
+	justify-content: center;
+	gap: 3px;
+	font-size: 10px;
+	font-weight: 500;
+	line-height: 1.1;
+	text-align: center;
+	opacity: 0.85;
+	pointer-events: none;
+}
+
+.orbit-slice.hover .orbit-label {
+	opacity: 1;
+}
+
+.orbit-format {
+	font-size: 13px;
+	font-weight: 600;
+	letter-spacing: 0.02em;
+}
+
+.orbit-hub {
+	fill: rgba(255, 255, 255, 0.08);
+}
+
+.orbit-hub-label {
+	width: 100%;
+	height: 100%;
+	display: flex;
+	flex-direction: column;
+	align-items: center;
+	justify-content: center;
+	gap: 2px;
+	pointer-events: none;
+}
+
+.orbit-hub-label strong {
+	font-size: 13px;
+	font-weight: 600;
+}
+
+.orbit-hub-label span {
+	font-size: 9.5px;
+	opacity: 0.6;
+}
+
+.orbit-dots {
+	display: flex;
+	gap: 4px;
+	margin-top: 3px;
+}
+
+.orbit-dots i {
+	width: 5px;
+	height: 5px;
+	border-radius: 50%;
+	background: currentColor;
+	opacity: 0.3;
+}
+
+.orbit-dots i.on {
+	opacity: 0.9;
+}
+
+/* Running and finished: a pill in place of the wheel. */
+.orbit-status {
+	width: 100%;
+	height: 100%;
+	display: flex;
+	align-items: center;
+	gap: 10px;
+	padding: 0 14px 0 18px;
+	border-radius: 999px;
+	background: var(--bloom-bg-expanded, rgba(0, 0, 0, 0.92));
+	font-size: 12px;
+	animation: orbit-in 0.15s ease;
+}
+
+.orbit-status.failed {
+	box-shadow: inset 0 0 0 1.5px rgba(255, 99, 99, 0.7);
+	cursor: pointer;
+}
+
+.orbit-status-text {
+	flex: 1;
+	min-width: 0;
+	display: -webkit-box;
+	-webkit-line-clamp: 2;
+	-webkit-box-orient: vertical;
+	overflow: hidden;
+	word-break: break-word;
+	line-height: 1.3;
+}
+
+.orbit-status button {
+	flex: none;
+	width: 24px;
+	height: 24px;
+	display: flex;
+	align-items: center;
+	justify-content: center;
+	border: none;
+	border-radius: 50%;
+	background: rgba(255, 255, 255, 0.1);
+	color: inherit;
+	cursor: pointer;
+}
+
+.orbit-status button:hover {
+	background: rgba(255, 255, 255, 0.2);
+}
+
+.orbit-spinner {
+	flex: none;
+	width: 14px;
+	height: 14px;
+	border-radius: 50%;
+	border: 2px solid rgba(255, 255, 255, 0.25);
+	border-top-color: currentColor;
+	animation: orbit-spin 0.8s linear infinite;
+}
+
+@keyframes orbit-spin {
+	to {
+		transform: rotate(360deg);
+	}
+}

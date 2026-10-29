@@ -55,7 +55,7 @@ const FEATURE_TOGGLES = [
 const MODIFIER_KEYS = ["Control", "Alt", "Shift", "Meta"];
 
 /** "Ctrl+Shift+V" from a key press, or null while only modifiers are held. */
-function shortcutFrom(e: React.KeyboardEvent): string | null {
+export function shortcutFrom(e: React.KeyboardEvent): string | null {
 	if (MODIFIER_KEYS.includes(e.key)) return null;
 	const key =
 		e.code.startsWith("Key") || e.code.startsWith("Digit")
