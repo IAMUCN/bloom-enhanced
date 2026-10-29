@@ -16,8 +16,11 @@ import {
 	INNER_R,
 	MODE_LABEL,
 	OUTER_R,
+	formatRanges,
 	hitTest,
 	modesFor,
+	parseRanges,
+	splitPresets,
 	opsFor,
 	parseLayout,
 	type OrbitInput,
@@ -55,6 +58,8 @@ type Phase =
 	| { kind: "wheel" }
 	/** percent is null while a folder picker is open (Copy to / Move to). */
 	| { kind: "running"; op: OrbitOp; percent: number | null }
+	/** Split asks which pages first; pages is null while they are counted. */
+	| { kind: "ranges"; op: OrbitOp; input: OrbitInput; pages: number | null }
 	| { kind: "done"; text: string; result: Result };
 
 const point = (r: number, deg: number) => {
@@ -168,6 +173,17 @@ function Orbit() {
 				}
 				return;
 			}
+			// Split asks for the page ranges first (the colon form carries them).
+			if (op.id === "tool.pdf.split") {
+				setPhase({ kind: "ranges", op, input, pages: null });
+				try {
+					const pages = await invoke<number>("orbit_pdf_pages", { paths: input.paths });
+					setPhase((p) => (p.kind === "ranges" ? { ...p, pages } : p));
+				} catch (e) {
+					finish(String(e), "failed");
+				}
+				return;
+			}
 			const picking = PICKS_FOLDER.includes(op.id);
 			setPhase({ kind: "running", op, percent: picking ? null : 0 });
 			if (!picking && !state.current.inNotch) shrink();
@@ -220,7 +236,7 @@ function Orbit() {
 				if (phaseRef.current.kind === "running") finish("Canceled", "canceled");
 			}),
 			listen("orbit-close", () => {
-				if (phaseRef.current.kind === "wheel") setPhase({ kind: "closed" });
+				if (phaseRef.current.kind === "wheel" || phaseRef.current.kind === "ranges") setPhase({ kind: "closed" });
 			}),
 			listen("orbit-shift", () => {
 				if (phaseRef.current.kind === "wheel") cycle();
@@ -265,6 +281,16 @@ function Orbit() {
 	if (phase.kind === "closed") return null;
 	if (phase.kind === "running" && (phase.percent === null || inNotch)) return null;
 	if (phase.kind === "done" && inNotch) return null;
+
+	if (phase.kind === "ranges")
+		return (
+			<RangeRing
+				pages={phase.pages}
+				files={phase.input.paths.length}
+				onPick={(ranges) => run({ ...phase.op, id: `${phase.op.id}:${ranges}` }, phase.input)}
+				onCancel={close}
+			/>
+		);
 
 	if (phase.kind === "running" || phase.kind === "done") {
 		const Icon = phase.kind === "done" ? RESULT_ICON[phase.result] : null;
@@ -405,6 +431,101 @@ function Orbit() {
 							))}
 						</div>
 					</motion.div>
+				</foreignObject>
+			</svg>
+		</motion.div>
+	);
+}
+
+/** Split's second ring: one-click page choices around a hub where any
+ *  ranges can be typed ("1-5, 6-20"); Enter splits. */
+function RangeRing({
+	pages,
+	files,
+	onPick,
+	onCancel
+}: {
+	pages: number | null;
+	files: number;
+	onPick: (ranges: string) => void;
+	onCancel: () => void;
+}) {
+	const [text, setText] = useState("");
+	const [hover, setHover] = useState(HUB);
+	const field = useRef<HTMLInputElement>(null);
+	useEffect(() => {
+		invoke("orbit_focus")
+			.catch(() => {})
+			.finally(() => field.current?.focus());
+	}, []);
+	const presets = pages ? splitPresets(pages, files) : [];
+	const parsed = pages ? parseRanges(text, pages) : null;
+	const step = 360 / Math.max(1, presets.length);
+	const note =
+		pages === null
+			? "Counting pages…"
+			: typeof parsed === "string"
+				? parsed
+				: pages < 2 && !text
+					? "Only one page"
+					: `${parsed?.length} PDF${parsed?.length === 1 ? "" : "s"} · ${files > 1 ? `${files} files` : `${pages} pages`}`;
+	return (
+		<motion.div className="orbit" initial={{ scale: 0.5, opacity: 0, rotate: 30 }} animate={{ scale: 1, opacity: 1, rotate: 0 }} transition={SPRING}>
+			<svg
+				width={SIZE}
+				height={SIZE}
+				onPointerMove={(e) => setHover(hitTest(e.clientX - C, e.clientY - C, presets.length))}
+				onPointerLeave={() => setHover(HUB)}
+				onClick={(e) => {
+					const i = hitTest(e.clientX - C, e.clientY - C, presets.length);
+					if (i >= 0) onPick(presets[i].ranges);
+					else if (i !== HUB) onCancel();
+				}}
+			>
+				<circle className="orbit-disc" cx={C} cy={C} r={OUTER_R + 8} />
+				{presets.map((p, i) => {
+					const mid = -90 + i * step;
+					const [lx, ly] = point((OUTER_R + INNER_R) / 2, mid);
+					return (
+						<motion.g
+							key={p.label}
+							className={`orbit-slice${hover === i ? " hover" : ""}`}
+							style={ORIGIN}
+							initial={{ opacity: 0, scale: 0.6 }}
+							animate={{ opacity: 1, scale: hover === i ? 1.06 : 1 }}
+							transition={{ ...SPRING, opacity: { delay: i * 0.03, duration: 0.15 } }}
+						>
+							<path d={slicePath(mid - step / 2 + GAP, mid + step / 2 - GAP)} />
+							<foreignObject x={lx - 42} y={ly - 22} width={84} height={44}>
+								<div className="orbit-label">
+									<span>{p.label}</span>
+									<small>{p.hint}</small>
+								</div>
+							</foreignObject>
+						</motion.g>
+					);
+				})}
+				<circle className="orbit-hub" cx={C} cy={C} r={INNER_R - 6} />
+				<foreignObject x={C - 52} y={C - 34} width={104} height={68}>
+					<div className="orbit-hub-label orbit-ranges">
+						<strong>Split</strong>
+						<input
+							ref={field}
+							value={text}
+							placeholder="1-5, 6-20"
+							spellCheck={false}
+							disabled={pages === null}
+							className={typeof parsed === "string" ? "bad" : ""}
+							onChange={(e) => setText(e.target.value)}
+							onKeyDown={(e) => {
+								if (e.key === "Enter" && Array.isArray(parsed)) onPick(formatRanges(parsed));
+								if (e.key === "Escape") onCancel();
+							}}
+						/>
+						<motion.span key={note} initial={{ y: 4, opacity: 0 }} animate={{ y: 0, opacity: 1 }} className={typeof parsed === "string" ? "bad" : ""}>
+							{note}
+						</motion.span>
+					</div>
 				</foreignObject>
 			</svg>
 		</motion.div>

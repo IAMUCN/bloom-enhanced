@@ -28,7 +28,7 @@
 
 use std::io::{Cursor, Write as _};
 use std::path::{Path, PathBuf};
-use std::sync::atomic::{AtomicBool, AtomicU32, AtomicU64, AtomicU8, Ordering};
+use std::sync::atomic::{AtomicBool, AtomicIsize, AtomicU32, AtomicU64, AtomicU8, Ordering};
 use std::sync::OnceLock;
 use std::time::Duration;
 
@@ -381,8 +381,49 @@ fn open_wheel(app: &AppHandle, paths: Vec<String>, by: u8) {
     );
 }
 
+/// The window that had the keyboard before the wheel took it to type page
+/// ranges ([`orbit_focus`]); it gets it back when the wheel closes or runs.
+static PREV_FOCUS: AtomicIsize = AtomicIsize::new(0);
+
+fn restore_focus() {
+    use windows::Win32::UI::WindowsAndMessaging::SetForegroundWindow;
+    let prev = PREV_FOCUS.swap(0, Ordering::Relaxed);
+    if prev != 0 {
+        let _ = unsafe { SetForegroundWindow(HWND(prev as _)) };
+    }
+}
+
+/// Gives the wheel the keyboard (to type page ranges). A click outside now
+/// closes it, as for a wheel opened with the trigger key.
+#[tauri::command]
+pub fn orbit_focus(window: tauri::WebviewWindow) {
+    use windows::Win32::UI::WindowsAndMessaging::GetForegroundWindow;
+    if OPEN.load(Ordering::Relaxed) == 0 {
+        return;
+    }
+    let prev = unsafe { GetForegroundWindow() }.0 as isize;
+    if window.hwnd().map_or(true, |own| own.0 as isize != prev) {
+        PREV_FOCUS.store(prev, Ordering::Relaxed);
+    }
+    OPEN.store(BY_SHORTCUT, Ordering::Relaxed);
+    let _ = window.set_focus();
+}
+
+/// The fewest pages among `paths` (PDFs), for the Split ranges.
+#[tauri::command]
+pub async fn orbit_pdf_pages(paths: Vec<String>) -> Result<u32, String> {
+    tauri::async_runtime::spawn_blocking(move || {
+        paths.iter().try_fold(u32::MAX, |min, p| {
+            Ok(min.min(load_pdf(Path::new(p))?.get_pages().len() as u32))
+        })
+    })
+    .await
+    .map_err(|e| e.to_string())?
+}
+
 fn close_wheel(app: &AppHandle) {
     OPEN.store(0, Ordering::Relaxed);
+    restore_focus();
     let _ = app.emit_to("orbit", "orbit-close", ());
     if let Some(win) = app.get_webview_window("orbit") {
         let _ = win.set_position(tauri::PhysicalPosition::new(PARKED, PARKED));
@@ -981,17 +1022,21 @@ fn pdf_bytes(mut doc: lopdf::Document) -> Result<Vec<u8>, String> {
     Ok(out)
 }
 
-/// One PDF with every page of `docs`, in order. Each page keeps what it
-/// inherited from its old page tree (resources, page size, rotation).
-fn merge_pdfs(docs: Vec<lopdf::Document>) -> Result<Vec<u8>, String> {
+/// One PDF of the chosen pages (1-based, in the order given) of each
+/// document. Each page keeps what it inherited from its old page tree
+/// (resources, page size, rotation); objects nothing uses any more are
+/// dropped.
+fn build_pdf(parts: Vec<(lopdf::Document, Vec<u32>)>) -> Result<Vec<u8>, String> {
     use lopdf::{dictionary, Object};
     let mut out = lopdf::Document::with_version("1.5");
     let pages_id = out.new_object_id();
     let mut kids = Vec::new();
-    for mut doc in docs {
+    for (mut doc, numbers) in parts {
         doc.renumber_objects_with(out.max_id + 1);
         out.max_id = doc.max_id;
-        for page_id in doc.get_pages().into_values() {
+        let pages = doc.get_pages();
+        for n in numbers {
+            let page_id = *pages.get(&n).ok_or(format!("There is no page {n}."))?;
             let mut page = doc
                 .get_dictionary(page_id)
                 .map_err(|e| e.to_string())?
@@ -1028,50 +1073,135 @@ fn merge_pdfs(docs: Vec<lopdf::Document>) -> Result<Vec<u8>, String> {
     );
     let catalog = out.add_object(dictionary! { "Type" => "Catalog", "Pages" => pages_id });
     out.trailer.set("Root", catalog);
+    out.prune_objects();
     pdf_bytes(out)
+}
+
+fn all_pages(doc: &lopdf::Document) -> Vec<u32> {
+    (1..=doc.get_pages().len() as u32).collect()
 }
 
 /// PDFs and images, in the order given, as one PDF (images become pages).
 fn merge_files(paths: &[PathBuf]) -> Result<PathBuf, String> {
-    let mut docs = Vec::new();
+    let mut parts = Vec::new();
     for (i, p) in paths.iter().enumerate() {
         canceled()?;
         progress(0.8 * i as f64 / paths.len() as f64);
-        docs.push(if ext_of(p) == "pdf" {
+        let doc = if ext_of(p) == "pdf" {
             load_pdf(p)?
         } else {
             let page = pdf_from_jpegs(&[pdf_page(&decode(p)?)?]);
             lopdf::Document::load_mem(&page).map_err(|e| e.to_string())?
-        });
+        };
+        let pages = all_pages(&doc);
+        parts.push((doc, pages));
     }
     let first = paths.first().ok_or("Nothing to merge.")?;
-    save_bytes(first, "pdf", Some("merged"), &merge_pdfs(docs)?)
+    save_bytes(first, "pdf", Some("merged"), &build_pdf(parts)?)
 }
 
-/// Each page of a PDF as its own PDF, in a "name (pages)" folder.
-fn split_pdf(path: &Path) -> Result<PathBuf, String> {
+/// Page ranges as typed in the wheel ("1-5, 6-20, 8"); empty means each
+/// page on its own. Mirrors `parseRanges` in src/orbitOps.ts.
+fn parse_ranges(text: &str, count: u32) -> Result<Vec<(u32, u32)>, String> {
+    let parts: Vec<&str> = text
+        .split(',')
+        .map(str::trim)
+        .filter(|p| !p.is_empty())
+        .collect();
+    if parts.is_empty() {
+        return Ok((1..=count).map(|n| (n, n)).collect());
+    }
+    parts
+        .into_iter()
+        .map(|part| {
+            let (a, b) = part.split_once('-').unwrap_or((part, part));
+            let (Ok(a), Ok(b)) = (a.trim().parse::<u32>(), b.trim().parse::<u32>()) else {
+                return Err("Write pages like 1-5, 8".to_string());
+            };
+            if a < 1 || b < a {
+                return Err(format!("{part} isn't a range"));
+            }
+            if b > count {
+                return Err(format!("There are only {count} pages"));
+            }
+            Ok((a, b))
+        })
+        .collect()
+}
+
+/// The chosen page ranges of a PDF: one range is saved beside it as
+/// "name (pages 1-5).pdf"; several go to a "name (split)" folder.
+fn split_pdf(path: &Path, ranges: &str) -> Result<PathBuf, String> {
     let doc = load_pdf(path)?;
     let count = doc.get_pages().len() as u32;
-    if count < 2 {
-        return Err("The PDF has only one page.".into());
+    let ranges = parse_ranges(ranges, count)?;
+    let label = |(a, b): (u32, u32)| {
+        if a == b {
+            format!("page {a}")
+        } else {
+            format!("pages {a}-{b}")
+        }
+    };
+    let part = |(a, b): (u32, u32)| build_pdf(vec![(doc.clone(), (a..=b).collect())]);
+    if let [one] = ranges[..] {
+        return save_bytes(path, "pdf", Some(&label(one)), &part(one)?);
     }
     let dir = out_dir(path)?;
     let stem = path.file_stem().unwrap_or_default().to_string_lossy();
-    write_folder(&dir, &format!("{stem} (pages)"), |temp| {
-        for n in 1..=count {
+    write_folder(&dir, &format!("{stem} (split)"), |temp| {
+        for (i, &range) in ranges.iter().enumerate() {
             canceled()?;
-            progress(n as f64 / count as f64);
-            // ponytail: clones the whole document per page (fine for normal
-            // PDFs; a huge one would want a page-by-page copy instead).
-            let mut page = doc.clone();
-            page.delete_pages(&(1..=count).filter(|&o| o != n).collect::<Vec<_>>());
-            page.prune_objects();
-            std::fs::write(temp.join(format!("Page {n}.pdf")), pdf_bytes(page)?)
-                .map_err(|e| e.to_string())?;
+            progress(i as f64 / ranges.len() as f64);
+            std::fs::write(
+                temp.join(format!("{stem} ({}).pdf", label(range))),
+                part(range)?,
+            )
+            .map_err(|e| e.to_string())?;
         }
         Ok(())
     })
 }
+
+/// Word and PowerPoint files to PDF with the installed Office's own export.
+/// Paths go in through the environment, never into the script text. Office
+/// is only quit when nothing of the user's is open in it.
+fn office_pdf(path: &Path) -> Result<PathBuf, String> {
+    use std::os::windows::process::CommandExt;
+    const WORD: &str = "$ErrorActionPreference='Stop'; $a=New-Object -ComObject Word.Application; \
+        try { $a.DisplayAlerts=0; $d=$a.Documents.Open($env:KLYRO_SRC,$false,$true,$false); \
+        $d.ExportAsFixedFormat($env:KLYRO_OUT,17); $d.Close(0) } \
+        finally { if ($a.Documents.Count -eq 0) { $a.Quit() } }";
+    const POWERPOINT: &str = "$ErrorActionPreference='Stop'; $a=New-Object -ComObject PowerPoint.Application; \
+        try { $d=$a.Presentations.Open($env:KLYRO_SRC,-1,0,0); $d.SaveAs($env:KLYRO_OUT,32); $d.Close() } \
+        finally { if ($a.Presentations.Count -eq 0) { $a.Quit() } }";
+    let script = if WORD_EXTS.contains(&ext_of(path).as_str()) {
+        WORD
+    } else {
+        POWERPOINT
+    };
+    let out = temp_in(&std::env::temp_dir()).with_extension("pdf");
+    progress(0.2);
+    // ponytail: one Office start per file; a big batch would want one
+    // script converting them all.
+    let _ = std::process::Command::new("powershell.exe")
+        .args(["-NoProfile", "-NonInteractive", "-Command", script])
+        .env("KLYRO_SRC", path)
+        .env("KLYRO_OUT", &out)
+        .creation_flags(0x0800_0000) // CREATE_NO_WINDOW
+        .output();
+    let bytes = std::fs::read(&out);
+    let _ = std::fs::remove_file(&out);
+    let bytes = bytes.map_err(|_| {
+        "Office couldn't convert it (is Word or PowerPoint installed, and the file not locked?)"
+            .to_string()
+    })?;
+    save_bytes(path, "pdf", None, &bytes)
+}
+
+const WORD_EXTS: [&str; 4] = ["doc", "docx", "rtf", "odt"];
+const OFFICE_EXTS: [&str; 9] = [
+    "doc", "docx", "rtf", "odt", "ppt", "pptx", "pps", "ppsx", "odp",
+];
 
 /// Unpacks a ZIP into a new folder beside it. Entries that would land outside
 /// that folder ("../", absolute paths) are skipped.
@@ -1282,6 +1412,8 @@ fn image_tool(path: &Path, tool: &str) -> Result<PathBuf, String> {
 /// Runs one wheel option on the files, one outcome per file (or one for the
 /// whole set, for options that make a single output).
 fn run(app: &AppHandle, op: &str, paths: &[PathBuf]) -> Vec<Outcome> {
+    // What the user typed for an option, after a colon ("tool.pdf.split:1-5,6-20").
+    let (op, arg) = op.split_once(':').unwrap_or((op, ""));
     let total = paths.len();
     let outcome = |source: &Path, result: Result<Option<PathBuf>, String>| Outcome {
         source: source.to_string_lossy().into_owned(),
@@ -1401,6 +1533,7 @@ fn run(app: &AppHandle, op: &str, paths: &[PathBuf]) -> Vec<Outcome> {
         progress(0.0);
         let ext = ext_of(path);
         let result = match op.split('.').collect::<Vec<_>>().as_slice() {
+            ["convert", "pdf"] if OFFICE_EXTS.contains(&ext.as_str()) => office_pdf(path),
             ["convert", to] if ext == "pdf" => convert_pdf(path, to),
             ["convert", "pdf"] => decode(path).and_then(|img| {
                 progress(0.5);
@@ -1414,7 +1547,7 @@ fn run(app: &AppHandle, op: &str, paths: &[PathBuf]) -> Vec<Outcome> {
             }),
             ["tool", "image", tool] => image_tool(path, tool),
             ["tool", "archive", "extract"] => extract_zip(path),
-            ["tool", "pdf", "split"] => split_pdf(path),
+            ["tool", "pdf", "split"] => split_pdf(path, arg),
             ["action", "copy-to" | "move-to"] => transfer(
                 path,
                 folder.as_deref().unwrap_or(Path::new("")),
@@ -1441,6 +1574,7 @@ pub async fn orbit_run(
         return Err("File utilities are turned off.".into());
     }
     CANCEL.store(false, Ordering::Relaxed);
+    restore_focus();
     let paths: Vec<PathBuf> = paths
         .into_iter()
         .map(PathBuf::from)
@@ -1586,12 +1720,24 @@ mod tests {
             })
             .collect();
         assert_eq!(widths, [75.0, 150.0, 225.0]);
-        let pages = split_pdf(&merged).unwrap();
-        for n in 1..=3 {
-            let one = lopdf::Document::load(pages.join(format!("Page {n}.pdf"))).unwrap();
-            assert_eq!(one.get_pages().len(), 1);
+        // Ranges: several go to a folder, one sits beside the original.
+        let pages = |p: &Path| lopdf::Document::load(p).unwrap().get_pages().len();
+        let folder = split_pdf(&merged, "1-2, 3").unwrap();
+        assert_eq!(folder.file_name().unwrap(), "a (merged) (split)");
+        assert_eq!(pages(&folder.join("a (merged) (pages 1-2).pdf")), 2);
+        assert_eq!(pages(&folder.join("a (merged) (page 3).pdf")), 1);
+        let second = split_pdf(&merged, "2").unwrap();
+        assert_eq!(second.file_name().unwrap(), "a (merged) (page 2).pdf");
+        assert_eq!(pages(&second), 1);
+        assert!(split_pdf(&merged, "2-4").is_err());
+        assert_eq!(parse_ranges(" ", 3).unwrap(), [(1, 1), (2, 2), (3, 3)]);
+        assert_eq!(
+            parse_ranges("1-5, 6 - 20,8", 20).unwrap(),
+            [(1, 5), (6, 20), (8, 8)]
+        );
+        for bad in ["5-1", "0", "a", "1-", "21"] {
+            assert!(parse_ranges(bad, 20).is_err(), "{bad}");
         }
-        assert!(split_pdf(&pages.join("Page 1.pdf")).is_err());
         std::fs::remove_dir_all(&dir).unwrap();
     }
 }

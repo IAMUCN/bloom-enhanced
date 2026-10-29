@@ -1,5 +1,16 @@
 import { expect, test } from "bun:test";
-import { HUB, OUTSIDE, hitTest, modesFor, opsFor, parseLayout, type OrbitInput } from "../src/orbitOps";
+import {
+	HUB,
+	OUTSIDE,
+	formatRanges,
+	hitTest,
+	modesFor,
+	opsFor,
+	parseLayout,
+	parseRanges,
+	splitPresets,
+	type OrbitInput
+} from "../src/orbitOps";
 
 const files = (...paths: string[]) => ({ paths });
 const layout = (hidden: string[] = [], order = {}, modes?: string[]) =>
@@ -26,9 +37,25 @@ test("options fit every file in the set", () => {
 	expect(ids(files("C:\\a.png", "C:\\b.png"), "tools")).not.toContain("tool.pdf.merge");
 	expect(ids(files("C:\\a.png"), "actions")).toContain("action.wallpaper");
 	expect(ids(files("C:\\a.png", "C:\\b.png"), "actions")).not.toContain("action.wallpaper");
-	expect(modesFor(files("C:\\notes.docx"))).toEqual(["actions"]);
+	expect(modesFor(files("C:\\notes.txt"))).toEqual(["actions"]);
 	expect(modesFor(files("C:\\Folder"))).toEqual(["actions"]);
 	expect(modesFor(files())).toEqual([]);
+});
+
+test("Word and PowerPoint files convert to PDF, one or several", () => {
+	expect(ids(files("C:\\a.docx"), "convert")).toEqual(["convert.pdf"]);
+	expect(ids(files("C:\\a.docx", "C:\\b.pptx", "C:\\c.DOC"), "convert")).toEqual(["convert.pdf"]);
+	expect(ids(files("C:\\a.docx", "C:\\b.png"), "convert")).toEqual([]);
+});
+
+test("Split's page ranges", () => {
+	expect(parseRanges("", 3)).toEqual([[1, 1], [2, 2], [3, 3]]);
+	expect(parseRanges("1-5, 6 - 20,8", 20)).toEqual([[1, 5], [6, 20], [8, 8]]);
+	for (const bad of ["5-1", "0", "a", "1-", "21"]) expect(typeof parseRanges(bad, 20)).toBe("string");
+	expect(formatRanges([[1, 5], [8, 8]])).toBe("1-5,8");
+	expect(splitPresets(20, 1).map((p) => p.ranges)).toEqual(["", "1-10,11-20", "2-20", "1", "20"]);
+	expect(splitPresets(20, 2).map((p) => p.ranges)).toEqual(["", "1"]);
+	expect(splitPresets(1, 1)).toEqual([]);
 });
 
 test("dragged text has one option: To shelf", () => {

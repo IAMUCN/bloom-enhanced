@@ -46,6 +46,8 @@ const same = (a: string, b: string) =>
 const every = (list: string[]) => (exts: string[]) => exts.length > 0 && exts.every((e) => list.includes(e));
 const images = every(IMAGE_EXTS);
 const pdfs = every(["pdf"]);
+/** Word and PowerPoint files: PDF through the installed Office. */
+const office = every(["doc", "docx", "rtf", "odt", "ppt", "pptx", "pps", "ppsx", "odp"]);
 const files = (exts: string[]) => exts.length > 0;
 
 const format = (to: string, fromPdf: boolean): Entry => ({
@@ -62,7 +64,11 @@ export const CATALOG: Record<OrbitMode, Entry[]> = {
 	convert: [
 		...["png", "jpg", "webp", "bmp", "gif", "tiff", "ico"].map((to) => format(to, to === "png" || to === "jpg")),
 		// Several images: one PDF each, or all of them in one PDF, side by side.
-		{ ...format("pdf", false), labelFor: (n) => (n > 1 ? "PDF each" : "PDF") },
+		{
+			...format("pdf", false),
+			fits: (exts) => images(exts) || office(exts),
+			labelFor: (n) => (n > 1 ? "PDF each" : "PDF")
+		},
 		{
 			id: "tool.image.pdf-combine",
 			label: "One PDF",
@@ -168,6 +174,51 @@ export function parseLayout(hidden: unknown, order: unknown, modes: unknown): Or
 		order: orderMap,
 		modes: modeList.length === MODES.length ? modeList : MODES
 	};
+}
+
+/** Page ranges typed for Split ("1-5, 6-20, 8") as [first, last] pairs, or
+ *  what is wrong with them. Empty means each page on its own. Mirrors
+ *  `parse_ranges` in orbit.rs. */
+export function parseRanges(text: string, pages: number): [number, number][] | string {
+	const parts = text
+		.split(",")
+		.map((p) => p.trim())
+		.filter(Boolean);
+	if (!parts.length) return Array.from({ length: pages }, (_, i) => [i + 1, i + 1]);
+	const out: [number, number][] = [];
+	for (const part of parts) {
+		const m = /^(\d+)\s*(?:-\s*(\d+))?$/.exec(part);
+		if (!m) return "Write pages like 1-5, 8";
+		const a = Number(m[1]);
+		const b = m[2] ? Number(m[2]) : a;
+		if (a < 1 || b < a) return `${part} isn't a range`;
+		if (b > pages) return `There are only ${pages} pages`;
+		out.push([a, b]);
+	}
+	return out;
+}
+
+export const formatRanges = (ranges: [number, number][]) =>
+	ranges.map(([a, b]) => (a === b ? `${a}` : `${a}-${b}`)).join(",");
+
+/** One-click choices around the Split ring. With several PDFs (page counts
+ *  may differ) only the ones that fit every file. */
+export function splitPresets(pages: number, files: number): { label: string; hint: string; ranges: string }[] {
+	if (pages < 2) return [];
+	const half = Math.ceil(pages / 2);
+	const list = [
+		{ label: "Each page", hint: `${pages} PDFs`, ranges: "" },
+		{ label: "First page", hint: "1", ranges: "1" }
+	];
+	if (files === 1)
+		list.splice(
+			1,
+			0,
+			{ label: "Halves", hint: `1-${half} · ${half + 1}-${pages}`, ranges: `1-${half},${half + 1}-${pages}` },
+			{ label: "Without first", hint: `2-${pages}`, ranges: `2-${pages}` }
+		);
+	if (files === 1) list.push({ label: "Last page", hint: `${pages}`, ranges: `${pages}` });
+	return list;
 }
 
 // Wheel geometry in CSS pixels from the centre (OrbitDrop's WheelGeometry).

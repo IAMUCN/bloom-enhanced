@@ -167,6 +167,8 @@ fn main() {
             orbit::orbit_close,
             orbit::orbit_hide,
             orbit::orbit_shrink,
+            orbit::orbit_focus,
+            orbit::orbit_pdf_pages,
             clipboard::clipboard_drag_text,
             shelf_prune,
             shelf_open,
