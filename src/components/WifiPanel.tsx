@@ -3,6 +3,8 @@ import { invoke } from "@tauri-apps/api/core";
 import { listen } from "@tauri-apps/api/event";
 import {
 	ChevronLeft,
+	Eye,
+	EyeOff,
 	LoaderCircle,
 	Lock,
 	MapPin,
@@ -64,6 +66,7 @@ export function WifiPanel({ enabled, onToggle, onBack, onPinChange }: WifiPanelP
 	// A saved network whose stored password stopped working also gets a field.
 	const [askPassword, setAskPassword] = useState<string | null>(null);
 	const [password, setPassword] = useState("");
+	const [showPassword, setShowPassword] = useState(false);
 	const [busy, setBusy] = useState<string | null>(null);
 	const [error, setError] = useState<{ ssid: string; text: string } | null>(null);
 	const scanFallback = useRef<number | null>(null);
@@ -197,9 +200,10 @@ export function WifiPanel({ enabled, onToggle, onBack, onPinChange }: WifiPanelP
 		return (
 			<div className="qp-row-actions">
 				{needsPassword && !n.connected && (
+					<div className="qp-password">
 					<input
 						className="qp-input"
-						type="password"
+						type={showPassword ? "text" : "password"}
 						placeholder="Password"
 						autoFocus
 						value={password}
@@ -213,6 +217,17 @@ export function WifiPanel({ enabled, onToggle, onBack, onPinChange }: WifiPanelP
 							if (e.key === "Escape") collapse();
 						}}
 					/>
+					{/* Our own reveal button: WebView2's built-in one ignores the theme. */}
+					<button
+						type="button"
+						className="qp-icon-btn qp-reveal"
+						title={showPassword ? "Hide password" : "Show password"}
+						onPointerDown={(e) => e.preventDefault()}
+						onClick={() => setShowPassword((v) => !v)}
+					>
+						{showPassword ? <EyeOff /> : <Eye />}
+					</button>
+					</div>
 				)}
 				<div className="qp-btn-row">
 					{n.connected ? (

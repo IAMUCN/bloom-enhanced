@@ -314,6 +314,29 @@
 	outline: none;
 }
 
+.qp-input::-ms-reveal,
+.qp-input::-ms-clear {
+	display: none;
+}
+
+.qp-password {
+	position: relative;
+	display: flex;
+}
+
+.qp-password .qp-input {
+	flex: 1;
+	min-width: 0;
+	padding-right: 28px;
+}
+
+.qp-reveal {
+	position: absolute;
+	right: 1px;
+	top: 1px;
+	color: var(--bloom-text-muted, rgba(255, 255, 255, 0.6));
+}
+
 .qp-input:focus {
 	border-color: var(--bloom-text-muted, rgba(255, 255, 255, 0.5));
 }
