@@ -1,12 +1,14 @@
-// The file wheel (`orbit` window), OrbitDrop's radial menu in Bloom's look.
+// The circular menu (`orbit` window), OrbitDrop's radial menu in Bloom's look.
 // The backend (orbit.rs) opens this window around the pointer when Shift is
-// tapped during a file drag, or on the shortcut with files selected in File
-// Explorer. Letting the drag go on an option (or clicking one) runs it; the
-// wheel then shrinks to a status card until the job is done.
+// tapped during a drag (files or selected text), or on the shortcut with
+// files selected in File Explorer. Letting the drag go on an option (or
+// clicking one) runs it; the menu then shrinks to a status pill showing the
+// percentage until the job is done.
 import React, { useCallback, useEffect, useRef, useState } from "react";
 import ReactDOM from "react-dom/client";
 import { invoke } from "@tauri-apps/api/core";
 import { listen } from "@tauri-apps/api/event";
+import { writeText } from "@tauri-apps/plugin-clipboard-manager";
 import {
 	ClipboardPlus,
 	Contrast,
@@ -27,7 +29,21 @@ import {
 	Wallpaper,
 	X
 } from "lucide-react";
-import { HUB, INNER_R, MODE_LABEL, MODES, OUTER_R, hitTest, modesFor, opsFor, type OrbitMode, type OrbitOp } from "./orbitOps";
+import {
+	HUB,
+	INNER_R,
+	MODE_LABEL,
+	OUTER_R,
+	asMode,
+	hitTest,
+	modesFor,
+	opsFor,
+	parseHidden,
+	type OrbitInput,
+	type OrbitMode,
+	type OrbitOp
+} from "./orbitOps";
+import { useSettingsSync } from "./hooks/useSettingsSync";
 import { initTheme } from "./theme";
 import "./Orbit.css";
 
@@ -54,6 +70,7 @@ const ICONS: Record<string, typeof Copy> = {
 const SIZE = 360;
 const C = SIZE / 2;
 const GAP = 2.5; // degrees between slices
+const STATUS = { width: 300, height: 64 };
 
 document.addEventListener("contextmenu", (e) => e.preventDefault());
 
@@ -66,7 +83,8 @@ interface Outcome {
 type Phase =
 	| { kind: "closed" }
 	| { kind: "wheel" }
-	| { kind: "running"; op: OrbitOp; done: number; total: number }
+	/** percent is null while a folder picker is open (Copy to / Move to). */
+	| { kind: "running"; op: OrbitOp; percent: number | null }
 	| { kind: "done"; text: string; failed: boolean };
 
 const point = (r: number, deg: number) => {
@@ -85,21 +103,47 @@ function slicePath(a0: number, a1: number) {
 }
 
 const fileName = (p: string) => p.split(/[\\/]/).pop() ?? p;
+const PICKS_FOLDER = ["action.copy-to", "action.move-to"];
+const hasInput = (input: OrbitInput) => input.paths.length > 0 || !!input.text;
+const shrink = () => invoke("orbit_shrink", STATUS).catch(() => {});
+
+type DragPayload = { paths?: string[]; text?: string; position: { x: number; y: number } };
+const inputOf = (p: DragPayload): OrbitInput => (p.paths ? { paths: p.paths } : { paths: [], text: p.text });
 
 function Orbit() {
 	const [phase, setPhase] = useState<Phase>({ kind: "closed" });
-	const [paths, setPaths] = useState<string[]>([]);
+	const [input, setInput] = useState<OrbitInput>({ paths: [] });
 	const [mode, setMode] = useState<OrbitMode>("convert");
 	const [hover, setHover] = useState(HUB);
+	// Settings › Circular Menu: hidden options and the menu shown first.
+	const [hidden, setHidden] = useState<string[]>([]);
+	const [first, setFirst] = useState<OrbitMode>("convert");
 	const phaseRef = useRef(phase);
 	phaseRef.current = phase;
-	const state = useRef({ paths, mode });
-	state.current = { paths, mode };
+	const state = useRef({ input, mode, hidden, first });
+	state.current = { input, mode, hidden, first };
 
 	useEffect(() => initTheme(), []);
+	useEffect(() => {
+		invoke<Record<string, string>>("load_settings")
+			.then((s) => {
+				setHidden(parseHidden(s["bloom-files-hidden"]));
+				setFirst(asMode(s["bloom-files-first-mode"]));
+			})
+			.catch(() => {});
+	}, []);
+	useSettingsSync({
+		"bloom-files-hidden": (v) => setHidden(parseHidden(v)),
+		"bloom-files-first-mode": (v) => setFirst(asMode(v))
+	});
 
-	const modes = paths.length ? modesFor(paths) : MODES;
-	const ops = opsFor(paths, mode);
+	/** Modes for the current input; before a drag has entered, every mode. */
+	const modesNow = useCallback(() => {
+		const { input, hidden, first } = state.current;
+		return hasInput(input) ? modesFor(input, hidden, first) : modesFor({ paths: ["x.png"] }, [], first);
+	}, []);
+	const modes = modesNow();
+	const ops = opsFor(input, mode, hidden);
 
 	const close = useCallback(() => {
 		setPhase({ kind: "closed" });
@@ -107,20 +151,42 @@ function Orbit() {
 	}, []);
 
 	const cycle = useCallback(() => {
-		const { paths } = state.current;
-		const list = paths.length ? modesFor(paths) : MODES;
+		const list = modesNow();
 		setMode((m) => list[(list.indexOf(m) + 1) % list.length] ?? m);
 		setHover(HUB);
-	}, []);
+	}, [modesNow]);
+
+	const finish = useCallback(
+		(text: string, failed: boolean) => {
+			setPhase({ kind: "done", text, failed });
+			shrink();
+			setTimeout(() => {
+				if (phaseRef.current.kind === "done") close();
+			}, failed ? 6000 : 2200);
+		},
+		[close]
+	);
 
 	const run = useCallback(
-		async (op: OrbitOp, files: string[]) => {
-			setPhase({ kind: "running", op, done: 0, total: files.length });
-			invoke("orbit_shrink", { width: 300, height: 64 }).catch(() => {});
+		async (op: OrbitOp, input: OrbitInput) => {
+			// Dragged text: handled here, there is no file to write.
+			if (input.text) {
+				try {
+					if (op.id === "action.copy-text") await writeText(input.text);
+					else await invoke("clipboard_add", { paths: [], text: input.text });
+					finish(op.id === "action.copy-text" ? "Copied" : "Added to the shelf", false);
+				} catch (e) {
+					finish(String(e), true);
+				}
+				return;
+			}
+			const picking = PICKS_FOLDER.includes(op.id);
+			setPhase({ kind: "running", op, percent: picking ? null : 0 });
+			if (!picking) shrink();
 			let text: string;
 			let failed = false;
 			try {
-				const outcomes = await invoke<Outcome[]>("orbit_run", { op: op.id, paths: files });
+				const outcomes = await invoke<Outcome[]>("orbit_run", { op: op.id, paths: input.paths });
 				const errors = outcomes.filter((o) => o.error);
 				const outputs = outcomes.flatMap((o) => (o.output ? [o.output] : []));
 				if (errors.length && errors.every((o) => o.error === "Canceled")) text = "Canceled";
@@ -128,7 +194,7 @@ function Orbit() {
 					failed = true;
 					const name = fileName(errors[0].source);
 					text =
-						errors.length === outcomes.length && outcomes.length === 1
+						outcomes.length === 1
 							? `${name}: ${errors[0].error}`
 							: `${errors.length} of ${outcomes.length} failed. ${name}: ${errors[0].error}`;
 				} else if (outputs.length === 1) text = `Saved ${fileName(outputs[0])}`;
@@ -138,23 +204,23 @@ function Orbit() {
 				failed = true;
 				text = String(e);
 			}
-			setPhase({ kind: "done", text, failed });
-			setTimeout(() => {
-				if (phaseRef.current.kind === "done") close();
-			}, failed ? 6000 : 2200);
+			finish(text, failed);
 		},
-		[close]
+		[finish]
 	);
 
-	// Points arrive in physical client pixels.
-	const hitAt = (x: number, y: number) =>
-		hitTest(x / devicePixelRatio - C, y / devicePixelRatio - C, opsFor(state.current.paths, state.current.mode).length);
-
 	useEffect(() => {
+		// Points arrive in physical client pixels.
+		const hitAt = (x: number, y: number, input = state.current.input) => {
+			const { mode, hidden } = state.current;
+			return hitTest(x / devicePixelRatio - C, y / devicePixelRatio - C, opsFor(input, mode, hidden).length);
+		};
 		const offs = [
 			listen<{ paths: string[]; drag: boolean }>("orbit-open", (e) => {
-				setPaths(e.payload.paths);
-				setMode((e.payload.paths.length ? modesFor(e.payload.paths) : MODES)[0]);
+				const next = { paths: e.payload.paths };
+				setInput(next);
+				state.current.input = next;
+				setMode(modesNow()[0] ?? "convert");
 				setHover(HUB);
 				setPhase({ kind: "wheel" });
 			}),
@@ -162,27 +228,31 @@ function Orbit() {
 			listen("orbit-shift", () => {
 				if (phaseRef.current.kind === "wheel") cycle();
 			}),
-			listen<{ paths?: string[]; position: { x: number; y: number } }>("orbit-drag-enter", (e) => {
-				if (phaseRef.current.kind !== "wheel" || !e.payload.paths) return;
-				const next = e.payload.paths;
-				if (next.join("|") !== state.current.paths.join("|")) {
-					setPaths(next);
-					const list = modesFor(next);
-					if (!list.includes(state.current.mode)) setMode(list[0]);
+			listen<number>("orbit-progress", (e) => {
+				const p = phaseRef.current;
+				if (p.kind !== "running") return;
+				if (p.percent === null) shrink();
+				setPhase({ ...p, percent: e.payload });
+			}),
+			listen<DragPayload>("orbit-drag-enter", (e) => {
+				if (phaseRef.current.kind !== "wheel") return;
+				const next = inputOf(e.payload);
+				const { input } = state.current;
+				if (next.paths.join("|") !== input.paths.join("|") || next.text !== input.text) {
+					setInput(next);
+					state.current.input = next;
+					const list = modesNow();
+					if (!list.includes(state.current.mode)) setMode(list[0] ?? "actions");
 				}
 				setHover(hitAt(e.payload.position.x, e.payload.position.y));
 			}),
 			listen<{ x: number; y: number }>("orbit-drag-over", (e) => setHover(hitAt(e.payload.x, e.payload.y))),
-			listen<{ paths?: string[]; position: { x: number; y: number } }>("orbit-drag-drop", (e) => {
-				if (phaseRef.current.kind !== "wheel" || !e.payload.paths) return;
-				const files = e.payload.paths;
-				const list = opsFor(files, state.current.mode);
-				const i = hitTest(
-					e.payload.position.x / devicePixelRatio - C,
-					e.payload.position.y / devicePixelRatio - C,
-					list.length
-				);
-				if (i >= 0) run(list[i], files);
+			listen<DragPayload>("orbit-drag-drop", (e) => {
+				if (phaseRef.current.kind !== "wheel") return;
+				const dropped = inputOf(e.payload);
+				const { mode, hidden } = state.current;
+				const i = hitAt(e.payload.position.x, e.payload.position.y, dropped);
+				if (i >= 0) run(opsFor(dropped, mode, hidden)[i], dropped);
 				else close();
 			}),
 			// The drag ended: unless it landed on an option, close.
@@ -193,21 +263,20 @@ function Orbit() {
 			)
 		];
 		return () => offs.forEach((p) => p.then((off) => off()));
-	}, [close, cycle, run]);
+	}, [close, cycle, run, modesNow]);
 
 	if (phase.kind === "closed") return null;
+	if (phase.kind === "running" && phase.percent === null) return null;
 
 	if (phase.kind === "running" || phase.kind === "done") {
+		const failed = phase.kind === "done" && phase.failed;
 		return (
-			<div className={`orbit-status${phase.kind === "done" && phase.failed ? " failed" : ""}`} onClick={phase.kind === "done" ? close : undefined}>
+			<div className={`orbit-status${failed ? " failed" : ""}`} onClick={phase.kind === "done" ? close : undefined}>
 				{phase.kind === "running" ? (
 					<>
-						<span className="orbit-spinner" />
-						<span className="orbit-status-text">
-							{phase.op.progress}
-							{phase.total > 1 ? ` · ${phase.total} files` : ""}…
-						</span>
-						<button title="Cancel" onClick={() => invoke("orbit_cancel").catch(() => {})}>
+						<span className="orbit-status-text">{phase.op.progress}</span>
+						<span className="orbit-percent">{phase.percent}%</span>
+						<button title="Cancel (Esc)" onClick={() => invoke("orbit_cancel").catch(() => {})}>
 							<X size={14} />
 						</button>
 					</>
@@ -219,6 +288,7 @@ function Orbit() {
 	}
 
 	const step = 360 / Math.max(1, ops.length);
+	const count = input.paths.length;
 	return (
 		<div className="orbit">
 			<svg
@@ -228,7 +298,7 @@ function Orbit() {
 				onPointerLeave={() => setHover(HUB)}
 				onClick={(e) => {
 					const i = hitTest(e.clientX - C, e.clientY - C, ops.length);
-					if (i >= 0 && paths.length) run(ops[i], paths);
+					if (i >= 0 && hasInput(input)) run(ops[i], input);
 					else if (i === HUB) cycle();
 					else close();
 				}}
@@ -259,8 +329,10 @@ function Orbit() {
 				<circle className="orbit-hub" cx={C} cy={C} r={INNER_R - 6} />
 				<foreignObject x={C - 50} y={C - 30} width={100} height={60}>
 					<div className="orbit-hub-label">
-						<strong>{paths.length ? MODE_LABEL[mode] : "Files"}</strong>
-						<span>{paths.length ? `${paths.length} file${paths.length > 1 ? "s" : ""}` : "Move to choose"}</span>
+						<strong>{input.text ? "Text" : count ? MODE_LABEL[mode] : "Files"}</strong>
+						<span>
+							{input.text ? "Selected text" : count ? `${count} file${count > 1 ? "s" : ""}` : "Move to choose"}
+						</span>
 						<div className="orbit-dots">
 							{modes.map((m) => (
 								<i key={m} className={m === mode ? "on" : ""} />

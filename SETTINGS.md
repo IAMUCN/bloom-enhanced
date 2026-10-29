@@ -101,9 +101,11 @@ Edit `settings.json` with any text editor while Bloom is running. Changes are ap
 
 | Key | Type | Default | Description |
 | --- | --- | --- | --- |
-| `bloom-files-enabled` | `"true"` / `"false"` | `"true"` | The file wheel: convert, edit and act on files (images, PDF pages, ZIP). Results are written next to the original, never over it or over another file (" (2)" is added instead). `"false"` turns off both ways of opening it. |
-| `bloom-files-drag` | `"true"` / `"false"` | `"true"` | While dragging files, tapping Shift opens the wheel around the pointer; let go on an option to run it. Shift again switches Convert / Tools / Actions, Esc cancels. |
+| `bloom-files-enabled` | `"true"` / `"false"` | `"true"` | The file wheel (Settings › Circular Menu): convert, edit and act on files (images, PDF pages, ZIP). Results are written next to the original, never over it or over another file (" (2)" is added instead); while being written they are hidden temp files, removed on cancel (Esc or ×) or failure. `"false"` turns off both ways of opening it. |
+| `bloom-files-drag` | `"true"` / `"false"` | `"true"` | While dragging files (or selected text: To shelf, Copy text), tapping Shift opens the wheel around the pointer; let go on an option to run it. Shift again switches Convert / Tools / Actions, Esc cancels. |
 | `bloom-files-shortcut` | e.g. `"Ctrl+Alt+Space"`, `"F8"` | `"Ctrl+Alt+Space"` | Opens the wheel for the files selected in File Explorer or on the desktop. `""` = no shortcut. Same format as `bloom-clipboard-shortcut`. |
+| `bloom-files-first-mode` | `"convert"` / `"tools"` / `"actions"` | `"convert"` | The menu the wheel opens on; Shift then goes on to the others in this order. A menu with no options for the files is skipped. |
+| `bloom-files-hidden` | JSON list of option ids, e.g. `["action.wallpaper","convert.ico"]` | `[]` | Options left out of the wheel (Settings › Circular Menu, click a chip). Ids are listed in `src/orbitOps.ts` (`CATALOG`). |
 
 ### Shelf
 

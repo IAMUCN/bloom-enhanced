@@ -754,6 +754,13 @@ body {
 	opacity: 0.8;
 }
 
+.orbit-chips {
+	display: flex;
+	flex-wrap: wrap;
+	gap: 6px;
+	padding: 12px 14px;
+}
+
 .folder-chip {
 	display: inline-flex;
 	align-items: center;

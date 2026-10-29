@@ -29,8 +29,8 @@ const TABS: { id: SettingsTab; label: string; icon: typeof Settings }[] = [
 	{ id: "appearance", label: "Appearance", icon: Palette },
 	{ id: "notch", label: "Notch", icon: PanelTop },
 	{ id: "dock", label: "Dock", icon: Monitor },
-	{ id: "clipboard", label: "Clipboard", icon: ClipboardList },
-	{ id: "files", label: "Files", icon: Orbit },
+	{ id: "clipboard", label: "Shelf", icon: ClipboardList },
+	{ id: "files", label: "Circular Menu", icon: Orbit },
 	{ id: "overlays", label: "Overlays", icon: Layers },
 	{ id: "about", label: "About", icon: Info }
 ];
@@ -41,7 +41,7 @@ const TAB_COPY: Record<SettingsTab, string> = {
 	notch: "Choose what appears at the top of your screen.",
 	dock: "Shape the taskbar replacement around your workflow.",
 	clipboard: "Everything you copy, kept on this PC and opened from the notch.",
-	files: "Convert and act on files from a wheel, without opening an app.",
+	files: "Convert and act on files from a ring around the pointer, without opening an app.",
 	overlays: "Keep quick controls visible only when you need them.",
 	about: "Version, updates and your settings data."
 };

@@ -18,7 +18,8 @@
 
 use std::io::{Cursor, Write as _};
 use std::path::{Path, PathBuf};
-use std::sync::atomic::{AtomicBool, AtomicU8, Ordering};
+use std::sync::atomic::{AtomicBool, AtomicU32, AtomicU8, Ordering};
+use std::sync::OnceLock;
 use std::time::Duration;
 
 use serde::Serialize;
@@ -32,6 +33,13 @@ const WHEEL_SIZE: f64 = 360.0;
 
 static ARMED: AtomicBool = AtomicBool::new(false);
 static CANCEL: AtomicBool = AtomicBool::new(false);
+/// A job is running: Esc cancels it instead of closing the wheel.
+static RUNNING: AtomicBool = AtomicBool::new(false);
+static APP: OnceLock<AppHandle> = OnceLock::new();
+/// Progress of the running job: file `FILE` of `FILES`, last percent sent.
+static FILE: AtomicU32 = AtomicU32::new(0);
+static FILES: AtomicU32 = AtomicU32::new(1);
+static PERCENT: AtomicU32 = AtomicU32::new(u32::MAX);
 /// 0 = closed, 1 = opened by a drag, 2 = opened by the shortcut.
 static OPEN: AtomicU8 = AtomicU8::new(0);
 const BY_DRAG: u8 = 1;
@@ -53,6 +61,7 @@ fn drag_gesture_on() -> bool {
 /// wheel window on screen (off view) so its drop target is live before the
 /// first drag.
 pub fn start(app: AppHandle) {
+    let _ = APP.set(app.clone());
     if let Some(win) = app.get_webview_window("orbit") {
         let _ = win.set_position(tauri::PhysicalPosition::new(PARKED, PARKED));
         let _ = win.show();
@@ -176,7 +185,11 @@ fn detector(app: AppHandle) {
             }
         }
         if now_escape && !escape && open != 0 {
-            close_wheel(&app);
+            if RUNNING.load(Ordering::Relaxed) {
+                CANCEL.store(true, Ordering::Relaxed);
+            } else {
+                close_wheel(&app);
+            }
         }
         if !now_button && button {
             ARMED.store(false, Ordering::Relaxed);
@@ -186,7 +199,12 @@ fn detector(app: AppHandle) {
                 let _ = app.emit_to("orbit", "orbit-release", ());
             }
         }
-        if now_button && !button && open == BY_SHORTCUT && !cursor_in_wheel(&app) {
+        if now_button
+            && !button
+            && open == BY_SHORTCUT
+            && !RUNNING.load(Ordering::Relaxed)
+            && !cursor_in_wheel(&app)
+        {
             close_wheel(&app);
         }
         (shift, escape, button) = (now_shift, now_escape, now_button);
@@ -417,15 +435,95 @@ fn temp_in(dir: &Path) -> PathBuf {
     dir.join(format!(".klyro-{nanos}.tmp"))
 }
 
-/// Writes a new file next to `source` named after it ("photo (rotated).png"):
-/// `write` fills a temp file in the same folder, which is published only if it
-/// is non-empty. On any failure the temp file is removed, so nothing partial
-/// is ever left behind.
+/// Sets or clears the hidden attribute: temp files stay out of sight in
+/// Explorer while they are written.
+fn set_hidden(path: &Path, hidden: bool) {
+    use windows::Win32::Storage::FileSystem::{
+        GetFileAttributesW, SetFileAttributesW, FILE_ATTRIBUTE_HIDDEN, FILE_FLAGS_AND_ATTRIBUTES,
+        INVALID_FILE_ATTRIBUTES,
+    };
+    let name = HSTRING::from(path.as_os_str());
+    unsafe {
+        let attrs = GetFileAttributesW(&name);
+        if attrs == INVALID_FILE_ATTRIBUTES {
+            return;
+        }
+        let attrs = if hidden {
+            attrs | FILE_ATTRIBUTE_HIDDEN.0
+        } else {
+            attrs & !FILE_ATTRIBUTE_HIDDEN.0
+        };
+        let _ = SetFileAttributesW(&name, FILE_FLAGS_AND_ATTRIBUTES(attrs));
+    }
+}
+
+fn canceled() -> Result<(), String> {
+    if CANCEL.load(Ordering::Relaxed) {
+        Err("Canceled".into())
+    } else {
+        Ok(())
+    }
+}
+
+/// Copies in 1 MB chunks, stopping when the job is canceled; `done` gets the
+/// bytes copied so far.
+fn copy_chunks(
+    from: &mut impl std::io::Read,
+    to: &mut impl std::io::Write,
+    mut done: impl FnMut(u64),
+) -> Result<(), String> {
+    let mut buf = vec![0u8; 1 << 20];
+    let mut total = 0u64;
+    loop {
+        canceled()?;
+        let n = from.read(&mut buf).map_err(|e| e.to_string())?;
+        if n == 0 {
+            return Ok(());
+        }
+        to.write_all(&buf[..n]).map_err(|e| e.to_string())?;
+        total += n as u64;
+        done(total);
+    }
+}
+
+/// Writes a new file `stem.ext` (or "stem (2).ext" ...) into `dir`: `fill`
+/// writes a hidden temp file in that folder, which is published only if it is
+/// non-empty and the job wasn't canceled. On any failure the temp file is
+/// removed, so nothing partial is ever left behind.
+fn write_file(
+    dir: &Path,
+    stem: &str,
+    ext: &str,
+    fill: impl FnOnce(&mut std::fs::File) -> Result<(), String>,
+) -> Result<PathBuf, String> {
+    let temp = temp_in(dir);
+    let mut file = std::fs::OpenOptions::new()
+        .write(true)
+        .create_new(true)
+        .open(&temp)
+        .map_err(|e| e.to_string())?;
+    set_hidden(&temp, true);
+    let filled = fill(&mut file);
+    drop(file);
+    let result = filled
+        .and_then(|()| canceled())
+        .and_then(|()| match std::fs::metadata(&temp) {
+            Ok(m) if m.len() > 0 => publish(&temp, dir, stem, ext, false),
+            _ => Err("The output was empty.".into()),
+        });
+    let _ = std::fs::remove_file(&temp);
+    if let Ok(out) = &result {
+        set_hidden(out, false);
+    }
+    result
+}
+
+/// [`write_file`] next to `source`, named after it ("photo (rotated).png").
 fn write_output(
     source: &Path,
     ext: &str,
     suffix: Option<&str>,
-    write: impl FnOnce(&Path) -> Result<(), String>,
+    fill: impl FnOnce(&mut std::fs::File) -> Result<(), String>,
 ) -> Result<PathBuf, String> {
     let dir = source.parent().ok_or("The file has no folder.")?;
     let stem = source.file_stem().unwrap_or_default().to_string_lossy();
@@ -433,22 +531,11 @@ fn write_output(
         Some(s) => format!("{stem} ({s})"),
         None => stem.into_owned(),
     };
-    let temp = temp_in(dir);
-    let result = write(&temp).and_then(|()| {
-        if CANCEL.load(Ordering::Relaxed) {
-            return Err("Canceled".into());
-        }
-        match std::fs::metadata(&temp) {
-            Ok(m) if m.len() > 0 => publish(&temp, dir, &stem, ext, false),
-            _ => Err("The output was empty.".into()),
-        }
-    });
-    let _ = std::fs::remove_file(&temp);
-    result
+    write_file(dir, &stem, ext, fill)
 }
 
-/// The folder version of [`write_output`]: `fill` populates a temp folder
-/// that is then renamed to `name` (or "name (2)" ...).
+/// The folder version of [`write_file`]: `fill` populates a hidden temp
+/// folder that is then renamed to `name` (or "name (2)" ...).
 fn write_folder(
     dir: &Path,
     name: &str,
@@ -456,17 +543,31 @@ fn write_folder(
 ) -> Result<PathBuf, String> {
     let temp = temp_in(dir);
     std::fs::create_dir(&temp).map_err(|e| e.to_string())?;
-    let result = fill(&temp).and_then(|()| {
-        if CANCEL.load(Ordering::Relaxed) {
-            return Err("Canceled".into());
-        }
+    set_hidden(&temp, true);
+    let result = fill(&temp).and_then(|()| canceled()).and_then(|()| {
         if std::fs::read_dir(&temp).map_or(true, |mut d| d.next().is_none()) {
             return Err("Nothing was produced.".into());
         }
         publish(&temp, dir, name, "", false)
     });
     let _ = std::fs::remove_dir_all(&temp);
+    if let Ok(out) = &result {
+        set_hidden(out, false);
+    }
     result
+}
+
+/// Reports progress within the current file (0–1) to the wheel as a whole-job
+/// percentage, only when the number changes.
+fn progress(inner: f64) {
+    let files = FILES.load(Ordering::Relaxed).max(1) as f64;
+    let done = FILE.load(Ordering::Relaxed) as f64 + inner.clamp(0.0, 1.0);
+    let percent = ((done / files) * 100.0).floor() as u32;
+    if PERCENT.swap(percent, Ordering::Relaxed) != percent {
+        if let Some(app) = APP.get() {
+            let _ = app.emit_to("orbit", "orbit-progress", percent);
+        }
+    }
 }
 
 // ── Operations ──
@@ -553,8 +654,8 @@ fn save_bytes(
     suffix: Option<&str>,
     bytes: &[u8],
 ) -> Result<PathBuf, String> {
-    write_output(source, ext, suffix, |temp| {
-        std::fs::write(temp, bytes).map_err(|e| e.to_string())
+    write_output(source, ext, suffix, |f| {
+        f.write_all(bytes).map_err(|e| e.to_string())
     })
 }
 
@@ -638,10 +739,12 @@ fn pdf_pages(path: &Path, ext: &str) -> Result<Vec<Vec<u8>>, String> {
         let file = StorageFile::GetFileFromPathAsync(&HSTRING::from(path.as_os_str()))?.get()?;
         let document = PdfDocument::LoadFromFileAsync(&file)?.get()?;
         let mut pages = Vec::new();
-        for i in 0..document.PageCount()? {
+        let count = document.PageCount()?;
+        for i in 0..count {
             if CANCEL.load(Ordering::Relaxed) {
                 break;
             }
+            progress(i as f64 / count as f64);
             let page = document.GetPage(i)?;
             let options = PdfPageRenderOptions::new()?;
             // 2× the page's size in points: sharp enough to read and print.
@@ -708,10 +811,10 @@ fn extract_zip(path: &Path) -> Result<PathBuf, String> {
     // ponytail: no size cap, so a zip bomb fills the disk like Explorer's own
     // extractor would; add a free-space check if that ever matters.
     write_folder(dir, &stem, |temp| {
-        for i in 0..archive.len() {
-            if CANCEL.load(Ordering::Relaxed) {
-                return Err("Canceled".into());
-            }
+        let count = archive.len();
+        for i in 0..count {
+            canceled()?;
+            progress(i as f64 / count as f64);
             let mut entry = archive.by_index(i).map_err(|e| e.to_string())?;
             let Some(name) = entry.enclosed_name() else {
                 continue;
@@ -725,8 +828,12 @@ fn extract_zip(path: &Path) -> Result<PathBuf, String> {
                 std::fs::create_dir_all(parent).map_err(|e| e.to_string())?;
             }
             let mut f = std::fs::File::create(&out).map_err(|e| e.to_string())?;
-            std::io::copy(&mut entry, &mut f).map_err(|_| {
-                "The ZIP file is damaged or uses an unsupported compression.".to_string()
+            copy_chunks(&mut entry, &mut f, |_| {}).map_err(|e| {
+                if e == "Canceled" {
+                    e
+                } else {
+                    "The ZIP file is damaged or uses an unsupported compression.".to_string()
+                }
             })?;
         }
         Ok(())
@@ -743,35 +850,38 @@ fn make_zip(paths: &[PathBuf]) -> Result<PathBuf, String> {
     } else {
         first.with_file_name("Archive")
     };
-    write_output(&name_from, "zip", None, |temp| {
-        let mut zip = zip::ZipWriter::new(std::fs::File::create(temp).map_err(|e| e.to_string())?);
-        let options = SimpleFileOptions::default().large_file(true);
-        let mut add = |file: &Path, name: String| -> Result<(), String> {
-            if CANCEL.load(Ordering::Relaxed) {
-                return Err("Canceled".into());
-            }
-            zip.start_file(name, options).map_err(|e| e.to_string())?;
-            let mut f = std::fs::File::open(file).map_err(|e| e.to_string())?;
-            std::io::copy(&mut f, &mut zip).map_err(|e| e.to_string())?;
-            Ok(())
-        };
-        for path in paths {
-            let root = path.parent().unwrap_or(path);
-            let mut stack = vec![path.clone()];
-            while let Some(p) = stack.pop() {
-                if p.is_dir() {
-                    for entry in std::fs::read_dir(&p).map_err(|e| e.to_string())?.flatten() {
-                        stack.push(entry.path());
-                    }
-                } else {
-                    let name = p
-                        .strip_prefix(root)
-                        .unwrap_or(&p)
-                        .to_string_lossy()
-                        .replace('\\', "/");
-                    add(&p, name)?;
+    // Every file with its name in the archive, and the total size for progress.
+    let mut files: Vec<(PathBuf, String, u64)> = Vec::new();
+    for path in paths {
+        let root = path.parent().unwrap_or(path);
+        let mut stack = vec![path.clone()];
+        while let Some(p) = stack.pop() {
+            if p.is_dir() {
+                for entry in std::fs::read_dir(&p).map_err(|e| e.to_string())?.flatten() {
+                    stack.push(entry.path());
                 }
+            } else {
+                let name = p
+                    .strip_prefix(root)
+                    .unwrap_or(&p)
+                    .to_string_lossy()
+                    .replace('\\', "/");
+                let size = std::fs::metadata(&p).map_or(0, |m| m.len());
+                files.push((p, name, size));
             }
+        }
+    }
+    let total = files.iter().map(|f| f.2).sum::<u64>().max(1) as f64;
+    write_output(&name_from, "zip", None, |out| {
+        let mut zip = zip::ZipWriter::new(out);
+        let options = SimpleFileOptions::default().large_file(true);
+        let mut before = 0u64;
+        for (path, name, size) in &files {
+            zip.start_file(name.as_str(), options)
+                .map_err(|e| e.to_string())?;
+            let mut f = std::fs::File::open(path).map_err(|e| e.to_string())?;
+            copy_chunks(&mut f, &mut zip, |n| progress((before + n) as f64 / total))?;
+            before += size;
         }
         zip.finish()
             .map_err(|e| e.to_string())?
@@ -780,15 +890,20 @@ fn make_zip(paths: &[PathBuf]) -> Result<PathBuf, String> {
     })
 }
 
-fn copy_tree(from: &Path, to: &Path) -> std::io::Result<()> {
+fn copy_tree(from: &Path, to: &Path) -> Result<(), String> {
     if from.is_dir() {
-        std::fs::create_dir(to)?;
-        for entry in std::fs::read_dir(from)?.flatten() {
+        std::fs::create_dir(to).map_err(|e| e.to_string())?;
+        for entry in std::fs::read_dir(from)
+            .map_err(|e| e.to_string())?
+            .flatten()
+        {
             copy_tree(&entry.path(), &to.join(entry.file_name()))?;
         }
         Ok(())
     } else {
-        std::fs::copy(from, to).map(|_| ())
+        let mut src = std::fs::File::open(from).map_err(|e| e.to_string())?;
+        let mut dst = std::fs::File::create(to).map_err(|e| e.to_string())?;
+        copy_chunks(&mut src, &mut dst, |_| {})
     }
 }
 
@@ -822,12 +937,22 @@ fn transfer(path: &Path, dir: &Path, keep: bool) -> Result<PathBuf, String> {
             }
         });
     }
-    let temp = temp_in(dir);
-    let result = copy_tree(path, &temp)
-        .map_err(|e| e.to_string())
-        .and_then(|()| publish(&temp, dir, &stem, &ext, false));
-    let _ = std::fs::remove_dir_all(&temp).or_else(|_| std::fs::remove_file(&temp));
-    result
+    if path.is_dir() {
+        return write_folder(dir, &stem, |temp| {
+            for entry in std::fs::read_dir(path)
+                .map_err(|e| e.to_string())?
+                .flatten()
+            {
+                copy_tree(&entry.path(), &temp.join(entry.file_name()))?;
+            }
+            Ok(())
+        });
+    }
+    let size = std::fs::metadata(path).map_or(1, |m| m.len().max(1)) as f64;
+    write_file(dir, &stem, &ext, |out| {
+        let mut src = std::fs::File::open(path).map_err(|e| e.to_string())?;
+        copy_chunks(&mut src, out, |n| progress(n as f64 / size))
+    })
 }
 
 fn set_wallpaper(path: &Path) -> Result<(), String> {
@@ -891,6 +1016,9 @@ fn run(app: &AppHandle, op: &str, paths: &[PathBuf]) -> Vec<Outcome> {
         error: result.err(),
     };
     let first = paths.first().cloned().unwrap_or_default();
+    FILE.store(0, Ordering::Relaxed);
+    FILES.store(1, Ordering::Relaxed);
+    PERCENT.store(u32::MAX, Ordering::Relaxed);
     // Options that act on the whole set at once.
     let whole: Option<Result<Option<PathBuf>, String>> = match op {
         "action.copy-path" | "action.copy-name" => {
@@ -959,10 +1087,9 @@ fn run(app: &AppHandle, op: &str, paths: &[PathBuf]) -> Vec<Outcome> {
         "action.zip" => Some(make_zip(paths).map(Some)),
         "tool.image.pdf-combine" => Some((|| {
             let mut pages = Vec::new();
-            for p in paths {
-                if CANCEL.load(Ordering::Relaxed) {
-                    return Err("Canceled".to_string());
-                }
+            for (i, p) in paths.iter().enumerate() {
+                canceled()?;
+                progress(i as f64 / paths.len() as f64);
                 pages.push(pdf_page(&decode(p)?)?);
             }
             save_bytes(&first, "pdf", Some("combined"), &pdf_from_jpegs(&pages)).map(Some)
@@ -1000,11 +1127,9 @@ fn run(app: &AppHandle, op: &str, paths: &[PathBuf]) -> Vec<Outcome> {
             outcomes.push(outcome(path, Err("Canceled".into())));
             continue;
         }
-        let _ = app.emit_to(
-            "orbit",
-            "orbit-progress",
-            serde_json::json!({ "done": i, "total": total }),
-        );
+        FILE.store(i as u32, Ordering::Relaxed);
+        FILES.store(total as u32, Ordering::Relaxed);
+        progress(0.0);
         let ext = ext_of(path);
         let result = match op.split('.').collect::<Vec<_>>().as_slice() {
             ["convert", to] if ext == "pdf" => convert_pdf(path, to),
@@ -1028,8 +1153,8 @@ fn run(app: &AppHandle, op: &str, paths: &[PathBuf]) -> Vec<Outcome> {
 }
 
 /// Runs a wheel option on `paths`. Progress goes to the wheel as
-/// `orbit-progress`; [`orbit_cancel`] stops between files (and between pages
-/// or archive entries).
+/// `orbit-progress` (percent); [`orbit_cancel`] or Esc stops between files and
+/// within copies, pages and archive entries.
 #[tauri::command]
 pub async fn orbit_run(
     app: AppHandle,
@@ -1048,9 +1173,12 @@ pub async fn orbit_run(
     if paths.is_empty() {
         return Err("The files are no longer there.".into());
     }
-    tauri::async_runtime::spawn_blocking(move || run(&app, &op, &paths))
+    RUNNING.store(true, Ordering::Relaxed);
+    let result = tauri::async_runtime::spawn_blocking(move || run(&app, &op, &paths))
         .await
-        .map_err(|e| e.to_string())
+        .map_err(|e| e.to_string());
+    RUNNING.store(false, Ordering::Relaxed);
+    result
 }
 
 #[tauri::command]
@@ -1061,6 +1189,11 @@ pub fn orbit_cancel() {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    fn is_hidden(path: &Path) -> bool {
+        use std::os::windows::fs::MetadataExt;
+        std::fs::metadata(path).unwrap().file_attributes() & 0x2 != 0
+    }
 
     #[test]
     fn output_never_replaces_and_leaves_no_temp() {
@@ -1088,6 +1221,7 @@ mod tests {
         let copied = transfer(&a, &dir, true).unwrap();
         assert_eq!(copied.file_name().unwrap(), "photo (rotated) (3).png");
 
+        assert!(!is_hidden(&copied), "outputs are visible once published");
         let leftovers = std::fs::read_dir(&dir)
             .unwrap()
             .flatten()
