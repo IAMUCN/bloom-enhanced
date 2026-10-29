@@ -1,4 +1,24 @@
-import { ClipboardList, EyeOff, History, Image, Keyboard, Layers, PanelLeft, Timer, Trash2 } from "lucide-react";
+import { useEffect, useState } from "react";
+import { availableMonitors } from "@tauri-apps/api/window";
+import {
+	BellRing,
+	ClipboardCheck,
+	ClipboardList,
+	EyeOff,
+	Globe,
+	History,
+	Image,
+	Keyboard,
+	Layers,
+	ListChecks,
+	Monitor,
+	PanelLeft,
+	StickyNote,
+	Timer,
+	Trash2,
+	Type
+} from "lucide-react";
+import { useClipboardSettings } from "../hooks/useClipboardSettings";
 import { SettingRow } from "./SettingRow";
 
 interface ClipboardTabProps {
@@ -19,7 +39,18 @@ interface ClipboardTabProps {
 	changePosition: (position: string) => void;
 	shortcut: string;
 	changeShortcut: (shortcut: string) => void;
+	saveSetting: (key: string, value: string | null) => Promise<boolean>;
 }
+
+// Optional Edge-Drop features, each on by default and switchable here.
+const FEATURE_TOGGLES = [
+	["richText", "bloom-clipboard-rich-text", Type, "Rich Text", "Keep formatting (HTML) of copied text and paste it back formatted"],
+	["linkPreviews", "bloom-clipboard-link-previews", Globe, "Link Previews", "Show a site badge, title and domain for copied links (made offline, nothing is fetched)"],
+	["notes", "bloom-clipboard-notes", StickyNote, "Notes & Tags", "Add a note or #tags to an item; noted items are kept through cleanup and searchable"],
+	["multiSelect", "bloom-clipboard-multi-select", ListChecks, "Multi-Select", "Ctrl-click or the select button to group, copy, pin or delete several items at once"],
+	["sounds", "bloom-clipboard-sounds", BellRing, "Sound Effects", "Short sounds when you copy, pin, group or delete in the clipboard"],
+	["copyIndicator", "bloom-clipboard-copy-indicator", ClipboardCheck, "Copy Indicator", "The notch shows a brief \"Copied\" when something is recorded"]
+] as const;
 
 const MODIFIER_KEYS = ["Control", "Alt", "Shift", "Meta"];
 
@@ -67,8 +98,16 @@ export function ClipboardTab({
 	position,
 	changePosition,
 	shortcut,
-	changeShortcut
+	changeShortcut,
+	saveSetting
 }: ClipboardTabProps) {
+	const options = useClipboardSettings();
+	const [monitors, setMonitors] = useState<string[]>([]);
+	useEffect(() => {
+		availableMonitors()
+			.then((list) => setMonitors(list.map((m) => m.name).filter((n): n is string => !!n)))
+			.catch(() => {});
+	}, []);
 	return (
 		<>
 			<div className="setting-group-label">Clipboard</div>
@@ -115,6 +154,23 @@ export function ClipboardTab({
 							</select>
 						</SettingRow>
 
+						{position !== "notch" && monitors.length > 1 && (
+							<SettingRow icon={Monitor} label="Shelf Monitor" desc="Which screen's edge the shelf slides out of">
+								<select
+									className="settings-select"
+									value={options.monitor}
+									onChange={(e) => saveSetting("bloom-clipboard-monitor", e.target.value)}
+								>
+									<option value="">Primary</option>
+									{monitors.map((name, i) => (
+										<option key={name} value={name}>
+											Display {i + 1}
+										</option>
+									))}
+								</select>
+							</SettingRow>
+						)}
+
 						<SettingRow
 							icon={Keyboard}
 							label="Shortcut"
@@ -158,6 +214,32 @@ export function ClipboardTab({
 					</select>
 				</SettingRow>
 			</div>
+
+			{enabled && (
+				<>
+					<div className="setting-group-label">Features</div>
+					<div className="setting-group">
+						{FEATURE_TOGGLES.map(([option, key, icon, label, desc], i) => (
+							<SettingRow
+								key={key}
+								icon={icon}
+								label={label}
+								desc={desc}
+								divider={i < FEATURE_TOGGLES.length - 1}
+							>
+								<label className="toggle-switch">
+									<input
+										type="checkbox"
+										checked={options[option]}
+										onChange={() => saveSetting(key, String(!options[option]))}
+									/>
+									<span className="slider"></span>
+								</label>
+							</SettingRow>
+						))}
+					</div>
+				</>
+			)}
 
 			<div className="setting-group-label">History</div>
 			<div className="setting-group">

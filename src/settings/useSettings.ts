@@ -1156,6 +1156,7 @@ export function useSettings() {
 		toggleClipboardGroupFiles,
 		clipboardThumbSize,
 		changeClipboardThumbSize,
+		saveSetting,
 		clipboardPosition,
 		changeClipboardPosition,
 		clipboardShortcut,

@@ -83,12 +83,19 @@ Edit `settings.json` with any text editor while Bloom is running. Changes are ap
 | --- | --- | --- | --- |
 | `bloom-clipboard-enabled` | `"true"` / `"false"` | `"true"` | Record copied text, links, images and files, and show the notch's Clipboard panel. `"false"` stops capture (the clipboard is not read at all). History is kept in `clipboard/` beside this file and never leaves the PC. |
 | `bloom-clipboard-incognito` | `"true"` / `"false"` | `"false"` | Pause capture; anything copied while on is never recorded. |
-| `bloom-clipboard-limit` | number string | `"200"` | Unpinned items kept; the oldest go first. |
-| `bloom-clipboard-retention-hours` | number string | `"0"` | Delete unpinned items older than this many hours; `"0"` keeps them until the limit removes them. |
-| `bloom-clipboard-group-files` | `"true"` / `"false"` | `"true"` | Several files copied at once are one stack (expand or ungroup it in the panel). `"false"` records each file as its own item. |
-| `bloom-clipboard-thumb-size` | `"small"` / `"medium"` / `"large"` | `"small"` | Thumbnail size in the Clipboard panel (32 / 48 / 72 px). |
-| `bloom-clipboard-position` | `"notch"` / `"left"` / `"right"` | `"notch"` | Where the history lives: the notch's Clipboard panel, or a shelf that slides out of the middle third of the left or right screen edge. That edge's volume/brightness hover keeps its top and bottom thirds. |
+| `bloom-clipboard-limit` | number string | `"200"` | Unpinned items kept; the oldest go first. Pinned and noted items never count against it. |
+| `bloom-clipboard-retention-hours` | number string | `"0"` | Delete items older than this many hours (pinned and noted items stay); `"0"` keeps them until the limit removes them. |
+| `bloom-clipboard-group-files` | `"true"` / `"false"` | `"true"` | Several files copied at once are one fanned stack (click it to see the files, or ungroup it). `"false"` records each file as its own item. Items can also be grouped later by dropping one tile on another or with multi-select. |
+| `bloom-clipboard-thumb-size` | `"small"` / `"medium"` / `"large"` | `"small"` | Minimum tile width in the clipboard grid (96 / 116 / 148 px); tiles stretch to fill the row. |
+| `bloom-clipboard-position` | `"notch"` / `"left"` / `"right"` | `"notch"` | Where the history lives: the notch's Clipboard panel, or a shelf that slides out of the left or right screen edge. On a shared edge the first of shelf and volume/brightness HUD to open keeps the edge until it closes. Dragging something in goes to the same place: the notch, or that edge. |
 | `bloom-clipboard-shortcut` | e.g. `"Alt+C"`, `"Ctrl+Shift+V"`, `"F9"` | `"Alt+C"` | Global shortcut that opens/closes the clipboard (notch panel or edge shelf). `""` = no shortcut. Letters, digits and Space need a modifier. |
+| `bloom-clipboard-monitor` | monitor device name as Windows reports it (ends in `DISPLAY2` etc.) | `""` | Screen whose edge the shelf uses; `""` = primary. Ignored when the clipboard is in the notch. |
+| `bloom-clipboard-rich-text` | `"true"` / `"false"` | `"true"` | Keep the HTML of formatted text (up to 64 KB) and paste it back formatted. |
+| `bloom-clipboard-link-previews` | `"true"` / `"false"` | `"true"` | Show a site badge, a title from the address and the domain for links. Made offline; nothing is fetched. |
+| `bloom-clipboard-notes` | `"true"` / `"false"` | `"true"` | Allow a note or #tags on items. Noted items are kept through cleanup and found by search. |
+| `bloom-clipboard-multi-select` | `"true"` / `"false"` | `"true"` | Ctrl-click or the select button picks several items to group, copy, pin or delete. |
+| `bloom-clipboard-sounds` | `"true"` / `"false"` | `"true"` | Short synthesized sounds for copy, pin/group and delete in the panel. |
+| `bloom-clipboard-copy-indicator` | `"true"` / `"false"` | `"true"` | The notch briefly shows "Copied" when something is recorded. |
 
 ### Shelf
 

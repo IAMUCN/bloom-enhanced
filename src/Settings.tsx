@@ -324,6 +324,7 @@ function SettingsApp() {
 							changePosition={settings.changeClipboardPosition}
 							shortcut={settings.clipboardShortcut}
 							changeShortcut={settings.changeClipboardShortcut}
+							saveSetting={settings.saveSetting}
 						/>
 					)}
 					{activeTab === "overlays" && (

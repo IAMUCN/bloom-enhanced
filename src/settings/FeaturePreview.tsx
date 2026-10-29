@@ -20,12 +20,23 @@ import type { useSettings } from "./useSettings";
 import type { SettingsTab } from "./types";
 import { PreviewMediaPlayer } from "./PreviewMediaPlayer";
 import { PreviewDock } from "./PreviewDock";
+import { ClipboardPreview, type ClipScene } from "./ClipboardPreview";
 import "../App.css";
 import "../Dock.css";
 import "../Overlay.css";
 
 type Settings = ReturnType<typeof useSettings>;
-type Feature = "clock" | "battery" | "theme" | "resting" | "device" | "music" | "dock" | "volume" | "brightness";
+type Feature =
+	| "clock"
+	| "battery"
+	| "theme"
+	| "resting"
+	| "device"
+	| "music"
+	| "dock"
+	| "volume"
+	| "brightness"
+	| ClipScene;
 
 const FEATURES: Partial<Record<SettingsTab, { id: Feature; label: string; description: string }[]>> = {
 	general: [
@@ -52,6 +63,15 @@ const FEATURES: Partial<Record<SettingsTab, { id: Feature; label: string; descri
 	overlays: [
 		{ id: "volume", label: "Volume", description: "Bloom's volume HUD slides in from the left edge." },
 		{ id: "brightness", label: "Brightness", description: "The brightness HUD appears on the right edge." }
+	],
+	clipboard: [
+		{ id: "clip-shelf", label: "Shelf", description: "Copied items as tiles; several files copied together fan out as one stack." },
+		{ id: "clip-rich", label: "Rich text", description: "Formatted copies carry a Rich tag and paste back with their formatting." },
+		{ id: "clip-links", label: "Links", description: "Links get a site badge, a title from the address and the domain." },
+		{ id: "clip-notes", label: "Notes", description: "A note or #tags under an item; noted items survive cleanup." },
+		{ id: "clip-select", label: "Select", description: "Pick several items, then group, copy, pin or delete them together." },
+		{ id: "clip-sounds", label: "Sounds", description: "Click a button to hear each sound." },
+		{ id: "clip-indicator", label: "Indicator", description: "The notch briefly widens to say Copied." }
 	]
 };
 
@@ -528,6 +548,18 @@ export function FeaturePreview({ tab, settings, focus }: FeaturePreviewProps) {
 				"Recycle Bin": "dock",
 				"Dock Extras": "dock"
 			},
+			clipboard: {
+				Position: "clip-shelf",
+				"Shelf Monitor": "clip-shelf",
+				"Group Copied Files": "clip-shelf",
+				"Thumbnail Size": "clip-shelf",
+				"Rich Text": "clip-rich",
+				"Link Previews": "clip-links",
+				"Notes & Tags": "clip-notes",
+				"Multi-Select": "clip-select",
+				"Sound Effects": "clip-sounds",
+				"Copy Indicator": "clip-indicator"
+			},
 			overlays: {
 				"Volume HUD": "volume",
 				"Brightness HUD": "brightness",
@@ -623,6 +655,7 @@ export function FeaturePreview({ tab, settings, focus }: FeaturePreviewProps) {
 						{tab === "appearance" && <PreviewDock settings={settings} revealed={revealed} />}
 						{tab === "dock" && <PreviewDock settings={settings} revealed={revealed} />}
 						{tab === "overlays" && <OverlayPreview feature={selected.id} settings={settings} />}
+						{tab === "clipboard" && <ClipboardPreview scene={selected.id as ClipScene} />}
 					</div>
 					<p className="feature-preview-description">
 						{previewDescription(selected.id, settings, selected.description)}
