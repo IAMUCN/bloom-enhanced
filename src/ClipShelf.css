@@ -50,8 +50,11 @@ body,
 	opacity: 1;
 }
 
+/* A drag over the shelf: the notch's dashed drop outline (.bloom.drag-hover),
+   drawn inside since the window ends at the shelf's edge. */
 .clipshelf.drop-hover .qp {
-	box-shadow: inset 0 0 0 2px rgba(255, 255, 255, 0.35);
+	outline: 2px dashed rgba(255, 255, 255, 0.75);
+	outline-offset: -6px;
 }
 
 /* The panel's notch layout leaves room for the notch strip; here it fills
