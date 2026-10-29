@@ -10,7 +10,7 @@ import { ClipboardPanel } from "./components/ClipboardPanel";
 import { EdgeSurface } from "./components/EdgeSurface";
 import { useTextInputKeyboard, releaseTextKeyboard } from "./hooks/useTextInputKeyboard";
 import { useSettingsSync } from "./hooks/useSettingsSync";
-import { parsePanelScales } from "./notchLayout";
+import { PANEL_BASE, parsePanelScales } from "./notchLayout";
 import { initTheme } from "./theme";
 import "./ClipShelf.css";
 
@@ -69,7 +69,7 @@ function ClipShelf() {
 	return (
 		<div
 			className={`clipshelf ${side} ${open ? "open" : ""} ${dragHover ? "drop-hover" : ""}`}
-			style={{ zoom: globalScale * panelScale }}
+			style={{ zoom: globalScale * panelScale * (PANEL_BASE.clipboard ?? 1) }}
 		>
 			<EdgeSurface edge={side} />
 			<ClipboardPanel

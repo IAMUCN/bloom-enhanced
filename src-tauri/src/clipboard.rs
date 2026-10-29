@@ -894,6 +894,10 @@ static SHELF_EXPIRY: AtomicU64 = AtomicU64::new(0);
 static SHELF_GEN: AtomicU64 = AtomicU64::new(0);
 static SHELF_RECT: Mutex<(i32, i32, i32, i32)> = Mutex::new((0, 0, 0, 0));
 
+/// The clipboard's 100% is drawn 30% larger than its original layout
+/// (`PANEL_BASE` in src/notchLayout.ts).
+const SHELF_BASE: f64 = 1.3;
+
 /// Edge shelf size: `bloom-scale` times the clipboard panel's own size.
 fn shelf_scale() -> f64 {
     let global = setting("bloom-scale")
@@ -904,7 +908,7 @@ fn shelf_scale() -> f64 {
         .and_then(|v| v.get("clipboard").and_then(|s| s.as_f64()))
         .filter(|s| (0.5..=1.5).contains(s))
         .unwrap_or(1.0);
-    global * panel
+    global * panel * SHELF_BASE
 }
 
 /// Shows the parked shelf window when an edge position is chosen, hides it

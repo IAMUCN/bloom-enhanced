@@ -304,6 +304,7 @@ fn detector(app: AppHandle) {
         if now_escape && !escape && open != 0 {
             if RUNNING.load(Ordering::Relaxed) {
                 CANCEL.store(true, Ordering::Relaxed);
+                let _ = app.emit_to("orbit", "orbit-canceled", ());
             } else {
                 close_wheel(&app);
             }
@@ -562,8 +563,16 @@ pub fn drops_dir() -> PathBuf {
     std::env::temp_dir().join("klyro-drops")
 }
 
+/// A file from a temp folder: an image a browser wrote there for the drag
+/// (Chrome, Edge), or one shelf.rs wrote to [`drops_dir`]. Its result is
+/// kept in Downloads and opened, not left in the temp folder.
 fn from_browser(source: &Path) -> bool {
-    source.starts_with(drops_dir())
+    let temp = std::env::temp_dir().to_string_lossy().to_lowercase();
+    let temp = temp.trim_end_matches('\\');
+    source
+        .to_string_lossy()
+        .to_lowercase()
+        .starts_with(&format!("{temp}\\"))
 }
 
 fn downloads() -> Option<PathBuf> {
@@ -1365,7 +1374,15 @@ mod tests {
 
     #[test]
     fn output_never_replaces_and_leaves_no_temp() {
-        let dir = std::env::temp_dir().join(format!("klyro-orbit-{}", std::process::id()));
+        // Not under %TEMP%: files there count as browser drags, whose results
+        // go to Downloads.
+        let dir = Path::new(env!("CARGO_MANIFEST_DIR"))
+            .join("target")
+            .join(format!("klyro-orbit-{}", std::process::id()));
+        assert!(!from_browser(&dir.join("photo.png")));
+        assert!(from_browser(
+            &std::env::temp_dir().join("chrome_drag1/photo.png")
+        ));
         let _ = std::fs::remove_dir_all(&dir);
         std::fs::create_dir_all(&dir).unwrap();
         let source = dir.join("photo.png");

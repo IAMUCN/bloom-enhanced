@@ -175,6 +175,8 @@ function Orbit() {
 			let result: Result = "ok";
 			try {
 				const outcomes = await invoke<Outcome[]>("orbit_run", { op: op.id, paths: input.paths });
+				// Already shown as Canceled (Esc or ×): the rest finished quietly.
+				if (phaseRef.current.kind !== "running") return;
 				const errors = outcomes.filter((o) => o.error);
 				const outputs = outcomes.flatMap((o) => (o.output ? [o.output] : []));
 				if (errors.length && errors.every((o) => o.error === "Canceled")) {
@@ -213,6 +215,9 @@ function Orbit() {
 				setMode(modesNow()[0] ?? "convert");
 				setHover(HUB);
 				setPhase({ kind: "wheel" });
+			}),
+			listen("orbit-canceled", () => {
+				if (phaseRef.current.kind === "running") finish("Canceled", "canceled");
 			}),
 			listen("orbit-close", () => {
 				if (phaseRef.current.kind === "wheel") setPhase({ kind: "closed" });
@@ -255,7 +260,7 @@ function Orbit() {
 			)
 		];
 		return () => offs.forEach((p) => p.then((off) => off()));
-	}, [close, cycle, run, modesNow]);
+	}, [close, cycle, run, finish, modesNow]);
 
 	if (phase.kind === "closed") return null;
 	if (phase.kind === "running" && (phase.percent === null || inNotch)) return null;
@@ -307,7 +312,13 @@ function Orbit() {
 				{phase.kind === "running" && (
 					<>
 						<span className="orbit-percent">{phase.percent}%</span>
-						<button title="Cancel (Esc)" onClick={() => invoke("orbit_cancel").catch(() => {})}>
+						<button
+							title="Cancel (Esc)"
+							onClick={() => {
+								invoke("orbit_cancel").catch(() => {});
+								finish("Canceled", "canceled");
+							}}
+						>
 							<X size={14} />
 						</button>
 					</>

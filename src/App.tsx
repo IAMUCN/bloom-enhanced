@@ -3249,7 +3249,8 @@ function App() {
 			return devicesPanelHeight;
 		}
 		if (bloomMode === "wifi" || bloomMode === "bluetooth") return 300;
-		if (bloomMode === "clipboard") return 360;
+		// 300 × the clipboard's 1.3 base keeps it inside the notch window.
+		if (bloomMode === "clipboard") return 300;
 		if (bloomMode === "status") return 36;
 		if (isMusicMode && isOpen) {
 			const hasProgressBar = (mediaInfo.duration_ms ?? 0) > 0;
