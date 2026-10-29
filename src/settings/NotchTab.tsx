@@ -16,9 +16,12 @@ import {
 	X,
 	Clock,
 	PanelLeft,
-	PanelRight
+	PanelRight,
+	GripVertical,
+	ListOrdered
 } from "lucide-react";
-import { useState } from "react";
+import { useRef, useState } from "react";
+import { Reorder } from "framer-motion";
 import { SettingRow } from "./SettingRow";
 
 /** Notch behavior (`bloom-notch-mode`): name and what it does. */
@@ -40,6 +43,8 @@ import { Choice } from "./Choice";
 import {
 	NOTCH_STYLES,
 	SIZED_PANELS,
+	parsePanelOrder,
+	type OrderedPanel,
 	type NotchStyle,
 	type PanelScales,
 	type SizedPanel
@@ -75,6 +80,45 @@ function RowSizes({ saveSetting }: { saveSetting: (key: string, value: string | 
 				</SettingRow>
 			))}
 		</>
+	);
+}
+
+const PAGE_NAMES: Record<OrderedPanel, string> = {
+	"command-center": "Command Center",
+	calendar: "Calendar",
+	clipboard: "Shelf",
+	devices: "Devices"
+};
+
+/** Settings › Notch › Page Order: drag the pages into the order the wheel,
+ *  swipes and arrows go through them. Pages that are off are dimmed. */
+function PageOrder({
+	isOn,
+	saveSetting
+}: {
+	isOn: (panel: OrderedPanel) => boolean;
+	saveSetting: (key: string, value: string | null) => Promise<boolean>;
+}) {
+	const [order, setOrder] = useState(() => parsePanelOrder(localStorage.getItem("bloom-notch-panel-order")));
+	const latest = useRef(order);
+	latest.current = order;
+	return (
+		<Reorder.Group axis="y" values={order} onReorder={setOrder} className="radial-rows page-order">
+			{order.map((panel, i) => (
+				<Reorder.Item
+					key={panel}
+					value={panel}
+					className={`radial-row${isOn(panel) ? "" : " off"}`}
+					whileDrag={{ scale: 1.04, zIndex: 2 }}
+					onDragEnd={() => saveSetting("bloom-notch-panel-order", JSON.stringify(latest.current))}
+				>
+					<GripVertical size={13} className="radial-grip" />
+					<span className="page-order-number">{i + 1}</span>
+					<span className="radial-row-label">{PAGE_NAMES[panel]}</span>
+					{!isOn(panel) && <span className="page-order-off">off</span>}
+				</Reorder.Item>
+			))}
+		</Reorder.Group>
 	);
 }
 
@@ -357,6 +401,26 @@ export function NotchTab({
 								<span className="slider"></span>
 							</label>
 						</SettingRow>
+
+						<SettingRow
+							icon={ListOrdered}
+							label="Page Order"
+							desc="Drag to set the order scrolling, swiping and the arrows go through the pages"
+							divider={false}
+						/>
+						<div className="page-order-wrap">
+							<PageOrder
+								isOn={(panel) =>
+									panel === "clipboard"
+										? // The Shelf is a notch page while the clipboard sits in the notch.
+											localStorage.getItem("bloom-clipboard-enabled") !== "false" &&
+											(localStorage.getItem("bloom-clipboard-position") ?? "notch") === "notch"
+										: panelOn[panel]
+								}
+								saveSetting={saveSetting}
+							/>
+						</div>
+						<div className="setting-divider" />
 
 						<SettingRow
 							icon={PanelTop}

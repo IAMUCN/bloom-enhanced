@@ -49,6 +49,7 @@ Edit `settings.json` with any text editor while Bloom is running. Changes are ap
 | `bloom-notch-style`      | `"notch"` / `"pill"` / `"minimal"` | `"notch"` | Idle look. **notch** = attached to the top edge with flares. **pill** = floating capsule below the edge. **minimal** = thin bar while idle; content shows on hover, music, or alerts. |
 | `bloom-notch-scale`      | float string `"0.5"`–`"1.5"`     | (unset)   | Size of the notch only. Unset = follows `bloom-scale`. |
 | `bloom-notch-panel-scales` | JSON object, panel → `0.5`–`1.5` | `"{}"` | Per-panel notch size on top of `bloom-notch-scale`, e.g. `{"calendar":1.2,"music":0.9}`. Panels: `calendar`, `command-center` (incl. Wi-Fi/Bluetooth), `devices`, `music`, `shelf`, `clipboard`. Missing panels use 1. Command Center's 1 is 30% larger than its original layout. The time row keeps one size on every page. |
+| `bloom-notch-panel-order` | JSON list of `command-center`, `calendar`, `clipboard`, `devices` | `"[]"` | Order scrolling, swiping and the arrows go through the notch pages. Pages left out follow in the default order: Command Center, Calendar, Shelf (`clipboard`, when the clipboard is in the notch), Devices. |
 | `bloom-notch-time-size`  | `"0.7"`–`"1.5"` | `"1"` | Size of the clock in the notch, on top of the notch size. |
 | `bloom-notch-left-size`  | `"0.7"`–`"1.5"` | `"1"` | Size of the status widgets left of the clock. |
 | `bloom-notch-right-size` | `"0.7"`–`"1.5"` | `"1"` | Size of the status widgets right of the clock. |
@@ -171,6 +172,7 @@ Example:
 | ------------------------------ | -------------------- | --------- | ---------------------------------------------------------------------------------------------------- |
 | `bloom-scale`                  | float string         | `"1.0"`   | UI scale factor (0.5 to 1.5) for Settings and overlays, and for the dock/notch while `bloom-dock-scale` / `bloom-notch-scale` are unset. Changing this re-registers AppBars to resize the reserved screen area. |
 | `bloom-low-battery-threshold`  | integer string       | `"20"`    | Battery percentage that triggers the low-battery alert pulse (5 to 50, step 5).                      |
+| `bloom-keep-windows-loaded` | `"true"` / `"false"` | `"false"` | Keep the Settings, radial menu and edge shelf windows loaded once made (they open instantly; about 100–150 MB more memory). Off, they are created when used and closed after (the radial menu 30 s after it closes). |
 | `bloom-auto-update`            | `"true"` / `"false"` | `"false"` | Check for and download updates automatically on startup.                                             |
 | `bloom-show-update-indicator`  | `"true"` / `"false"` | `"true"`  | Show a green dot on the notch when an update is available.                                           |
 | `bloom-announcement-dismissed` | announcement id      | `""`      | ID of the last dismissed in-app announcement (published via `website/public/announcements.json`).    |

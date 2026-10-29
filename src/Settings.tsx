@@ -61,7 +61,12 @@ const TAB_COPY: Record<SettingsTab, string> = {
 
 /** Keys each page's "Reset this page" puts back to defaults. */
 const PAGE_KEYS: Partial<Record<SettingsTab, string[]>> = {
-	general: ["bloom-time-format-24h", "bloom-show-update-indicator", "bloom-low-battery-threshold"],
+	general: [
+		"bloom-time-format-24h",
+		"bloom-show-update-indicator",
+		"bloom-low-battery-threshold",
+		"bloom-keep-windows-loaded"
+	],
 	appearance: ["bloom-theme-", "bloom-scale"],
 	notch: [
 		"bloom-notch-",
@@ -142,7 +147,7 @@ function SettingsApp() {
 				const field = e.target instanceof HTMLInputElement && e.target.type !== "checkbox" ? e.target : null;
 				if (searchRef.current?.value) setQuery("");
 				else if (field && field !== searchRef.current) field.blur();
-				else appWindow.hide().catch(() => {});
+				else invoke("close_settings_window").catch(() => {});
 			}
 		};
 		window.addEventListener("keydown", onKey);
@@ -186,7 +191,7 @@ function SettingsApp() {
 		e.preventDefault();
 		e.stopPropagation();
 		try {
-			await appWindow.hide();
+			await invoke("close_settings_window");
 		} catch {}
 	};
 
@@ -329,6 +334,7 @@ function SettingsApp() {
 							restartBloom={settings.restartBloom}
 							resetToDefaults={settings.resetToDefaults}
 							quitBloom={settings.quitBloom}
+							saveSetting={settings.saveSetting}
 						/>
 					</section>
 					<section data-tab="appearance" hidden={shown !== "appearance"}>

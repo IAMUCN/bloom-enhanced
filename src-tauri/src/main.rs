@@ -123,6 +123,7 @@ fn main() {
         .invoke_handler(tauri::generate_handler![
             hide_native_osd,
             open_settings_window,
+            close_settings_window,
             open_wifi_settings,
             open_sound_settings,
             open_notification_center,
@@ -173,6 +174,7 @@ fn main() {
             orbit::orbit_hide,
             orbit::orbit_shrink,
             orbit::orbit_focus,
+            orbit::orbit_ready,
             orbit::orbit_pdf_pages,
             clipboard::clipboard_drag_text,
             shelf_prune,
@@ -453,22 +455,6 @@ fn main() {
                 }
             }
 
-            if let Some(settings_win) = app.get_webview_window("settings") {
-                #[cfg(target_os = "windows")]
-                {
-                    let _ = window_vibrancy::apply_mica(&settings_win, None);
-                }
-                if let Ok(hwnd) = settings_win.hwnd() {
-                    SETTINGS_HWND.store(hwnd.0 as isize, Ordering::Relaxed);
-                }
-                let win_clone = settings_win.clone();
-                settings_win.on_window_event(move |event| {
-                    if let tauri::WindowEvent::CloseRequested { api, .. } = event {
-                        api.prevent_close();
-                        let _ = win_clone.hide();
-                    }
-                });
-            }
             {
                 use tauri::menu::{Menu, MenuItem};
                 use tauri::tray::{MouseButton, MouseButtonState, TrayIconBuilder, TrayIconEvent};

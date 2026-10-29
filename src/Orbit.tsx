@@ -278,6 +278,10 @@ function Orbit() {
 				}, 300)
 			)
 		];
+		// Listening now: a wheel opened while this page loaded gets its open.
+		Promise.all(offs)
+			.then(() => invoke("orbit_ready"))
+			.catch(() => {});
 		return () => offs.forEach((p) => p.then((off) => off()));
 	}, [close, cycle, run, finish, modesNow]);
 

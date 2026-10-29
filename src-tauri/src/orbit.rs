@@ -82,12 +82,28 @@ fn drag_gesture_on() -> bool {
 
 // ── Entry points ──
 
-/// Starts the drag detector and the shortcut on one thread, and parks the
-/// wheel window on screen (off view) so its drop target is live before the
-/// first drag.
+/// Starts the drag detector and the shortcut on one thread. The wheel's
+/// window is made on first use (or now, with Keep Windows Loaded).
 pub fn start(app: AppHandle) {
     let _ = APP.set(app.clone());
-    if let Some(win) = app.get_webview_window("orbit") {
+    if crate::utils::keep_windows_loaded() {
+        let app = app.clone();
+        std::thread::spawn(move || {
+            if let Some((win, _)) = wheel_window(&app) {
+                crate::utils::set_memory_low(&win, true);
+            }
+        });
+    }
+    std::thread::spawn(move || detector(app));
+}
+
+/// The wheel window, made if needed: parked on screen (off view) and shown so
+/// WebView2 creates its render child, then its drop target registered. True
+/// when it was just made (its page is still loading). Never on the main
+/// thread (see utils::ensure_window).
+fn wheel_window(app: &AppHandle) -> Option<(tauri::WebviewWindow, bool)> {
+    let (win, created) = crate::utils::ensure_window(app, "orbit")?;
+    if created {
         let _ = win.set_position(tauri::PhysicalPosition::new(PARKED, PARKED));
         let _ = win.show();
         let inner = app.clone();
@@ -99,8 +115,26 @@ pub fn start(app: AppHandle) {
             }
         });
     }
-    std::thread::spawn(move || detector(app));
+    Some((win, created))
 }
+
+/// An `orbit-open` for a wheel whose page was still loading; sent once the
+/// page says it is listening ([`orbit_ready`]).
+static PENDING_OPEN: std::sync::Mutex<Option<serde_json::Value>> = std::sync::Mutex::new(None);
+
+/// The wheel's page is loaded and listening.
+#[tauri::command]
+pub fn orbit_ready(app: AppHandle) {
+    if let Some(payload) = PENDING_OPEN.lock().ok().and_then(|mut p| p.take()) {
+        let _ = app.emit_to("orbit", "orbit-open", payload);
+    }
+}
+
+/// Bumped on every open; a release scheduled at close only happens if no
+/// open came since.
+static WHEEL_GEN: AtomicU64 = AtomicU64::new(0);
+/// How long a closed wheel stays loaded, so opening it again soon is instant.
+const WHEEL_LINGER: Duration = Duration::from_secs(30);
 
 fn is_down(vk: u16) -> bool {
     use windows::Win32::UI::Input::KeyboardAndMouse::GetAsyncKeyState;
@@ -355,9 +389,11 @@ fn open_wheel(app: &AppHandle, paths: Vec<String>, by: u8) {
     if RUNNING.load(Ordering::Relaxed) {
         return;
     }
-    let Some(win) = app.get_webview_window("orbit") else {
+    let Some((win, loading)) = wheel_window(app) else {
         return;
     };
+    WHEEL_GEN.fetch_add(1, Ordering::Relaxed);
+    crate::utils::set_memory_low(&win, false);
     let (x, y) = cursor();
     let monitor = app.monitor_from_point(x as f64, y as f64).ok().flatten();
     let scale = monitor.as_ref().map_or(1.0, |m| m.scale_factor());
@@ -374,11 +410,14 @@ fn open_wheel(app: &AppHandle, paths: Vec<String>, by: u8) {
     if let Ok(hwnd) = win.hwnd() {
         crate::utils::re_assert_topmost(hwnd);
     }
-    let _ = app.emit_to(
-        "orbit",
-        "orbit-open",
-        serde_json::json!({ "paths": paths, "drag": by == BY_DRAG }),
-    );
+    let payload = serde_json::json!({ "paths": paths, "drag": by == BY_DRAG });
+    if loading {
+        if let Ok(mut pending) = PENDING_OPEN.lock() {
+            *pending = Some(payload);
+        }
+    } else {
+        let _ = app.emit_to("orbit", "orbit-open", payload);
+    }
 }
 
 /// The window that had the keyboard before the wheel took it to type page
@@ -441,6 +480,20 @@ fn close_wheel(app: &AppHandle) {
     if let Some(win) = app.get_webview_window("orbit") {
         let _ = win.set_position(tauri::PhysicalPosition::new(PARKED, PARKED));
     }
+    // Let the window go a while later, unless it opened again or a job runs.
+    let generation = WHEEL_GEN.load(Ordering::Relaxed);
+    let app = app.clone();
+    tauri::async_runtime::spawn(async move {
+        tokio::time::sleep(WHEEL_LINGER).await;
+        if WHEEL_GEN.load(Ordering::Relaxed) == generation
+            && OPEN.load(Ordering::Relaxed) == 0
+            && !RUNNING.load(Ordering::Relaxed)
+        {
+            if let Some(win) = app.get_webview_window("orbit") {
+                crate::utils::release_window(&win, false);
+            }
+        }
+    });
 }
 
 /// Parks the wheel (cancel, or after a job's status has been shown).

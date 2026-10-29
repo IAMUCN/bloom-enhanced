@@ -915,16 +915,18 @@ fn shelf_scale() -> f64 {
     global * panel * SHELF_BASE
 }
 
-/// Shows the parked shelf window when an edge position is chosen, hides it
-/// otherwise.
+/// Makes and shows the parked shelf window when an edge position is chosen;
+/// lets it go otherwise (see utils::release_window). Called from the cursor
+/// worker thread, never the main thread, so the window can be built here.
 fn ensure_shelf_window(app: &AppHandle, wanted: bool) {
     if SHELF_SHOWN.swap(wanted, Ordering::Relaxed) == wanted {
         return;
     }
-    let Some(win) = app.get_webview_window("clipshelf") else {
-        return;
-    };
     if wanted {
+        let Some((win, _)) = crate::utils::ensure_window(app, "clipshelf") else {
+            SHELF_SHOWN.store(false, Ordering::Relaxed);
+            return;
+        };
         let _ = win.set_position(tauri::PhysicalPosition::new(PARKED, PARKED));
         let _ = win.show();
         if let Ok(hwnd) = win.hwnd() {
@@ -940,9 +942,12 @@ fn ensure_shelf_window(app: &AppHandle, wanted: bool) {
                 let _ = app.run_on_main_thread(move || crate::shelf::setup(&inner, "clipshelf"));
             }
         });
+        crate::utils::set_memory_low(&win, true);
     } else {
         SHELF_OPEN.store(false, Ordering::Relaxed);
-        let _ = win.hide();
+        if let Some(win) = app.get_webview_window("clipshelf") {
+            crate::utils::release_window(&win, true);
+        }
     }
 }
 
@@ -982,6 +987,7 @@ fn set_shelf_open(app: &AppHandle, side: ShelfSide, open: bool) {
             ShelfSide::Top => (mx + (mw - w) / 2, my),
         };
         *SHELF_RECT.lock().unwrap() = (x, y, w, h);
+        crate::utils::set_memory_low(&win, false);
         let _ = win.set_size(tauri::PhysicalSize::new(w as u32, h as u32));
         let _ = win.set_position(tauri::PhysicalPosition::new(x, y));
         if let Ok(hwnd) = win.hwnd() {
@@ -997,6 +1003,7 @@ fn set_shelf_open(app: &AppHandle, side: ShelfSide, open: bool) {
             if SHELF_GEN.load(Ordering::Relaxed) == generation {
                 if let Some(win) = app.get_webview_window("clipshelf") {
                     let _ = win.set_position(tauri::PhysicalPosition::new(PARKED, PARKED));
+                    crate::utils::set_memory_low(&win, true);
                 }
             }
         });

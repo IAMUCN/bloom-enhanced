@@ -1,4 +1,5 @@
-import { Power, Download, Clock, BatteryWarning, RefreshCw, RotateCcw, LogOut } from "lucide-react";
+import { useState } from "react";
+import { Power, Download, Clock, BatteryWarning, RefreshCw, RotateCcw, LogOut, Gauge } from "lucide-react";
 import { SettingRow } from "./SettingRow";
 
 interface GeneralTabProps {
@@ -13,6 +14,7 @@ interface GeneralTabProps {
 	restartBloom: () => void;
 	resetToDefaults: () => void;
 	quitBloom: () => void;
+	saveSetting: (key: string, value: string | null) => Promise<boolean>;
 }
 
 export function GeneralTab({
@@ -26,8 +28,12 @@ export function GeneralTab({
 	handleThresholdChange,
 	restartBloom,
 	resetToDefaults,
-	quitBloom
+	quitBloom,
+	saveSetting
 }: GeneralTabProps) {
+	// Settings, the radial menu and the edge shelf exist only while used,
+	// unless this keeps them (faster to open, more memory).
+	const [keepLoaded, setKeepLoaded] = useState(() => localStorage.getItem("bloom-keep-windows-loaded") === "true");
 	return (
 		<>
 			<div className="setting-group-label">System</div>
@@ -72,6 +78,32 @@ export function GeneralTab({
 						onChange={(e) => handleThresholdChange(parseInt(e.target.value))}
 						className="settings-slider"
 					/>
+				</SettingRow>
+			</div>
+
+			<div className="setting-group-label">Performance</div>
+			<div className="setting-group">
+				<SettingRow
+					icon={Gauge}
+					label="Keep Windows Loaded"
+					desc={
+						keepLoaded
+							? "Settings, the radial menu and the shelf open instantly; uses about 100–150 MB more memory"
+							: "Settings, the radial menu and the shelf load when you open them (a moment slower the first time) and free their memory after"
+					}
+					divider={false}
+				>
+					<label className="toggle-switch">
+						<input
+							type="checkbox"
+							checked={keepLoaded}
+							onChange={() => {
+								setKeepLoaded(!keepLoaded);
+								saveSetting("bloom-keep-windows-loaded", String(!keepLoaded));
+							}}
+						/>
+						<span className="slider"></span>
+					</label>
 				</SettingRow>
 			</div>
 

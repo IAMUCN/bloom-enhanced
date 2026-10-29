@@ -1,5 +1,5 @@
 import { expect, test } from "bun:test";
-import { parsePanelScales } from "../src/notchLayout";
+import { parsePanelOrder, parsePanelScales } from "../src/notchLayout";
 
 test("reads each panel's own scale", () => {
 	expect(parsePanelScales('{"calendar":1.2,"music":0.9}')).toEqual({ calendar: 1.2, music: 0.9 });
@@ -23,4 +23,11 @@ test("ignores missing or broken stored values", () => {
 	expect(parsePanelScales("not json")).toEqual({});
 	expect(parsePanelScales("[1.1]")).toEqual({});
 	expect(parsePanelScales(1.1)).toEqual({});
+});
+
+test("notch page order: saved first, the rest in the default order", () => {
+	expect(parsePanelOrder(undefined)).toEqual(["command-center", "calendar", "clipboard", "devices"]);
+	expect(parsePanelOrder('["devices","calendar"]')).toEqual(["devices", "calendar", "command-center", "clipboard"]);
+	expect(parsePanelOrder('["calendar","nope","calendar"]')).toEqual(["calendar", "command-center", "clipboard", "devices"]);
+	expect(parsePanelOrder("not json")).toEqual(["command-center", "calendar", "clipboard", "devices"]);
 });

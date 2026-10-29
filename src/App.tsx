@@ -14,6 +14,7 @@ import {
 } from "./windowRegion";
 import {
 	asNotchStyle,
+	parsePanelOrder,
 	parsePanelScales,
 	type PanelScales,
 	type SizedPanel,
@@ -655,6 +656,7 @@ function App() {
 	const [notchPanelScales, setNotchPanelScales] = useState<PanelScales>(() =>
 		parsePanelScales(localStorage.getItem("bloom-notch-panel-scales"))
 	);
+	const [panelOrder, setPanelOrder] = useState(() => parsePanelOrder(localStorage.getItem("bloom-notch-panel-order")));
 	const [notchStyle, setNotchStyle] = useState(() =>
 		asNotchStyle(localStorage.getItem("bloom-notch-style"))
 	);
@@ -1291,6 +1293,7 @@ function App() {
 				if (notchScaleVal !== null) setNotchScale(parseFloat(notchScaleVal));
 				setNotchPanelScales(parsePanelScales(getVal("bloom-notch-panel-scales")));
 				setNotchStyle(asNotchStyle(getVal("bloom-notch-style")));
+				setPanelOrder(parsePanelOrder(getVal("bloom-notch-panel-order")));
 				setTimeSize(sizeOf(getVal("bloom-notch-time-size")));
 				setLeftSize(sizeOf(getVal("bloom-notch-left-size")));
 				setRightSize(sizeOf(getVal("bloom-notch-right-size")));
@@ -1375,6 +1378,7 @@ function App() {
 			"bloom-notch-scale": setNotchScale,
 			"bloom-notch-panel-scales": (v: unknown) => setNotchPanelScales(parsePanelScales(v)),
 			"bloom-notch-style": (v: unknown) => setNotchStyle(asNotchStyle(v)),
+			"bloom-notch-panel-order": (v: unknown) => setPanelOrder(parsePanelOrder(v)),
 			"bloom-notch-time-size": (v: unknown) => setTimeSize(sizeOf(v)),
 			"bloom-notch-left-size": (v: unknown) => setLeftSize(sizeOf(v)),
 			"bloom-notch-right-size": (v: unknown) => setRightSize(sizeOf(v)),
@@ -2061,7 +2065,7 @@ function App() {
 	// Music and shelf remain entry points through their activity affordances.
 	const cycleBloomMode = (direction: 1 | -1) => {
 		if (bloomMode === "announcement") return false;
-		const panels = NOTCH_PANELS.filter(panelAvailable);
+		const panels = panelOrder.filter(panelAvailable);
 		const currentIndex = panels.indexOf(bloomMode as NotchPanel);
 		const nextMode = currentIndex === -1
 			? openingPanel()
@@ -2073,7 +2077,7 @@ function App() {
 
 	// Arrows and wheel both stay within panels once one is open.
 	const cyclePanel = (direction: 1 | -1) => {
-		const panels = NOTCH_PANELS.filter(panelAvailable);
+		const panels = panelOrder.filter(panelAvailable);
 		const index = panels.indexOf(bloomMode as NotchPanel);
 		if (index === -1 || panels.length < 2) return;
 		setBloomMode(panels[(index + direction + panels.length) % panels.length]);
@@ -2274,7 +2278,7 @@ function App() {
 	const openingPanel = (): NotchPanel => {
 		const preferred = rememberPanelEnabled ? lastPanel ?? defaultPanel : defaultPanel;
 		if (panelAvailable(preferred)) return preferred;
-		return NOTCH_PANELS.find(panelAvailable) ?? "command-center";
+		return panelOrder.find(panelAvailable) ?? "command-center";
 	};
 
 	// Expands the notch into a panel, or into an activity's own view.
@@ -3276,7 +3280,7 @@ function App() {
 	// Arrows switch between the two tool panels; wheel/swipe can also open one
 	// directly from the collapsed pill or a live activity.
 	const showPanelArrows =
-		isOpen && asNotchPanel(bloomMode) !== null && NOTCH_PANELS.filter(panelAvailable).length > 1;
+		isOpen && asNotchPanel(bloomMode) !== null && panelOrder.filter(panelAvailable).length > 1;
 
 	// Close compact media player expansions when notch is unhovered or mode changes
 	useEffect(() => {

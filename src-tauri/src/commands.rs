@@ -2219,9 +2219,31 @@ pub fn hide_native_osd() {
     }
 }
 
+/// Opens Settings, creating its window first when it doesn't exist (it only
+/// exists while open unless Keep Windows Loaded is on). Works from any
+/// thread: the window is made on a thread of its own.
 #[tauri::command]
 pub fn open_settings_window(app: AppHandle) {
-    if let Some(win) = app.get_webview_window("settings") {
+    std::thread::spawn(move || {
+        let Some((win, created)) = crate::utils::ensure_window(&app, "settings") else {
+            return;
+        };
+        if created {
+            let _ = window_vibrancy::apply_mica(&win, None);
+            let closing = win.clone();
+            win.on_window_event(move |event| {
+                if let tauri::WindowEvent::CloseRequested { api, .. } = event {
+                    if crate::utils::keep_windows_loaded() {
+                        api.prevent_close();
+                        crate::utils::release_window(&closing, true);
+                    }
+                }
+            });
+        }
+        if let Ok(hwnd) = win.hwnd() {
+            SETTINGS_HWND.store(hwnd.0 as isize, Ordering::Relaxed);
+        }
+        crate::utils::set_memory_low(&win, false);
         let _ = win.show();
         let _ = win.unminimize();
         let _ = win.set_focus();
@@ -2235,6 +2257,15 @@ pub fn open_settings_window(app: AppHandle) {
                 let _ = SetForegroundWindow(hwnd);
             }
         }
+    });
+}
+
+/// Settings' close button and Esc: the window goes away (or, with Keep
+/// Windows Loaded, hides and releases memory).
+#[tauri::command]
+pub fn close_settings_window(app: AppHandle) {
+    if let Some(win) = app.get_webview_window("settings") {
+        crate::utils::release_window(&win, true);
     }
 }
 

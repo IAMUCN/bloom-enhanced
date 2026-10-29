@@ -1315,6 +1315,79 @@ pub fn files_enabled() -> bool {
     module_enabled("bloom-files-enabled")
 }
 
+// ── Windows on demand ──
+//
+// Settings, the radial menu and the edge shelf are listed in tauri.conf.json
+// with `"create": false` and only exist while needed, so their web views use
+// no memory otherwise. `bloom-keep-windows-loaded` keeps them once made
+// (they then open instantly and just release memory while hidden).
+
+/// Settings › General › Keep Windows Loaded (off by default).
+pub fn keep_windows_loaded() -> bool {
+    get_setting("bloom-keep-windows-loaded").as_deref() == Some("true")
+}
+
+fn get_setting(key: &str) -> Option<String> {
+    let cache = crate::state::SETTINGS_CACHE.get()?;
+    let guard = cache.lock().ok()?;
+    guard.get(key)?.as_str().map(str::to_string)
+}
+
+/// The window `label`, created from its tauri.conf.json entry if it doesn't
+/// exist yet; true when it was just created. Call off the main thread: on
+/// Windows, building a window from the event loop's thread can deadlock.
+pub fn ensure_window(app: &tauri::AppHandle, label: &str) -> Option<(tauri::WebviewWindow, bool)> {
+    if let Some(win) = app.get_webview_window(label) {
+        return Some((win, false));
+    }
+    let config = app
+        .config()
+        .app
+        .windows
+        .iter()
+        .find(|w| w.label == label)?
+        .clone();
+    let win = tauri::WebviewWindowBuilder::from_config(app, &config)
+        .and_then(|b| b.build())
+        .map_err(|e| crate::diagnostics::record("window_create_failed", &format!("{label}: {e}")))
+        .ok()?;
+    Some((win, true))
+}
+
+/// Done with an on-demand window: destroyed, or with Keep Windows Loaded
+/// hidden (`hide`) or left as is, and asked to release memory.
+pub fn release_window(win: &tauri::WebviewWindow, hide: bool) {
+    if keep_windows_loaded() {
+        if hide {
+            let _ = win.hide();
+        }
+        set_memory_low(win, true);
+    } else {
+        let _ = win.destroy();
+    }
+}
+
+/// Asks WebView2 to keep a window's memory low (hidden or parked) or normal
+/// (in use): Low lets it trim caches and page memory out.
+pub fn set_memory_low(win: &tauri::WebviewWindow, low: bool) {
+    let _ = win.with_webview(move |webview| unsafe {
+        use webview2_com::Microsoft::Web::WebView2::Win32::{
+            ICoreWebView2_19, COREWEBVIEW2_MEMORY_USAGE_TARGET_LEVEL_LOW,
+            COREWEBVIEW2_MEMORY_USAGE_TARGET_LEVEL_NORMAL,
+        };
+        let Ok(core) = webview.controller().CoreWebView2() else {
+            return;
+        };
+        if let Ok(core) = core.cast::<ICoreWebView2_19>() {
+            let _ = core.SetMemoryUsageTargetLevel(if low {
+                COREWEBVIEW2_MEMORY_USAGE_TARGET_LEVEL_LOW
+            } else {
+                COREWEBVIEW2_MEMORY_USAGE_TARGET_LEVEL_NORMAL
+            });
+        }
+    });
+}
+
 /// Makes a window click-through or not by its WS_EX_TRANSPARENT bit alone,
 /// keeping WS_EX_LAYERED set in both states.
 ///

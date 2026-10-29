@@ -1934,3 +1934,26 @@ input:checked + .slider:before {
 .settings-search input:focus-visible {
 	outline: none;
 }
+
+/* ── Notch › Page Order (drag list, reuses the radial menu's rows) ── */
+.page-order-wrap {
+	padding: 0 12px 12px 46px;
+}
+.page-order {
+	max-width: 320px;
+}
+.page-order-number {
+	min-width: 14px;
+	font-size: 10px;
+	font-weight: 700;
+	opacity: 0.5;
+	text-align: center;
+}
+.radial-row.off {
+	opacity: 0.45;
+}
+.page-order-off {
+	font-size: 10px;
+	opacity: 0.8;
+	padding-right: 4px;
+}

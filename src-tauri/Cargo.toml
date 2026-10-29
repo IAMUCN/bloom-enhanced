@@ -94,3 +94,28 @@ tauri-plugin-dialog = "2"
 rustfft = "6"
 lopdf = { version = "0.46.0", default-features = false }
 
+
+# Release builds are optimised for a small installer: whole-program
+# optimisation, one codegen unit, no debug symbols. (panic stays "unwind":
+# utils.rs relies on catch_unwind.)
+[profile.release]
+opt-level = "s"
+lto = true
+codegen-units = 1
+strip = true
+
+# The number-crunching crates (file conversions, the audio visualizer) keep
+# full speed optimisation.
+[profile.release.package]
+image = { opt-level = 3 }
+png = { opt-level = 3 }
+zune-jpeg = { opt-level = 3 }
+image-webp = { opt-level = 3 }
+tiff = { opt-level = 3 }
+gif = { opt-level = 3 }
+fdeflate = { opt-level = 3 }
+miniz_oxide = { opt-level = 3 }
+flate2 = { opt-level = 3 }
+zip = { opt-level = 3 }
+lopdf = { opt-level = 3 }
+rustfft = { opt-level = 3 }

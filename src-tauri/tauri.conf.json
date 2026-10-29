@@ -36,6 +36,7 @@
       {
         "additionalBrowserArgs": "--disable-features=msWebOOUI,msPdfOOUI,msSmartScreenProtection --autoplay-policy=no-user-gesture-required",
         "label": "settings",
+        "create": false,
         "title": "Settings",
         "url": "settings.html",
         "width": 740,
@@ -101,6 +102,7 @@
       {
         "additionalBrowserArgs": "--disable-features=msWebOOUI,msPdfOOUI,msSmartScreenProtection --autoplay-policy=no-user-gesture-required",
         "label": "clipshelf",
+        "create": false,
         "title": "Clipboard",
         "url": "clipshelf.html",
         "width": 360,
@@ -123,6 +125,7 @@
       {
         "additionalBrowserArgs": "--disable-features=msWebOOUI,msPdfOOUI,msSmartScreenProtection --autoplay-policy=no-user-gesture-required",
         "label": "orbit",
+        "create": false,
         "title": "File Wheel",
         "url": "orbit.html",
         "width": 360,
