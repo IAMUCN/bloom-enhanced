@@ -3115,15 +3115,15 @@ fn process_mouse_position(app_handle: &AppHandle, cursor: windows::Win32::Founda
 
         // --- Left Edge (Volume) ---
         if !fg_fs {
-            // The clipboard shelf, when on this edge, owns its middle third.
+            // The clipboard shelf, when on this edge, may own it (first wins).
             let at_left_edge = cursor.x <= (mon_x + 8)
                 && cursor.y >= mon_y
                 && cursor.y <= (mon_y + mon_h)
-                && !crate::clipboard::shelf_owns_edge(
+                && !crate::clipboard::shelf_blocks_hud(
                     crate::clipboard::ShelfSide::Left,
                     cursor.y,
-                    mon_y,
-                    mon_h,
+                    (mon_x, mon_y, mon_w, mon_h),
+                    MH_LAST_LEFT_EDGE_HOVER.load(Ordering::Relaxed) != 0,
                 );
 
             // The collapsed card extends past the 8px edge band, so once the
@@ -3176,11 +3176,11 @@ fn process_mouse_position(app_handle: &AppHandle, cursor: windows::Win32::Founda
             let at_right_edge = cursor.x >= (mon_x + mon_w - 8)
                 && cursor.y >= mon_y
                 && cursor.y <= (mon_y + mon_h)
-                && !crate::clipboard::shelf_owns_edge(
+                && !crate::clipboard::shelf_blocks_hud(
                     crate::clipboard::ShelfSide::Right,
                     cursor.y,
-                    mon_y,
-                    mon_h,
+                    (mon_x, mon_y, mon_w, mon_h),
+                    MH_LAST_RIGHT_EDGE_HOVER.load(Ordering::Relaxed) != 0,
                 );
 
             if at_right_edge {
@@ -3208,6 +3208,10 @@ fn process_mouse_position(app_handle: &AppHandle, cursor: windows::Win32::Founda
             cursor.x,
             cursor.y,
             (mon_x, mon_y, mon_w, mon_h),
+            (
+                MH_LAST_LEFT_EDGE_HOVER.load(Ordering::Relaxed) != 0,
+                MH_LAST_RIGHT_EDGE_HOVER.load(Ordering::Relaxed) != 0,
+            ),
             fg_fs,
         );
 

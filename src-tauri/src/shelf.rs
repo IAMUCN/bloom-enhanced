@@ -150,9 +150,15 @@ impl IDropTarget_Impl for ShelfDropTarget_Impl {
         pt: &POINTL,
         effect: *mut DROPEFFECT,
     ) -> windows::core::Result<()> {
-        let payload = pdata
-            .as_ref()
-            .and_then(|data| unsafe { ShelfDropTarget::extract(data) });
+        // With the clipboard on a screen edge, drops go to that edge's shelf,
+        // not the notch.
+        let payload = if self.prefix == "shelf" && crate::clipboard::shelf_side().is_some() {
+            None
+        } else {
+            pdata
+                .as_ref()
+                .and_then(|data| unsafe { ShelfDropTarget::extract(data) })
+        };
         let Some(payload) = payload else {
             unsafe {
                 *self.enter_valid.get() = false;
@@ -209,11 +215,15 @@ impl IDropTarget_Impl for ShelfDropTarget_Impl {
         &self,
         pdata: Ref<'_, IDataObject>,
         _keys: MODIFIERKEYS_FLAGS,
-        _pt: &POINTL,
+        pt: &POINTL,
         _effect: *mut DROPEFFECT,
     ) -> windows::core::Result<()> {
         if unsafe { *self.enter_valid.get() } {
             unsafe { *self.enter_valid.get() = false };
+            // Where it landed, in client pixels: the clipboard groups an item
+            // dropped onto another.
+            let point = unsafe { self.client_point(pt) };
+            let position = serde_json::json!({ "x": point.x, "y": point.y });
             let payload = pdata
                 .as_ref()
                 .and_then(|data| unsafe { ShelfDropTarget::extract(data) });
@@ -221,14 +231,14 @@ impl IDropTarget_Impl for ShelfDropTarget_Impl {
                 Some(DragPayload::Files(paths, hdrop)) => {
                     let _ = self.app.emit(
                         &format!("{}-drag-drop", self.prefix),
-                        serde_json::json!({ "paths": paths }),
+                        serde_json::json!({ "paths": paths, "position": position }),
                     );
                     unsafe { DragFinish(hdrop) };
                 }
                 Some(DragPayload::Text(text)) => {
                     let _ = self.app.emit(
                         &format!("{}-drag-drop", self.prefix),
-                        serde_json::json!({ "text": text }),
+                        serde_json::json!({ "text": text, "position": position }),
                     );
                 }
                 None => {}

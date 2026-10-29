@@ -81,6 +81,29 @@ pub struct ClipItem {
     /// How many times this content was copied.
     #[serde(default = "one")]
     pub hits: u32,
+    /// The HTML of rich text (`bloom-clipboard-rich-text`), pasted back with it.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub html: Option<String>,
+    /// The user's note on the item (`bloom-clipboard-notes`); noted items are
+    /// kept through cleanup like pinned ones.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub note: Option<String>,
+}
+
+impl ClipItem {
+    /// Pinned or noted: never removed by the history size or auto-delete.
+    pub fn kept(&self) -> bool {
+        self.pinned || self.note.as_deref().is_some_and(|n| !n.trim().is_empty())
+    }
+
+    /// Files this item stands for: a stored image's PNG, or its file list.
+    pub fn file_paths(&self) -> Vec<String> {
+        match self.kind {
+            ClipKind::Text => Vec::new(),
+            ClipKind::Image => self.image.iter().cloned().collect(),
+            ClipKind::Files => self.paths.clone(),
+        }
+    }
 }
 
 fn one() -> u32 {
@@ -151,7 +174,7 @@ pub fn cleanup(
     let mut removed = Vec::new();
     let mut unpinned_kept = 0usize;
     history.retain(|it| {
-        if it.pinned {
+        if it.kept() {
             return true;
         }
         let expired = max_age_ms > 0 && now.saturating_sub(it.captured_at) > max_age_ms;
@@ -233,10 +256,20 @@ fn load(app: &AppHandle) -> Vec<ClipItem> {
         .unwrap_or_default()
 }
 
-fn delete_files(removed: &[ClipItem]) {
-    for item in removed {
-        if let Some(path) = &item.image {
-            let _ = std::fs::remove_file(path);
+/// `<config>/clipboard/images`, set at start: captured images live here and
+/// are ours to delete.
+static IMAGES_DIR: std::sync::OnceLock<PathBuf> = std::sync::OnceLock::new();
+
+/// Deletes captured images that no remaining item refers to (an image can
+/// also sit in a file group after a merge).
+fn delete_files(removed: &[ClipItem], remaining: &[ClipItem]) {
+    let Some(images) = IMAGES_DIR.get() else {
+        return;
+    };
+    for path in removed.iter().flat_map(ClipItem::file_paths) {
+        let owned = std::path::Path::new(&path).starts_with(images);
+        if owned && !remaining.iter().any(|it| it.file_paths().contains(&path)) {
+            let _ = std::fs::remove_file(&path);
         }
     }
 }
@@ -244,7 +277,7 @@ fn delete_files(removed: &[ClipItem]) {
 /// Saves, removes dropped images and tells the windows the list changed.
 fn commit(app: &AppHandle, history: &[ClipItem], removed: &[ClipItem]) {
     save(app, history);
-    delete_files(removed);
+    delete_files(removed, history);
     let _ = app.emit("clipboard-history-changed", ());
 }
 
@@ -346,8 +379,52 @@ fn read_text() -> Option<String> {
 
 enum Captured {
     Files(Vec<String>),
-    Text(String),
+    Text(String, Option<String>),
     Image,
+}
+
+/// HTML kept per item; larger fragments (whole web pages, big spreadsheet
+/// ranges) keep only their plain text.
+const MAX_HTML_BYTES: usize = 64 * 1024;
+
+/// The fragment of a CF_HTML ("HTML Format") payload: the bytes between its
+/// StartFragment and EndFragment offsets.
+pub fn cf_html_fragment(raw: &[u8]) -> Option<String> {
+    let head = std::str::from_utf8(&raw[..raw.len().min(512)])
+        .ok()
+        .or_else(|| {
+            // The header is ASCII; the body may cut a UTF-8 sequence at 512.
+            (1..4).find_map(|cut| {
+                std::str::from_utf8(&raw[..raw.len().min(512).saturating_sub(cut)]).ok()
+            })
+        })?;
+    let offset = |key: &str| -> Option<usize> {
+        let at = head.find(key)? + key.len();
+        head[at..].lines().next()?.trim().parse().ok()
+    };
+    let (start, end) = (offset("StartFragment:")?, offset("EndFragment:")?);
+    (start < end && end <= raw.len())
+        .then(|| String::from_utf8_lossy(&raw[start..end]).trim().to_string())
+        .filter(|f| !f.is_empty())
+}
+
+fn read_html() -> Option<String> {
+    let id = unsafe { RegisterClipboardFormatW(w!("HTML Format")) };
+    unsafe { IsClipboardFormatAvailable(id) }.ok()?;
+    let handle = unsafe { GetClipboardData(id) }.ok()?;
+    let global = HGLOBAL(handle.0);
+    unsafe {
+        let ptr = GlobalLock(global) as *const u8;
+        if ptr.is_null() {
+            return None;
+        }
+        let size = GlobalSize(global);
+        let bytes = std::slice::from_raw_parts(ptr, size);
+        let len = bytes.iter().position(|&b| b == 0).unwrap_or(size);
+        let html = cf_html_fragment(&bytes[..len]).filter(|h| h.len() <= MAX_HTML_BYTES);
+        let _ = GlobalUnlock(global);
+        html
+    }
 }
 
 /// Reads what is on the clipboard: files first, then text, then a bitmap.
@@ -362,7 +439,8 @@ fn read_clipboard() -> Option<Captured> {
     if let Some(text) = read_text() {
         let text = normalize_text(&text);
         if !text.is_empty() {
-            return Some(Captured::Text(text));
+            let rich = setting("bloom-clipboard-rich-text").as_deref() != Some("false");
+            return Some(Captured::Text(text, if rich { read_html() } else { None }));
         }
     }
     unsafe { IsClipboardFormatAvailable(CF_DIB.0 as u32) }
@@ -394,6 +472,8 @@ fn capture_image(app: &AppHandle, id: &str) -> Option<ClipItem> {
         captured_at: now_ms(),
         pinned: false,
         hits: 1,
+        html: None,
+        note: None,
     })
 }
 
@@ -412,6 +492,8 @@ fn capture(app: &AppHandle) -> Option<ClipItem> {
         captured_at: now_ms(),
         pinned: false,
         hits: 1,
+        html: None,
+        note: None,
     };
     match read_clipboard()? {
         Captured::Files(paths) => Some(ClipItem {
@@ -419,9 +501,10 @@ fn capture(app: &AppHandle) -> Option<ClipItem> {
             paths,
             ..base
         }),
-        Captured::Text(text) => Some(ClipItem {
+        Captured::Text(text, html) => Some(ClipItem {
             is_url: is_url(&text),
             text: Some(text),
+            html,
             ..base
         }),
         Captured::Image => capture_image(app, &id),
@@ -431,6 +514,9 @@ fn capture(app: &AppHandle) -> Option<ClipItem> {
 // ── Watcher ──
 
 pub fn start(app: AppHandle) {
+    if let Some(dir) = dir(&app) {
+        let _ = IMAGES_DIR.set(dir.join("images"));
+    }
     *HISTORY.lock().unwrap() = load(&app);
     std::thread::spawn(move || watch(app));
 }
@@ -489,16 +575,16 @@ fn watch(app: AppHandle) {
         let key = signature(&item);
         let same = key == last_key;
         if same && (item.kind == ClipKind::Files || last_at.elapsed() < COALESCE) {
-            if let Some(path) = &item.image {
-                let _ = std::fs::remove_file(path);
-            }
+            delete_files(std::slice::from_ref(&item), &HISTORY.lock().unwrap());
             last_at = Instant::now();
             continue;
         }
         last_key = key;
         last_at = Instant::now();
 
+        let kind = item.kind.clone();
         add_all(&app, grouped(item));
+        let _ = app.emit("clipboard-captured", kind);
     }
 }
 
@@ -553,6 +639,8 @@ fn text_item(text: String) -> ClipItem {
         captured_at: now_ms(),
         pinned: false,
         hits: 1,
+        html: None,
+        note: None,
     }
 }
 
@@ -659,10 +747,14 @@ pub fn clipboard_history() -> Vec<ClipItem> {
 pub fn clipboard_copy(app: AppHandle, id: String) -> Result<(), String> {
     let item = find(&id).ok_or("item not found")?;
     match item.kind {
-        ClipKind::Text => app
-            .clipboard()
-            .write_text(item.text.unwrap_or_default())
-            .map_err(|e| e.to_string()),
+        ClipKind::Text => {
+            let text = item.text.unwrap_or_default();
+            match item.html {
+                Some(html) => app.clipboard().write_html(html, Some(text)),
+                None => app.clipboard().write_text(text),
+            }
+            .map_err(|e| e.to_string())
+        }
         ClipKind::Files => set_files(&item.paths),
         ClipKind::Image => {
             let path = item.image.ok_or("image missing")?;
@@ -735,10 +827,53 @@ pub fn in_shelf_band(y: i32, mon_y: i32, mon_h: i32) -> bool {
     y >= mon_y + mon_h / 3 && y <= mon_y + mon_h * 2 / 3
 }
 
-/// True when the edge hover at `side` belongs to the shelf, so the volume or
-/// brightness hover must not open there.
-pub fn shelf_owns_edge(side: ShelfSide, y: i32, mon_y: i32, mon_h: i32) -> bool {
-    shelf_side() == Some(side) && in_shelf_band(y, mon_y, mon_h)
+/// Whether the volume (left) or brightness (right) edge hover must stay shut
+/// at this point of the primary monitor's edge. First one wins: while the
+/// shelf is open it owns its edge; while the HUD is open (`hud_active`) it
+/// owns the whole edge, so moving down to its slider never opens the shelf;
+/// otherwise the shelf's middle band is the shelf's.
+pub fn shelf_blocks_hud(
+    side: ShelfSide,
+    y: i32,
+    primary: (i32, i32, i32, i32),
+    hud_active: bool,
+) -> bool {
+    if shelf_side() != Some(side) || shelf_monitor_rect() != Some(primary) {
+        return false;
+    }
+    SHELF_OPEN.load(Ordering::Relaxed) || (!hud_active && in_shelf_band(y, primary.1, primary.3))
+}
+
+/// The monitor the shelf lives on: `bloom-clipboard-monitor` (a monitor
+/// name), or the primary monitor when unset or unplugged. Refreshed once a
+/// second: x, y, width, height (physical px) and scale factor.
+type Rect = (i32, i32, i32, i32);
+static SHELF_MONITOR: Mutex<Option<(Instant, Rect, f64)>> = Mutex::new(None);
+
+fn refresh_shelf_monitor(app: &AppHandle) -> Option<((i32, i32, i32, i32), f64)> {
+    let mut cached = SHELF_MONITOR.lock().unwrap();
+    if let Some((at, rect, sf)) = *cached {
+        if at.elapsed() < Duration::from_secs(1) {
+            return Some((rect, sf));
+        }
+    }
+    let wanted = setting("bloom-clipboard-monitor").filter(|n| !n.is_empty());
+    let monitor = wanted
+        .and_then(|name| {
+            app.available_monitors()
+                .ok()?
+                .into_iter()
+                .find(|m| m.name().is_some_and(|n| *n == name))
+        })
+        .or_else(|| app.primary_monitor().ok().flatten())?;
+    let (pos, size) = (monitor.position(), monitor.size());
+    let rect = (pos.x, pos.y, size.width as i32, size.height as i32);
+    *cached = Some((Instant::now(), rect, monitor.scale_factor()));
+    Some((rect, monitor.scale_factor()))
+}
+
+fn shelf_monitor_rect() -> Option<(i32, i32, i32, i32)> {
+    SHELF_MONITOR.lock().unwrap().map(|(_, rect, _)| rect)
 }
 
 const PARKED: i32 = -32000;
@@ -802,19 +937,18 @@ fn set_shelf_open(app: &AppHandle, side: ShelfSide, open: bool) {
     };
     let payload = serde_json::json!({ "open": open, "side": side_name });
     if open {
-        let Ok(Some(mon)) = app.primary_monitor() else {
+        let Some(((mx, my, mw, mh), sf)) = refresh_shelf_monitor(app) else {
             return;
         };
-        let (pos, size, sf) = (mon.position(), mon.size(), mon.scale_factor());
         let scale = shelf_scale() * sf;
         let w = (360.0 * scale) as i32;
-        let h = ((560.0 * scale) as i32).min(size.height as i32 * 4 / 5);
+        let h = ((560.0 * scale) as i32).min(mh * 4 / 5);
         let x = if side == ShelfSide::Left {
-            pos.x
+            mx
         } else {
-            pos.x + size.width as i32 - w
+            mx + mw - w
         };
-        let y = pos.y + (size.height as i32 - h) / 2;
+        let y = my + (mh - h) / 2;
         *SHELF_RECT.lock().unwrap() = (x, y, w, h);
         let _ = win.set_size(tauri::PhysicalSize::new(w as u32, h as u32));
         let _ = win.set_position(tauri::PhysicalPosition::new(x, y));
@@ -837,14 +971,16 @@ fn set_shelf_open(app: &AppHandle, side: ShelfSide, open: bool) {
     }
 }
 
-/// Called by the mouse worker on every cursor move with the primary monitor
-/// rect: opens the shelf at its edge band and keeps it open while the cursor
-/// is over it.
+/// Called by the mouse worker on every cursor move: opens the shelf at its
+/// edge band and keeps it open while the cursor is over it. `huds_active` is
+/// (volume, brightness) edge hover state; an open HUD on the shelf's edge of
+/// the primary monitor keeps the shelf shut.
 pub fn update_edge_shelf(
     app: &AppHandle,
     x: i32,
     y: i32,
-    mon: (i32, i32, i32, i32),
+    primary: (i32, i32, i32, i32),
+    huds_active: (bool, bool),
     fullscreen: bool,
 ) {
     let side = shelf_side();
@@ -852,10 +988,18 @@ pub fn update_edge_shelf(
     let Some(side) = side else {
         return;
     };
-    let (mon_x, mon_y, mon_w, mon_h) = mon;
+    let Some(((mon_x, mon_y, mon_w, mon_h), _)) = refresh_shelf_monitor(app) else {
+        return;
+    };
     let now = now_ms();
+    let hud_active = (mon_x, mon_y, mon_w, mon_h) == primary
+        && match side {
+            ShelfSide::Left => huds_active.0,
+            ShelfSide::Right => huds_active.1,
+        };
 
     let at_edge = !fullscreen
+        && !hud_active
         && in_shelf_band(y, mon_y, mon_h)
         && match side {
             ShelfSide::Left => x <= mon_x + 8,
@@ -962,6 +1106,143 @@ pub fn start_shortcut(app: AppHandle) {
     });
 }
 
+/// Sets or clears an item's note.
+#[tauri::command]
+pub fn clipboard_set_note(app: AppHandle, id: String, note: String) {
+    let mut history = HISTORY.lock().unwrap();
+    if let Some(item) = history.iter_mut().find(|it| it.id == id) {
+        let note = note.trim();
+        item.note = (!note.is_empty()).then(|| note.chars().take(500).collect());
+        commit(&app, &history, &[]);
+    }
+}
+
+/// Puts the files of `ids` (in that order) into one file group at the place of
+/// the first; text items are left alone. Grouping after copying, like
+/// stacking items in Edge-Drop.
+pub fn group_items(history: &mut Vec<ClipItem>, ids: &[String]) -> bool {
+    let members: Vec<usize> = ids
+        .iter()
+        .filter_map(|id| history.iter().position(|it| &it.id == id))
+        .filter(|&i| history[i].kind != ClipKind::Text)
+        .collect();
+    if members.len() < 2 {
+        return false;
+    }
+    let mut paths: Vec<String> = Vec::new();
+    for &i in &members {
+        for p in history[i].file_paths() {
+            if !paths.contains(&p) {
+                paths.push(p);
+            }
+        }
+    }
+    let first = members[0];
+    let mut group = history[first].clone();
+    group.kind = ClipKind::Files;
+    group.paths = paths;
+    group.image = None;
+    group.width = 0;
+    group.height = 0;
+    group.bytes = 0;
+    group.pinned = members.iter().any(|&i| history[i].pinned);
+    let keep_ids: Vec<String> = members.iter().map(|&i| history[i].id.clone()).collect();
+    history[first] = group;
+    history.retain(|it| it.id == keep_ids[0] || !keep_ids.contains(&it.id));
+    true
+}
+
+#[tauri::command]
+pub fn clipboard_group(app: AppHandle, ids: Vec<String>) {
+    let mut history = HISTORY.lock().unwrap();
+    if group_items(&mut history, &ids) {
+        commit(&app, &history, &[]);
+    }
+}
+
+/// Drags text out of the shelf into another app (the drag plugin only drags
+/// files). Runs the OLE drag loop on the main thread while the button is held.
+#[tauri::command]
+pub async fn clipboard_drag_text(app: AppHandle, text: String) -> Result<(), String> {
+    let (tx, rx) = std::sync::mpsc::channel();
+    app.run_on_main_thread(move || {
+        let _ = tx.send(unsafe { drag_text(&text) });
+    })
+    .map_err(|e| e.to_string())?;
+    tauri::async_runtime::spawn_blocking(move || rx.recv().map_err(|e| e.to_string()))
+        .await
+        .map_err(|e| e.to_string())??
+}
+
+#[windows::core::implement(windows::Win32::System::Ole::IDropSource)]
+struct TextDropSource;
+
+#[allow(non_snake_case)]
+impl windows::Win32::System::Ole::IDropSource_Impl for TextDropSource_Impl {
+    fn QueryContinueDrag(
+        &self,
+        escape: windows::core::BOOL,
+        keys: windows::Win32::System::SystemServices::MODIFIERKEYS_FLAGS,
+    ) -> windows::core::HRESULT {
+        use windows::Win32::Foundation::{DRAGDROP_S_CANCEL, DRAGDROP_S_DROP};
+        use windows::Win32::System::SystemServices::MK_LBUTTON;
+        if escape.as_bool() {
+            DRAGDROP_S_CANCEL
+        } else if keys.0 & MK_LBUTTON.0 == 0 {
+            DRAGDROP_S_DROP
+        } else {
+            windows::Win32::Foundation::S_OK
+        }
+    }
+
+    fn GiveFeedback(
+        &self,
+        _effect: windows::Win32::System::Ole::DROPEFFECT,
+    ) -> windows::core::HRESULT {
+        windows::Win32::Foundation::DRAGDROP_S_USEDEFAULTCURSORS
+    }
+}
+
+unsafe fn drag_text(text: &str) -> Result<(), String> {
+    use windows::Win32::System::Com::{
+        IDataObject, DVASPECT_CONTENT, FORMATETC, STGMEDIUM, STGMEDIUM_0, TYMED_HGLOBAL,
+    };
+    use windows::Win32::System::Ole::{
+        DoDragDrop, IDropSource, OleInitialize, DROPEFFECT, DROPEFFECT_COPY,
+    };
+    use windows::Win32::UI::Shell::SHCreateDataObject;
+
+    let _ = OleInitialize(None);
+    let data: IDataObject = SHCreateDataObject(None, None, None).map_err(|e| e.to_string())?;
+    let wide: Vec<u16> = text.encode_utf16().chain(std::iter::once(0)).collect();
+    let global = GlobalAlloc(GMEM_MOVEABLE, wide.len() * 2).map_err(|e| e.to_string())?;
+    let ptr = GlobalLock(global) as *mut u16;
+    if ptr.is_null() {
+        return Err("GlobalLock failed".into());
+    }
+    std::ptr::copy_nonoverlapping(wide.as_ptr(), ptr, wide.len());
+    let _ = GlobalUnlock(global);
+    let format = FORMATETC {
+        cfFormat: CF_UNICODETEXT.0,
+        ptd: std::ptr::null_mut(),
+        dwAspect: DVASPECT_CONTENT.0,
+        lindex: -1,
+        tymed: TYMED_HGLOBAL.0 as u32,
+    };
+    let medium = STGMEDIUM {
+        tymed: TYMED_HGLOBAL.0 as u32,
+        u: STGMEDIUM_0 { hGlobal: global },
+        pUnkForRelease: std::mem::ManuallyDrop::new(None),
+    };
+    // fRelease: the data object owns the memory from here on.
+    data.SetData(&format, &medium, true)
+        .map_err(|e| e.to_string())?;
+    let source: IDropSource = TextDropSource.into();
+    let mut effect = DROPEFFECT(0);
+    let _ = DoDragDrop(&data, &source, DROPEFFECT_COPY, &mut effect);
+    Ok(())
+}
+
 /// The notch and the edge shelf never take focus on click (WS_EX_NOACTIVATE),
 /// so a text field in them can't receive typing. The field calls this with
 /// `true` when clicked: the calling window takes the keyboard, remembering
@@ -1006,6 +1287,8 @@ mod tests {
             captured_at: at,
             pinned: false,
             hits: 1,
+            html: None,
+            note: None,
         }
     }
 
@@ -1054,6 +1337,55 @@ mod tests {
             add_item(&mut h, p);
         }
         assert_eq!(h[0].paths, ["a"]);
+    }
+
+    #[test]
+    fn reads_cf_html_fragment() {
+        let body = "<html><body><!--StartFragment--><b>hi</b><!--EndFragment--></body></html>";
+        let header = "Version:0.9\r\nStartHTML:0000000000\r\nEndHTML:0000000000\r\nStartFragment:SSSSSSSSSS\r\nEndFragment:EEEEEEEEEE\r\n";
+        let start = header.len() + body.find("<b>").unwrap();
+        let end = header.len() + body.find("<!--EndFragment").unwrap();
+        let raw = header
+            .replace("SSSSSSSSSS", &format!("{start:010}"))
+            .replace("EEEEEEEEEE", &format!("{end:010}"))
+            + body;
+        assert_eq!(
+            cf_html_fragment(raw.as_bytes()).as_deref(),
+            Some("<b>hi</b>")
+        );
+        assert_eq!(cf_html_fragment(b"no header"), None);
+    }
+
+    #[test]
+    fn groups_files_and_images_but_not_text() {
+        let mut a = text("a", "", 3);
+        a.kind = ClipKind::Image;
+        a.text = None;
+        a.image = Some("img/a.png".into());
+        let mut b = text("b", "", 2);
+        b.kind = ClipKind::Files;
+        b.text = None;
+        b.paths = vec!["x.pdf".into(), "img/a.png".into()];
+        b.pinned = true;
+        let t = text("t", "words", 1);
+        let mut h = vec![a, t, b];
+        assert!(group_items(&mut h, &["a".into(), "t".into(), "b".into()]));
+        assert_eq!(h.len(), 2);
+        assert_eq!(h[0].id, "a");
+        assert_eq!(h[0].kind, ClipKind::Files);
+        assert_eq!(h[0].paths, ["img/a.png", "x.pdf"]);
+        assert!(h[0].pinned);
+        assert_eq!(h[1].id, "t");
+        assert!(!group_items(&mut h, &["t".into()]));
+    }
+
+    #[test]
+    fn noted_items_survive_cleanup() {
+        let mut h = vec![text("1", "a", 1), text("2", "b", 1)];
+        h[1].note = Some("keep".into());
+        cleanup(&mut h, 0, 0, 10);
+        assert_eq!(h.len(), 1);
+        assert_eq!(h[0].id, "2");
     }
 
     #[test]
