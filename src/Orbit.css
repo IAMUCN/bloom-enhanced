@@ -25,14 +25,6 @@ body,
 	display: flex;
 	align-items: center;
 	justify-content: center;
-	animation: orbit-in 0.18s cubic-bezier(0.2, 0.8, 0.2, 1);
-}
-
-@keyframes orbit-in {
-	from {
-		transform: scale(0.82);
-		opacity: 0;
-	}
 }
 
 .orbit svg {
@@ -49,7 +41,7 @@ body,
 
 .orbit-slice path {
 	fill: rgba(255, 255, 255, 0.06);
-	transition: fill 0.1s ease;
+	transition: fill 0.12s ease;
 }
 
 .orbit-slice.hover path {
@@ -121,10 +113,6 @@ body,
 	opacity: 0.3;
 }
 
-.orbit-dots i.on {
-	opacity: 0.9;
-}
-
 /* Running and finished: a pill in place of the menu, with the percentage. */
 .orbit-status {
 	width: 100%;
@@ -136,12 +124,33 @@ body,
 	border-radius: 999px;
 	background: var(--bloom-bg-expanded, rgba(0, 0, 0, 0.92));
 	font-size: 12px;
-	animation: orbit-in 0.15s ease;
+}
+
+.orbit-status.ok,
+.orbit-status.canceled,
+.orbit-status.failed {
+	cursor: pointer;
 }
 
 .orbit-status.failed {
 	box-shadow: inset 0 0 0 1.5px rgba(255, 99, 99, 0.7);
-	cursor: pointer;
+}
+
+.orbit-status-icon {
+	flex: none;
+	display: flex;
+}
+
+.orbit-status.ok .orbit-status-icon {
+	color: #32d74b;
+}
+
+.orbit-status.failed .orbit-status-icon {
+	color: #ff6363;
+}
+
+.orbit-status.canceled .orbit-status-icon {
+	opacity: 0.6;
 }
 
 .orbit-status-text {

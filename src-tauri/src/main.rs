@@ -165,6 +165,7 @@ fn main() {
             orbit::orbit_run,
             orbit::orbit_cancel,
             orbit::orbit_close,
+            orbit::orbit_hide,
             orbit::orbit_shrink,
             clipboard::clipboard_drag_text,
             shelf_prune,

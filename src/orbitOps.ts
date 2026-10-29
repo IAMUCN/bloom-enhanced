@@ -1,4 +1,4 @@
-// The circular menu's options (OrbitDrop's Convert / Tools / Actions modes).
+// The radial menu's options (OrbitDrop's Convert / Tools / Actions modes).
 // Pure: which options fit what is being dragged, and which slice a point is
 // on. The backend (src-tauri/src/orbit.rs › run) carries file options out;
 // the text options are handled in the menu itself (Orbit.tsx).
@@ -6,6 +6,11 @@
 export type OrbitMode = "convert" | "tools" | "actions";
 export const MODES: OrbitMode[] = ["convert", "tools", "actions"];
 export const MODE_LABEL: Record<OrbitMode, string> = { convert: "Convert", tools: "Tools", actions: "Actions" };
+
+/** How a job ended, and what the notch shows for a running or finished job
+ *  when the status is set to show there (`orbit-status`; null = nothing). */
+export type OrbitResult = "ok" | "failed" | "canceled";
+export type OrbitStatus = { text: string; percent: number | null; result: OrbitResult | null } | null;
 
 /** What the menu acts on: files, or text dragged from another app. */
 export interface OrbitInput {
@@ -48,8 +53,9 @@ const format = (to: string, fromPdf: boolean): Entry => ({
 	fits: (exts) => (images(exts) && !exts.every((e) => same(e, to))) || (fromPdf && pdfs(exts))
 });
 
-/** Every option, per mode, in menu order. Settings › Circular Menu lists these
- *  to hide or show. */
+/** Every option, per mode, in default menu order. Settings › Radial Menu
+ *  lists these to hide or reorder. "To shelf" also copies (for text, copying
+ *  is what records it, so it lands in the shelf once). */
 export const CATALOG: Record<OrbitMode, Entry[]> = {
 	convert: ["png", "jpg", "webp", "bmp", "gif", "tiff", "ico", "pdf"].map((to) => format(to, to === "png" || to === "jpg")),
 	tools: [
@@ -70,10 +76,8 @@ export const CATALOG: Record<OrbitMode, Entry[]> = {
 	],
 	actions: [
 		{ id: "action.shelf", label: "To shelf", icon: "ClipboardPlus", progress: "Adding", fits: (e, i) => files(e) || !!i.text },
-		{ id: "action.copy-text", label: "Copy text", icon: "Copy", progress: "Copying", fits: (_, i) => !!i.text },
 		{ id: "action.copy-path", label: "Copy path", icon: "Link", progress: "Copying", fits: files },
 		{ id: "action.copy-name", label: "Copy name", icon: "Type", progress: "Copying", fits: files },
-		{ id: "action.reveal", label: "Show in folder", icon: "FolderSearch", progress: "Opening", fits: files },
 		{ id: "action.copy-to", label: "Copy to", icon: "Copy", progress: "Copying", fits: files },
 		{ id: "action.move-to", label: "Move to", icon: "FolderInput", progress: "Moving", fits: files },
 		{ id: "action.zip", label: "Zip", icon: "FileArchive", progress: "Zipping", fits: files },
@@ -88,31 +92,66 @@ export const CATALOG: Record<OrbitMode, Entry[]> = {
 	]
 };
 
-/** Options for `input` in `mode`, minus the ones hidden in Settings. */
-export function opsFor(input: OrbitInput, mode: OrbitMode, hidden: string[] = []): OrbitOp[] {
-	const exts = input.paths.map(extOf);
+/** The user's layout (Settings › Radial Menu): hidden option ids, option
+ *  order per mode, and the order Shift goes through the modes. */
+export interface OrbitLayout {
+	hidden: string[];
+	order: Partial<Record<OrbitMode, string[]>>;
+	modes: OrbitMode[];
+}
+export const DEFAULT_LAYOUT: OrbitLayout = { hidden: [], order: {}, modes: MODES };
+
+/** Every option of `mode` in the user's order (ones they never moved keep
+ *  their catalog place, after the moved ones). */
+export function ordered(mode: OrbitMode, layout: OrbitLayout = DEFAULT_LAYOUT): OrbitOp[] {
+	const order = layout.order[mode] ?? [];
+	const rank = (id: string) => {
+		const i = order.indexOf(id);
+		return i < 0 ? order.length : i;
+	};
 	return CATALOG[mode]
-		.filter((e) => !hidden.includes(e.id) && e.fits(exts, input))
-		.map(({ id, label, icon, progress }) => ({ id, label, icon, progress }));
+		.map((e, i) => ({ e, i }))
+		.sort((a, b) => rank(a.e.id) - rank(b.e.id) || a.i - b.i)
+		.map(({ e: { id, label, icon, progress } }) => ({ id, label, icon, progress }));
 }
 
-/** Modes with options for `input`, in Shift-cycle order starting at `first`. */
-export function modesFor(input: OrbitInput, hidden: string[] = [], first: OrbitMode = "convert"): OrbitMode[] {
-	const start = Math.max(0, MODES.indexOf(first));
-	const order = [...MODES.slice(start), ...MODES.slice(0, start)];
-	return order.filter((m) => opsFor(input, m, hidden).length > 0);
+/** Options for `input` in `mode`, in the user's order, minus hidden ones. */
+export function opsFor(input: OrbitInput, mode: OrbitMode, layout: OrbitLayout = DEFAULT_LAYOUT): OrbitOp[] {
+	const exts = input.paths.map(extOf);
+	const fits = new Map(CATALOG[mode].map((e) => [e.id, e.fits(exts, input)]));
+	return ordered(mode, layout).filter((op) => !layout.hidden.includes(op.id) && fits.get(op.id));
 }
 
-export const asMode = (v: unknown): OrbitMode => (MODES.includes(v as OrbitMode) ? (v as OrbitMode) : "convert");
+/** Modes with options for `input`, in the user's Shift order. */
+export function modesFor(input: OrbitInput, layout: OrbitLayout = DEFAULT_LAYOUT): OrbitMode[] {
+	return layout.modes.filter((m) => opsFor(input, m, layout).length > 0);
+}
 
-/** `bloom-files-hidden`: a JSON list of option ids. */
-export function parseHidden(v: unknown): string[] {
+const parse = (v: unknown): unknown => {
 	try {
-		const list = JSON.parse(String(v ?? "[]"));
-		return Array.isArray(list) ? list.filter((x) => typeof x === "string") : [];
+		return JSON.parse(String(v ?? "null"));
 	} catch {
-		return [];
+		return null;
 	}
+};
+
+/** Reads `bloom-files-hidden`, `bloom-files-order` and `bloom-files-mode-order`. */
+export function parseLayout(hidden: unknown, order: unknown, modes: unknown): OrbitLayout {
+	const h = parse(hidden);
+	const o = parse(order);
+	const m = parse(modes);
+	const modeList = Array.isArray(m) ? MODES.filter((x) => m.includes(x)).sort((a, b) => m.indexOf(a) - m.indexOf(b)) : [];
+	const orderMap: OrbitLayout["order"] = {};
+	if (o && typeof o === "object")
+		for (const mode of MODES) {
+			const list = (o as Record<string, unknown>)[mode];
+			if (Array.isArray(list)) orderMap[mode] = list.filter((x): x is string => typeof x === "string");
+		}
+	return {
+		hidden: Array.isArray(h) ? h.filter((x): x is string => typeof x === "string") : [],
+		order: orderMap,
+		modes: modeList.length === MODES.length ? modeList : MODES
+	};
 }
 
 // Wheel geometry in CSS pixels from the centre (OrbitDrop's WheelGeometry).

@@ -9,6 +9,10 @@
 //!   button is released. Keys are polled only while armed or open.
 //! - A shortcut (`bloom-files-shortcut`, default Ctrl+Alt+Space) opens the
 //!   wheel for the files selected in File Explorer or on the desktop.
+//! - So does tapping Shift on its own (`bloom-files-shift-tap`) while the
+//!   file list or the desktop has the keyboard focus. A tap is a press and
+//!   release within [`TAP_MS`] with no other key or mouse button meanwhile,
+//!   so Shift+click and Shift+arrow selection never open it.
 //!
 //! The wheel (src/Orbit.tsx) picks the option; [`orbit_run`] runs it. Every
 //! output is written next to the original through [`write_output`]: a temp
@@ -18,7 +22,7 @@
 
 use std::io::{Cursor, Write as _};
 use std::path::{Path, PathBuf};
-use std::sync::atomic::{AtomicBool, AtomicU32, AtomicU8, Ordering};
+use std::sync::atomic::{AtomicBool, AtomicU32, AtomicU64, AtomicU8, Ordering};
 use std::sync::OnceLock;
 use std::time::Duration;
 
@@ -40,6 +44,12 @@ static APP: OnceLock<AppHandle> = OnceLock::new();
 static FILE: AtomicU32 = AtomicU32::new(0);
 static FILES: AtomicU32 = AtomicU32::new(1);
 static PERCENT: AtomicU32 = AtomicU32::new(u32::MAX);
+/// Shift-tap detection (keyboard hook): when Shift went down (0 = up),
+/// whether anything else happened meanwhile, and a finished clean tap.
+static SHIFT_AT: AtomicU64 = AtomicU64::new(0);
+static SHIFT_DIRTY: AtomicBool = AtomicBool::new(false);
+static SHIFT_TAP: AtomicBool = AtomicBool::new(false);
+const TAP_MS: u64 = 350;
 /// 0 = closed, 1 = opened by a drag, 2 = opened by the shortcut.
 static OPEN: AtomicU8 = AtomicU8::new(0);
 const BY_DRAG: u8 = 1;
@@ -49,6 +59,10 @@ fn setting(key: &str) -> Option<String> {
     let cache = crate::state::SETTINGS_CACHE.get()?;
     let guard = cache.lock().ok()?;
     guard.get(key)?.as_str().map(str::to_string)
+}
+
+fn shift_tap_on() -> bool {
+    crate::utils::files_enabled() && setting("bloom-files-shift-tap").as_deref() != Some("false")
 }
 
 fn drag_gesture_on() -> bool {
@@ -117,6 +131,77 @@ unsafe extern "system" fn on_win_event(
     }
 }
 
+/// Watches Shift for a clean tap; every other key marks the press as used.
+unsafe extern "system" fn on_key(
+    code: i32,
+    wparam: windows::Win32::Foundation::WPARAM,
+    lparam: windows::Win32::Foundation::LPARAM,
+) -> windows::Win32::Foundation::LRESULT {
+    use windows::Win32::System::SystemInformation::GetTickCount64;
+    use windows::Win32::UI::WindowsAndMessaging::{
+        CallNextHookEx, KBDLLHOOKSTRUCT, WM_KEYDOWN, WM_KEYUP, WM_SYSKEYDOWN, WM_SYSKEYUP,
+    };
+    if code >= 0 {
+        let info = unsafe { &*(lparam.0 as *const KBDLLHOOKSTRUCT) };
+        let msg = wparam.0 as u32;
+        let down = msg == WM_KEYDOWN || msg == WM_SYSKEYDOWN;
+        let up = msg == WM_KEYUP || msg == WM_SYSKEYUP;
+        let shift = matches!(info.vkCode, 0x10 | 0xA0 | 0xA1);
+        let now = unsafe { GetTickCount64() };
+        if shift && down {
+            // Auto-repeat keeps the first press time.
+            if SHIFT_AT.load(Ordering::Relaxed) == 0 {
+                SHIFT_AT.store(now, Ordering::Relaxed);
+                SHIFT_DIRTY.store(false, Ordering::Relaxed);
+            }
+        } else if shift && up {
+            let at = SHIFT_AT.swap(0, Ordering::Relaxed);
+            if at != 0 && now - at < TAP_MS && !SHIFT_DIRTY.load(Ordering::Relaxed) {
+                SHIFT_TAP.store(true, Ordering::Relaxed);
+            }
+        } else if down {
+            SHIFT_DIRTY.store(true, Ordering::Relaxed);
+        }
+    }
+    unsafe { CallNextHookEx(None, code, wparam, lparam) }
+}
+
+/// The keyboard is in File Explorer's file list or on the desktop icons (not
+/// a rename box, the address bar or search).
+fn file_view_focused() -> bool {
+    use windows::Win32::UI::WindowsAndMessaging::{
+        GetForegroundWindow, GetGUIThreadInfo, GetWindowThreadProcessId, GUITHREADINFO,
+    };
+    unsafe {
+        let foreground = GetForegroundWindow();
+        if !matches!(
+            class_of(foreground).as_str(),
+            "CabinetWClass" | "Progman" | "WorkerW"
+        ) {
+            return false;
+        }
+        let thread = GetWindowThreadProcessId(foreground, None);
+        let mut info = GUITHREADINFO {
+            cbSize: std::mem::size_of::<GUITHREADINFO>() as u32,
+            ..Default::default()
+        };
+        GetGUIThreadInfo(thread, &mut info).is_ok()
+            && matches!(
+                class_of(info.hwndFocus).as_str(),
+                "DirectUIHWND" | "SysListView32"
+            )
+    }
+}
+
+/// Sleeps up to `ms`, waking at once for messages (the keyboard hook's
+/// calls arrive as messages and must not wait).
+fn wait(ms: u32) {
+    use windows::Win32::UI::WindowsAndMessaging::{MsgWaitForMultipleObjects, QS_ALLINPUT};
+    unsafe {
+        MsgWaitForMultipleObjects(None, false, ms, QS_ALLINPUT);
+    }
+}
+
 fn detector(app: AppHandle) {
     use windows::Win32::System::Com::{CoInitializeEx, COINIT_APARTMENTTHREADED};
     use windows::Win32::UI::Accessibility::SetWinEventHook;
@@ -137,6 +222,12 @@ fn detector(app: AppHandle) {
         for event in [EVENT_OBJECT_SHOW, EVENT_SYSTEM_CAPTURESTART] {
             SetWinEventHook(event, event, None, Some(on_win_event), 0, 0, flags);
         }
+        let _ = windows::Win32::UI::WindowsAndMessaging::SetWindowsHookExW(
+            windows::Win32::UI::WindowsAndMessaging::WH_KEYBOARD_LL,
+            Some(on_key),
+            None,
+            0,
+        );
     }
     let mut hotkey: Option<String> = None;
     let (mut shift, mut escape, mut button) = (false, false, false);
@@ -169,10 +260,29 @@ fn detector(app: AppHandle) {
             }
         }
 
+        // A mouse button while Shift is held (Shift+click) spoils the tap.
+        let shift_held = SHIFT_AT.load(Ordering::Relaxed) != 0;
+        if shift_held && (is_down(0x01) || is_down(0x02) || is_down(0x04)) {
+            SHIFT_DIRTY.store(true, Ordering::Relaxed);
+        }
         let open = OPEN.load(Ordering::Relaxed);
-        if !ARMED.load(Ordering::Relaxed) && open == 0 {
+        let armed = ARMED.load(Ordering::Relaxed);
+        if SHIFT_TAP.swap(false, Ordering::Relaxed)
+            && open == 0
+            && !armed
+            && shift_tap_on()
+            && file_view_focused()
+        {
+            let paths = explorer_selection();
+            if !paths.is_empty() {
+                open_wheel(&app, paths, BY_SHORTCUT);
+                (shift, escape, button) = (false, false, false);
+                continue;
+            }
+        }
+        if !armed && open == 0 {
             (shift, escape, button) = (is_down(VK_SHIFT), is_down(VK_ESCAPE), drag_button_down());
-            std::thread::sleep(Duration::from_millis(50));
+            wait(if shift_held { 15 } else { 50 });
             continue;
         }
         let (now_shift, now_escape, now_button) =
@@ -208,7 +318,7 @@ fn detector(app: AppHandle) {
             close_wheel(&app);
         }
         (shift, escape, button) = (now_shift, now_escape, now_button);
-        std::thread::sleep(Duration::from_millis(15));
+        wait(15);
     }
 }
 
@@ -271,6 +381,13 @@ fn close_wheel(app: &AppHandle) {
 #[tauri::command]
 pub fn orbit_close(app: AppHandle) {
     close_wheel(&app);
+}
+
+/// Moves the wheel out of view while its job reports to the notch; Esc still
+/// cancels until [`orbit_close`].
+#[tauri::command]
+pub fn orbit_hide(window: tauri::WebviewWindow) {
+    let _ = window.set_position(tauri::PhysicalPosition::new(PARKED, PARKED));
 }
 
 /// Shrinks the open wheel to its status card (w × h logical pixels, same
@@ -1043,17 +1160,6 @@ fn run(app: &AppHandle, op: &str, paths: &[PathBuf]) -> Vec<Outcome> {
                     .map_err(|e| e.to_string()),
             )
         }
-        "action.reveal" => {
-            let arg = format!("/select,\"{}\"", first.display());
-            use std::os::windows::process::CommandExt;
-            Some(
-                std::process::Command::new("explorer.exe")
-                    .raw_arg(arg)
-                    .spawn()
-                    .map(|_| None)
-                    .map_err(|e| e.to_string()),
-            )
-        }
         "action.terminal" => {
             let dir = if first.is_dir() {
                 first.clone()
@@ -1076,11 +1182,12 @@ fn run(app: &AppHandle, op: &str, paths: &[PathBuf]) -> Vec<Outcome> {
             )
         }
         "action.shelf" => {
-            let list = paths
+            let list: Vec<String> = paths
                 .iter()
                 .map(|p| p.to_string_lossy().into_owned())
                 .collect();
-            crate::clipboard::clipboard_add(app.clone(), list, None);
+            crate::clipboard::clipboard_add(app.clone(), list.clone(), None);
+            let _ = crate::clipboard::clipboard_copy_paths(list);
             Some(Ok(None))
         }
         "action.wallpaper" => Some(set_wallpaper(&first).map(|()| None)),

@@ -1,9 +1,10 @@
 import { expect, test } from "bun:test";
-import { HUB, OUTSIDE, hitTest, modesFor, opsFor, parseHidden } from "../src/orbitOps";
+import { HUB, OUTSIDE, hitTest, modesFor, opsFor, parseLayout, type OrbitInput } from "../src/orbitOps";
 
 const files = (...paths: string[]) => ({ paths });
-const ids = (input: { paths: string[]; text?: string }, mode: Parameters<typeof opsFor>[1], hidden?: string[]) =>
-	opsFor(input, mode, hidden).map((o) => o.id);
+const layout = (hidden: string[] = [], order = {}, modes?: string[]) =>
+	parseLayout(JSON.stringify(hidden), JSON.stringify(order), modes ? JSON.stringify(modes) : undefined);
+const ids = (input: OrbitInput, mode: Parameters<typeof opsFor>[1], l = layout()) => opsFor(input, mode, l).map((o) => o.id);
 
 test("options fit every file in the set", () => {
 	expect(ids(files("C:\\a.PNG"), "convert")).not.toContain("convert.png");
@@ -21,20 +22,25 @@ test("options fit every file in the set", () => {
 	expect(modesFor(files())).toEqual([]);
 });
 
-test("dragged text gets the shelf and copy", () => {
+test("dragged text has one option: To shelf", () => {
 	expect(modesFor({ paths: [], text: "hi" })).toEqual(["actions"]);
-	expect(ids({ paths: [], text: "hi" }, "actions")).toEqual(["action.shelf", "action.copy-text"]);
-	expect(ids(files("C:\\a.png"), "actions")).not.toContain("action.copy-text");
+	expect(ids({ paths: [], text: "hi" }, "actions")).toEqual(["action.shelf"]);
 });
 
-test("settings hide options and pick the first menu", () => {
-	expect(ids(files("C:\\a.png"), "actions", ["action.wallpaper"])).not.toContain("action.wallpaper");
-	expect(modesFor(files("C:\\a.png"), [], "actions")).toEqual(["actions", "convert", "tools"]);
-	expect(modesFor(files("C:\\a.png"), [], "tools")).toEqual(["tools", "actions", "convert"]);
-	expect(modesFor(files("C:\\x.zip"), ["tool.archive.extract"])).toEqual(["actions"]);
-	expect(parseHidden('["a","b"]')).toEqual(["a", "b"]);
-	expect(parseHidden("nope")).toEqual([]);
-	expect(parseHidden(undefined)).toEqual([]);
+test("the layout hides, reorders and sets the Shift order", () => {
+	expect(ids(files("C:\\a.png"), "actions", layout(["action.wallpaper"]))).not.toContain("action.wallpaper");
+	const moved = ids(files("C:\\a.png"), "actions", layout([], { actions: ["action.zip", "action.terminal"] }));
+	expect(moved.slice(0, 3)).toEqual(["action.zip", "action.terminal", "action.shelf"]);
+	expect(modesFor(files("C:\\a.png"), layout([], {}, ["actions", "convert", "tools"]))).toEqual([
+		"actions",
+		"convert",
+		"tools"
+	]);
+	expect(modesFor(files("C:\\x.zip"), layout(["tool.archive.extract"]))).toEqual(["actions"]);
+	// Damaged settings fall back to the defaults.
+	const bad = parseLayout("nope", "[1]", '["tools"]');
+	expect(bad.hidden).toEqual([]);
+	expect(bad.modes).toEqual(["convert", "tools", "actions"]);
 });
 
 test("slices run clockwise from 12 o'clock", () => {

@@ -76,6 +76,8 @@ import {
 	Activity,
 	ClipboardCheck
 } from "lucide-react";
+import { CircleAlert, CircleCheck, CircleSlash } from "lucide-react";
+import type { OrbitStatus } from "./orbitOps";
 
 /**
  * The notch has two kinds of content:
@@ -1127,6 +1129,19 @@ function App() {
 			unlisten.then((fn) => fn());
 		};
 	}, [windowLabel, settingsClipboardEnabled, clipboardCopyIndicator, clipOptions.sounds, notchMode, triggerEventPeek]);
+	// The radial menu's job status, when Settings › Radial Menu shows it here
+	// (the menu sends it as `orbit-status`; null clears it).
+	const [fileStatus, setFileStatus] = useState<OrbitStatus>(null);
+	useEffect(() => {
+		if (windowLabel !== "main") return;
+		const unlisten = listen<OrbitStatus>("orbit-status", (e) => {
+			setFileStatus(e.payload);
+			if (e.payload && notchMode !== "fixed") triggerEventPeek(2500);
+		});
+		return () => {
+			unlisten.then((fn) => fn());
+		};
+	}, [windowLabel, notchMode, triggerEventPeek]);
 	const [settingsTimerSoundEnabled, setSettingsTimerSoundEnabled] = useState(
 		() => localStorage.getItem("bloom-timer-sound-enabled") !== "false"
 	);
@@ -3161,7 +3176,8 @@ function App() {
 		!showPowerPulse &&
 		!showLowBatteryPulse &&
 		!showUpdatePulse &&
-		!showCopyPulse;
+		!showCopyPulse &&
+		!fileStatus;
 	// A media session remains reachable on hover after its activity fades, or
 	// whenever the compact music display is disabled.
 	const showMusicOnStatusHover =
@@ -3189,6 +3205,7 @@ function App() {
 			return Math.max(Math.min(200 + totalWidgets * 50, 380) - clock24hTrim, statusFitWidth);
 		}
 		if (isMusicMode && isOpen) return mediaLayout === "compact" ? 300 : 340;
+		if (fileStatus && !isHovered) return 300;
 		if ((showPowerPulse || showLowBatteryPulse || showUpdatePulse || showCopyPulse) && !isHovered) return 200;
 
 		let w = 140 - clock24hTrim;
@@ -3696,9 +3713,51 @@ function App() {
 												style={bloomMode === "device" || deviceAlertOnScreen ? { visibility: "hidden" } : undefined}
 											>
 												<AnimatePresence mode="wait">
-													{(showPowerPulse || showLowBatteryPulse || showUpdatePulse || showCopyPulse) &&
+													{(showPowerPulse || showLowBatteryPulse || showUpdatePulse || showCopyPulse || fileStatus) &&
 													!isHovered ? (
-														showCopyPulse ? (
+														fileStatus ? (
+															<motion.div
+																key="file-status-view"
+																initial={{ opacity: 0, scale: 0.9, filter: "blur(4px)" }}
+																animate={{ opacity: 1, scale: 1, filter: "blur(0px)" }}
+																exit={{ opacity: 0, scale: 1.05, filter: "blur(4px)" }}
+																transition={{ type: "spring", stiffness: 480, damping: 24 }}
+																className="power-pulse-content"
+															>
+																{fileStatus.result && (
+																	<motion.span
+																		key={fileStatus.result}
+																		initial={{ scale: 0, rotate: -90 }}
+																		animate={{ scale: 1, rotate: 0 }}
+																		transition={{ type: "spring", stiffness: 600, damping: 15 }}
+																		style={{
+																			display: "flex",
+																			color:
+																				fileStatus.result === "ok"
+																					? "#32D74B"
+																					: fileStatus.result === "failed"
+																						? "#FF453A"
+																						: undefined
+																		}}
+																	>
+																		{fileStatus.result === "ok" ? (
+																			<CircleCheck size={14} />
+																		) : fileStatus.result === "failed" ? (
+																			<CircleAlert size={14} />
+																		) : (
+																			<CircleSlash size={14} />
+																		)}
+																	</motion.span>
+																)}
+																<span
+																	className="label"
+																	style={{ minWidth: 0, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}
+																>
+																	{fileStatus.text}
+																	{fileStatus.percent !== null && ` • ${fileStatus.percent}%`}
+																</span>
+															</motion.div>
+														) : showCopyPulse ? (
 															<motion.div
 																key="copy-pulse-view"
 																initial={{ opacity: 0, scale: 0.95, filter: "blur(4px)" }}

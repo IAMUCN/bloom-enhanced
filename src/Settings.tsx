@@ -30,7 +30,7 @@ const TABS: { id: SettingsTab; label: string; icon: typeof Settings }[] = [
 	{ id: "notch", label: "Notch", icon: PanelTop },
 	{ id: "dock", label: "Dock", icon: Monitor },
 	{ id: "clipboard", label: "Shelf", icon: ClipboardList },
-	{ id: "files", label: "Circular Menu", icon: Orbit },
+	{ id: "files", label: "Radial Menu", icon: Orbit },
 	{ id: "overlays", label: "Overlays", icon: Layers },
 	{ id: "about", label: "About", icon: Info }
 ];

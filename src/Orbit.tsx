@@ -1,76 +1,45 @@
-// The circular menu (`orbit` window), OrbitDrop's radial menu in Bloom's look.
+// The radial menu (`orbit` window), OrbitDrop's menu in Bloom's look.
 // The backend (orbit.rs) opens this window around the pointer when Shift is
-// tapped during a drag (files or selected text), or on the shortcut with
-// files selected in File Explorer. Letting the drag go on an option (or
-// clicking one) runs it; the menu then shrinks to a status pill showing the
-// percentage until the job is done.
+// tapped during a drag (files or selected text), on a Shift tap with files
+// selected, or on the shortcut. Letting the drag go on an option (or clicking
+// one) runs it; the status then shows as a pill here or in the notch
+// (`bloom-files-status-at`) with the percentage until the job is done.
 import React, { useCallback, useEffect, useRef, useState } from "react";
 import ReactDOM from "react-dom/client";
+import { AnimatePresence, motion } from "framer-motion";
 import { invoke } from "@tauri-apps/api/core";
-import { listen } from "@tauri-apps/api/event";
+import { emitTo, listen } from "@tauri-apps/api/event";
 import { writeText } from "@tauri-apps/plugin-clipboard-manager";
-import {
-	ClipboardPlus,
-	Contrast,
-	Copy,
-	FileArchive,
-	FileDown,
-	FileStack,
-	FlipHorizontal2,
-	FolderInput,
-	FolderOpen,
-	FolderSearch,
-	Link,
-	Minimize2,
-	RotateCcw,
-	RotateCw,
-	SquareTerminal,
-	Type,
-	Wallpaper,
-	X
-} from "lucide-react";
+import { CircleAlert, CircleCheck, CircleSlash, X } from "lucide-react";
 import {
 	HUB,
 	INNER_R,
 	MODE_LABEL,
 	OUTER_R,
-	asMode,
 	hitTest,
 	modesFor,
 	opsFor,
-	parseHidden,
+	parseLayout,
 	type OrbitInput,
+	type OrbitLayout,
 	type OrbitMode,
-	type OrbitOp
+	type OrbitOp,
+	type OrbitResult,
+	type OrbitStatus
 } from "./orbitOps";
+import { ORBIT_ICONS } from "./orbitIcons";
 import { useSettingsSync } from "./hooks/useSettingsSync";
 import { initTheme } from "./theme";
 import "./Orbit.css";
 
-const ICONS: Record<string, typeof Copy> = {
-	ClipboardPlus,
-	Contrast,
-	Copy,
-	FileArchive,
-	FileDown,
-	FileStack,
-	FlipHorizontal2,
-	FolderInput,
-	FolderOpen,
-	FolderSearch,
-	Link,
-	Minimize2,
-	RotateCcw,
-	RotateCw,
-	SquareTerminal,
-	Type,
-	Wallpaper
-};
 
 const SIZE = 360;
 const C = SIZE / 2;
 const GAP = 2.5; // degrees between slices
 const STATUS = { width: 300, height: 64 };
+// Bloom's springy micro-motion.
+const SPRING = { type: "spring", stiffness: 480, damping: 24 } as const;
+const ORIGIN = { transformOrigin: `${C}px ${C}px`, transformBox: "view-box" } as const;
 
 document.addEventListener("contextmenu", (e) => e.preventDefault());
 
@@ -80,12 +49,13 @@ interface Outcome {
 	error: string | null;
 }
 
+type Result = OrbitResult;
 type Phase =
 	| { kind: "closed" }
 	| { kind: "wheel" }
 	/** percent is null while a folder picker is open (Copy to / Move to). */
 	| { kind: "running"; op: OrbitOp; percent: number | null }
-	| { kind: "done"; text: string; failed: boolean };
+	| { kind: "done"; text: string; result: Result };
 
 const point = (r: number, deg: number) => {
 	const a = (deg * Math.PI) / 180;
@@ -110,40 +80,45 @@ const shrink = () => invoke("orbit_shrink", STATUS).catch(() => {});
 type DragPayload = { paths?: string[]; text?: string; position: { x: number; y: number } };
 const inputOf = (p: DragPayload): OrbitInput => (p.paths ? { paths: p.paths } : { paths: [], text: p.text });
 
+const RESULT_ICON = { ok: CircleCheck, failed: CircleAlert, canceled: CircleSlash };
+
 function Orbit() {
 	const [phase, setPhase] = useState<Phase>({ kind: "closed" });
 	const [input, setInput] = useState<OrbitInput>({ paths: [] });
 	const [mode, setMode] = useState<OrbitMode>("convert");
 	const [hover, setHover] = useState(HUB);
-	// Settings › Circular Menu: hidden options and the menu shown first.
-	const [hidden, setHidden] = useState<string[]>([]);
-	const [first, setFirst] = useState<OrbitMode>("convert");
+	// Settings › Radial Menu.
+	const [raw, setRaw] = useState<Record<string, unknown>>({});
+	const layout: OrbitLayout = parseLayout(raw["bloom-files-hidden"], raw["bloom-files-order"], raw["bloom-files-mode-order"]);
+	const inNotch = raw["bloom-files-status-at"] === "notch";
+	const seconds = Number(raw["bloom-files-status-seconds"]) || 2;
 	const phaseRef = useRef(phase);
 	phaseRef.current = phase;
-	const state = useRef({ input, mode, hidden, first });
-	state.current = { input, mode, hidden, first };
+	const state = useRef({ input, mode, layout, inNotch, seconds });
+	state.current = { input, mode, layout, inNotch, seconds };
 
 	useEffect(() => initTheme(), []);
 	useEffect(() => {
 		invoke<Record<string, string>>("load_settings")
-			.then((s) => {
-				setHidden(parseHidden(s["bloom-files-hidden"]));
-				setFirst(asMode(s["bloom-files-first-mode"]));
-			})
+			.then(setRaw)
 			.catch(() => {});
 	}, []);
+	const keep = (key: string) => (v: unknown) => setRaw((r) => ({ ...r, [key]: v }));
 	useSettingsSync({
-		"bloom-files-hidden": (v) => setHidden(parseHidden(v)),
-		"bloom-files-first-mode": (v) => setFirst(asMode(v))
+		"bloom-files-hidden": keep("bloom-files-hidden"),
+		"bloom-files-order": keep("bloom-files-order"),
+		"bloom-files-mode-order": keep("bloom-files-mode-order"),
+		"bloom-files-status-at": keep("bloom-files-status-at"),
+		"bloom-files-status-seconds": keep("bloom-files-status-seconds")
 	});
 
 	/** Modes for the current input; before a drag has entered, every mode. */
 	const modesNow = useCallback(() => {
-		const { input, hidden, first } = state.current;
-		return hasInput(input) ? modesFor(input, hidden, first) : modesFor({ paths: ["x.png"] }, [], first);
+		const { input, layout } = state.current;
+		return hasInput(input) ? modesFor(input, layout) : layout.modes;
 	}, []);
 	const modes = modesNow();
-	const ops = opsFor(input, mode, hidden);
+	const ops = opsFor(input, mode, layout);
 
 	const close = useCallback(() => {
 		setPhase({ kind: "closed" });
@@ -156,42 +131,57 @@ function Orbit() {
 		setHover(HUB);
 	}, [modesNow]);
 
+	// The status goes to the notch instead: this window steps out of the way.
+	useEffect(() => {
+		if (!state.current.inNotch) return;
+		let status: OrbitStatus = null;
+		if (phase.kind === "running" && phase.percent !== null)
+			status = { text: phase.op.progress, percent: phase.percent, result: null };
+		else if (phase.kind === "done") status = { text: phase.text, percent: null, result: phase.result };
+		if (status) invoke("orbit_hide").catch(() => {});
+		if (phase.kind !== "wheel") emitTo("main", "orbit-status", status).catch(() => {});
+	}, [phase]);
+
 	const finish = useCallback(
-		(text: string, failed: boolean) => {
-			setPhase({ kind: "done", text, failed });
-			shrink();
+		(text: string, result: Result) => {
+			setPhase({ kind: "done", text, result });
+			if (!state.current.inNotch) shrink();
+			const s = state.current.seconds;
+			const ms = result === "canceled" ? 900 : result === "failed" ? (s + 2) * 1000 : s * 1000;
 			setTimeout(() => {
 				if (phaseRef.current.kind === "done") close();
-			}, failed ? 6000 : 2200);
+			}, ms);
 		},
 		[close]
 	);
 
 	const run = useCallback(
 		async (op: OrbitOp, input: OrbitInput) => {
-			// Dragged text: handled here, there is no file to write.
+			// Dragged text: copying it is what records it, so it lands in the
+			// shelf once and is also on the clipboard.
 			if (input.text) {
 				try {
-					if (op.id === "action.copy-text") await writeText(input.text);
-					else await invoke("clipboard_add", { paths: [], text: input.text });
-					finish(op.id === "action.copy-text" ? "Copied" : "Added to the shelf", false);
+					await writeText(input.text);
+					finish("Added to the shelf and copied", "ok");
 				} catch (e) {
-					finish(String(e), true);
+					finish(String(e), "failed");
 				}
 				return;
 			}
 			const picking = PICKS_FOLDER.includes(op.id);
 			setPhase({ kind: "running", op, percent: picking ? null : 0 });
-			if (!picking) shrink();
+			if (!picking && !state.current.inNotch) shrink();
 			let text: string;
-			let failed = false;
+			let result: Result = "ok";
 			try {
 				const outcomes = await invoke<Outcome[]>("orbit_run", { op: op.id, paths: input.paths });
 				const errors = outcomes.filter((o) => o.error);
 				const outputs = outcomes.flatMap((o) => (o.output ? [o.output] : []));
-				if (errors.length && errors.every((o) => o.error === "Canceled")) text = "Canceled";
-				else if (errors.length) {
-					failed = true;
+				if (errors.length && errors.every((o) => o.error === "Canceled")) {
+					text = "Canceled";
+					result = "canceled";
+				} else if (errors.length) {
+					result = "failed";
 					const name = fileName(errors[0].source);
 					text =
 						outcomes.length === 1
@@ -199,12 +189,12 @@ function Orbit() {
 							: `${errors.length} of ${outcomes.length} failed. ${name}: ${errors[0].error}`;
 				} else if (outputs.length === 1) text = `Saved ${fileName(outputs[0])}`;
 				else if (outputs.length) text = `Saved ${outputs.length} files`;
-				else text = `${op.label}: done`;
+				else text = op.id === "action.shelf" ? "Added to the shelf and copied" : `${op.label}: done`;
 			} catch (e) {
-				failed = true;
+				result = "failed";
 				text = String(e);
 			}
-			finish(text, failed);
+			finish(text, result);
 		},
 		[finish]
 	);
@@ -212,8 +202,8 @@ function Orbit() {
 	useEffect(() => {
 		// Points arrive in physical client pixels.
 		const hitAt = (x: number, y: number, input = state.current.input) => {
-			const { mode, hidden } = state.current;
-			return hitTest(x / devicePixelRatio - C, y / devicePixelRatio - C, opsFor(input, mode, hidden).length);
+			const { mode, layout } = state.current;
+			return hitTest(x / devicePixelRatio - C, y / devicePixelRatio - C, opsFor(input, mode, layout).length);
 		};
 		const offs = [
 			listen<{ paths: string[]; drag: boolean }>("orbit-open", (e) => {
@@ -224,14 +214,16 @@ function Orbit() {
 				setHover(HUB);
 				setPhase({ kind: "wheel" });
 			}),
-			listen("orbit-close", () => setPhase({ kind: "closed" })),
+			listen("orbit-close", () => {
+				if (phaseRef.current.kind === "wheel") setPhase({ kind: "closed" });
+			}),
 			listen("orbit-shift", () => {
 				if (phaseRef.current.kind === "wheel") cycle();
 			}),
 			listen<number>("orbit-progress", (e) => {
 				const p = phaseRef.current;
 				if (p.kind !== "running") return;
-				if (p.percent === null) shrink();
+				if (p.percent === null && !state.current.inNotch) shrink();
 				setPhase({ ...p, percent: e.payload });
 			}),
 			listen<DragPayload>("orbit-drag-enter", (e) => {
@@ -250,9 +242,9 @@ function Orbit() {
 			listen<DragPayload>("orbit-drag-drop", (e) => {
 				if (phaseRef.current.kind !== "wheel") return;
 				const dropped = inputOf(e.payload);
-				const { mode, hidden } = state.current;
+				const { mode, layout } = state.current;
 				const i = hitAt(e.payload.position.x, e.payload.position.y, dropped);
-				if (i >= 0) run(opsFor(dropped, mode, hidden)[i], dropped);
+				if (i >= 0) run(opsFor(dropped, mode, layout)[i], dropped);
 				else close();
 			}),
 			// The drag ended: unless it landed on an option, close.
@@ -266,31 +258,56 @@ function Orbit() {
 	}, [close, cycle, run, modesNow]);
 
 	if (phase.kind === "closed") return null;
-	if (phase.kind === "running" && phase.percent === null) return null;
+	if (phase.kind === "running" && (phase.percent === null || inNotch)) return null;
+	if (phase.kind === "done" && inNotch) return null;
 
 	if (phase.kind === "running" || phase.kind === "done") {
-		const failed = phase.kind === "done" && phase.failed;
+		const Icon = phase.kind === "done" ? RESULT_ICON[phase.result] : null;
 		return (
-			<div className={`orbit-status${failed ? " failed" : ""}`} onClick={phase.kind === "done" ? close : undefined}>
-				{phase.kind === "running" ? (
+			<motion.div
+				className={`orbit-status${phase.kind === "done" ? ` ${phase.result}` : ""}`}
+				initial={{ scale: 0.6, opacity: 0 }}
+				animate={{ scale: 1, opacity: 1 }}
+				transition={SPRING}
+				onClick={phase.kind === "done" ? close : undefined}
+			>
+				<AnimatePresence mode="popLayout" initial={false}>
+					{Icon && (
+						<motion.span
+							key="icon"
+							className="orbit-status-icon"
+							initial={{ scale: 0, rotate: -90 }}
+							animate={{ scale: 1, rotate: 0 }}
+							transition={{ type: "spring", stiffness: 600, damping: 15 }}
+						>
+							<Icon size={18} />
+						</motion.span>
+					)}
+				</AnimatePresence>
+				<motion.span key={phase.kind} className="orbit-status-text" initial={{ y: 6, opacity: 0 }} animate={{ y: 0, opacity: 1 }} transition={SPRING}>
+					{phase.kind === "running" ? phase.op.progress : phase.text}
+				</motion.span>
+				{phase.kind === "running" && (
 					<>
-						<span className="orbit-status-text">{phase.op.progress}</span>
 						<span className="orbit-percent">{phase.percent}%</span>
 						<button title="Cancel (Esc)" onClick={() => invoke("orbit_cancel").catch(() => {})}>
 							<X size={14} />
 						</button>
 					</>
-				) : (
-					<span className="orbit-status-text">{phase.text}</span>
 				)}
-			</div>
+			</motion.div>
 		);
 	}
 
 	const step = 360 / Math.max(1, ops.length);
 	const count = input.paths.length;
 	return (
-		<div className="orbit">
+		<motion.div
+			className="orbit"
+			initial={{ scale: 0.5, opacity: 0, rotate: -30 }}
+			animate={{ scale: 1, opacity: 1, rotate: 0 }}
+			transition={SPRING}
+		>
 			<svg
 				width={SIZE}
 				height={SIZE}
@@ -304,44 +321,65 @@ function Orbit() {
 				}}
 			>
 				<circle className="orbit-disc" cx={C} cy={C} r={OUTER_R + 8} />
-				{ops.map((op, i) => {
-					const mid = -90 + i * step;
-					const a0 = mid - step / 2 + (ops.length > 1 ? GAP : 0);
-					const a1 = mid + step / 2 - (ops.length > 1 ? GAP : 0);
-					const [lx, ly] = point((OUTER_R + INNER_R) / 2, mid);
-					const Icon = op.icon ? ICONS[op.icon] : undefined;
-					return (
-						<g key={op.id} className={`orbit-slice${hover === i ? " hover" : ""}`}>
-							{ops.length === 1 ? (
-								<path d={`${slicePath(-90, 89.99)} ${slicePath(90, 269.99)}`} />
-							) : (
-								<path d={slicePath(a0, a1)} />
-							)}
-							<foreignObject x={lx - 40} y={ly - 22} width={80} height={44}>
-								<div className="orbit-label">
-									{Icon && <Icon size={16} strokeWidth={1.75} />}
-									<span className={Icon ? "" : "orbit-format"}>{op.label}</span>
-								</div>
-							</foreignObject>
-						</g>
-					);
-				})}
+				<motion.g
+					key={`${mode}|${ops.length}`}
+					style={ORIGIN}
+					initial={{ rotate: -40, scale: 0.85 }}
+					animate={{ rotate: 0, scale: 1 }}
+					transition={SPRING}
+				>
+					{ops.map((op, i) => {
+						const mid = -90 + i * step;
+						const a0 = mid - step / 2 + (ops.length > 1 ? GAP : 0);
+						const a1 = mid + step / 2 - (ops.length > 1 ? GAP : 0);
+						const [lx, ly] = point((OUTER_R + INNER_R) / 2, mid);
+						const Icon = op.icon ? ORBIT_ICONS[op.icon] : undefined;
+						return (
+							<motion.g
+								key={op.id}
+								className={`orbit-slice${hover === i ? " hover" : ""}`}
+								style={ORIGIN}
+								initial={{ opacity: 0, scale: 0.6 }}
+								animate={{ opacity: 1, scale: hover === i ? 1.06 : 1 }}
+								transition={{ ...SPRING, opacity: { delay: i * 0.025, duration: 0.15 } }}
+							>
+								{ops.length === 1 ? (
+									<path d={`${slicePath(-90, 89.99)} ${slicePath(90, 269.99)}`} />
+								) : (
+									<path d={slicePath(a0, a1)} />
+								)}
+								<foreignObject x={lx - 40} y={ly - 22} width={80} height={44}>
+									<div className="orbit-label">
+										{Icon && <Icon size={16} strokeWidth={1.75} />}
+										<span className={Icon ? "" : "orbit-format"}>{op.label}</span>
+									</div>
+								</foreignObject>
+							</motion.g>
+						);
+					})}
+				</motion.g>
 				<circle className="orbit-hub" cx={C} cy={C} r={INNER_R - 6} />
 				<foreignObject x={C - 50} y={C - 30} width={100} height={60}>
-					<div className="orbit-hub-label">
+					<motion.div
+						key={input.text ? "text" : mode}
+						className="orbit-hub-label"
+						initial={{ y: 8, opacity: 0, scale: 0.85 }}
+						animate={{ y: 0, opacity: 1, scale: 1 }}
+						transition={SPRING}
+					>
 						<strong>{input.text ? "Text" : count ? MODE_LABEL[mode] : "Files"}</strong>
 						<span>
 							{input.text ? "Selected text" : count ? `${count} file${count > 1 ? "s" : ""}` : "Move to choose"}
 						</span>
 						<div className="orbit-dots">
 							{modes.map((m) => (
-								<i key={m} className={m === mode ? "on" : ""} />
+								<motion.i key={m} animate={{ opacity: m === mode ? 0.9 : 0.3, scale: m === mode ? 1.3 : 1 }} transition={SPRING} />
 							))}
 						</div>
-					</div>
+					</motion.div>
 				</foreignObject>
 			</svg>
-		</div>
+		</motion.div>
 	);
 }
 
