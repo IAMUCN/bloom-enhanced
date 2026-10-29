@@ -4,7 +4,7 @@ import { getCurrentWebviewWindow } from "@tauri-apps/api/webviewWindow";
 import { Effect } from "@tauri-apps/api/window";
 import { invoke } from "@tauri-apps/api/core";
 import { openUrl } from "@tauri-apps/plugin-opener";
-import { X, Settings, Palette, PanelTop, Monitor, Layers, Info, Megaphone } from "lucide-react";
+import { X, Settings, Palette, PanelTop, Monitor, Layers, Info, Megaphone, ClipboardList } from "lucide-react";
 import {
 	useSettings,
 	GeneralTab,
@@ -12,6 +12,7 @@ import {
 	NotchTab,
 	DockTab,
 	OverlaysTab,
+	ClipboardTab,
 	AboutTab
 } from "./settings/index";
 import type { SettingsTab } from "./settings/index";
@@ -27,6 +28,7 @@ const TABS: { id: SettingsTab; label: string; icon: typeof Settings }[] = [
 	{ id: "appearance", label: "Appearance", icon: Palette },
 	{ id: "notch", label: "Notch", icon: PanelTop },
 	{ id: "dock", label: "Dock", icon: Monitor },
+	{ id: "clipboard", label: "Clipboard", icon: ClipboardList },
 	{ id: "overlays", label: "Overlays", icon: Layers },
 	{ id: "about", label: "About", icon: Info }
 ];
@@ -36,6 +38,7 @@ const TAB_COPY: Record<SettingsTab, string> = {
 	appearance: "Make every surface feel at home on your desktop.",
 	notch: "Choose what appears at the top of your screen.",
 	dock: "Shape the taskbar replacement around your workflow.",
+	clipboard: "Everything you copy, kept on this PC and opened from the notch.",
 	overlays: "Keep quick controls visible only when you need them.",
 	about: "Version, updates and your settings data."
 };
@@ -300,6 +303,19 @@ function SettingsApp() {
 							handleStartIconChange={settings.handleStartIconChange}
 							dockScale={settings.dockScale}
 							handleDockScaleChange={settings.handleDockScaleChange}
+						/>
+					)}
+					{activeTab === "clipboard" && (
+						<ClipboardTab
+							enabled={settings.clipboardEnabled}
+							toggleEnabled={settings.toggleClipboard}
+							incognito={settings.clipboardIncognito}
+							toggleIncognito={settings.toggleClipboardIncognito}
+							limit={settings.clipboardLimit}
+							changeLimit={settings.changeClipboardLimit}
+							retentionHours={settings.clipboardRetentionHours}
+							changeRetention={settings.changeClipboardRetention}
+							clearHistory={settings.clearClipboardHistory}
 						/>
 					)}
 					{activeTab === "overlays" && (

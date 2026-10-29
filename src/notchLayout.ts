@@ -7,6 +7,7 @@
 export const SIZED_PANELS = [
 	["calendar", "Calendar"],
 	["command-center", "Command Center"],
+	["clipboard", "Clipboard"],
 	["devices", "Connected devices"],
 	["music", "Music"],
 	["shelf", "Shelf"]

@@ -3,6 +3,7 @@
 mod battery;
 mod bluetooth;
 mod buds;
+mod clipboard;
 mod commands;
 mod diagnostics;
 mod dock_extras;
@@ -147,6 +148,11 @@ fn main() {
             setup_shelf_drop,
             shelf_thumbnail,
             shelf_drag_icon,
+            clipboard::clipboard_history,
+            clipboard::clipboard_copy,
+            clipboard::clipboard_pin,
+            clipboard::clipboard_delete,
+            clipboard::clipboard_clear,
             shelf_prune,
             shelf_open,
             get_active_windows,
@@ -230,6 +236,7 @@ fn main() {
             // invoke save_setting as soon as it loads, which happens before the
             // rest of this hook runs.
             crate::utils::init_settings_cache(app.handle());
+            clipboard::start(app.handle().clone());
             // Crash-recovery: if a previous session was force-killed while the native
             // taskbar was hidden, restore it now. Runs before the frontend re-hides it
             // (init_dock fires after a delay), so the flag must be removed first.

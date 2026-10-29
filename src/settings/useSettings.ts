@@ -49,6 +49,10 @@ export function useSettings() {
 	const [calendarEnabled, setCalendarEnabled] = useState(true);
 	const [controlsPanelEnabled, setControlsPanelEnabled] = useState(true);
 	const [devicesPanelEnabled, setDevicesPanelEnabled] = useState(false);
+	const [clipboardEnabled, setClipboardEnabled] = useState(true);
+	const [clipboardIncognito, setClipboardIncognito] = useState(false);
+	const [clipboardLimit, setClipboardLimit] = useState(200);
+	const [clipboardRetentionHours, setClipboardRetentionHours] = useState(0);
 	const [timerSoundEnabled, setTimerSoundEnabled] = useState(
 		() => localStorage.getItem("bloom-timer-sound-enabled") !== "false"
 	);
@@ -228,6 +232,10 @@ export function useSettings() {
 			apply(getVal("bloom-calendar-enabled"), setCalendarEnabled, readBool);
 			apply(getVal("bloom-notch-command-center-enabled"), setControlsPanelEnabled, readBool);
 			apply(getVal("bloom-notch-devices-enabled"), setDevicesPanelEnabled, readBool);
+			apply(getVal("bloom-clipboard-enabled"), setClipboardEnabled, readBool);
+			apply(getVal("bloom-clipboard-incognito"), setClipboardIncognito, readBool);
+			apply(getVal("bloom-clipboard-limit"), setClipboardLimit, Number);
+			apply(getVal("bloom-clipboard-retention-hours"), setClipboardRetentionHours, Number);
 			apply(getVal("bloom-timer-sound-enabled"), setTimerSoundEnabled, readBool);
 			apply(getVal("bloom-music-mode-enabled"), setMusicModeEnabled, readBool);
 			apply(getVal("bloom-notch-remember-panel") ?? getVal("bloom-notch-click-to-open"),
@@ -409,6 +417,10 @@ export function useSettings() {
 		"bloom-calendar-enabled": setCalendarEnabled,
 		"bloom-notch-command-center-enabled": setControlsPanelEnabled,
 		"bloom-notch-devices-enabled": setDevicesPanelEnabled,
+		"bloom-clipboard-enabled": setClipboardEnabled,
+		"bloom-clipboard-incognito": setClipboardIncognito,
+		"bloom-clipboard-limit": setClipboardLimit,
+		"bloom-clipboard-retention-hours": setClipboardRetentionHours,
 		"bloom-timer-sound-enabled": setTimerSoundEnabled,
 		"bloom-music-mode-enabled": setMusicModeEnabled,
 		"bloom-notch-remember-panel": setNotchRememberPanel,
@@ -598,6 +610,39 @@ export function useSettings() {
 		if (!next && enabledPanelCount <= 1) return;
 		setDevicesPanelEnabled(next);
 		saveSetting("bloom-notch-devices-enabled", String(next));
+	};
+
+	const toggleClipboard = () => {
+		const next = !clipboardEnabled;
+		setClipboardEnabled(next);
+		saveSetting("bloom-clipboard-enabled", String(next));
+	};
+
+	const toggleClipboardIncognito = () => {
+		const next = !clipboardIncognito;
+		setClipboardIncognito(next);
+		saveSetting("bloom-clipboard-incognito", String(next));
+	};
+
+	const changeClipboardLimit = (limit: number) => {
+		setClipboardLimit(limit);
+		saveSetting("bloom-clipboard-limit", String(limit));
+	};
+
+	const changeClipboardRetention = (hours: number) => {
+		setClipboardRetentionHours(hours);
+		saveSetting("bloom-clipboard-retention-hours", String(hours));
+	};
+
+	const clearClipboardHistory = async () => {
+		const { ask } = await import("@tauri-apps/plugin-dialog");
+		const confirmed = await ask("Clipboard history is deleted. Pinned items are kept.", {
+			title: "Clear Clipboard History",
+			kind: "warning",
+			okLabel: "Clear",
+			cancelLabel: "Cancel"
+		});
+		if (confirmed) await invoke("clipboard_clear", { includePinned: false }).catch(console.error);
 	};
 
 	const toggleTimerSound = () => {
@@ -1065,6 +1110,15 @@ export function useSettings() {
 		devicesPanelEnabled,
 		toggleDevicesPanel,
 		enabledPanelCount,
+		clipboardEnabled,
+		toggleClipboard,
+		clipboardIncognito,
+		toggleClipboardIncognito,
+		clipboardLimit,
+		changeClipboardLimit,
+		clipboardRetentionHours,
+		changeClipboardRetention,
+		clearClipboardHistory,
 		timerSoundEnabled,
 		toggleTimerSound,
 		musicModeEnabled,

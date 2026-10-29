@@ -1305,6 +1305,11 @@ pub fn notch_enabled() -> bool {
     module_enabled("bloom-notch-enabled")
 }
 
+/// Off stops clipboard capture; the notch hides its Clipboard panel.
+pub fn clipboard_enabled() -> bool {
+    module_enabled("bloom-clipboard-enabled")
+}
+
 /// Makes a window click-through or not by its WS_EX_TRANSPARENT bit alone,
 /// keeping WS_EX_LAYERED set in both states.
 ///

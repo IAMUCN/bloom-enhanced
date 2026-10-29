@@ -77,6 +77,15 @@ Edit `settings.json` with any text editor while Bloom is running. Changes are ap
 | `bloom-notch-click-to-open` | `"true"` / `"false"` | (legacy) | Old setting read only when `bloom-notch-remember-panel` is absent; `"false"` now selects fixed-panel behavior. |
 | `bloom-device-looks` | JSON object, device name → `"headphones"` / `"round-buds"` / `"stem-buds"` / `"neckband"` / `"speaker"` for Bluetooth audio; `"headphones-wired"` / `"earbuds-usbc"` / `"earbuds-jack"` / `"speaker"` / `"microphone"` for wired and USB audio | (unset) | The drawing an audio device's connection popup uses, picked under "Looks like" in the notch's Connected devices panel (or, for Bluetooth, its Bluetooth view). Devices without a pick are guessed from their name and class. |
 
+### Clipboard
+
+| Key | Type | Default | Description |
+| --- | --- | --- | --- |
+| `bloom-clipboard-enabled` | `"true"` / `"false"` | `"true"` | Record copied text, links, images and files, and show the notch's Clipboard panel. `"false"` stops capture (the clipboard is not read at all). History is kept in `clipboard/` beside this file and never leaves the PC. |
+| `bloom-clipboard-incognito` | `"true"` / `"false"` | `"false"` | Pause capture; anything copied while on is never recorded. |
+| `bloom-clipboard-limit` | number string | `"200"` | Unpinned items kept; the oldest go first. |
+| `bloom-clipboard-retention-hours` | number string | `"0"` | Delete unpinned items older than this many hours; `"0"` keeps them until the limit removes them. |
+
 ### Shelf
 
 | Key                   | Type                 | Default   | Description                                                                                                    |

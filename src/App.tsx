@@ -49,6 +49,7 @@ import { deviceArtFor } from "./devices/deviceArtFor";
 import { deviceLookFor } from "./devices/deviceLooks";
 import type { BudLevel, BudsBattery } from "./devices/connectedDevices";
 import { ConnectedDevicesPanel } from "./components/ConnectedDevicesPanel";
+import { ClipboardPanel } from "./components/ClipboardPanel";
 import { useConnectedDevices } from "./hooks/useConnectedDevices";
 import { isWiredAudio, usbArtFor, usbDisplayName, type UsbIdentity } from "./devices/usbArtFor";
 import type { DeviceArtKey } from "./devices/art";
@@ -82,8 +83,8 @@ import {
  *   Dragging files onto the notch also opens the shelf. Wheel/swipe switches
  *   between tool panels, including when a live activity occupies the pill.
  */
-type NotchPanel = "calendar" | "command-center" | "devices";
-const NOTCH_PANELS: readonly NotchPanel[] = ["calendar", "command-center", "devices"];
+type NotchPanel = "calendar" | "command-center" | "devices" | "clipboard";
+const NOTCH_PANELS: readonly NotchPanel[] = ["calendar", "command-center", "devices", "clipboard"];
 const asNotchPanel = (value: unknown): NotchPanel | null =>
 	NOTCH_PANELS.includes(value as NotchPanel) ? (value as NotchPanel) : null;
 
@@ -460,6 +461,7 @@ type BloomMode =
 	| "wifi"
 	| "bluetooth"
 	| "devices"
+	| "clipboard"
 	| "device";
 
 // A device that just connected or disconnected, shown briefly in the pill.
@@ -1086,6 +1088,10 @@ function App() {
 		() => localStorage.getItem("bloom-notch-devices-enabled") === "true"
 	);
 	const connectedDevices = useConnectedDevices(windowLabel === "main" && settingsDevicesPanelEnabled);
+	// The clipboard module (capture runs in the backend) and its panel.
+	const [settingsClipboardEnabled, setSettingsClipboardEnabled] = useState(
+		() => localStorage.getItem("bloom-clipboard-enabled") !== "false"
+	);
 	const [settingsTimerSoundEnabled, setSettingsTimerSoundEnabled] = useState(
 		() => localStorage.getItem("bloom-timer-sound-enabled") !== "false"
 	);
@@ -1163,6 +1169,7 @@ function App() {
 					getVal("bloom-notch-command-center-enabled", "true") !== "false"
 				);
 				setSettingsDevicesPanelEnabled(getVal("bloom-notch-devices-enabled", "false") === "true");
+				setSettingsClipboardEnabled(getVal("bloom-clipboard-enabled", "true") !== "false");
 				setSettingsTimerSoundEnabled(getVal("bloom-timer-sound-enabled", "true") !== "false");
 				setSettingsMusicModeEnabled(getVal("bloom-music-mode-enabled", "true") !== "false");
 				setRememberPanelEnabled(
@@ -1286,6 +1293,7 @@ function App() {
 			"bloom-calendar-enabled": setSettingsCalendarEnabled,
 			"bloom-notch-command-center-enabled": setSettingsControlsPanelEnabled,
 			"bloom-notch-devices-enabled": setSettingsDevicesPanelEnabled,
+			"bloom-clipboard-enabled": setSettingsClipboardEnabled,
 			"bloom-timer-sound-enabled": setSettingsTimerSoundEnabled,
 			"bloom-music-mode-enabled": setSettingsMusicModeEnabled,
 			"bloom-notch-remember-panel": setRememberPanelEnabled,
@@ -1683,7 +1691,8 @@ function App() {
 			prev === "shelf" ||
 			prev === "wifi" ||
 			prev === "bluetooth" ||
-			prev === "devices"
+			prev === "devices" ||
+			prev === "clipboard"
 				? restingModeRef.current
 				: prev
 		);
@@ -1920,7 +1929,8 @@ function App() {
 			target.closest(".calendar-grid") ||
 			target.closest(".timer-column") ||
 			target.closest(".shelf-content") ||
-			target.closest(".qp-list")
+			target.closest(".qp-list") ||
+			target.closest(".clip-list")
 		) {
 			return;
 		}
@@ -1938,6 +1948,7 @@ function App() {
 	function panelEnabled(panel: NotchPanel) {
 		if (panel === "calendar") return settingsCalendarEnabled;
 		if (panel === "command-center") return settingsControlsPanelEnabled;
+		if (panel === "clipboard") return settingsClipboardEnabled;
 		return settingsDevicesPanelEnabled;
 	}
 
@@ -2220,6 +2231,7 @@ function App() {
 		settingsCalendarEnabled,
 		settingsControlsPanelEnabled,
 		settingsDevicesPanelEnabled,
+		settingsClipboardEnabled,
 		bloomMode,
 		isOpen
 	]);
@@ -3055,7 +3067,7 @@ function App() {
 	// is showing, the whole notch is zoomed by it, so the panel's layout scales
 	// as a unit and the other panels keep their sizes.
 	const sizedPanel: SizedPanel | null =
-		bloomMode === "calendar" || bloomMode === "devices" || bloomMode === "shelf"
+		bloomMode === "calendar" || bloomMode === "devices" || bloomMode === "shelf" || bloomMode === "clipboard"
 			? bloomMode
 			: bloomMode === "command-center" || bloomMode === "wifi" || bloomMode === "bluetooth"
 				? "command-center"
@@ -3094,7 +3106,7 @@ function App() {
 		if (bloomMode === "announcement" && announcement && !announcementDismissed) return 380;
 		if (bloomMode === "device" && deviceAlert) return 330;
 		if (isCalendarMode) return 480;
-		if (bloomMode === "shelf") return 380;
+		if (bloomMode === "shelf" || bloomMode === "clipboard") return 380;
 		if (bloomMode === "command-center" && isOpen) return 350;
 		if (bloomMode === "wifi" || bloomMode === "bluetooth" || bloomMode === "devices") return 350;
 		if (showMusicOnStatusHover) {
@@ -3141,6 +3153,7 @@ function App() {
 			return devicesPanelHeight;
 		}
 		if (bloomMode === "wifi" || bloomMode === "bluetooth") return 300;
+		if (bloomMode === "clipboard") return 320;
 		if (bloomMode === "status") return 36;
 		if (isMusicMode && isOpen) {
 			const hasProgressBar = (mediaInfo.duration_ms ?? 0) > 0;
@@ -3918,6 +3931,29 @@ function App() {
 												buds={budsById}
 												lowThreshold={lowBatteryThreshold}
 												onContentHeight={setDevicesContentHeight}
+											/>
+										</motion.div>
+									)}
+								</AnimatePresence>
+
+								{/* Clipboard history */}
+								<AnimatePresence>
+									{bloomMode === "clipboard" && (
+										<motion.div
+											key="clipboard-view"
+											initial={{ opacity: 0 }}
+											animate={{ opacity: 1 }}
+											exit={{ opacity: 0, filter: "blur(4px)", transition: { duration: 0.1 } }}
+											transition={{ type: "spring", stiffness: 400, damping: 30 }}
+										>
+											<ClipboardPanel
+												dragIcon={shelfDragIcon}
+												onDragStart={clearShelfCollapse}
+												onDragEnd={() => {
+													// The native drag owned the pointer, so the webview never saw it leave.
+													releaseNotchHover();
+													invoke("set_notch_hovered", { hovered: false }).catch(() => {});
+												}}
 											/>
 										</motion.div>
 									)}
