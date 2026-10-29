@@ -9,10 +9,11 @@
 //!   button is released. Keys are polled only while armed or open.
 //! - A shortcut (`bloom-files-shortcut`, default Ctrl+Alt+Space) opens the
 //!   wheel for the files selected in File Explorer or on the desktop.
-//! - So does tapping Shift on its own (`bloom-files-shift-tap`) while the
-//!   file list or the desktop has the keyboard focus. A tap is a press and
-//!   release within [`TAP_MS`] with no other key or mouse button meanwhile,
-//!   so Shift+click and Shift+arrow selection never open it.
+//! - So does pressing Shift twice (`bloom-files-shift-tap`) while the file
+//!   list or the desktop has the keyboard focus. Each press is a tap: down
+//!   and up within [`TAP_MS`] with no other key or mouse button meanwhile, so
+//!   Shift+click and Shift+arrow selection never count; the second tap must
+//!   come within `bloom-files-double-shift-ms` of the first.
 //!
 //! The wheel (src/Orbit.tsx) picks the option; [`orbit_run`] runs it. Every
 //! output is written next to the original through [`write_output`]: a temp
@@ -49,6 +50,9 @@ static PERCENT: AtomicU32 = AtomicU32::new(u32::MAX);
 static SHIFT_AT: AtomicU64 = AtomicU64::new(0);
 static SHIFT_DIRTY: AtomicBool = AtomicBool::new(false);
 static SHIFT_TAP: AtomicBool = AtomicBool::new(false);
+/// When the last clean tap ended (0 = none pending), and the double-tap window.
+static LAST_TAP: AtomicU64 = AtomicU64::new(0);
+static DOUBLE_MS: AtomicU64 = AtomicU64::new(400);
 const TAP_MS: u64 = 350;
 /// 0 = closed, 1 = opened by a drag, 2 = opened by the shortcut.
 static OPEN: AtomicU8 = AtomicU8::new(0);
@@ -157,10 +161,17 @@ unsafe extern "system" fn on_key(
         } else if shift && up {
             let at = SHIFT_AT.swap(0, Ordering::Relaxed);
             if at != 0 && now - at < TAP_MS && !SHIFT_DIRTY.load(Ordering::Relaxed) {
-                SHIFT_TAP.store(true, Ordering::Relaxed);
+                let last = LAST_TAP.swap(now, Ordering::Relaxed);
+                if last != 0 && now - last <= DOUBLE_MS.load(Ordering::Relaxed) {
+                    LAST_TAP.store(0, Ordering::Relaxed);
+                    SHIFT_TAP.store(true, Ordering::Relaxed);
+                }
+            } else {
+                LAST_TAP.store(0, Ordering::Relaxed);
             }
         } else if down {
             SHIFT_DIRTY.store(true, Ordering::Relaxed);
+            LAST_TAP.store(0, Ordering::Relaxed);
         }
     }
     unsafe { CallNextHookEx(None, code, wparam, lparam) }
@@ -260,11 +271,18 @@ fn detector(app: AppHandle) {
             }
         }
 
-        // A mouse button while Shift is held (Shift+click) spoils the tap.
+        // A mouse button while Shift is held (Shift+click), or between the
+        // two taps, spoils the double tap.
         let shift_held = SHIFT_AT.load(Ordering::Relaxed) != 0;
-        if shift_held && (is_down(0x01) || is_down(0x02) || is_down(0x04)) {
-            SHIFT_DIRTY.store(true, Ordering::Relaxed);
+        if is_down(0x01) || is_down(0x02) || is_down(0x04) {
+            SHIFT_DIRTY.store(shift_held, Ordering::Relaxed);
+            LAST_TAP.store(0, Ordering::Relaxed);
         }
+        let double_ms = setting("bloom-files-double-shift-ms")
+            .and_then(|v| v.parse::<u64>().ok())
+            .unwrap_or(400)
+            .clamp(150, 1000);
+        DOUBLE_MS.store(double_ms, Ordering::Relaxed);
         let open = OPEN.load(Ordering::Relaxed);
         let armed = ARMED.load(Ordering::Relaxed);
         if SHIFT_TAP.swap(false, Ordering::Relaxed)
@@ -343,6 +361,10 @@ fn cursor() -> (i32, i32) {
 
 /// Opens the wheel centred on the pointer, kept inside its monitor.
 fn open_wheel(app: &AppHandle, paths: Vec<String>, by: u8) {
+    // One job at a time: the menu stays shut until the running one ends.
+    if RUNNING.load(Ordering::Relaxed) {
+        return;
+    }
     let Some(win) = app.get_webview_window("orbit") else {
         return;
     };
@@ -1092,6 +1114,7 @@ fn set_wallpaper(path: &Path) -> Result<(), String> {
 /// One image tool: rotate, flip, grayscale, half size. Keeps the format.
 fn image_tool(path: &Path, tool: &str) -> Result<PathBuf, String> {
     let img = decode(path)?;
+    progress(0.4);
     let (img, suffix) = match tool {
         "rotate-right" => (img.rotate90(), "rotated"),
         "rotate-left" => (img.rotate270(), "rotated"),
@@ -1240,11 +1263,16 @@ fn run(app: &AppHandle, op: &str, paths: &[PathBuf]) -> Vec<Outcome> {
         let ext = ext_of(path);
         let result = match op.split('.').collect::<Vec<_>>().as_slice() {
             ["convert", to] if ext == "pdf" => convert_pdf(path, to),
-            ["convert", "pdf"] => decode(path)
-                .and_then(|img| save_bytes(path, "pdf", None, &pdf_from_jpegs(&[pdf_page(&img)?]))),
-            ["convert", to] => {
-                decode(path).and_then(|img| save_bytes(path, to, None, &encode(&img, to)?))
-            }
+            ["convert", "pdf"] => decode(path).and_then(|img| {
+                progress(0.5);
+                save_bytes(path, "pdf", None, &pdf_from_jpegs(&[pdf_page(&img)?]))
+            }),
+            ["convert", to] => decode(path).and_then(|img| {
+                progress(0.4);
+                let bytes = encode(&img, to)?;
+                progress(0.9);
+                save_bytes(path, to, None, &bytes)
+            }),
             ["tool", "image", tool] => image_tool(path, tool),
             ["tool", "archive", "extract"] => extract_zip(path),
             ["action", "copy-to" | "move-to"] => transfer(
@@ -1254,6 +1282,7 @@ fn run(app: &AppHandle, op: &str, paths: &[PathBuf]) -> Vec<Outcome> {
             ),
             _ => Err("Unknown option.".into()),
         };
+        progress(1.0);
         outcomes.push(outcome(path, result.map(Some)));
     }
     outcomes

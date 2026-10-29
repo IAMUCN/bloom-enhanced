@@ -6,6 +6,7 @@ import { useSettingsSync } from "../hooks/useSettingsSync";
 import { MODE_LABEL, ordered, parseLayout, type OrbitLayout, type OrbitMode, type OrbitOp } from "../orbitOps";
 import { ORBIT_ICONS } from "../orbitIcons";
 import { shortcutFrom } from "./ClipboardTab";
+import { ScaleStepper } from "./ScaleStepper";
 import { SettingRow } from "./SettingRow";
 
 const DEFAULT_SHORTCUT = "Ctrl+Alt+Space";
@@ -88,6 +89,7 @@ export function FilesTab({ saveSetting }: { saveSetting: (key: string, value: st
 				"bloom-files-enabled",
 				"bloom-files-drag",
 				"bloom-files-shift-tap",
+				"bloom-files-double-shift-ms",
 				"bloom-files-shortcut",
 				"bloom-files-status-at",
 				"bloom-files-status-seconds",
@@ -103,6 +105,9 @@ export function FilesTab({ saveSetting }: { saveSetting: (key: string, value: st
 	const enabled = on(s["bloom-files-enabled"]);
 	const drag = on(s["bloom-files-drag"]);
 	const shiftTap = on(s["bloom-files-shift-tap"]);
+	const doubleMs = Number(s["bloom-files-double-shift-ms"]) || 400;
+	const seconds = Number(s["bloom-files-status-seconds"]) || 2;
+	const statusAt = s["bloom-files-status-at"] === "notch" ? "notch" : "pointer";
 	const shortcut = s["bloom-files-shortcut"] == null ? DEFAULT_SHORTCUT : String(s["bloom-files-shortcut"]);
 
 	// The layout is edited locally while dragging and saved when a drag ends.
@@ -159,14 +164,29 @@ export function FilesTab({ saveSetting }: { saveSetting: (key: string, value: st
 
 						<SettingRow
 							icon={Zap}
-							label="Tap Shift on Selected Files"
-							desc="With files selected in File Explorer or on the desktop, tap Shift alone to open the menu. Shift+click and Shift+arrows still select as usual"
+							label="Double Shift on Selected Files"
+							desc="With files selected in File Explorer or on the desktop, press Shift twice to open the menu. Then Shift switches menus and Esc closes it"
+							divider={!shiftTap}
 						>
 							<label className="toggle-switch">
 								<input type="checkbox" checked={shiftTap} onChange={() => save("bloom-files-shift-tap", String(!shiftTap))} />
 								<span className="slider"></span>
 							</label>
 						</SettingRow>
+
+						{shiftTap && (
+							<SettingRow icon={Timer} label="Double Shift Speed" desc="The most time between the two presses; shorter avoids opening it by accident">
+								<ScaleStepper
+									value={doubleMs}
+									onChange={(v) => save("bloom-files-double-shift-ms", String(v))}
+									label="double Shift time"
+									min={200}
+									max={800}
+									stepSize={50}
+									format={(v) => `${v} ms`}
+								/>
+							</SettingRow>
+						)}
 
 						<SettingRow
 							icon={Keyboard}
@@ -195,27 +215,31 @@ export function FilesTab({ saveSetting }: { saveSetting: (key: string, value: st
 					<div className="setting-group-label">Progress</div>
 					<div className="setting-group">
 						<SettingRow icon={MapPin} label="Show Progress" desc="Where the percentage and the result appear">
-							<select
-								className="settings-select"
-								value={s["bloom-files-status-at"] === "notch" ? "notch" : "pointer"}
-								onChange={(e) => save("bloom-files-status-at", e.target.value)}
-							>
-								<option value="pointer">At the pointer</option>
-								<option value="notch">In the notch</option>
-							</select>
+							<div className="scale-button-container seg-toggle" role="radiogroup" aria-label="Show progress">
+								{(["pointer", "notch"] as const).map((v) => (
+									<button
+										key={v}
+										role="radio"
+										aria-checked={statusAt === v}
+										className={`seg-btn${statusAt === v ? " active" : ""}`}
+										onClick={() => save("bloom-files-status-at", v)}
+									>
+										{statusAt === v && <motion.span layoutId="seg-pill" className="seg-pill" transition={SPRING} />}
+										<span>{v === "pointer" ? "Pointer" : "Notch"}</span>
+									</button>
+								))}
+							</div>
 						</SettingRow>
 						<SettingRow icon={Timer} label="Result Stays For" desc="How long the result shows (errors a bit longer, Canceled briefly)" divider={false}>
-							<select
-								className="settings-select"
-								value={String(Number(s["bloom-files-status-seconds"]) || 2)}
-								onChange={(e) => save("bloom-files-status-seconds", e.target.value)}
-							>
-								{[1, 2, 3, 5].map((n) => (
-									<option key={n} value={n}>
-										{n} second{n > 1 ? "s" : ""}
-									</option>
-								))}
-							</select>
+							<ScaleStepper
+								value={seconds}
+								onChange={(v) => save("bloom-files-status-seconds", String(v))}
+								label="result time"
+								min={0.5}
+								max={3}
+								stepSize={0.5}
+								format={(v) => `${v} s`}
+							/>
 						</SettingRow>
 					</div>
 

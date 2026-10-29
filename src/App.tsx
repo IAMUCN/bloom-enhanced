@@ -3191,6 +3191,7 @@ function App() {
 	// Calculate width dynamically based on enabled features
 	const getDynamicWidth = () => {
 		if (minimalIdle) return 72;
+		if (fileStatus && !isOpen) return 300;
 		if (bloomMode === "announcement" && announcement && !announcementDismissed) return 380;
 		if (bloomMode === "device" && deviceAlert) return 330;
 		if (isCalendarMode) return 480;
@@ -3205,7 +3206,6 @@ function App() {
 			return Math.max(Math.min(200 + totalWidgets * 50, 380) - clock24hTrim, statusFitWidth);
 		}
 		if (isMusicMode && isOpen) return mediaLayout === "compact" ? 300 : 340;
-		if (fileStatus && !isHovered) return 300;
 		if ((showPowerPulse || showLowBatteryPulse || showUpdatePulse || showCopyPulse) && !isHovered) return 200;
 
 		let w = 140 - clock24hTrim;
@@ -3713,8 +3713,8 @@ function App() {
 												style={bloomMode === "device" || deviceAlertOnScreen ? { visibility: "hidden" } : undefined}
 											>
 												<AnimatePresence mode="wait">
-													{(showPowerPulse || showLowBatteryPulse || showUpdatePulse || showCopyPulse || fileStatus) &&
-													!isHovered ? (
+													{(fileStatus && !isOpen) ||
+													((showPowerPulse || showLowBatteryPulse || showUpdatePulse || showCopyPulse) && !isHovered) ? (
 														fileStatus ? (
 															<motion.div
 																key="file-status-view"

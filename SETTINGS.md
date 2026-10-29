@@ -104,12 +104,13 @@ Edit `settings.json` with any text editor while Bloom is running. Changes are ap
 | `bloom-files-enabled` | `"true"` / `"false"` | `"true"` | The radial menu (Settings › Radial Menu): convert, edit and act on files (images, PDF pages, ZIP). Results are written next to the original, never over it or over another file (" (2)" is added instead); while being written they are hidden temp files, removed on cancel (Esc or ×) or failure. `"false"` turns off both ways of opening it. |
 | `bloom-files-drag` | `"true"` / `"false"` | `"true"` | While dragging files (or selected text: To shelf, which also copies it), tapping Shift opens the wheel around the pointer; let go on an option to run it. Shift again switches Convert / Tools / Actions, Esc cancels. |
 | `bloom-files-shortcut` | e.g. `"Ctrl+Alt+Space"`, `"F8"` | `"Ctrl+Alt+Space"` | Opens the wheel for the files selected in File Explorer or on the desktop. `""` = no shortcut. Same format as `bloom-clipboard-shortcut`. |
-| `bloom-files-shift-tap` | `"true"` / `"false"` | `"true"` | Tapping Shift alone (press and release within 350 ms, no other key or mouse button meanwhile) opens the wheel for the files selected in File Explorer or on the desktop, while their file list has the keyboard focus. |
+| `bloom-files-shift-tap` | `"true"` / `"false"` | `"true"` | Pressing Shift twice opens the wheel for the files selected in File Explorer or on the desktop, while their file list has the keyboard focus. Each press must be a clean tap (under 350 ms, no other key or mouse button). While it is open, Shift switches menus and Esc closes it. |
+| `bloom-files-double-shift-ms` | number string, 200–800 | `"400"` | The most time between the two Shift presses. |
 | `bloom-files-mode-order` | JSON list of `"convert"`, `"tools"`, `"actions"` | `["convert","tools","actions"]` | The order Shift goes through the menus; the first opens first. A menu with no options for the files is skipped. |
 | `bloom-files-order` | JSON object, menu → list of option ids | `{}` | Option order per menu, clockwise from 12 o'clock. Options not listed keep their default place after the listed ones. |
 | `bloom-files-hidden` | JSON list of option ids, e.g. `["action.wallpaper","convert.ico"]` | `[]` | Options left out of the wheel. Ids are listed in `src/orbitOps.ts` (`CATALOG`). Settings › Radial Menu › Your Menu edits this and the two above by dragging. |
 | `bloom-files-status-at` | `"pointer"` / `"notch"` | `"pointer"` | Where a job's percentage and result show: a pill at the pointer, or in the notch. |
-| `bloom-files-status-seconds` | number string | `"2"` | How long the result stays (errors 2 s longer, Canceled under 1 s). |
+| `bloom-files-status-seconds` | number string, 0.5–3 | `"2"` | How long the result stays (errors 2 s longer, Canceled under 1 s). |
 
 ### Shelf
 

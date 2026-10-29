@@ -1397,6 +1397,40 @@ input:checked + .slider:before {
 	background: var(--bloom-border, rgba(255, 255, 255, 0.2));
 }
 
+/* Two-choice switch in the stepper's frame; the pill slides between them. */
+.seg-toggle {
+	gap: 2px;
+}
+
+.seg-btn {
+	position: relative;
+	border: none;
+	background: transparent;
+	color: var(--bloom-text, white);
+	font: inherit;
+	font-size: 11px;
+	font-weight: 600;
+	padding: 3px 10px;
+	border-radius: 4px;
+	cursor: pointer;
+	opacity: 0.6;
+}
+
+.seg-btn.active {
+	opacity: 1;
+}
+
+.seg-btn span {
+	position: relative;
+}
+
+.seg-pill {
+	position: absolute;
+	inset: 0;
+	border-radius: 4px;
+	background: var(--bloom-border, rgba(255, 255, 255, 0.16));
+}
+
 .scale-adjust-btn:disabled {
 	opacity: 0.25;
 	cursor: not-allowed;
