@@ -255,6 +255,7 @@ fn main() {
             jack::jack_list_devices
         ])
         .setup(|app| {
+            crate::utils::migrate_from_bloom(app.handle());
             init_taskbar_marker(app.handle());
             // Populate the settings cache before anything else: a webview can
             // invoke save_setting as soon as it loads, which happens before the

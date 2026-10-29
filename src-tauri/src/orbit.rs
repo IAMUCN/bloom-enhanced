@@ -667,7 +667,7 @@ fn publish(
 /// Where dropped virtual files (an image dragged out of a browser) are
 /// written before an option runs on them.
 pub fn drops_dir() -> PathBuf {
-    std::env::temp_dir().join("klyro-drops")
+    std::env::temp_dir().join("bloom-drops")
 }
 
 /// A file from a temp folder: an image a browser wrote there for the drag
@@ -708,7 +708,7 @@ fn temp_in(dir: &Path) -> PathBuf {
     let nanos = std::time::SystemTime::now()
         .duration_since(std::time::UNIX_EPOCH)
         .map_or(0, |d| d.as_nanos());
-    dir.join(format!(".klyro-{nanos}.tmp"))
+    dir.join(format!(".bloom-{nanos}.tmp"))
 }
 
 /// Sets or clears the hidden attribute: temp files stay out of sight in
@@ -868,7 +868,7 @@ fn decode(path: &Path) -> Result<image::DynamicImage, String> {
         .map_err(|e| e.to_string())?;
     let mut decoder = reader
         .into_decoder()
-        .map_err(|_| "This isn't an image Klyro can read.".to_string())?;
+        .map_err(|_| "This isn't an image Bloom Enhanced can read.".to_string())?;
     let orientation = decoder.orientation().ok();
     let mut img = image::DynamicImage::from_decoder(decoder)
         .map_err(|e| format!("The image couldn't be read: {e}"))?;
@@ -1237,8 +1237,8 @@ fn split_pdf(path: &Path, ranges: &str) -> Result<PathBuf, String> {
 fn office_pdfs(paths: &[PathBuf]) -> Vec<Result<PathBuf, String>> {
     use std::io::BufRead;
     use std::os::windows::process::CommandExt;
-    const LOOP: &str = "foreach ($j in $env:KLYRO_JOBS -split \"`n\") { \
-        if (Test-Path -LiteralPath $env:KLYRO_STOP) { break }; $s, $o = $j -split \"`t\"; \
+    const LOOP: &str = "foreach ($j in $env:BLOOM_JOBS -split \"`n\") { \
+        if (Test-Path -LiteralPath $env:BLOOM_STOP) { break }; $s, $o = $j -split \"`t\"; \
         try { CONVERT } catch {}; [Console]::Out.WriteLine('done'); [Console]::Out.Flush() }";
     let word = format!(
         "$a=New-Object -ComObject Word.Application; try {{ $a.DisplayAlerts=0; {} }} \
@@ -1275,8 +1275,8 @@ fn office_pdfs(paths: &[PathBuf]) -> Vec<Result<PathBuf, String>> {
         }
         let child = std::process::Command::new("powershell.exe")
             .args(["-NoProfile", "-NonInteractive", "-Command", script])
-            .env("KLYRO_JOBS", jobs.join("\n"))
-            .env("KLYRO_STOP", &stop)
+            .env("BLOOM_JOBS", jobs.join("\n"))
+            .env("BLOOM_STOP", &stop)
             .stdout(std::process::Stdio::piped())
             .stderr(std::process::Stdio::null())
             .creation_flags(0x0800_0000) // CREATE_NO_WINDOW
@@ -1321,7 +1321,7 @@ const OFFICE_EXTS: [&str; 9] = [
 fn extract_zip(path: &Path) -> Result<PathBuf, String> {
     let file = std::fs::File::open(path).map_err(|e| e.to_string())?;
     let mut archive = zip::ZipArchive::new(file)
-        .map_err(|_| "This isn't a ZIP file Klyro can read.".to_string())?;
+        .map_err(|_| "This isn't a ZIP file Bloom Enhanced can read.".to_string())?;
     let dir = out_dir(path)?;
     let stem = path
         .file_stem()
@@ -1747,7 +1747,7 @@ mod tests {
         // go to Downloads.
         let dir = Path::new(env!("CARGO_MANIFEST_DIR"))
             .join("target")
-            .join(format!("klyro-orbit-{}", std::process::id()));
+            .join(format!("bloom-orbit-{}", std::process::id()));
         assert!(!from_browser(&dir.join("photo.png")));
         assert!(from_browser(
             &std::env::temp_dir().join("chrome_drag1/photo.png")
@@ -1779,7 +1779,7 @@ mod tests {
         let leftovers = std::fs::read_dir(&dir)
             .unwrap()
             .flatten()
-            .filter(|e| e.file_name().to_string_lossy().starts_with(".klyro-"))
+            .filter(|e| e.file_name().to_string_lossy().starts_with(".bloom-"))
             .count();
         assert_eq!(leftovers, 0);
         let _ = std::fs::remove_dir_all(&dir);
@@ -1819,7 +1819,7 @@ mod tests {
     fn pdfs_merge_with_images_and_split() {
         let dir = Path::new(env!("CARGO_MANIFEST_DIR"))
             .join("target")
-            .join(format!("klyro-pdf-{}", std::process::id()));
+            .join(format!("bloom-pdf-{}", std::process::id()));
         let _ = std::fs::remove_dir_all(&dir);
         std::fs::create_dir_all(&dir).unwrap();
         let page = |w| {

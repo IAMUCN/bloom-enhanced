@@ -1,182 +1,169 @@
 <div align="center">
 
-<img 
-  src="https://github.com/user-attachments/assets/962887ec-636b-4e0f-90eb-0862c0feefca" 
-  width="72"
-/>
+<img src="src-tauri/icons/128x128.png" width="72" alt="Bloom Enhanced" />
 
-# Bloom
+# Bloom Enhanced
 
-<br/>
+A Windows desktop that feels alive: a notch, a dock, a clipboard shelf and a
+radial file menu, in one small app.
 
-<!-- HERO SHOWCASE — full-width cinematic shot or video -->
-<!-- ![Hero](your-hero-url) -->
-<img width="1920" height="1080" alt="Bloom Hero" src="https://github.com/user-attachments/assets/22041f25-a69e-457d-80d9-7dfbfbed2d29" />
-
-<video width="1920" height="1080" src="https://github.com/user-attachments/assets/fa7f949b-d9c3-4a92-b00d-e1132c0f3ff1">
+Built on [Bloom](https://github.com/SehajveerSingh2005/bloom), with ideas from
+[Edge-Drop](https://github.com/Deepender25/Edge-Drop) and
+[OrbitDrop](https://github.com/i3sam/OrbitDrop).
 
 </div>
 
 ---
 
 Bloom makes your Windows desktop feel alive.
+Bloom Enhanced keeps all of it, and adds the tools you reach for every day:
+everything you copy, kept on a shelf, and a ring around your pointer that
+converts and acts on files without opening an app.
 
-Every transition is a physics simulation.
-Every element responds to touch.
-Every pixel is in motion.
-
-Your desktop has been asleep for years.
-This wakes it up.
+Every module works on its own. Use the notch without the dock, the shelf
+without the notch, the radial menu with nothing else at all.
 
 ---
 
 ## The Island
 
-<!-- SHOWCASE: GIF or short clip — Island expanding, cycling through modes (3-5s) -->
-<!-- ![Island Demo](your-island-gif-url) -->
-
 <p align="center">
-  <img width="430" height="70" alt="Bloom Island" src="https://github.com/user-attachments/assets/0d723558-9df4-4214-b20e-4a1f97eb1f22" />
+  <img width="430" height="70" alt="The Island" src="https://github.com/user-attachments/assets/0d723558-9df4-4214-b20e-4a1f97eb1f22" />
 </p>
 
 A notch at the top of your screen that adapts to what you're doing.
 
-Scroll or swipe to switch modes.
-Watch it transform.
+**Music**: album art, track info, playback controls, and a visualizer that
+reacts to the music with spring physics.
 
-**Music** — album art, track info, playback controls. A visualizer that reacts to five frequency bands with spring physics. It moves when the music plays.
+**Command Center**: Wi-Fi, Bluetooth, Do Not Disturb, volume, brightness.
 
-<!-- SHOWCASE: GIF — music mode reacting to a song -->
-<!-- ![Music Visualizer](your-music-gif-url) -->
+**Calendar**: a month view with a Pomodoro timer.
 
-**Command Center** — WiFi, Bluetooth, Do Not Disturb, volume, brightness. Everything you usually dig through settings for.
+**Status**: battery, weather, network and more beside the clock. The clock and
+the icons on each side each have their own size.
 
-<!-- SHOWCASE: GIF — command center toggling controls -->
-<!-- ![Command Center](your-command-center-gif-url) -->
-
-**Status** — Battery, weather. Your desktop, summarized.
-
-**Calendar** — A month view with a Pomodoro timer. Focus without switching apps.
-
-Each transition is spring-loaded.
-Width, height, border-radius, position — all animate independently.
-It feels mechanical. In a good way.
+Scroll or swipe on the clock to switch pages, in the order you choose: drag
+them into place in Settings. Results of file jobs and "Copied" show here too.
 
 ---
 
 ## The Dock
 
-<!-- SHOWCASE: GIF — dock appearing on hover, drag-reorder, window previews -->
-<!-- ![Dock Demo](your-dock-gif-url) -->
-
 <p align="center">
-  <img width="576" height="102" alt="Bloom Dock" src="https://github.com/user-attachments/assets/96229f0e-1246-4baf-b8ad-3e8f77142a12" />
+  <img width="576" height="102" alt="The Dock" src="https://github.com/user-attachments/assets/96229f0e-1246-4baf-b8ad-3e8f77142a12" />
 </p>
 
-A taskbar that actually moves.
-
-Bloom replaces your native Windows taskbar.
-It sits at the bottom of your screen, always there when you need it.
-
-Drag to reorder.
-Hover for window previews.
-Right-click for context menus.
-
-It's not an overlay.
-It _is_ your taskbar.
-
-<!-- SHOWCASE: GIF — dock hover previews in action -->
-<!-- ![Window Previews](your-preview-gif-url) -->
+Bloom replaces the Windows taskbar. Drag to reorder, hover for window
+previews, right-click for menus. Drives, folders and the Recycle Bin can sit
+beside your apps.
 
 ---
 
-## Under the Hood
+## The Shelf
 
-<!-- SHOWCASE: Optional — architecture diagram or visual of the 5-window system -->
-<!-- ![Architecture](your-arch-url) -->
+Everything you copy (text, links, images, files) is kept on this PC and one
+click away.
 
-A Rust backend that speaks directly to the Windows shell.
+- In the notch, or as a shelf that slides out of the middle of the left,
+  right or top edge of the screen.
+- Drag anything onto it to keep it; drag it back out into any app.
+- Pin, search, select several, add notes. Short text gets big tiles, long text
+  wide ones.
+- Incognito mode, a history limit and auto-delete keep it tidy.
 
-Global hooks intercepting keys before Windows sees them.
-WASAPI capturing system audio in real-time.
-COM controlling your media sessions.
-WMI monitoring your hardware.
-
-The whole thing sleeps when you don't need it.
-The audio visualizer pauses when nothing's playing.
-The cursor monitor hides when the dock is gone.
-Thumbnails only refresh on focus.
-
-It's fast because it has to be.
+Inspired by [Edge-Drop](https://github.com/Deepender25/Edge-Drop).
 
 ---
 
-<!-- SHOWCASE: Full-width cinematic video or GIF montage -->
-<!-- ![Bloom Montage](your-montage-url) -->
+## The Radial Menu
+
+Drag files (or text, or an image out of your browser), tap Shift, and a ring
+opens around your pointer. Let go on an option. Or select files in File
+Explorer and press Shift twice.
+
+- **Convert**: PNG, JPG, WebP, BMP, GIF, TIFF, ICO, PDF. A PDF for each image
+  or one PDF for all of them. Word and PowerPoint files to PDF.
+- **Tools**: merge PDFs (images become pages), split a PDF by page ranges
+  (`1-5, 6-20`), rotate, flip, grayscale, resize, compress, extract a ZIP.
+- **Actions**: to the shelf, copy path or name, copy or move to a folder,
+  zip, open a terminal there, set as wallpaper.
+
+Shift switches between the three. Progress shows at the pointer or in the
+notch, with a percentage; Esc cancels and leaves nothing half-written. Results
+never overwrite a file. Images dragged out of a browser are saved to Downloads
+and opened.
+
+Design your own menu in Settings: reorder, hide and preview every option.
+
+Inspired by [OrbitDrop](https://github.com/i3sam/OrbitDrop).
 
 ---
 
-## 🛡️ Microsoft Defender
+## Settings
 
-Some users may see a Microsoft Defender warning when installing Bloom.
+One place for everything, with no dropdowns.
 
-The executable was submitted directly to Microsoft for analysis. Microsoft reviewed the file and confirmed that it **does not meet their criteria for malware or potentially unwanted applications**, and **the detection has been removed**.
+- Search any setting (Ctrl+F) and jump straight to it.
+- Live previews, a "Reset this page" button, export and import.
+- Works fully by keyboard, in light and dark themes.
 
-<p align="center">
-  <img width="800" alt="Microsoft Security Intelligence" src="https://github.com/user-attachments/assets/67ddddde-9c68-4338-a0f2-c5645e416514" />
-</p>
+---
 
-<details>
-<summary>Still seeing the detection?</summary>
+## Light on your PC
 
-Your system may still have the previous Defender signature cached. Microsoft recommends updating your Defender security intelligence.
+- A **7 MB** installer.
+- Settings, the radial menu and the edge shelf load only when you use them
+  and free their memory after. Prefer instant over light? Turn on
+  **Keep Windows Loaded**.
+- A Rust backend that talks straight to the Windows shell, and sleeps when
+  you don't need it.
 
-Open **Command Prompt as Administrator** and run:
-
-```cmd
-cd "C:\Program Files\Windows Defender"
-MpCmdRun.exe -removedefinitions -dynamicsignatures
-MpCmdRun.exe -SignatureUpdate
-```
-
-</details>
+---
 
 ## Get It Running
 
-**Download** the latest build from [Releases](https://github.com/SehajveerSingh2005/bloom/releases/latest).
-
-Or build from source:
+**Download** the latest build from
+[Releases](https://github.com/IAMUCN/bloom-enhanced/releases/latest), or build
+from source:
 
 ```bash
-git clone https://github.com/SehajveerSingh2005/bloom.git
-cd bloom
+git clone https://github.com/IAMUCN/bloom-enhanced.git
+cd bloom-enhanced
 bun install
 bun run tauri dev
 ```
 
-You'll need [Rust](https://rustup.rs/) and [Bun](https://bun.sh/). That's it.
+You'll need [Rust](https://rustup.rs/) and [Bun](https://bun.sh/). Windows 10
+or 11.
+
+Opening Bloom Enhanced from the Start menu opens its Settings.
 
 ---
 
-## Contributing
+## Credits
 
-Bloom is open source.
-Found a bug? Open an issue.
-Have an idea? Open a feature request first — we'll agree on the approach before you write code. See [CONTRIBUTING.md](CONTRIBUTING.md).
-Want to just say it's cool? A star goes a long way.
+Bloom Enhanced stands on the work of three open-source projects:
 
-## Keep it blooming
+| Project | By | What it brings |
+| --- | --- | --- |
+| [Bloom](https://github.com/SehajveerSingh2005/bloom) | [Sehajveer Singh](https://github.com/SehajveerSingh2005) | The notch, dock, overlays and the app itself |
+| [Edge-Drop](https://github.com/Deepender25/Edge-Drop) | [Deepender25](https://github.com/Deepender25) | The edge shelf for what you copy and drag |
+| [OrbitDrop](https://github.com/i3sam/OrbitDrop) | [i3sam](https://github.com/i3sam) | The radial menu for files |
 
-Bloom runs on spring physics. I run on coffee.
+Their licenses and notices are in
+[THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.md).
 
-[Buy me a coffee ↗](https://buymeacoffee.com/sehaz)
+## License
 
-Licensed under [GPLv3](LICENSE).
+Licensed under [GPLv3](LICENSE), like Bloom.
 
 ---
 
 <div align="center">
 
-**Your desktop is waiting.**
+**Bloom Enhanced** · made by [IAMUCN](https://github.com/IAMUCN)
+
+A product of **UCN INDUSTRIES**
 
 </div>

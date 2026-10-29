@@ -2,7 +2,7 @@
   "$schema": "https://schema.tauri.app/config/2",
   "productName": "bloom",
   "version": "0.1.0",
-  "identifier": "com.sehaz.bloom",
+  "identifier": "com.ucnindustries.bloomenhanced",
   "build": {
     "beforeDevCommand": "bun run dev",
     "devUrl": "http://localhost:1420",
@@ -154,8 +154,8 @@
     "active": true,
     "createUpdaterArtifacts": true,
     "targets": "all",
-    "publisher": "Sehajveer Singh",
-    "copyright": "Copyright © 2026 Sehajveer Singh",
+    "publisher": "UCN INDUSTRIES",
+    "copyright": "Copyright © 2026 UCN INDUSTRIES (IAMUCN). Based on Bloom © 2026 Sehajveer Singh",
     "category": "Utility",
     "shortDescription": "A notch and dock for Windows",
     "longDescription": "Bloom replaces the Windows taskbar with a dock and adds a notch for media, quick controls and status.",
@@ -176,9 +176,9 @@
     "updater": {
       "active": true,
       "endpoints": [
-        "https://github.com/SehajveerSingh2005/bloom/releases/latest/download/latest.json"
+        "https://github.com/IAMUCN/bloom-enhanced/releases/latest/download/latest.json"
       ],
-      "pubkey": "dW50cnVzdGVkIGNvbW1lbnQ6IG1pbmlzaWduIHB1YmxpYyBrZXk6IDQzQTAzNTlBRUFFODRFMDUKUldRRlR1anFtaldnUThWRExWQ2ZDVmxhNGlFREFPYWZoV1BWbGdQNUxxdHpnbzZPbGh4SWxVMk0K"
+      "pubkey": "dW50cnVzdGVkIGNvbW1lbnQ6IG1pbmlzaWduIHB1YmxpYyBrZXk6IEQ4NkUxNDkxMkFGNEQ4QzIKUldUQzJQUXFrUlJ1MkhNQmZuUUVoaFRvWkZ3VkZCTTlmR3BNbWJLV0l1REF6bklLeERZWnRjT0UK"
     }
   }
 }
