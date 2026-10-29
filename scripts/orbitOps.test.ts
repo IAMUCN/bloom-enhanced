@@ -19,6 +19,11 @@ test("options fit every file in the set", () => {
 	expect(several.find((o) => o.id === "tool.image.pdf-combine")?.label).toBe("One PDF");
 	expect(opsFor(files("C:\\a.png"), "convert").find((o) => o.id === "convert.pdf")?.label).toBe("PDF");
 	expect(ids(files("C:\\x.zip"), "tools")).toEqual(["tool.archive.extract"]);
+	// PDFs merge (with images too) and split, one or several at a time.
+	expect(ids(files("C:\\a.pdf", "C:\\b.pdf", "C:\\c.png"), "tools")).toEqual(["tool.pdf.merge"]);
+	expect(ids(files("C:\\a.pdf", "C:\\b.pdf"), "tools")).toEqual(["tool.pdf.merge", "tool.pdf.split"]);
+	expect(ids(files("C:\\a.pdf"), "tools")).toEqual(["tool.pdf.split"]);
+	expect(ids(files("C:\\a.png", "C:\\b.png"), "tools")).not.toContain("tool.pdf.merge");
 	expect(ids(files("C:\\a.png"), "actions")).toContain("action.wallpaper");
 	expect(ids(files("C:\\a.png", "C:\\b.png"), "actions")).not.toContain("action.wallpaper");
 	expect(modesFor(files("C:\\notes.docx"))).toEqual(["actions"]);

@@ -49,6 +49,9 @@ Edit `settings.json` with any text editor while Bloom is running. Changes are ap
 | `bloom-notch-style`      | `"notch"` / `"pill"` / `"minimal"` | `"notch"` | Idle look. **notch** = attached to the top edge with flares. **pill** = floating capsule below the edge. **minimal** = thin bar while idle; content shows on hover, music, or alerts. |
 | `bloom-notch-scale`      | float string `"0.5"`–`"1.5"`     | (unset)   | Size of the notch only. Unset = follows `bloom-scale`. |
 | `bloom-notch-panel-scales` | JSON object, panel → `0.5`–`1.5` | `"{}"` | Per-panel notch size on top of `bloom-notch-scale`, e.g. `{"calendar":1.2,"music":0.9}`. Panels: `calendar`, `command-center` (incl. Wi-Fi/Bluetooth), `devices`, `music`, `shelf`, `clipboard`. Missing panels use 1. Command Center's 1 is 30% larger than its original layout. The time row keeps one size on every page. |
+| `bloom-notch-time-size`  | `"0.7"`–`"1.5"` | `"1"` | Size of the clock in the notch, on top of the notch size. |
+| `bloom-notch-left-size`  | `"0.7"`–`"1.5"` | `"1"` | Size of the status widgets left of the clock. |
+| `bloom-notch-right-size` | `"0.7"`–`"1.5"` | `"1"` | Size of the status widgets right of the clock. |
 
 ### Weather
 

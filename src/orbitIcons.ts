@@ -14,6 +14,7 @@ import {
 	Minimize2,
 	RotateCcw,
 	RotateCw,
+	Scissors,
 	SquareTerminal,
 	Type,
 	Wallpaper
@@ -33,6 +34,7 @@ export const ORBIT_ICONS: Record<string, typeof Copy> = {
 	Minimize2,
 	RotateCcw,
 	RotateCw,
+	Scissors,
 	SquareTerminal,
 	Type,
 	Wallpaper

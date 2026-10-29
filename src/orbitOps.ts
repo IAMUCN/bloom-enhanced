@@ -71,6 +71,15 @@ export const CATALOG: Record<OrbitMode, Entry[]> = {
 		}
 	],
 	tools: [
+		{
+			id: "tool.pdf.merge",
+			label: "Merge",
+			icon: "FileStack",
+			progress: "Merging into one PDF",
+			// Several PDFs, with images too: the images become pages.
+			fits: (exts) => exts.length > 1 && exts.includes("pdf") && exts.every((e) => e === "pdf" || images([e]))
+		},
+		{ id: "tool.pdf.split", label: "Split", icon: "Scissors", progress: "Splitting into pages", fits: pdfs },
 		{ id: "tool.image.rotate-right", label: "Rotate right", icon: "RotateCw", progress: "Rotating", fits: images },
 		{ id: "tool.image.rotate-left", label: "Rotate left", icon: "RotateCcw", progress: "Rotating", fits: images },
 		{ id: "tool.image.flip", label: "Flip", icon: "FlipHorizontal2", progress: "Flipping", fits: images },

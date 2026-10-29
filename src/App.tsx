@@ -658,6 +658,12 @@ function App() {
 	const [notchStyle, setNotchStyle] = useState(() =>
 		asNotchStyle(localStorage.getItem("bloom-notch-style"))
 	);
+	// Sizes of the clock and of the icons on its left and right
+	// (Settings > Notch > Widgets), on top of the notch size.
+	const sizeOf = (v: unknown) => Number(v) || 1;
+	const [timeSize, setTimeSize] = useState(() => sizeOf(localStorage.getItem("bloom-notch-time-size")));
+	const [leftSize, setLeftSize] = useState(() => sizeOf(localStorage.getItem("bloom-notch-left-size")));
+	const [rightSize, setRightSize] = useState(() => sizeOf(localStorage.getItem("bloom-notch-right-size")));
 	const [timeFormat24h, setTimeFormat24h] = useState(
 		() => localStorage.getItem("bloom-time-format-24h") === "true"
 	);
@@ -1290,6 +1296,9 @@ function App() {
 				if (notchScaleVal !== null) setNotchScale(parseFloat(notchScaleVal));
 				setNotchPanelScales(parsePanelScales(getVal("bloom-notch-panel-scales")));
 				setNotchStyle(asNotchStyle(getVal("bloom-notch-style")));
+				setTimeSize(sizeOf(getVal("bloom-notch-time-size")));
+				setLeftSize(sizeOf(getVal("bloom-notch-left-size")));
+				setRightSize(sizeOf(getVal("bloom-notch-right-size")));
 
 				const widgetsVal = getVal("bloom-status-widgets");
 				if (widgetsVal) {
@@ -1372,6 +1381,9 @@ function App() {
 			"bloom-notch-scale": setNotchScale,
 			"bloom-notch-panel-scales": (v: unknown) => setNotchPanelScales(parsePanelScales(v)),
 			"bloom-notch-style": (v: unknown) => setNotchStyle(asNotchStyle(v)),
+			"bloom-notch-time-size": (v: unknown) => setTimeSize(sizeOf(v)),
+			"bloom-notch-left-size": (v: unknown) => setLeftSize(sizeOf(v)),
+			"bloom-notch-right-size": (v: unknown) => setRightSize(sizeOf(v)),
 			"bloom-low-battery-threshold": setLowBatteryThreshold,
 			"bloom-dock-enabled": setDockEnabled,
 			"bloom-dock-mode": setDockMode,
@@ -2897,9 +2909,10 @@ function App() {
 		}
 		// offsetWidth, not scrollWidth: an open tooltip card overflows its
 		// widget and must not widen the notch.
+		// offsetWidth leaves out the groups' own size zoom.
 		const side = Math.max(
-			leftWidgetsRef.current?.offsetWidth ?? 0,
-			rightWidgetsRef.current?.offsetWidth ?? 0
+			(leftWidgetsRef.current?.offsetWidth ?? 0) * leftSize,
+			(rightWidgetsRef.current?.offsetWidth ?? 0) * rightSize
 		);
 		const clock = timeCenterRef.current?.offsetWidth ?? 0;
 		// The pill's 12px padding on each side, and a 10px gap to the clock.
@@ -3168,6 +3181,8 @@ function App() {
 					: null;
 	const panelZoomNow = sizedPanel && isExpanded && isVisible && !isHidden ? panelZoom(sizedPanel, notchPanelScales) : 1;
 	const pillZoom = scale * panelZoomNow;
+	// The floating pill style sits 6px below the edge (see pillTargetY).
+	const pillGap = notchStyle === "pill" ? 6 : 0;
 
 	// Notch style (Settings > Notch > Style). "pill" floats below the edge
 	// with no flares; "minimal" shrinks the idle notch to a thin bar that shows
@@ -3720,10 +3735,13 @@ function App() {
 											<div
 												className="main-row"
 												// A device alert covers the whole pill. The time row keeps one
-												// size on every page: it undoes the panel's zoom, keeping its slot.
+												// size and place on every page: it undoes the panel's zoom, and
+												// its 36px stays at the top while padding fills the panel's
+												// zoomed slot (and the zoomed gap of the floating pill style).
 												style={{
 													zoom: 1 / panelZoomNow,
-													height: 36 * panelZoomNow,
+													marginTop: -pillGap * (panelZoomNow - 1),
+													paddingBottom: (36 + pillGap) * (panelZoomNow - 1),
 													...(bloomMode === "device" || deviceAlertOnScreen ? { visibility: "hidden" } : {})
 												}}
 											>
@@ -3861,6 +3879,7 @@ function App() {
 																		key="left-widgets"
 																		ref={leftWidgetsRef}
 																		className="passive-features-group"
+																		style={{ zoom: leftSize }}
 																		initial={{ opacity: 0 }}
 																		animate={{ opacity: 1 }}
 																		exit={{ opacity: 0 }}
@@ -3893,7 +3912,7 @@ function App() {
 																		</motion.button>
 																	)}
 																</AnimatePresence>
-																<div className="time-flip-container" onClick={toggleCalendarMode}>
+																<div className="time-flip-container" style={{ zoom: timeSize }} onClick={toggleCalendarMode}>
 																	<AnimatePresence initial={false}>
 																		{timerSeconds > 0 || isTimerFinished ? (
 																			<motion.span
@@ -4025,6 +4044,7 @@ function App() {
 																		key="right-widgets"
 																		ref={rightWidgetsRef}
 																		className="passive-features-group"
+																		style={{ zoom: rightSize }}
 																		initial={{ opacity: 0 }}
 																		animate={{ opacity: 1 }}
 																		exit={{ opacity: 0 }}

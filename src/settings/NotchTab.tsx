@@ -13,8 +13,12 @@ import {
 	Headphones,
 	SlidersHorizontal,
 	Maximize2,
-	X
+	X,
+	Clock,
+	PanelLeft,
+	PanelRight
 } from "lucide-react";
+import { useState } from "react";
 import { motion } from "framer-motion";
 import { SettingRow } from "./SettingRow";
 
@@ -43,6 +47,36 @@ import {
 import { StatusWidgetConfig } from "../components/StatusWidgetConfig";
 import type { WidgetConfig } from "./types";
 import type { NotchPanelChoice } from "./useSettings";
+
+/** Sizes of the clock and the icons beside it, on top of the notch size. */
+const ROW_SIZES = [
+	["bloom-notch-time-size", Clock, "Time Size", "The clock in the middle"],
+	["bloom-notch-left-size", PanelLeft, "Left Icons", "Widgets left of the clock"],
+	["bloom-notch-right-size", PanelRight, "Right Icons", "Widgets right of the clock"]
+] as const;
+
+function RowSizes({ saveSetting }: { saveSetting: (key: string, value: string | null) => Promise<boolean> }) {
+	const [sizes, setSizes] = useState<Record<string, number>>(() =>
+		Object.fromEntries(ROW_SIZES.map(([key]) => [key, Number(localStorage.getItem(key)) || 1]))
+	);
+	return (
+		<>
+			{ROW_SIZES.map(([key, icon, label, desc]) => (
+				<SettingRow key={key} icon={icon} label={label} desc={desc}>
+					<ScaleStepper
+						value={sizes[key]}
+						min={0.7}
+						onChange={(v) => {
+							setSizes((s) => ({ ...s, [key]: v }));
+							saveSetting(key, String(v));
+						}}
+						label={label.toLowerCase()}
+					/>
+				</SettingRow>
+			))}
+		</>
+	);
+}
 
 /** The notch's panels, in the order the notch cycles through them. */
 const PANEL_CHOICES: readonly (readonly [NotchPanelChoice, string])[] = [
@@ -107,6 +141,7 @@ interface NotchTabProps {
 	handlePanelScaleChange: (panel: SizedPanel, val: number) => void;
 	notchStyle: NotchStyle;
 	handleNotchStyleChange: (style: NotchStyle) => void;
+	saveSetting: (key: string, value: string | null) => Promise<boolean>;
 }
 
 export function NotchTab({
@@ -159,7 +194,8 @@ export function NotchTab({
 	notchPanelScales,
 	handlePanelScaleChange,
 	notchStyle,
-	handleNotchStyleChange
+	handleNotchStyleChange,
+	saveSetting
 }: NotchTabProps) {
 	const panelOn: Record<NotchPanelChoice, boolean> = {
 		calendar: calendarEnabled,
@@ -576,6 +612,7 @@ export function NotchTab({
 							</summary>
 							<StatusWidgetConfig value={statusWidgets} onChange={handleWidgetsChange} />
 						</details>
+						<RowSizes saveSetting={saveSetting} />
 					</div>
 				</>
 			)}

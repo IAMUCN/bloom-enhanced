@@ -965,6 +965,114 @@ fn convert_pdf(path: &Path, ext: &str) -> Result<PathBuf, String> {
     }
 }
 
+fn load_pdf(path: &Path) -> Result<lopdf::Document, String> {
+    let name = path.file_name().unwrap_or_default().to_string_lossy();
+    match lopdf::Document::load(path) {
+        Ok(doc) if !doc.is_encrypted() => Ok(doc),
+        Ok(_) => Err(format!("{name} is password-protected.")),
+        Err(_) => Err(format!("{name} couldn't be read (it may be damaged).")),
+    }
+}
+
+fn pdf_bytes(mut doc: lopdf::Document) -> Result<Vec<u8>, String> {
+    doc.compress();
+    let mut out = Vec::new();
+    doc.save_to(&mut out).map_err(|e| e.to_string())?;
+    Ok(out)
+}
+
+/// One PDF with every page of `docs`, in order. Each page keeps what it
+/// inherited from its old page tree (resources, page size, rotation).
+fn merge_pdfs(docs: Vec<lopdf::Document>) -> Result<Vec<u8>, String> {
+    use lopdf::{dictionary, Object};
+    let mut out = lopdf::Document::with_version("1.5");
+    let pages_id = out.new_object_id();
+    let mut kids = Vec::new();
+    for mut doc in docs {
+        doc.renumber_objects_with(out.max_id + 1);
+        out.max_id = doc.max_id;
+        for page_id in doc.get_pages().into_values() {
+            let mut page = doc
+                .get_dictionary(page_id)
+                .map_err(|e| e.to_string())?
+                .clone();
+            let mut parent = page.get(b"Parent").and_then(Object::as_reference).ok();
+            while let Some(id) = parent {
+                let Ok(node) = doc.get_dictionary(id) else {
+                    break;
+                };
+                for key in [&b"Resources"[..], b"MediaBox", b"CropBox", b"Rotate"] {
+                    if !page.has(key) {
+                        if let Ok(value) = node.get(key) {
+                            page.set(key, value.clone());
+                        }
+                    }
+                }
+                parent = node.get(b"Parent").and_then(Object::as_reference).ok();
+            }
+            page.set("Parent", pages_id);
+            doc.objects.insert(page_id, Object::Dictionary(page));
+            kids.push(Object::Reference(page_id));
+        }
+        // The old catalogs and page trees are replaced by the new ones.
+        for (id, object) in doc.objects {
+            if !matches!(object.type_name(), Ok(b"Catalog" | b"Pages")) {
+                out.objects.insert(id, object);
+            }
+        }
+    }
+    let count = kids.len() as i64;
+    out.objects.insert(
+        pages_id,
+        Object::Dictionary(dictionary! { "Type" => "Pages", "Kids" => kids, "Count" => count }),
+    );
+    let catalog = out.add_object(dictionary! { "Type" => "Catalog", "Pages" => pages_id });
+    out.trailer.set("Root", catalog);
+    pdf_bytes(out)
+}
+
+/// PDFs and images, in the order given, as one PDF (images become pages).
+fn merge_files(paths: &[PathBuf]) -> Result<PathBuf, String> {
+    let mut docs = Vec::new();
+    for (i, p) in paths.iter().enumerate() {
+        canceled()?;
+        progress(0.8 * i as f64 / paths.len() as f64);
+        docs.push(if ext_of(p) == "pdf" {
+            load_pdf(p)?
+        } else {
+            let page = pdf_from_jpegs(&[pdf_page(&decode(p)?)?]);
+            lopdf::Document::load_mem(&page).map_err(|e| e.to_string())?
+        });
+    }
+    let first = paths.first().ok_or("Nothing to merge.")?;
+    save_bytes(first, "pdf", Some("merged"), &merge_pdfs(docs)?)
+}
+
+/// Each page of a PDF as its own PDF, in a "name (pages)" folder.
+fn split_pdf(path: &Path) -> Result<PathBuf, String> {
+    let doc = load_pdf(path)?;
+    let count = doc.get_pages().len() as u32;
+    if count < 2 {
+        return Err("The PDF has only one page.".into());
+    }
+    let dir = out_dir(path)?;
+    let stem = path.file_stem().unwrap_or_default().to_string_lossy();
+    write_folder(&dir, &format!("{stem} (pages)"), |temp| {
+        for n in 1..=count {
+            canceled()?;
+            progress(n as f64 / count as f64);
+            // ponytail: clones the whole document per page (fine for normal
+            // PDFs; a huge one would want a page-by-page copy instead).
+            let mut page = doc.clone();
+            page.delete_pages(&(1..=count).filter(|&o| o != n).collect::<Vec<_>>());
+            page.prune_objects();
+            std::fs::write(temp.join(format!("Page {n}.pdf")), pdf_bytes(page)?)
+                .map_err(|e| e.to_string())?;
+        }
+        Ok(())
+    })
+}
+
 /// Unpacks a ZIP into a new folder beside it. Entries that would land outside
 /// that folder ("../", absolute paths) are skipped.
 fn extract_zip(path: &Path) -> Result<PathBuf, String> {
@@ -1245,6 +1353,7 @@ fn run(app: &AppHandle, op: &str, paths: &[PathBuf]) -> Vec<Outcome> {
         }
         "action.wallpaper" => Some(set_wallpaper(&first).map(|()| None)),
         "action.zip" => Some(make_zip(paths).map(Some)),
+        "tool.pdf.merge" => Some(merge_files(paths).map(Some)),
         "tool.image.pdf-combine" => Some((|| {
             let mut pages = Vec::new();
             for (i, p) in paths.iter().enumerate() {
@@ -1305,6 +1414,7 @@ fn run(app: &AppHandle, op: &str, paths: &[PathBuf]) -> Vec<Outcome> {
             }),
             ["tool", "image", tool] => image_tool(path, tool),
             ["tool", "archive", "extract"] => extract_zip(path),
+            ["tool", "pdf", "split"] => split_pdf(path),
             ["action", "copy-to" | "move-to"] => transfer(
                 path,
                 folder.as_deref().unwrap_or(Path::new("")),
@@ -1444,5 +1554,44 @@ mod tests {
         for (i, at) in offsets.into_iter().enumerate() {
             assert!(pdf[at..].starts_with(format!("{} 0 obj", i + 1).as_bytes()));
         }
+    }
+
+    #[test]
+    fn pdfs_merge_with_images_and_split() {
+        let dir = Path::new(env!("CARGO_MANIFEST_DIR"))
+            .join("target")
+            .join(format!("klyro-pdf-{}", std::process::id()));
+        let _ = std::fs::remove_dir_all(&dir);
+        std::fs::create_dir_all(&dir).unwrap();
+        let page = |w| {
+            let img = image::DynamicImage::ImageRgb8(image::RgbImage::new(w, 100));
+            pdf_page(&img).unwrap()
+        };
+        std::fs::write(dir.join("a.pdf"), pdf_from_jpegs(&[page(100), page(200)])).unwrap();
+        image::RgbImage::new(300, 100)
+            .save(dir.join("b.png"))
+            .unwrap();
+        let merged = merge_files(&[dir.join("a.pdf"), dir.join("b.png")]).unwrap();
+        assert_eq!(merged.file_name().unwrap(), "a (merged).pdf");
+        // Pages keep their order: 100, 200, then the image's 300 wide.
+        let doc = lopdf::Document::load(&merged).unwrap();
+        let widths: Vec<f32> = doc
+            .get_pages()
+            .into_values()
+            .map(|id| {
+                let page = doc.get_dictionary(id).unwrap();
+                page.get(b"MediaBox").unwrap().as_array().unwrap()[2]
+                    .as_float()
+                    .unwrap()
+            })
+            .collect();
+        assert_eq!(widths, [75.0, 150.0, 225.0]);
+        let pages = split_pdf(&merged).unwrap();
+        for n in 1..=3 {
+            let one = lopdf::Document::load(pages.join(format!("Page {n}.pdf"))).unwrap();
+            assert_eq!(one.get_pages().len(), 1);
+        }
+        assert!(split_pdf(&pages.join("Page 1.pdf")).is_err());
+        std::fs::remove_dir_all(&dir).unwrap();
     }
 }
