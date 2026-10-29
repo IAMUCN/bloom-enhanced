@@ -147,7 +147,9 @@ jobs:
           TAURI_SIGNING_PASSWORD: ${{ secrets.TAURI_SIGNING_PASSWORD }}
         with:
           tagName: ${{ github.ref_name }}
-          releaseName: "Bloom ${{ github.ref_name }}"
+          releaseName: "Bloom Enhanced ${{ github.ref_name }}"
+          # bloom-enhanced-0.1.0-setup.exe, bloom-enhanced-0.1.0.msi
+          assetNamePattern: "bloom-enhanced-[version][setup][ext]"
           releaseBody: ${{ steps.notes.outputs.body }}
           releaseDraft: false
           prerelease: false

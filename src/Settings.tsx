@@ -33,6 +33,7 @@ import type { SettingsTab } from "./settings/index";
 import { useAnnouncement } from "./hooks/useAnnouncement";
 import { initTheme } from "./theme";
 import { FeaturePreview } from "./settings/FeaturePreview";
+import { searchSettings, type SettingEntry } from "./settings/searchIndex";
 import "./Settings.css";
 
 const appWindow = getCurrentWebviewWindow();
@@ -85,30 +86,25 @@ const PAGE_KEYS: Partial<Record<SettingsTab, string[]>> = {
 	overlays: ["bloom-volume-", "bloom-brightness-"]
 };
 
-interface Hit {
-	tab: SettingsTab;
-	label: string;
-	desc: string;
-	row: HTMLElement;
-}
-
-/** Rows of every page whose label, description or page name holds
- *  all the words typed. */
-function findSettings(root: HTMLElement | null, query: string): Hit[] {
-	const words = query.toLowerCase().split(/\s+/).filter(Boolean);
-	if (!root || !words.length) return [];
-	const hits: Hit[] = [];
-	root.querySelectorAll<HTMLElement>("section[data-tab]").forEach((section) => {
-		const tab = section.dataset.tab as SettingsTab;
-		const page = TABS.find((t) => t.id === tab)?.label ?? "";
-		section.querySelectorAll<HTMLElement>(".setting-item, .settings-disclosure > summary").forEach((row) => {
-			const label = row.querySelector(".setting-label")?.textContent ?? row.firstChild?.textContent ?? "";
-			const desc = (row.querySelector(".setting-desc") ?? row.querySelector("span"))?.textContent ?? "";
-			const text = `${label} ${desc} ${page}`.toLowerCase();
-			if (label && words.every((w) => text.includes(w))) hits.push({ tab, label, desc, row });
-		});
-	});
-	return hits;
+/** A search result's row on its page: the row (or folded section, or group
+ *  heading) with that label; between rows with the same label, the one whose
+ *  description is part of the entry's. */
+function rowFor(root: HTMLElement | null, hit: SettingEntry): HTMLElement | null {
+	if (!root) return null;
+	const labelOf = (el: HTMLElement) =>
+		(el.matches(".setting-item") ? el.querySelector(".setting-label")?.textContent : el.firstChild?.textContent)?.trim() ?? "";
+	const rows = Array.from(
+		root.querySelectorAll<HTMLElement>(".setting-item, .settings-disclosure > summary, .setting-group-label")
+	).filter((el) => (hit.match ? labelOf(el).startsWith(hit.match) : labelOf(el) === hit.label));
+	const desc = hit.desc.toLowerCase();
+	return (
+		rows.find((el) => {
+			const own = el.querySelector(".setting-desc")?.textContent?.trim().toLowerCase();
+			return !!own && desc.includes(own);
+		}) ??
+		rows[0] ??
+		null
+	);
 }
 
 function SettingsApp() {
@@ -117,23 +113,28 @@ function SettingsApp() {
 	const contentRef = useRef<HTMLDivElement>(null);
 	const searchRef = useRef<HTMLInputElement>(null);
 	const [query, setQuery] = useState("");
-	const [hits, setHits] = useState<Hit[]>([]);
-	// While searching no page shows; the results do.
+	// While searching no page shows; the results do. Only the page shown is
+	// loaded; search reads the list of every setting (searchIndex.ts).
 	const shown = query.trim() ? null : activeTab;
-	useEffect(() => setHits(findSettings(contentRef.current, query)), [query]);
+	const pageName = (tab: SettingsTab) => TABS.find((t) => t.id === tab)?.label ?? "";
+	const hits = searchSettings(query, pageName);
 
-	const jumpTo = (hit: Hit) => {
+	const jumpTo = (hit: SettingEntry) => {
 		setQuery("");
 		setActiveTab(hit.tab);
-		requestAnimationFrame(() => {
-			for (let el = hit.row.parentElement; el; el = el.parentElement)
+		// The page renders first; a row that only shows while its feature is on
+		// may not be there, and the page simply opens.
+		setTimeout(() => {
+			const row = rowFor(contentRef.current, hit);
+			if (!row) return;
+			for (let el = row.parentElement; el; el = el.parentElement)
 				if (el instanceof HTMLDetailsElement) el.open = true;
-			hit.row.scrollIntoView({ block: "center", behavior: "smooth" });
-			hit.row.classList.remove("search-hit");
-			void hit.row.offsetWidth;
-			hit.row.classList.add("search-hit");
-			hit.row.querySelector<HTMLElement>("input, button, [tabindex='0']")?.focus({ preventScroll: true });
-		});
+			row.scrollIntoView({ block: "center", behavior: "smooth" });
+			row.classList.remove("search-hit");
+			void row.offsetWidth;
+			row.classList.add("search-hit");
+			row.querySelector<HTMLElement>("input, button, [tabindex='0']")?.focus({ preventScroll: true });
+		}, 60);
 	};
 
 	// Ctrl+F searches; Esc clears the search, or closes Settings.
@@ -321,185 +322,201 @@ function SettingsApp() {
 							))}
 						</div>
 					)}
-					<section data-tab="general" hidden={shown !== "general"}>
-						<GeneralTab
-							autostart={settings.autostart}
-							toggleAutostart={settings.toggleAutostart}
-							timeFormat24h={settings.timeFormat24h}
-							toggleTimeFormat24h={settings.toggleTimeFormat24h}
-							showUpdateIndicator={settings.showUpdateIndicator}
-							toggleUpdateIndicator={settings.toggleUpdateIndicator}
-							lowBatteryThreshold={settings.lowBatteryThreshold}
-							handleThresholdChange={settings.handleThresholdChange}
-							restartBloom={settings.restartBloom}
-							resetToDefaults={settings.resetToDefaults}
-							quitBloom={settings.quitBloom}
-							saveSetting={settings.saveSetting}
-						/>
-					</section>
-					<section data-tab="appearance" hidden={shown !== "appearance"}>
-						<AppearanceTab
-							themeMode={settings.themeMode}
-							handleThemeModeChange={settings.handleThemeModeChange}
-							themeColor={settings.themeColor}
-							handleThemeColorChange={settings.handleThemeColorChange}
-							themeOpacity={settings.themeOpacity}
-							handleOpacityChange={settings.handleOpacityChange}
-							themeSaturation={settings.themeSaturation}
-							handleSaturationChange={settings.handleSaturationChange}
-							themeBrightness={settings.themeBrightness}
-							handleBrightnessChange={settings.handleBrightnessChange}
-							scale={settings.scale}
-							handleScaleChange={settings.handleScaleChange}
-						/>
-					</section>
-					<section data-tab="notch" hidden={shown !== "notch"}>
-						<NotchTab
-							saveSetting={settings.saveSetting}
-							notchEnabled={settings.notchEnabled}
-							toggleNotch={settings.toggleNotch}
-							notchMode={settings.notchMode}
-							setNotchModeValue={settings.setNotchModeValue}
-							notchEdgeDelay={settings.notchEdgeDelay}
-							handleNotchEdgeDelayChange={settings.handleNotchEdgeDelayChange}
-							calendarEnabled={settings.calendarEnabled}
-							toggleCalendar={settings.toggleCalendar}
-							controlsPanelEnabled={settings.controlsPanelEnabled}
-							toggleControlsPanel={settings.toggleControlsPanel}
-							devicesPanelEnabled={settings.devicesPanelEnabled}
-							toggleDevicesPanel={settings.toggleDevicesPanel}
-							enabledPanelCount={settings.enabledPanelCount}
-							notchRememberPanel={settings.notchRememberPanel}
-							toggleNotchRememberPanel={settings.toggleNotchRememberPanel}
-							notchDefaultPanel={settings.notchDefaultPanel}
-							changeNotchDefaultPanel={settings.changeNotchDefaultPanel}
-							timerSoundEnabled={settings.timerSoundEnabled}
-							toggleTimerSound={settings.toggleTimerSound}
-							musicModeEnabled={settings.musicModeEnabled}
-							toggleMusicMode={settings.toggleMusicMode}
-							musicCompactNotch={settings.musicCompactNotch}
-							toggleMusicCompactNotch={settings.toggleMusicCompactNotch}
-							shelfPersist={settings.shelfPersist}
-							toggleShelfPersist={settings.toggleShelfPersist}
-							mediaLayout={settings.mediaLayout}
-							toggleMediaLayout={settings.toggleMediaLayout}
-							mediaAmbienceEnabled={settings.mediaAmbienceEnabled}
-							toggleAmbience={settings.toggleAmbience}
-							mediaCompactGlowEnabled={settings.mediaCompactGlowEnabled}
-							toggleCompactGlow={settings.toggleCompactGlow}
-							weatherEnabled={settings.weatherEnabled}
-							toggleWeather={settings.toggleWeather}
-							tempUnitFahrenheit={settings.tempUnitFahrenheit}
-							toggleTempUnit={settings.toggleTempUnit}
-							cityName={settings.cityName}
-							setCityName={settings.setCityName}
-							citySearchResults={settings.citySearchResults}
-							showCityDropdown={settings.showCityDropdown}
-							setShowCityDropdown={settings.setShowCityDropdown}
-							selectCity={settings.selectCity}
-							handleCityClear={settings.handleCityClear}
-							statusWidgets={settings.statusWidgets}
-							handleWidgetsChange={settings.handleWidgetsChange}
-							notchScale={settings.notchScale}
-							handleNotchScaleChange={settings.handleNotchScaleChange}
-							notchPanelScales={settings.notchPanelScales}
-							handlePanelScaleChange={settings.handlePanelScaleChange}
-							notchStyle={settings.notchStyle}
-							handleNotchStyleChange={settings.handleNotchStyleChange}
-						/>
-					</section>
-					<section data-tab="dock" hidden={shown !== "dock"}>
-						<DockTab
-							dockEnabled={settings.dockEnabled}
-							toggleDock={settings.toggleDock}
-							dockMode={settings.dockMode}
-							setDockModeValue={settings.setDockModeValue}
-							dockEdgeDelay={settings.dockEdgeDelay}
-							handleDockEdgeDelayChange={settings.handleDockEdgeDelayChange}
-							dockPreviewEnabled={settings.dockPreviewEnabled}
-							toggleDockPreview={settings.toggleDockPreview}
-							dockIconOnly={settings.dockIconOnly}
-							toggleDockIconOnly={settings.toggleDockIconOnly}
-							dockSeparatorEnabled={settings.dockSeparatorEnabled}
-							toggleDockSeparator={settings.toggleDockSeparator}
-							dockAdaptive={settings.dockAdaptive}
-							toggleDockAdaptive={settings.toggleDockAdaptive}
-							dockWinNumberEnabled={settings.dockWinNumberEnabled}
-							toggleDockWinNumber={settings.toggleDockWinNumber}
-							dockExtrasPosition={settings.dockExtrasPosition}
-							handleDockExtrasPositionChange={settings.handleDockExtrasPositionChange}
-							dockExtrasDrives={settings.dockExtrasDrives}
-							toggleDockExtrasDrives={settings.toggleDockExtrasDrives}
-							dockExtrasHiddenDrives={settings.dockExtrasHiddenDrives}
-							toggleDockExtrasDrive={settings.toggleDockExtrasDrive}
-							dockExtrasRecycleBin={settings.dockExtrasRecycleBin}
-							toggleDockExtrasRecycleBin={settings.toggleDockExtrasRecycleBin}
-							dockTaskView={settings.dockTaskView}
-							toggleDockTaskView={settings.toggleDockTaskView}
-							dockExtrasFolders={settings.dockExtrasFolders}
-							toggleDockExtraFolder={settings.toggleDockExtraFolder}
-							dockExtrasCustomFolders={settings.dockExtrasCustomFolders}
-							handleAddDockExtraFolder={settings.handleAddDockExtraFolder}
-							handleRemoveDockExtraFolder={settings.handleRemoveDockExtraFolder}
-							startIcon={settings.startIcon}
-							handleStartIconChange={settings.handleStartIconChange}
-							dockScale={settings.dockScale}
-							handleDockScaleChange={settings.handleDockScaleChange}
-						/>
-					</section>
-					<section data-tab="clipboard" hidden={shown !== "clipboard"}>
-						<ClipboardTab
-							enabled={settings.clipboardEnabled}
-							toggleEnabled={settings.toggleClipboard}
-							incognito={settings.clipboardIncognito}
-							toggleIncognito={settings.toggleClipboardIncognito}
-							limit={settings.clipboardLimit}
-							changeLimit={settings.changeClipboardLimit}
-							retentionHours={settings.clipboardRetentionHours}
-							changeRetention={settings.changeClipboardRetention}
-							clearHistory={settings.clearClipboardHistory}
-							groupFiles={settings.clipboardGroupFiles}
-							toggleGroupFiles={settings.toggleClipboardGroupFiles}
-							thumbSize={settings.clipboardThumbSize}
-							changeThumbSize={settings.changeClipboardThumbSize}
-							position={settings.clipboardPosition}
-							changePosition={settings.changeClipboardPosition}
-							shortcut={settings.clipboardShortcut}
-							changeShortcut={settings.changeClipboardShortcut}
-							saveSetting={settings.saveSetting}
-							notchOn={settings.notchEnabled}
-						/>
-					</section>
-					<section data-tab="files" hidden={shown !== "files"}>
-						<FilesTab saveSetting={settings.saveSetting} />
-					</section>
-					<section data-tab="overlays" hidden={shown !== "overlays"}>
-						<OverlaysTab
-							volumeOverlayEnabled={settings.volumeOverlayEnabled}
-							toggleVolumeOverlay={settings.toggleVolumeOverlay}
-							volumeEdgeEnabled={settings.volumeEdgeEnabled}
-							toggleVolumeEdge={settings.toggleVolumeEdge}
-							brightnessOverlayEnabled={settings.brightnessOverlayEnabled}
-							toggleBrightnessOverlay={settings.toggleBrightnessOverlay}
-							brightnessEdgeEnabled={settings.brightnessEdgeEnabled}
-							toggleBrightnessEdge={settings.toggleBrightnessEdge}
-						/>
-					</section>
-					<section data-tab="about" hidden={shown !== "about"}>
-						<AboutTab
-							appVersion={settings.appVersion}
-							autoUpdate={settings.autoUpdate}
-							toggleAutoUpdate={settings.toggleAutoUpdate}
-							updateStatus={settings.updateStatus}
-							updateVersion={settings.updateVersion}
-							checkForUpdates={settings.checkForUpdates}
-							installUpdate={settings.installUpdate}
-							exportStatus={settings.exportStatus}
-							importStatus={settings.importStatus}
-							handleExportSettings={settings.handleExportSettings}
-							handleImportSettings={settings.handleImportSettings}
-						/>
-					</section>
+					{shown === "general" && (
+						<section data-tab="general">
+							<GeneralTab
+								autostart={settings.autostart}
+								toggleAutostart={settings.toggleAutostart}
+								timeFormat24h={settings.timeFormat24h}
+								toggleTimeFormat24h={settings.toggleTimeFormat24h}
+								showUpdateIndicator={settings.showUpdateIndicator}
+								toggleUpdateIndicator={settings.toggleUpdateIndicator}
+								lowBatteryThreshold={settings.lowBatteryThreshold}
+								handleThresholdChange={settings.handleThresholdChange}
+								restartBloom={settings.restartBloom}
+								resetToDefaults={settings.resetToDefaults}
+								quitBloom={settings.quitBloom}
+								saveSetting={settings.saveSetting}
+							/>
+						</section>
+					)}
+					{shown === "appearance" && (
+						<section data-tab="appearance">
+							<AppearanceTab
+								themeMode={settings.themeMode}
+								handleThemeModeChange={settings.handleThemeModeChange}
+								themeColor={settings.themeColor}
+								handleThemeColorChange={settings.handleThemeColorChange}
+								themeOpacity={settings.themeOpacity}
+								handleOpacityChange={settings.handleOpacityChange}
+								themeSaturation={settings.themeSaturation}
+								handleSaturationChange={settings.handleSaturationChange}
+								themeBrightness={settings.themeBrightness}
+								handleBrightnessChange={settings.handleBrightnessChange}
+								scale={settings.scale}
+								handleScaleChange={settings.handleScaleChange}
+							/>
+						</section>
+					)}
+					{shown === "notch" && (
+						<section data-tab="notch">
+							<NotchTab
+								saveSetting={settings.saveSetting}
+								notchEnabled={settings.notchEnabled}
+								toggleNotch={settings.toggleNotch}
+								notchMode={settings.notchMode}
+								setNotchModeValue={settings.setNotchModeValue}
+								notchEdgeDelay={settings.notchEdgeDelay}
+								handleNotchEdgeDelayChange={settings.handleNotchEdgeDelayChange}
+								calendarEnabled={settings.calendarEnabled}
+								toggleCalendar={settings.toggleCalendar}
+								controlsPanelEnabled={settings.controlsPanelEnabled}
+								toggleControlsPanel={settings.toggleControlsPanel}
+								devicesPanelEnabled={settings.devicesPanelEnabled}
+								toggleDevicesPanel={settings.toggleDevicesPanel}
+								enabledPanelCount={settings.enabledPanelCount}
+								notchRememberPanel={settings.notchRememberPanel}
+								toggleNotchRememberPanel={settings.toggleNotchRememberPanel}
+								notchDefaultPanel={settings.notchDefaultPanel}
+								changeNotchDefaultPanel={settings.changeNotchDefaultPanel}
+								timerSoundEnabled={settings.timerSoundEnabled}
+								toggleTimerSound={settings.toggleTimerSound}
+								musicModeEnabled={settings.musicModeEnabled}
+								toggleMusicMode={settings.toggleMusicMode}
+								musicCompactNotch={settings.musicCompactNotch}
+								toggleMusicCompactNotch={settings.toggleMusicCompactNotch}
+								shelfPersist={settings.shelfPersist}
+								toggleShelfPersist={settings.toggleShelfPersist}
+								mediaLayout={settings.mediaLayout}
+								toggleMediaLayout={settings.toggleMediaLayout}
+								mediaAmbienceEnabled={settings.mediaAmbienceEnabled}
+								toggleAmbience={settings.toggleAmbience}
+								mediaCompactGlowEnabled={settings.mediaCompactGlowEnabled}
+								toggleCompactGlow={settings.toggleCompactGlow}
+								weatherEnabled={settings.weatherEnabled}
+								toggleWeather={settings.toggleWeather}
+								tempUnitFahrenheit={settings.tempUnitFahrenheit}
+								toggleTempUnit={settings.toggleTempUnit}
+								cityName={settings.cityName}
+								setCityName={settings.setCityName}
+								citySearchResults={settings.citySearchResults}
+								showCityDropdown={settings.showCityDropdown}
+								setShowCityDropdown={settings.setShowCityDropdown}
+								selectCity={settings.selectCity}
+								handleCityClear={settings.handleCityClear}
+								statusWidgets={settings.statusWidgets}
+								handleWidgetsChange={settings.handleWidgetsChange}
+								notchScale={settings.notchScale}
+								handleNotchScaleChange={settings.handleNotchScaleChange}
+								notchPanelScales={settings.notchPanelScales}
+								handlePanelScaleChange={settings.handlePanelScaleChange}
+								notchStyle={settings.notchStyle}
+								handleNotchStyleChange={settings.handleNotchStyleChange}
+							/>
+						</section>
+					)}
+					{shown === "dock" && (
+						<section data-tab="dock">
+							<DockTab
+								dockEnabled={settings.dockEnabled}
+								toggleDock={settings.toggleDock}
+								dockMode={settings.dockMode}
+								setDockModeValue={settings.setDockModeValue}
+								dockEdgeDelay={settings.dockEdgeDelay}
+								handleDockEdgeDelayChange={settings.handleDockEdgeDelayChange}
+								dockPreviewEnabled={settings.dockPreviewEnabled}
+								toggleDockPreview={settings.toggleDockPreview}
+								dockIconOnly={settings.dockIconOnly}
+								toggleDockIconOnly={settings.toggleDockIconOnly}
+								dockSeparatorEnabled={settings.dockSeparatorEnabled}
+								toggleDockSeparator={settings.toggleDockSeparator}
+								dockAdaptive={settings.dockAdaptive}
+								toggleDockAdaptive={settings.toggleDockAdaptive}
+								dockWinNumberEnabled={settings.dockWinNumberEnabled}
+								toggleDockWinNumber={settings.toggleDockWinNumber}
+								dockExtrasPosition={settings.dockExtrasPosition}
+								handleDockExtrasPositionChange={settings.handleDockExtrasPositionChange}
+								dockExtrasDrives={settings.dockExtrasDrives}
+								toggleDockExtrasDrives={settings.toggleDockExtrasDrives}
+								dockExtrasHiddenDrives={settings.dockExtrasHiddenDrives}
+								toggleDockExtrasDrive={settings.toggleDockExtrasDrive}
+								dockExtrasRecycleBin={settings.dockExtrasRecycleBin}
+								toggleDockExtrasRecycleBin={settings.toggleDockExtrasRecycleBin}
+								dockTaskView={settings.dockTaskView}
+								toggleDockTaskView={settings.toggleDockTaskView}
+								dockExtrasFolders={settings.dockExtrasFolders}
+								toggleDockExtraFolder={settings.toggleDockExtraFolder}
+								dockExtrasCustomFolders={settings.dockExtrasCustomFolders}
+								handleAddDockExtraFolder={settings.handleAddDockExtraFolder}
+								handleRemoveDockExtraFolder={settings.handleRemoveDockExtraFolder}
+								startIcon={settings.startIcon}
+								handleStartIconChange={settings.handleStartIconChange}
+								dockScale={settings.dockScale}
+								handleDockScaleChange={settings.handleDockScaleChange}
+							/>
+						</section>
+					)}
+					{shown === "clipboard" && (
+						<section data-tab="clipboard">
+							<ClipboardTab
+								enabled={settings.clipboardEnabled}
+								toggleEnabled={settings.toggleClipboard}
+								incognito={settings.clipboardIncognito}
+								toggleIncognito={settings.toggleClipboardIncognito}
+								limit={settings.clipboardLimit}
+								changeLimit={settings.changeClipboardLimit}
+								retentionHours={settings.clipboardRetentionHours}
+								changeRetention={settings.changeClipboardRetention}
+								clearHistory={settings.clearClipboardHistory}
+								groupFiles={settings.clipboardGroupFiles}
+								toggleGroupFiles={settings.toggleClipboardGroupFiles}
+								thumbSize={settings.clipboardThumbSize}
+								changeThumbSize={settings.changeClipboardThumbSize}
+								position={settings.clipboardPosition}
+								changePosition={settings.changeClipboardPosition}
+								shortcut={settings.clipboardShortcut}
+								changeShortcut={settings.changeClipboardShortcut}
+								saveSetting={settings.saveSetting}
+								notchOn={settings.notchEnabled}
+							/>
+						</section>
+					)}
+					{shown === "files" && (
+						<section data-tab="files">
+							<FilesTab saveSetting={settings.saveSetting} />
+						</section>
+					)}
+					{shown === "overlays" && (
+						<section data-tab="overlays">
+							<OverlaysTab
+								volumeOverlayEnabled={settings.volumeOverlayEnabled}
+								toggleVolumeOverlay={settings.toggleVolumeOverlay}
+								volumeEdgeEnabled={settings.volumeEdgeEnabled}
+								toggleVolumeEdge={settings.toggleVolumeEdge}
+								brightnessOverlayEnabled={settings.brightnessOverlayEnabled}
+								toggleBrightnessOverlay={settings.toggleBrightnessOverlay}
+								brightnessEdgeEnabled={settings.brightnessEdgeEnabled}
+								toggleBrightnessEdge={settings.toggleBrightnessEdge}
+							/>
+						</section>
+					)}
+					{shown === "about" && (
+						<section data-tab="about">
+							<AboutTab
+								appVersion={settings.appVersion}
+								autoUpdate={settings.autoUpdate}
+								toggleAutoUpdate={settings.toggleAutoUpdate}
+								updateStatus={settings.updateStatus}
+								updateVersion={settings.updateVersion}
+								checkForUpdates={settings.checkForUpdates}
+								installUpdate={settings.installUpdate}
+								exportStatus={settings.exportStatus}
+								importStatus={settings.importStatus}
+								handleExportSettings={settings.handleExportSettings}
+								handleImportSettings={settings.handleImportSettings}
+							/>
+						</section>
+					)}
 					{shown && PAGE_KEYS[shown] && (
 						<div className="settings-page-reset">
 							<button
