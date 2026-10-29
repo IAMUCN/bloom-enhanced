@@ -267,8 +267,17 @@ function Orbit() {
 			<motion.div
 				className={`orbit-status${phase.kind === "done" ? ` ${phase.result}` : ""}`}
 				initial={{ scale: 0.6, opacity: 0 }}
-				animate={{ scale: 1, opacity: 1 }}
-				transition={SPRING}
+				// Done pops, failed shakes, canceled settles back.
+				animate={
+					phase.kind !== "done"
+						? { scale: 1, opacity: 1, x: 0 }
+						: phase.result === "ok"
+							? { scale: [1, 1.07, 1], opacity: 1, x: 0 }
+							: phase.result === "failed"
+								? { scale: 1, opacity: 1, x: [0, -8, 8, -5, 5, 0] }
+								: { scale: [1, 0.95, 1], opacity: 1, x: 0 }
+				}
+				transition={phase.kind === "done" ? { duration: 0.45, ease: "easeOut" } : SPRING}
 				onClick={phase.kind === "done" ? close : undefined}
 			>
 				<AnimatePresence mode="popLayout" initial={false}>
@@ -281,6 +290,14 @@ function Orbit() {
 							transition={{ type: "spring", stiffness: 600, damping: 15 }}
 						>
 							<Icon size={18} />
+							{phase.kind === "done" && phase.result === "ok" && (
+								<motion.i
+									className="orbit-burst"
+									initial={{ scale: 0.6, opacity: 0.8 }}
+									animate={{ scale: 2.4, opacity: 0 }}
+									transition={{ duration: 0.6, ease: "easeOut" }}
+								/>
+							)}
 						</motion.span>
 					)}
 				</AnimatePresence>

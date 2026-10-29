@@ -139,6 +139,16 @@ body,
 .orbit-status-icon {
 	flex: none;
 	display: flex;
+	position: relative;
+}
+
+/* A ring that spreads from the check when a job succeeds. */
+.orbit-burst {
+	position: absolute;
+	inset: 0;
+	border-radius: 50%;
+	border: 2px solid currentColor;
+	pointer-events: none;
 }
 
 .orbit-status.ok .orbit-status-icon {

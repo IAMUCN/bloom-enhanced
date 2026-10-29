@@ -246,6 +246,38 @@
 	opacity: 0.4;
 }
 
+/* A few words: large and centred. */
+.ctile-text.short {
+	justify-content: center;
+	align-items: center;
+	text-align: center;
+}
+
+.ctile-text.short .ctile-text-body {
+	flex: none;
+	font-size: 17px;
+	font-weight: 600;
+	line-height: 1.2;
+	-webkit-mask-image: none;
+	mask-image: none;
+	display: -webkit-box;
+	-webkit-line-clamp: 3;
+	-webkit-box-orient: vertical;
+}
+
+.ctile-text.medium .ctile-text-body {
+	font-size: 11.5px;
+}
+
+/* A long passage: a double-width card, same height as its neighbours. */
+.ctile.text-long {
+	grid-column: span 2;
+}
+
+.ctile.text-long .ctile-preview {
+	aspect-ratio: 5 / 2;
+}
+
 .ctile-text-body {
 	flex: 1;
 	min-height: 0;

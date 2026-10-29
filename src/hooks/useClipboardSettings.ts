@@ -15,6 +15,8 @@ export interface ClipboardOptions {
 	copyIndicator: boolean;
 	/** Monitor name for the edge shelf; empty = primary. */
 	monitor: string;
+	/** A wider Clipboard panel in the notch (off by default). */
+	notchWide: boolean;
 }
 
 const on = (v: unknown) => v !== false && v !== "false";
@@ -28,7 +30,8 @@ export function useClipboardSettings(): ClipboardOptions {
 		sounds: on(localStorage.getItem("bloom-clipboard-sounds")),
 		richText: on(localStorage.getItem("bloom-clipboard-rich-text")),
 		copyIndicator: on(localStorage.getItem("bloom-clipboard-copy-indicator")),
-		monitor: localStorage.getItem("bloom-clipboard-monitor") ?? ""
+		monitor: localStorage.getItem("bloom-clipboard-monitor") ?? "",
+		notchWide: localStorage.getItem("bloom-clipboard-notch-wide") === "true"
 	}));
 	const set = (patch: Partial<ClipboardOptions>) => setOptions((o) => ({ ...o, ...patch }));
 
@@ -43,7 +46,8 @@ export function useClipboardSettings(): ClipboardOptions {
 					sounds: on(s["bloom-clipboard-sounds"]),
 					richText: on(s["bloom-clipboard-rich-text"]),
 					copyIndicator: on(s["bloom-clipboard-copy-indicator"]),
-					monitor: s["bloom-clipboard-monitor"] ?? ""
+					monitor: s["bloom-clipboard-monitor"] ?? "",
+					notchWide: s["bloom-clipboard-notch-wide"] === "true"
 				})
 			)
 			.catch(() => {});
@@ -56,7 +60,8 @@ export function useClipboardSettings(): ClipboardOptions {
 		"bloom-clipboard-sounds": (v) => set({ sounds: on(v) }),
 		"bloom-clipboard-rich-text": (v) => set({ richText: on(v) }),
 		"bloom-clipboard-copy-indicator": (v) => set({ copyIndicator: on(v) }),
-		"bloom-clipboard-monitor": (v) => set({ monitor: String(v ?? "") })
+		"bloom-clipboard-monitor": (v) => set({ monitor: String(v ?? "") }),
+		"bloom-clipboard-notch-wide": (v) => set({ notchWide: v === true || v === "true" })
 	});
 	return options;
 }

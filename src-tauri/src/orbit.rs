@@ -7,13 +7,18 @@
 //!   OrbitDrop: the shell's `SysDragImage` window appearing, or OLE's drag loop
 //!   taking mouse capture (`CLIPBRDWNDCLASS`), arms the trigger until the
 //!   button is released. Keys are polled only while armed or open.
-//! - A shortcut (`bloom-files-shortcut`, default Ctrl+Alt+Space) opens the
-//!   wheel for the files selected in File Explorer or on the desktop.
-//! - So does pressing Shift twice (`bloom-files-shift-tap`) while the file
-//!   list or the desktop has the keyboard focus. Each press is a tap: down
-//!   and up within [`TAP_MS`] with no other key or mouse button meanwhile, so
-//!   Shift+click and Shift+arrow selection never count; the second tap must
-//!   come within `bloom-files-double-shift-ms` of the first.
+//! - Pressing the trigger key twice (`bloom-files-shift-tap`) opens it for
+//!   the files selected in File Explorer or on the desktop, while that file
+//!   list has the keyboard focus. Each press is a tap: down and up within
+//!   [`TAP_MS`] with no other key or mouse button meanwhile, so Shift+click
+//!   and Shift+arrow selection never count; the second tap must come within
+//!   `bloom-files-double-shift-ms` of the first.
+//!
+//! The trigger key is Shift by default (`bloom-files-key`: shift, ctrl, alt);
+//! it also switches menus while the wheel is open.
+//!
+//! Files dragged out of a browser have no path until dropped (shelf.rs writes
+//! them to [`drops_dir`]); their results are saved to Downloads and opened.
 //!
 //! The wheel (src/Orbit.tsx) picks the option; [`orbit_run`] runs it. Every
 //! output is written next to the original through [`write_output`]: a temp
@@ -53,6 +58,8 @@ static SHIFT_TAP: AtomicBool = AtomicBool::new(false);
 /// When the last clean tap ended (0 = none pending), and the double-tap window.
 static LAST_TAP: AtomicU64 = AtomicU64::new(0);
 static DOUBLE_MS: AtomicU64 = AtomicU64::new(400);
+/// The trigger key's virtual-key code (Shift, Ctrl or Alt).
+static TRIGGER_VK: AtomicU32 = AtomicU32::new(0x10);
 const TAP_MS: u64 = 350;
 /// 0 = closed, 1 = opened by a drag, 2 = opened by the shortcut.
 static OPEN: AtomicU8 = AtomicU8::new(0);
@@ -150,7 +157,12 @@ unsafe extern "system" fn on_key(
         let msg = wparam.0 as u32;
         let down = msg == WM_KEYDOWN || msg == WM_SYSKEYDOWN;
         let up = msg == WM_KEYUP || msg == WM_SYSKEYUP;
-        let shift = matches!(info.vkCode, 0x10 | 0xA0 | 0xA1);
+        // Generic, left and right codes of the trigger key.
+        let shift = match TRIGGER_VK.load(Ordering::Relaxed) {
+            0x11 => matches!(info.vkCode, 0x11 | 0xA2 | 0xA3),
+            0x12 => matches!(info.vkCode, 0x12 | 0xA4 | 0xA5),
+            _ => matches!(info.vkCode, 0x10 | 0xA0 | 0xA1),
+        };
         let now = unsafe { GetTickCount64() };
         if shift && down {
             // Auto-repeat keeps the first press time.
@@ -216,15 +228,10 @@ fn wait(ms: u32) {
 fn detector(app: AppHandle) {
     use windows::Win32::System::Com::{CoInitializeEx, COINIT_APARTMENTTHREADED};
     use windows::Win32::UI::Accessibility::SetWinEventHook;
-    use windows::Win32::UI::Input::KeyboardAndMouse::{
-        RegisterHotKey, UnregisterHotKey, HOT_KEY_MODIFIERS, MOD_NOREPEAT,
-    };
     use windows::Win32::UI::WindowsAndMessaging::{
         DispatchMessageW, PeekMessageW, EVENT_OBJECT_SHOW, EVENT_SYSTEM_CAPTURESTART, MSG,
-        PM_REMOVE, WINEVENT_OUTOFCONTEXT, WINEVENT_SKIPOWNPROCESS, WM_HOTKEY,
+        PM_REMOVE, WINEVENT_OUTOFCONTEXT, WINEVENT_SKIPOWNPROCESS,
     };
-    const HOTKEY: i32 = 0x0B17;
-    const VK_SHIFT: u16 = 0x10;
     const VK_ESCAPE: u16 = 0x1B;
 
     unsafe {
@@ -240,35 +247,17 @@ fn detector(app: AppHandle) {
             0,
         );
     }
-    let mut hotkey: Option<String> = None;
     let (mut shift, mut escape, mut button) = (false, false, false);
     loop {
-        // ponytail: polls the setting like the clipboard shortcut does.
-        let wanted = if crate::utils::files_enabled() {
-            setting("bloom-files-shortcut").unwrap_or_else(|| "Ctrl+Alt+Space".into())
-        } else {
-            String::new()
+        let vk_trigger = match setting("bloom-files-key").as_deref() {
+            Some("ctrl") => 0x11u16,
+            Some("alt") => 0x12,
+            _ => 0x10,
         };
-        if hotkey.as_deref() != Some(wanted.as_str()) {
-            unsafe {
-                let _ = UnregisterHotKey(None, HOTKEY);
-                if let Some((mods, vk)) = crate::clipboard::parse_shortcut(&wanted) {
-                    let _ =
-                        RegisterHotKey(None, HOTKEY, HOT_KEY_MODIFIERS(mods) | MOD_NOREPEAT, vk);
-                }
-            }
-            hotkey = Some(wanted);
-        }
+        TRIGGER_VK.store(vk_trigger as u32, Ordering::Relaxed);
         let mut msg = MSG::default();
         while unsafe { PeekMessageW(&mut msg, None, 0, 0, PM_REMOVE) }.as_bool() {
-            if msg.message == WM_HOTKEY && msg.wParam.0 == HOTKEY as usize {
-                let paths = explorer_selection();
-                if !paths.is_empty() {
-                    open_wheel(&app, paths, BY_SHORTCUT);
-                }
-            } else {
-                unsafe { DispatchMessageW(&msg) };
-            }
+            unsafe { DispatchMessageW(&msg) };
         }
 
         // A mouse button while Shift is held (Shift+click), or between the
@@ -299,12 +288,12 @@ fn detector(app: AppHandle) {
             }
         }
         if !armed && open == 0 {
-            (shift, escape, button) = (is_down(VK_SHIFT), is_down(VK_ESCAPE), drag_button_down());
+            (shift, escape, button) = (is_down(vk_trigger), is_down(VK_ESCAPE), drag_button_down());
             wait(if shift_held { 15 } else { 50 });
             continue;
         }
         let (now_shift, now_escape, now_button) =
-            (is_down(VK_SHIFT), is_down(VK_ESCAPE), drag_button_down());
+            (is_down(vk_trigger), is_down(VK_ESCAPE), drag_button_down());
         if now_shift && !shift {
             if open != 0 {
                 let _ = app.emit_to("orbit", "orbit-shift", ());
@@ -567,6 +556,38 @@ fn publish(
     Err("No free file name was found.".into())
 }
 
+/// Where dropped virtual files (an image dragged out of a browser) are
+/// written before an option runs on them.
+pub fn drops_dir() -> PathBuf {
+    std::env::temp_dir().join("klyro-drops")
+}
+
+fn from_browser(source: &Path) -> bool {
+    source.starts_with(drops_dir())
+}
+
+fn downloads() -> Option<PathBuf> {
+    use windows::Win32::UI::Shell::{FOLDERID_Downloads, SHGetKnownFolderPath, KF_FLAG_DEFAULT};
+    let path = unsafe { SHGetKnownFolderPath(&FOLDERID_Downloads, KF_FLAG_DEFAULT, None) }.ok()?;
+    let text = unsafe { path.to_string() }.ok();
+    unsafe { windows::Win32::System::Com::CoTaskMemFree(Some(path.0 as _)) };
+    text.map(PathBuf::from)
+}
+
+/// Results go beside the original; for files dragged out of a browser (which
+/// sit in a temp folder) they go to Downloads.
+fn out_dir(source: &Path) -> Result<PathBuf, String> {
+    if from_browser(source) {
+        if let Some(dir) = downloads() {
+            return Ok(dir);
+        }
+    }
+    source
+        .parent()
+        .map(Path::to_path_buf)
+        .ok_or_else(|| "The file has no folder.".into())
+}
+
 fn temp_in(dir: &Path) -> PathBuf {
     let nanos = std::time::SystemTime::now()
         .duration_since(std::time::UNIX_EPOCH)
@@ -664,13 +685,13 @@ fn write_output(
     suffix: Option<&str>,
     fill: impl FnOnce(&mut std::fs::File) -> Result<(), String>,
 ) -> Result<PathBuf, String> {
-    let dir = source.parent().ok_or("The file has no folder.")?;
+    let dir = out_dir(source)?;
     let stem = source.file_stem().unwrap_or_default().to_string_lossy();
     let stem = match suffix {
         Some(s) => format!("{stem} ({s})"),
         None => stem.into_owned(),
     };
-    write_file(dir, &stem, ext, fill)
+    write_file(&dir, &stem, ext, fill)
 }
 
 /// The folder version of [`write_file`]: `fill` populates a hidden temp
@@ -883,7 +904,7 @@ fn pdf_pages(path: &Path, ext: &str) -> Result<Vec<Vec<u8>>, String> {
             if CANCEL.load(Ordering::Relaxed) {
                 break;
             }
-            progress(i as f64 / count as f64);
+            progress(0.8 * i as f64 / count as f64);
             let page = document.GetPage(i)?;
             let options = PdfPageRenderOptions::new()?;
             // 2× the page's size in points: sharp enough to read and print.
@@ -922,9 +943,9 @@ fn convert_pdf(path: &Path, ext: &str) -> Result<PathBuf, String> {
         [] => Err("The PDF has no pages.".into()),
         [one] => save_bytes(path, ext, None, one),
         many => {
-            let dir = path.parent().ok_or("The file has no folder.")?;
+            let dir = out_dir(path)?;
             let stem = path.file_stem().unwrap_or_default().to_string_lossy();
-            write_folder(dir, &format!("{stem} (pages)"), |temp| {
+            write_folder(&dir, &format!("{stem} (pages)"), |temp| {
                 for (i, bytes) in many.iter().enumerate() {
                     std::fs::write(temp.join(format!("Page {}.{ext}", i + 1)), bytes)
                         .map_err(|e| e.to_string())?;
@@ -941,7 +962,7 @@ fn extract_zip(path: &Path) -> Result<PathBuf, String> {
     let file = std::fs::File::open(path).map_err(|e| e.to_string())?;
     let mut archive = zip::ZipArchive::new(file)
         .map_err(|_| "This isn't a ZIP file Klyro can read.".to_string())?;
-    let dir = path.parent().ok_or("The file has no folder.")?;
+    let dir = out_dir(path)?;
     let stem = path
         .file_stem()
         .unwrap_or_default()
@@ -949,7 +970,7 @@ fn extract_zip(path: &Path) -> Result<PathBuf, String> {
         .into_owned();
     // ponytail: no size cap, so a zip bomb fills the disk like Explorer's own
     // extractor would; add a free-space check if that ever matters.
-    write_folder(dir, &stem, |temp| {
+    write_folder(&dir, &stem, |temp| {
         let count = archive.len();
         for i in 0..count {
             canceled()?;
@@ -1219,7 +1240,7 @@ fn run(app: &AppHandle, op: &str, paths: &[PathBuf]) -> Vec<Outcome> {
             let mut pages = Vec::new();
             for (i, p) in paths.iter().enumerate() {
                 canceled()?;
-                progress(i as f64 / paths.len() as f64);
+                progress(0.9 * i as f64 / paths.len() as f64);
                 pages.push(pdf_page(&decode(p)?)?);
             }
             save_bytes(&first, "pdf", Some("combined"), &pdf_from_jpegs(&pages)).map(Some)
@@ -1310,10 +1331,21 @@ pub async fn orbit_run(
         return Err("The files are no longer there.".into());
     }
     RUNNING.store(true, Ordering::Relaxed);
+    let opener = app.clone();
     let result = tauri::async_runtime::spawn_blocking(move || run(&app, &op, &paths))
         .await
         .map_err(|e| e.to_string());
     RUNNING.store(false, Ordering::Relaxed);
+    // Something dragged out of a browser: show the result straight away (a
+    // PDF opens in the default PDF viewer, usually the browser).
+    if let Ok(outcomes) = &result {
+        use tauri_plugin_opener::OpenerExt;
+        for o in outcomes {
+            if let (Some(out), true) = (&o.output, from_browser(Path::new(&o.source))) {
+                let _ = opener.opener().open_path(out, None::<&str>);
+            }
+        }
+    }
     result
 }
 

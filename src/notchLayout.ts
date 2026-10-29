@@ -19,6 +19,14 @@ export type PanelScales = Partial<Record<SizedPanel, number>>;
 export const MIN_SCALE = 0.5;
 export const MAX_SCALE = 1.5;
 
+/** What 100% means per panel: Command Center is drawn 30% larger than its
+ *  original layout, so its controls read as well as the calendar. */
+export const PANEL_BASE: Partial<Record<SizedPanel, number>> = { "command-center": 1.3 };
+
+/** A panel's zoom from its setting: its base times the setting. */
+export const panelZoom = (panel: SizedPanel, scales: PanelScales) =>
+	(PANEL_BASE[panel] ?? 1) * (scales[panel] ?? 1);
+
 const isSizedPanel = (id: string): id is SizedPanel => SIZED_PANELS.some(([panel]) => panel === id);
 
 /** Reads the stored value, dropping unknown panels and out-of-range or broken

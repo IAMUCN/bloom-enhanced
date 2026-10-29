@@ -29,6 +29,8 @@ export interface OrbitOp {
 
 interface Entry extends OrbitOp {
 	fits: (exts: string[], input: OrbitInput) => boolean;
+	/** A label that depends on how many files there are. */
+	labelFor?: (count: number) => string;
 }
 
 const IMAGE_EXTS = ["png", "jpg", "jpeg", "jfif", "webp", "bmp", "gif", "tif", "tiff", "ico"];
@@ -57,7 +59,17 @@ const format = (to: string, fromPdf: boolean): Entry => ({
  *  lists these to hide or reorder. "To shelf" also copies (for text, copying
  *  is what records it, so it lands in the shelf once). */
 export const CATALOG: Record<OrbitMode, Entry[]> = {
-	convert: ["png", "jpg", "webp", "bmp", "gif", "tiff", "ico", "pdf"].map((to) => format(to, to === "png" || to === "jpg")),
+	convert: [
+		...["png", "jpg", "webp", "bmp", "gif", "tiff", "ico"].map((to) => format(to, to === "png" || to === "jpg")),
+		// Several images: one PDF each, or all of them in one PDF, side by side.
+		{ ...format("pdf", false), labelFor: (n) => (n > 1 ? "PDF each" : "PDF") },
+		{
+			id: "tool.image.pdf-combine",
+			label: "One PDF",
+			progress: "Combining into one PDF",
+			fits: (exts) => exts.length > 1 && images(exts)
+		}
+	],
 	tools: [
 		{ id: "tool.image.rotate-right", label: "Rotate right", icon: "RotateCw", progress: "Rotating", fits: images },
 		{ id: "tool.image.rotate-left", label: "Rotate left", icon: "RotateCcw", progress: "Rotating", fits: images },
@@ -65,13 +77,6 @@ export const CATALOG: Record<OrbitMode, Entry[]> = {
 		{ id: "tool.image.grayscale", label: "Grayscale", icon: "Contrast", progress: "Making grayscale", fits: images },
 		{ id: "tool.image.half", label: "Half size", icon: "Minimize2", progress: "Resizing", fits: images },
 		{ id: "tool.image.compress", label: "Compress", icon: "FileDown", progress: "Compressing", fits: images },
-		{
-			id: "tool.image.pdf-combine",
-			label: "One PDF",
-			icon: "FileStack",
-			progress: "Combining into a PDF",
-			fits: (exts) => exts.length > 1 && images(exts)
-		},
 		{ id: "tool.archive.extract", label: "Extract", icon: "FolderOpen", progress: "Extracting", fits: every(["zip"]) }
 	],
 	actions: [
@@ -118,8 +123,10 @@ export function ordered(mode: OrbitMode, layout: OrbitLayout = DEFAULT_LAYOUT): 
 /** Options for `input` in `mode`, in the user's order, minus hidden ones. */
 export function opsFor(input: OrbitInput, mode: OrbitMode, layout: OrbitLayout = DEFAULT_LAYOUT): OrbitOp[] {
 	const exts = input.paths.map(extOf);
-	const fits = new Map(CATALOG[mode].map((e) => [e.id, e.fits(exts, input)]));
-	return ordered(mode, layout).filter((op) => !layout.hidden.includes(op.id) && fits.get(op.id));
+	const entries = new Map(CATALOG[mode].map((e) => [e.id, e]));
+	return ordered(mode, layout)
+		.filter((op) => !layout.hidden.includes(op.id) && entries.get(op.id)?.fits(exts, input))
+		.map((op) => ({ ...op, label: entries.get(op.id)?.labelFor?.(input.paths.length) ?? op.label }));
 }
 
 /** Modes with options for `input`, in the user's Shift order. */

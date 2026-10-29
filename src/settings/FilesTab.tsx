@@ -5,11 +5,14 @@ import { ArrowBigUp, ChevronRight, EyeOff, GripVertical, Hand, Keyboard, MapPin,
 import { useSettingsSync } from "../hooks/useSettingsSync";
 import { MODE_LABEL, ordered, parseLayout, type OrbitLayout, type OrbitMode, type OrbitOp } from "../orbitOps";
 import { ORBIT_ICONS } from "../orbitIcons";
-import { shortcutFrom } from "./ClipboardTab";
 import { ScaleStepper } from "./ScaleStepper";
 import { SettingRow } from "./SettingRow";
 
-const DEFAULT_SHORTCUT = "Ctrl+Alt+Space";
+const TRIGGER_KEYS = [
+	["shift", "Shift"],
+	["ctrl", "Ctrl"],
+	["alt", "Alt"]
+] as const;
 const on = (v: unknown) => v !== false && v !== "false";
 const SPRING = { type: "spring", stiffness: 500, damping: 30 } as const;
 const KEYS = ["bloom-files-hidden", "bloom-files-order", "bloom-files-mode-order"];
@@ -90,7 +93,7 @@ export function FilesTab({ saveSetting }: { saveSetting: (key: string, value: st
 				"bloom-files-drag",
 				"bloom-files-shift-tap",
 				"bloom-files-double-shift-ms",
-				"bloom-files-shortcut",
+				"bloom-files-key",
 				"bloom-files-status-at",
 				"bloom-files-status-seconds",
 				...KEYS
@@ -108,7 +111,8 @@ export function FilesTab({ saveSetting }: { saveSetting: (key: string, value: st
 	const doubleMs = Number(s["bloom-files-double-shift-ms"]) || 400;
 	const seconds = Number(s["bloom-files-status-seconds"]) || 2;
 	const statusAt = s["bloom-files-status-at"] === "notch" ? "notch" : "pointer";
-	const shortcut = s["bloom-files-shortcut"] == null ? DEFAULT_SHORTCUT : String(s["bloom-files-shortcut"]);
+	const triggerKey = TRIGGER_KEYS.some(([k]) => k === s["bloom-files-key"]) ? String(s["bloom-files-key"]) : "shift";
+	const keyName = TRIGGER_KEYS.find(([k]) => k === triggerKey)?.[1] ?? "Shift";
 
 	// The layout is edited locally while dragging and saved when a drag ends.
 	const saved = parseLayout(s["bloom-files-hidden"], s["bloom-files-order"], s["bloom-files-mode-order"]);
@@ -151,10 +155,27 @@ export function FilesTab({ saveSetting }: { saveSetting: (key: string, value: st
 
 				{enabled && (
 					<>
+						<SettingRow icon={Keyboard} label="Trigger Key" desc={`Tap it while dragging, or press it twice with files selected; it also switches menus`}>
+							<div className="scale-button-container seg-toggle" role="radiogroup" aria-label="Trigger key">
+								{TRIGGER_KEYS.map(([v, name]) => (
+									<button
+										key={v}
+										role="radio"
+										aria-checked={triggerKey === v}
+										className={`seg-btn${triggerKey === v ? " active" : ""}`}
+										onClick={() => save("bloom-files-key", v)}
+									>
+										{triggerKey === v && <motion.span layoutId="key-pill" className="seg-pill" transition={SPRING} />}
+										<span>{name}</span>
+									</button>
+								))}
+							</div>
+						</SettingRow>
+
 						<SettingRow
 							icon={Hand}
-							label="Drag, Then Tap Shift"
-							desc="While dragging files or selected text, tap Shift to open the menu and let go on an option"
+							label={`Drag, Then Tap ${keyName}`}
+							desc={`While dragging files or selected text, tap ${keyName} to open the menu and let go on an option`}
 						>
 							<label className="toggle-switch">
 								<input type="checkbox" checked={drag} onChange={() => save("bloom-files-drag", String(!drag))} />
@@ -164,9 +185,9 @@ export function FilesTab({ saveSetting }: { saveSetting: (key: string, value: st
 
 						<SettingRow
 							icon={Zap}
-							label="Double Shift on Selected Files"
-							desc="With files selected in File Explorer or on the desktop, press Shift twice to open the menu. Then Shift switches menus and Esc closes it"
-							divider={!shiftTap}
+							label={`Double ${keyName} on Selected Files`}
+							desc={`With files selected in File Explorer or on the desktop, press ${keyName} twice to open the menu. Then ${keyName} switches menus and Esc closes it`}
+							divider={shiftTap}
 						>
 							<label className="toggle-switch">
 								<input type="checkbox" checked={shiftTap} onChange={() => save("bloom-files-shift-tap", String(!shiftTap))} />
@@ -175,11 +196,16 @@ export function FilesTab({ saveSetting }: { saveSetting: (key: string, value: st
 						</SettingRow>
 
 						{shiftTap && (
-							<SettingRow icon={Timer} label="Double Shift Speed" desc="The most time between the two presses; shorter avoids opening it by accident">
+							<SettingRow
+								icon={Timer}
+								label={`Double ${keyName} Speed`}
+								desc="The most time between the two presses; shorter avoids opening it by accident"
+								divider={false}
+							>
 								<ScaleStepper
 									value={doubleMs}
 									onChange={(v) => save("bloom-files-double-shift-ms", String(v))}
-									label="double Shift time"
+									label="double press time"
 									min={200}
 									max={800}
 									stepSize={50}
@@ -187,25 +213,6 @@ export function FilesTab({ saveSetting }: { saveSetting: (key: string, value: st
 								/>
 							</SettingRow>
 						)}
-
-						<SettingRow
-							icon={Keyboard}
-							label="Shortcut"
-							desc="Also opens the menu for the selected files. Click the box and press keys; Backspace turns it off"
-							divider={false}
-						>
-							<input
-								className="settings-select clip-shortcut"
-								readOnly
-								value={shortcut || "Off"}
-								onKeyDown={(e) => {
-									e.preventDefault();
-									if (e.key === "Backspace" || e.key === "Delete") save("bloom-files-shortcut", "");
-									const next = shortcutFrom(e);
-									if (next) save("bloom-files-shortcut", next);
-								}}
-							/>
-						</SettingRow>
 					</>
 				)}
 			</div>
@@ -246,12 +253,12 @@ export function FilesTab({ saveSetting }: { saveSetting: (key: string, value: st
 					<div className="setting-group-label">Your Menu</div>
 					<div className="setting-group radial-designer">
 						<p className="radial-hint">
-							Drag the menus to change the order Shift goes through them. Click one to edit it.
+							Drag the menus to change the order {keyName} goes through them. Click one to edit it.
 						</p>
 						<div className="radial-flow">
 							<div className="radial-shift-key">
 								<ArrowBigUp size={16} />
-								<span>Shift</span>
+								<span>{keyName}</span>
 							</div>
 						<Reorder.Group
 							axis="x"

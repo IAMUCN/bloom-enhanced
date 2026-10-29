@@ -11,6 +11,7 @@ import {
 	Keyboard,
 	Layers,
 	ListChecks,
+	Maximize2,
 	Monitor,
 	PanelLeft,
 	StickyNote,
@@ -153,6 +154,19 @@ export function ClipboardTab({
 								<option value="right">Right edge</option>
 							</select>
 						</SettingRow>
+
+						{position === "notch" && (
+							<SettingRow icon={Maximize2} label="Wide in the Notch" desc="A wider Clipboard panel, so more and larger tiles fit">
+								<label className="toggle-switch">
+									<input
+										type="checkbox"
+										checked={options.notchWide}
+										onChange={() => saveSetting("bloom-clipboard-notch-wide", String(!options.notchWide))}
+									/>
+									<span className="slider"></span>
+								</label>
+							</SettingRow>
+						)}
 
 						{position !== "notch" && monitors.length > 1 && (
 							<SettingRow icon={Monitor} label="Shelf Monitor" desc="Which screen's edge the shelf slides out of">

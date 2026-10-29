@@ -48,7 +48,7 @@ Edit `settings.json` with any text editor while Bloom is running. Changes are ap
 | `bloom-notch-edge-delay` | milliseconds `"0"`–`"2000"`      | `"200"`   | In smart/peek mode, how long the cursor must rest against the top screen edge before the notch peeks. `"0"` reveals instantly. |
 | `bloom-notch-style`      | `"notch"` / `"pill"` / `"minimal"` | `"notch"` | Idle look. **notch** = attached to the top edge with flares. **pill** = floating capsule below the edge. **minimal** = thin bar while idle; content shows on hover, music, or alerts. |
 | `bloom-notch-scale`      | float string `"0.5"`–`"1.5"`     | (unset)   | Size of the notch only. Unset = follows `bloom-scale`. |
-| `bloom-notch-panel-scales` | JSON object, panel → `0.5`–`1.5` | `"{}"` | Per-panel notch size on top of `bloom-notch-scale`, e.g. `{"calendar":1.2,"music":0.9}`. Panels: `calendar`, `command-center` (incl. Wi-Fi/Bluetooth), `devices`, `music`, `shelf`, `clipboard`. Missing panels use 1. |
+| `bloom-notch-panel-scales` | JSON object, panel → `0.5`–`1.5` | `"{}"` | Per-panel notch size on top of `bloom-notch-scale`, e.g. `{"calendar":1.2,"music":0.9}`. Panels: `calendar`, `command-center` (incl. Wi-Fi/Bluetooth), `devices`, `music`, `shelf`, `clipboard`. Missing panels use 1. Command Center's 1 is 30% larger than its original layout. The time row keeps one size on every page. |
 
 ### Weather
 
@@ -90,6 +90,7 @@ Edit `settings.json` with any text editor while Bloom is running. Changes are ap
 | `bloom-clipboard-position` | `"notch"` / `"left"` / `"right"` | `"notch"` | Where the history lives: the notch's Clipboard panel, or a shelf that slides out of the left or right screen edge. On a shared edge the first of shelf and volume/brightness HUD to open keeps the edge until it closes. Dragging something in goes to the same place: the notch, or that edge. |
 | `bloom-clipboard-shortcut` | e.g. `"Alt+C"`, `"Ctrl+Shift+V"`, `"F9"` | `"Alt+C"` | Global shortcut that opens/closes the clipboard (notch panel or edge shelf). `""` = no shortcut. Letters, digits and Space need a modifier. |
 | `bloom-clipboard-monitor` | monitor device name as Windows reports it (ends in `DISPLAY2` etc.) | `""` | Screen whose edge the shelf uses; `""` = primary. Ignored when the clipboard is in the notch. |
+| `bloom-clipboard-notch-wide` | `"true"` / `"false"` | `"false"` | A wider Clipboard panel in the notch (560 instead of 380), so more and larger tiles fit. |
 | `bloom-clipboard-rich-text` | `"true"` / `"false"` | `"true"` | Keep the HTML of formatted text (up to 64 KB) and paste it back formatted. |
 | `bloom-clipboard-link-previews` | `"true"` / `"false"` | `"true"` | Show a site badge, a title from the address and the domain for links. Made offline; nothing is fetched. |
 | `bloom-clipboard-notes` | `"true"` / `"false"` | `"true"` | Allow a note or #tags on items. Noted items are kept through cleanup and found by search. |
@@ -101,10 +102,10 @@ Edit `settings.json` with any text editor while Bloom is running. Changes are ap
 
 | Key | Type | Default | Description |
 | --- | --- | --- | --- |
-| `bloom-files-enabled` | `"true"` / `"false"` | `"true"` | The radial menu (Settings › Radial Menu): convert, edit and act on files (images, PDF pages, ZIP). Results are written next to the original, never over it or over another file (" (2)" is added instead); while being written they are hidden temp files, removed on cancel (Esc or ×) or failure. `"false"` turns off both ways of opening it. |
-| `bloom-files-drag` | `"true"` / `"false"` | `"true"` | While dragging files (or selected text: To shelf, which also copies it), tapping Shift opens the wheel around the pointer; let go on an option to run it. Shift again switches Convert / Tools / Actions, Esc cancels. |
-| `bloom-files-shortcut` | e.g. `"Ctrl+Alt+Space"`, `"F8"` | `"Ctrl+Alt+Space"` | Opens the wheel for the files selected in File Explorer or on the desktop. `""` = no shortcut. Same format as `bloom-clipboard-shortcut`. |
-| `bloom-files-shift-tap` | `"true"` / `"false"` | `"true"` | Pressing Shift twice opens the wheel for the files selected in File Explorer or on the desktop, while their file list has the keyboard focus. Each press must be a clean tap (under 350 ms, no other key or mouse button). While it is open, Shift switches menus and Esc closes it. |
+| `bloom-files-enabled` | `"true"` / `"false"` | `"true"` | The radial menu (Settings › Radial Menu): convert, edit and act on files (images, PDF pages, ZIP). Results are written next to the original, never over it or over another file (" (2)" is added instead); while being written they are hidden temp files, removed on cancel (Esc or ×) or failure. `"false"` turns off both ways of opening it. Images dragged out of a browser work too: their results are saved to Downloads and opened. |
+| `bloom-files-drag` | `"true"` / `"false"` | `"true"` | While dragging files (or selected text: To shelf, which also copies it), tapping the trigger key opens the wheel around the pointer; let go on an option to run it. Shift again switches Convert / Tools / Actions, Esc cancels. |
+| `bloom-files-key` | `"shift"` / `"ctrl"` / `"alt"` | `"shift"` | The trigger key: tapped during a drag, pressed twice with files selected, and tapped to switch menus while the wheel is open. |
+| `bloom-files-shift-tap` | `"true"` / `"false"` | `"true"` | Pressing the trigger key twice opens the wheel for the files selected in File Explorer or on the desktop, while their file list has the keyboard focus. Each press must be a clean tap (under 350 ms, no other key or mouse button). While it is open, the key switches menus and Esc closes it. |
 | `bloom-files-double-shift-ms` | number string, 200–800 | `"400"` | The most time between the two Shift presses. |
 | `bloom-files-mode-order` | JSON list of `"convert"`, `"tools"`, `"actions"` | `["convert","tools","actions"]` | The order Shift goes through the menus; the first opens first. A menu with no options for the files is skipped. |
 | `bloom-files-order` | JSON object, menu → list of option ids | `{}` | Option order per menu, clockwise from 12 o'clock. Options not listed keep their default place after the listed ones. |

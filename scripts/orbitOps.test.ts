@@ -12,8 +12,12 @@ test("options fit every file in the set", () => {
 	expect(ids(files("C:\\a.png", "C:\\b.jpg"), "convert")).toContain("convert.png");
 	expect(ids(files("C:\\a.png", "C:\\r.pdf"), "convert")).toEqual([]);
 	expect(ids(files("C:\\r.pdf"), "convert")).toEqual(["convert.png", "convert.jpg"]);
-	expect(ids(files("C:\\a.png"), "tools")).not.toContain("tool.image.pdf-combine");
-	expect(ids(files("C:\\a.png", "C:\\b.png"), "tools")).toContain("tool.image.pdf-combine");
+	expect(ids(files("C:\\a.png"), "convert")).not.toContain("tool.image.pdf-combine");
+	// Several images: "PDF each" and "One PDF" side by side in Convert.
+	const several = opsFor(files("C:\\a.png", "C:\\b.png"), "convert");
+	expect(several.find((o) => o.id === "convert.pdf")?.label).toBe("PDF each");
+	expect(several.find((o) => o.id === "tool.image.pdf-combine")?.label).toBe("One PDF");
+	expect(opsFor(files("C:\\a.png"), "convert").find((o) => o.id === "convert.pdf")?.label).toBe("PDF");
 	expect(ids(files("C:\\x.zip"), "tools")).toEqual(["tool.archive.extract"]);
 	expect(ids(files("C:\\a.png"), "actions")).toContain("action.wallpaper");
 	expect(ids(files("C:\\a.png", "C:\\b.png"), "actions")).not.toContain("action.wallpaper");

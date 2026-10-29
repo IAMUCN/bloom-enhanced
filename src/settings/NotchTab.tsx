@@ -15,7 +15,23 @@ import {
 	Maximize2,
 	X
 } from "lucide-react";
+import { motion } from "framer-motion";
 import { SettingRow } from "./SettingRow";
+
+/** Notch behavior (`bloom-notch-mode`): name and what it does. */
+const NOTCH_MODES = [
+	["fixed", "Fixed", "Always on screen"],
+	[
+		"smart",
+		"Smart",
+		"Hides while an app covers the top of the screen (maximized or full screen); touch the top edge to bring it back"
+	],
+	[
+		"peek",
+		"Peek",
+		"Stays hidden until you touch the top edge, or something happens (a copy, a file job, charging)"
+	]
+] as const;
 import { ScaleStepper } from "./ScaleStepper";
 import {
 	NOTCH_STYLES,
@@ -176,16 +192,31 @@ export function NotchTab({
 			{notchEnabled && (
 				<>
 					<div className="setting-group">
-						<SettingRow icon={PanelTop} label="Notch Behavior" desc="Choose how the notch appears">
-							<select
-								className="settings-select"
-								value={notchMode}
-								onChange={(e) => setNotchModeValue(e.target.value)}
-							>
-								<option value="fixed">Fixed</option>
-								<option value="smart">Smart</option>
-								<option value="peek">Peek</option>
-							</select>
+						<SettingRow
+							icon={PanelTop}
+							label="When It Shows"
+							desc={NOTCH_MODES.find(([m]) => m === notchMode)?.[2] ?? NOTCH_MODES[0][2]}
+						>
+							<div className="scale-button-container seg-toggle" role="radiogroup" aria-label="When the notch shows">
+								{NOTCH_MODES.map(([mode, name]) => (
+									<button
+										key={mode}
+										role="radio"
+										aria-checked={notchMode === mode}
+										className={`seg-btn${notchMode === mode ? " active" : ""}`}
+										onClick={() => setNotchModeValue(mode)}
+									>
+										{notchMode === mode && (
+											<motion.span
+												layoutId="notch-mode-pill"
+												className="seg-pill"
+												transition={{ type: "spring", stiffness: 500, damping: 30 }}
+											/>
+										)}
+										<span>{name}</span>
+									</button>
+								))}
+							</div>
 						</SettingRow>
 
 						{notchMode !== "fixed" && (
@@ -194,8 +225,8 @@ export function NotchTab({
 								label="Peek Delay"
 								desc={
 									notchEdgeDelay === 0
-										? "Reveal instantly on top-edge contact"
-										: `Rest on the top edge for ${notchEdgeDelay}ms to reveal`
+										? "How long to rest on the top edge before it shows: instantly"
+										: `How long to rest on the top edge before it shows: ${notchEdgeDelay}ms`
 								}
 							>
 								<input

@@ -9,7 +9,6 @@ import {
 	PinOff,
 	StickyNote,
 	Trash2,
-	Type,
 	Ungroup
 } from "lucide-react";
 import { colorOf, fileName, filePaths, linkInfo, type ClipItem } from "../clipboardModel";
@@ -70,6 +69,9 @@ export function ClipTile(props: ClipTileProps) {
 
 	let preview: React.ReactNode;
 	let name: string;
+	// Text tiles size to their text: a few words read large, a long passage
+	// gets a double-width card.
+	const textSize = (item.text?.length ?? 0) <= 28 ? "short" : (item.text?.length ?? 0) <= 160 ? "medium" : "long";
 	if (color) {
 		preview = <span className="ctile-swatch" style={{ background: color }} />;
 		name = color;
@@ -82,12 +84,12 @@ export function ClipTile(props: ClipTileProps) {
 				<span className="ctile-link-title">{link.title}</span>
 			</div>
 		) : (
-			<div className="ctile-text">
-				{item.is_url ? <Link size={11} className="ctile-text-icon" /> : <Type size={11} className="ctile-text-icon" />}
+			<div className={`ctile-text ${textSize}`}>
+				{item.is_url && <Link size={11} className="ctile-text-icon" />}
 				<div className="ctile-text-body">{item.text}</div>
 			</div>
 		);
-		name = link ? link.domain : item.is_url ? "Link" : "Text";
+		name = link ? link.domain : item.is_url ? "Link" : "";
 	} else if (group) {
 		preview = (
 			<div className="ctile-stack">
@@ -118,7 +120,7 @@ export function ClipTile(props: ClipTileProps) {
 
 	return (
 		<div
-			className={`ctile ${item.kind === "text" && !color ? "is-text" : ""} ${item.pinned ? "pinned" : ""} ${selected ? "selected" : ""}`}
+			className={`ctile ${item.kind === "text" && !color ? `is-text text-${link ? "medium" : textSize}` : ""} ${item.pinned ? "pinned" : ""} ${selected ? "selected" : ""}`}
 			data-clip-id={item.id}
 			onPointerDown={props.onPointerDown}
 			onPointerMove={props.onPointerMove}
@@ -165,7 +167,7 @@ export function ClipTile(props: ClipTileProps) {
 					)}
 				</div>
 			</div>
-			<div className="ctile-name">{name}</div>
+			{name && <div className="ctile-name">{name}</div>}
 			{editing ? (
 				<input
 					ref={noteRef}

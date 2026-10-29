@@ -16,7 +16,8 @@ import {
 	asNotchStyle,
 	parsePanelScales,
 	type PanelScales,
-	type SizedPanel
+	type SizedPanel,
+	panelZoom
 } from "./notchLayout";
 import "./App.css";
 import { initTheme } from "./theme";
@@ -1136,7 +1137,11 @@ function App() {
 		if (windowLabel !== "main") return;
 		const unlisten = listen<OrbitStatus>("orbit-status", (e) => {
 			setFileStatus(e.payload);
-			if (e.payload && notchMode !== "fixed") triggerEventPeek(2500);
+			// Stays on screen until the job ends (Smart and Peek modes too).
+			if (e.payload) {
+				setIsHovered(false);
+				if (notchMode !== "fixed") triggerEventPeek(e.payload.result ? 4000 : 600000);
+			}
 		});
 		return () => {
 			unlisten.then((fn) => fn());
@@ -2011,6 +2016,7 @@ function App() {
 	const lastScrollTime = useRef(0);
 	const handleWheel = (e: React.WheelEvent) => {
 		const target = e.target as HTMLElement;
+		if (isOpen && !target.closest(".main-row")) return;
 		if (
 			target.closest(".calendar-grid") ||
 			target.closest(".timer-column") ||
@@ -3160,8 +3166,8 @@ function App() {
 				: isMusicMode && isOpen
 					? "music"
 					: null;
-	const pillZoom =
-		scale * (sizedPanel && isExpanded && isVisible && !isHidden ? (notchPanelScales[sizedPanel] ?? 1) : 1);
+	const panelZoomNow = sizedPanel && isExpanded && isVisible && !isHidden ? panelZoom(sizedPanel, notchPanelScales) : 1;
+	const pillZoom = scale * panelZoomNow;
 
 	// Notch style (Settings > Notch > Style). "pill" floats below the edge
 	// with no flares; "minimal" shrinks the idle notch to a thin bar that shows
@@ -3195,6 +3201,7 @@ function App() {
 		if (bloomMode === "announcement" && announcement && !announcementDismissed) return 380;
 		if (bloomMode === "device" && deviceAlert) return 330;
 		if (isCalendarMode) return 480;
+		if (bloomMode === "clipboard" && clipOptions.notchWide) return 560;
 		if (bloomMode === "shelf" || bloomMode === "clipboard") return 380;
 		if (bloomMode === "command-center" && isOpen) return 350;
 		if (bloomMode === "wifi" || bloomMode === "bluetooth" || bloomMode === "devices") return 350;
@@ -3371,9 +3378,11 @@ function App() {
 					}}
 					onClick={(e) => {
 						e.stopPropagation();
+						if (fileStatus) return;
 						if (!isOpen) openNotch(openingPanel());
 					}}
 					onHoverStart={() => {
+						if (fileStatus) return;
 						releaseDeferredRef.current = false;
 						setIsHovered(true);
 						// Hovering the shelf cancels its post-drop auto-close.
@@ -3709,8 +3718,13 @@ function App() {
 										>
 											<div
 												className="main-row"
-												// A device alert covers the whole pill.
-												style={bloomMode === "device" || deviceAlertOnScreen ? { visibility: "hidden" } : undefined}
+												// A device alert covers the whole pill. The time row keeps one
+												// size on every page: it undoes the panel's zoom, keeping its slot.
+												style={{
+													zoom: 1 / panelZoomNow,
+													height: 36 * panelZoomNow,
+													...(bloomMode === "device" || deviceAlertOnScreen ? { visibility: "hidden" } : {})
+												}}
 											>
 												<AnimatePresence mode="wait">
 													{(fileStatus && !isOpen) ||
@@ -3719,9 +3733,19 @@ function App() {
 															<motion.div
 																key="file-status-view"
 																initial={{ opacity: 0, scale: 0.9, filter: "blur(4px)" }}
-																animate={{ opacity: 1, scale: 1, filter: "blur(0px)" }}
+																animate={
+																	fileStatus.result === "failed"
+																		? { opacity: 1, scale: 1, filter: "blur(0px)", x: [0, -6, 6, -4, 4, 0] }
+																		: fileStatus.result === "ok"
+																			? { opacity: 1, scale: [1, 1.08, 1], filter: "blur(0px)", x: 0 }
+																			: { opacity: 1, scale: 1, filter: "blur(0px)", x: 0 }
+																}
 																exit={{ opacity: 0, scale: 1.05, filter: "blur(4px)" }}
-																transition={{ type: "spring", stiffness: 480, damping: 24 }}
+																transition={
+																	fileStatus.result
+																		? { duration: 0.45, ease: "easeOut" }
+																		: { type: "spring", stiffness: 480, damping: 24 }
+																}
 																className="power-pulse-content"
 															>
 																{fileStatus.result && (

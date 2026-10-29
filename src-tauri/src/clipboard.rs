@@ -260,6 +260,12 @@ fn load(app: &AppHandle) -> Vec<ClipItem> {
 /// are ours to delete.
 static IMAGES_DIR: std::sync::OnceLock<PathBuf> = std::sync::OnceLock::new();
 
+/// The folder whose files the history owns (captured images, dropped
+/// virtual files).
+pub fn images_dir() -> Option<PathBuf> {
+    IMAGES_DIR.get().cloned()
+}
+
 /// Deletes captured images that no remaining item refers to (an image can
 /// also sit in a file group after a merge).
 fn delete_files(removed: &[ClipItem], remaining: &[ClipItem]) {
