@@ -59,6 +59,23 @@ export function ClipboardPanel({ dragIcon, onDragStart, onDragEnd }: ClipboardPa
 	const [copiedId, setCopiedId] = useState<string | null>(null);
 	const [thumbs, setThumbs] = useState<Record<string, string | null>>({});
 	const pointer = useRef<{ id: string; x: number; y: number; dragging: boolean } | null>(null);
+	const searchRef = useRef<HTMLInputElement>(null);
+	const hasKeyboard = useRef(false);
+
+	// The window can't take focus by itself (see keyboard_focus in clipboard.rs).
+	const takeKeyboard = () => {
+		hasKeyboard.current = true;
+		invoke("keyboard_focus", { focus: true })
+			.then(() => searchRef.current?.focus())
+			.catch(() => {});
+	};
+	const releaseKeyboard = () => {
+		if (!hasKeyboard.current) return;
+		hasKeyboard.current = false;
+		invoke("keyboard_focus", { focus: false }).catch(() => {});
+	};
+	// Closing the panel while typing hands the keyboard back too.
+	useEffect(() => releaseKeyboard, []);
 
 	useEffect(() => {
 		const load = () => invoke<ClipItem[]>("clipboard_history").then(setItems).catch(() => {});
@@ -126,8 +143,17 @@ export function ClipboardPanel({ dragIcon, onDragStart, onDragEnd }: ClipboardPa
 			<div className="clip-search">
 				<Search size={12} />
 				<input
+					ref={searchRef}
 					value={query}
 					onChange={(e) => setQuery(e.target.value)}
+					onPointerDown={takeKeyboard}
+					onBlur={releaseKeyboard}
+					onKeyDown={(e) => {
+						if (e.key === "Escape") {
+							setQuery("");
+							searchRef.current?.blur();
+						}
+					}}
 					placeholder="Search clipboard"
 					spellCheck={false}
 				/>

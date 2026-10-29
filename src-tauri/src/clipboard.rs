@@ -601,6 +601,32 @@ pub fn clipboard_clear(app: AppHandle, include_pinned: bool) {
     commit(&app, &history, &removed);
 }
 
+/// The notch and the edge shelf never take focus on click (WS_EX_NOACTIVATE),
+/// so a text field in them can't receive typing. The field calls this with
+/// `true` when clicked: the calling window takes the keyboard, remembering
+/// who had it, and gets it back to them with `false` when the field is left.
+#[tauri::command]
+pub fn keyboard_focus(window: tauri::WebviewWindow, focus: bool) {
+    use std::sync::atomic::{AtomicIsize, Ordering};
+    use windows::Win32::Foundation::HWND;
+    use windows::Win32::UI::WindowsAndMessaging::{GetForegroundWindow, SetForegroundWindow};
+    static PREVIOUS: AtomicIsize = AtomicIsize::new(0);
+
+    let Ok(hwnd) = window.hwnd() else { return };
+    let foreground = unsafe { GetForegroundWindow() };
+    if focus {
+        if foreground != hwnd {
+            PREVIOUS.store(foreground.0 as isize, Ordering::Relaxed);
+        }
+        let _ = window.set_focus();
+    } else if foreground == hwnd {
+        let previous = PREVIOUS.swap(0, Ordering::Relaxed);
+        if previous != 0 {
+            let _ = unsafe { SetForegroundWindow(HWND(previous as *mut _)) };
+        }
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;

@@ -153,6 +153,7 @@ fn main() {
             clipboard::clipboard_pin,
             clipboard::clipboard_delete,
             clipboard::clipboard_clear,
+            clipboard::keyboard_focus,
             shelf_prune,
             shelf_open,
             get_active_windows,
