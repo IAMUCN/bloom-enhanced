@@ -1,4 +1,4 @@
-@import url("https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&display=swap");
+@import "./fonts.css";
 /* The file wheel window: a ring of options around a hub, in the notch's
    colours (theme.ts tokens), and the status card it shrinks to. */
 * {
