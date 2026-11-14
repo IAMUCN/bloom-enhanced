@@ -1778,6 +1778,9 @@ function App() {
 		);
 	};
 
+	const releaseNotchHoverRef = useRef(releaseNotchHover);
+	releaseNotchHoverRef.current = releaseNotchHover;
+
 	const clearShelfCollapse = () => {
 		if (shelfCollapseTimer.current !== null) {
 			window.clearTimeout(shelfCollapseTimer.current);
@@ -1911,6 +1914,20 @@ function App() {
 	// Text fields in the notch (clipboard search, Wi-Fi password) need the
 	// keyboard handed to this no-activate window.
 	useTextInputKeyboard();
+
+	// Esc closes the open notch (the keyboard hook in services.rs reports it;
+	// this window never takes focus). The backend learns open/closed here.
+	useEffect(() => {
+		if (windowLabel !== "main") return;
+		invoke("set_notch_open", { open: isOpen }).catch(() => {});
+	}, [isOpen, windowLabel]);
+	useEffect(() => {
+		if (windowLabel !== "main") return;
+		const unlisten = listen("notch-escape", () => releaseNotchHoverRef.current());
+		return () => {
+			unlisten.then((f) => f());
+		};
+	}, [windowLabel]);
 
 	// The clipboard shortcut (clipboard.rs) toggles the Clipboard panel while
 	// the history lives in the notch.

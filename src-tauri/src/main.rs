@@ -203,6 +203,7 @@ fn main() {
             remove_custom_icon,
             get_custom_icons,
             set_menu_open,
+            set_notch_open,
             focus_window,
             focus_app_windows,
             close_window,

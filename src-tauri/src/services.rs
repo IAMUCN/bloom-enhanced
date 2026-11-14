@@ -45,7 +45,12 @@ pub fn setup_keyboard_hook(app_handle: AppHandle) {
     std::thread::spawn(move || {
         // Exiting removes the hook with the process; never touch it mid-shutdown.
         while !SHUTTING_DOWN.load(Ordering::Relaxed) {
-            let wanted = NATIVE_TASKBAR_HIDDEN.load(Ordering::Relaxed) && dock_win_number_enabled();
+            // Win+Number needs it while the dock replaces the taskbar; Esc
+            // needs it while the notch is open (so it works with the dock off
+            // and costs nothing while the notch is closed).
+            let wanted = (NATIVE_TASKBAR_HIDDEN.load(Ordering::Relaxed)
+                && dock_win_number_enabled())
+                || crate::state::NOTCH_OPEN.load(Ordering::Relaxed);
             if wanted != (KEYBOARD_HOOK.load(Ordering::Relaxed) != 0) {
                 // A low-level hook runs on the thread that installed it, which
                 // needs a message loop, so install and remove it on the main thread.
@@ -177,6 +182,19 @@ unsafe extern "system" fn keyboard_hook_proc(
         let vk_code = VIRTUAL_KEY(kb.vkCode as u16);
         let is_down = wparam.0 == WM_KEYDOWN as usize || wparam.0 == WM_SYSKEYDOWN as usize;
         let is_up = wparam.0 == WM_KEYUP as usize || wparam.0 == WM_SYSKEYUP as usize;
+
+        // Esc closes an open notch. The key still reaches the focused app.
+        if is_down
+            && vk_code == windows::Win32::UI::Input::KeyboardAndMouse::VK_ESCAPE
+            && crate::state::NOTCH_OPEN.swap(false, Ordering::Relaxed)
+        {
+            if let Some(app) = KEYBOARD_HOOK_APP_HANDLE.get().cloned() {
+                // Off the hook thread: a low-level hook must return quickly.
+                std::thread::spawn(move || {
+                    let _ = app.emit_to("main", "notch-escape", ());
+                });
+            }
+        }
 
         // Only physical presses drive the Win+Number replacement; injected
         // events (our own Start taps and mask key) must not re-enter it.

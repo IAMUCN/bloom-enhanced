@@ -15,6 +15,13 @@ use crate::types::{
 use crate::utils::*;
 use std::collections::HashMap;
 
+/// The notch reports when it opens and closes, so the keyboard hook can close
+/// it on Esc (the notch window never takes keyboard focus).
+#[tauri::command]
+pub fn set_notch_open(open: bool) {
+    crate::state::NOTCH_OPEN.store(open, Ordering::Relaxed);
+}
+
 #[tauri::command]
 pub async fn set_menu_open(open: bool, rect: Option<IntRect>) {
     MENU_IS_OPEN.store(open, Ordering::Relaxed);
