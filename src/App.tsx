@@ -2400,6 +2400,13 @@ function App() {
 	const openFromShortcutRef = useRef(() => {});
 	openFromShortcutRef.current = () => openNotch(openingPanel());
 
+	// A tool turned off while its tab shows: fall back to the opening panel.
+	useEffect(() => {
+		if (bloomMode === "tool" && isOpen && !(activeTool && enabledTools.includes(activeTool))) {
+			setBloomMode(openingPanel());
+		}
+	}, [bloomMode, isOpen, activeTool, enabledTools]);
+
 	// Hover opening: resting on the notch for the delay opens it like a click.
 	useEffect(() => {
 		if (notchOpenOn !== "hover" || !isHovered || isOpen || fileStatus || bloomMode === "announcement") return;
