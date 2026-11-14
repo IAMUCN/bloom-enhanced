@@ -1,0 +1,50 @@
+.notch-tab-bar {
+	display: flex;
+	justify-content: center;
+	align-items: center;
+	gap: 4px;
+	height: 36px;
+	flex: none;
+	pointer-events: auto;
+}
+
+.notch-tab {
+	position: relative;
+	display: grid;
+	place-items: center;
+	width: 36px;
+	height: 28px;
+	padding: 0;
+	border: none;
+	border-radius: 10px;
+	background: none;
+	color: var(--bloom-text-secondary, #a1a1aa);
+	cursor: pointer;
+	transition: color 0.15s ease;
+}
+
+.notch-tab:hover {
+	color: var(--bloom-text, #fff);
+}
+
+.notch-tab:focus-visible {
+	outline: 2px solid var(--bloom-accent, #0a84ff);
+	outline-offset: 1px;
+}
+
+.notch-tab svg {
+	position: relative;
+}
+
+.notch-tab-chip {
+	position: absolute;
+	inset: 0;
+	border-radius: 10px;
+	background: rgba(255, 255, 255, 0.1);
+}
+
+@media (prefers-reduced-motion: reduce) {
+	.notch-tab {
+		transition: none;
+	}
+}

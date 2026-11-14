@@ -37,6 +37,8 @@ import { useWeather } from "./hooks/useWeather";
 import { useSettingsSync } from "./hooks/useSettingsSync";
 import { useTrailingThrottle } from "./hooks/useTrailingThrottle";
 import { useAnnouncement } from "./hooks/useAnnouncement";
+import { NotchTabBar } from "./components/NotchTabBar";
+import { TAB_BAR_HEIGHT, type ToolId } from "./tools";
 import { reloadIfMirrorWasStale } from "./hooks/settingsMirror";
 import { openUrl } from "@tauri-apps/plugin-opener";
 import { writeText } from "@tauri-apps/plugin-clipboard-manager";
@@ -3204,11 +3206,22 @@ function App() {
 		mediaInfo.has_media && (!musicActivityVisible || !settingsMusicCompactNotch);
 	const showCompactMusicIcons = isMusicMode || showMusicOnStatusHover;
 
+	// The open notch's tab bar: every enabled panel in the user's order, then
+	// Media while something is playing. Shown on the panels (the music view
+	// keeps its own layout).
+	const tabTools: ToolId[] = [
+		...panelOrder.filter(panelAvailable),
+		...(settingsMusicModeEnabled && mediaInfo.has_media ? (["music"] as const) : [])
+	];
+	const showTabBar = isOpen && asNotchPanel(bloomMode) !== null && tabTools.length > 1;
+	const tabBarSpace = showTabBar ? TAB_BAR_HEIGHT / panelZoomNow : 0;
+
 	// The 24-hour clock is ~16px narrower than the 12-hour one.
 	const clock24hTrim = timeFormat24h ? 16 : 0;
 
 	// Calculate width dynamically based on enabled features
-	const getDynamicWidth = () => {
+	const getDynamicWidth = () => Math.max(getBaseWidth(), showTabBar ? (tabTools.length * 40 + 24) / panelZoomNow : 0);
+	const getBaseWidth = () => {
 		if (minimalIdle) return 72;
 		if (fileStatus && !isOpen) return 300;
 		if (bloomMode === "announcement" && announcement && !announcementDismissed) return 380;
@@ -3237,7 +3250,8 @@ function App() {
 		return w;
 	};
 
-	const getDynamicHeight = () => {
+	const getDynamicHeight = () => getBaseHeight() + tabBarSpace;
+	const getBaseHeight = () => {
 		if (!isExpanded || !isVisible || isHidden) {
 			return isImpacted ? 28.9 : 44.2;
 		}
@@ -3280,7 +3294,7 @@ function App() {
 	// Arrows switch between the two tool panels; wheel/swipe can also open one
 	// directly from the collapsed pill or a live activity.
 	const showPanelArrows =
-		isOpen && asNotchPanel(bloomMode) !== null && panelOrder.filter(panelAvailable).length > 1;
+		isOpen && !showTabBar && asNotchPanel(bloomMode) !== null && panelOrder.filter(panelAvailable).length > 1;
 
 	// What the notch is doing, for the local perf recorder of testing builds
 	// (src-tauri/src/perf.rs); a no-op in normal builds.
@@ -4054,6 +4068,15 @@ function App() {
 										</motion.div>
 									)}
 								</AnimatePresence>
+
+								{showTabBar && (
+									<NotchTabBar
+										tools={tabTools}
+										active={asNotchPanel(bloomMode)}
+										zoom={1 / panelZoomNow}
+										onSelect={(id) => (id === "music" ? openNotch("music") : setBloomMode(id))}
+									/>
+								)}
 
 								{/* Wi-Fi networks, opened from the controls panel's Wi-Fi tile */}
 								<AnimatePresence>
