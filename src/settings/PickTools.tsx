@@ -16,9 +16,9 @@ const ALL: Tool[] = [...BUILT_IN.map((id) => TOOLS[id]), ...EXTRA_TOOLS];
 /** Presets pre-tick tools; Command Center is always in, so the open notch is
  *  never empty. */
 export const PRESETS: [string, string[]][] = [
-	["Student", ["command-center", "music", "calendar", "clipboard", "note", "todo", "reminders", "stopwatch", "calc"]],
+	["Student", ["command-center", "music", "calendar", "clipboard", "note", "todo", "reminders", "stopwatch", "calc", "ocr"]],
 	["Developer", ["command-center", "music", "calendar", "clipboard", "snippets", "monitor", "apps", "picker", "snip"]],
-	["Designer", ["command-center", "music", "clipboard", "picker", "snip", "note"]],
+	["Designer", ["command-center", "music", "clipboard", "picker", "snip", "note", "ocr"]],
 	["Minimal", ["command-center", "music"]],
 	["Everything", ALL.map((t) => t.id)]
 ];

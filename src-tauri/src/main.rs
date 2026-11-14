@@ -219,6 +219,7 @@ fn main() {
             system_tools::set_power_mode,
             system_tools::pick_screen_color,
             system_tools::screen_clip,
+            system_tools::ocr_clipboard,
             focus_window,
             focus_app_windows,
             close_window,

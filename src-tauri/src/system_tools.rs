@@ -369,3 +369,64 @@ mod tests {
         assert!(g[0].1 != g[1].1 && g[1].1 != g[2].1 && g[0].1 != g[2].1);
     }
 }
+
+// ----------------------------------------------------------------------- OCR
+
+/// Reads the text in the image on the clipboard (a snip) with Windows' own
+/// OCR, in the user's languages. Runs on the device; nothing is uploaded.
+#[tauri::command]
+pub async fn ocr_clipboard(app: tauri::AppHandle) -> Result<String, String> {
+    use tauri_plugin_clipboard_manager::ClipboardExt;
+    let img = app
+        .clipboard()
+        .read_image()
+        .map_err(|_| "Copy or snip an image first".to_string())?;
+    let (w, h) = (img.width(), img.height());
+    let rgba = img.rgba().to_vec();
+    tauri::async_runtime::spawn_blocking(move || ocr_rgba(&rgba, w, h))
+        .await
+        .map_err(|e| e.to_string())?
+}
+
+fn ocr_rgba(rgba: &[u8], width: u32, height: u32) -> Result<String, String> {
+    use windows::Graphics::Imaging::{BitmapPixelFormat, SoftwareBitmap};
+    use windows::Media::Ocr::OcrEngine;
+    use windows::Storage::Streams::DataWriter;
+    let max = OcrEngine::MaxImageDimension().map_err(|e| e.to_string())?;
+    if width == 0 || height == 0 || width > max || height > max {
+        return Err(format!("The image is too large to read (max {max} px)"));
+    }
+    // OCR wants BGRA; the clipboard gives RGBA.
+    let mut bgra = rgba.to_vec();
+    for px in bgra.as_chunks_mut::<4>().0 {
+        px.swap(0, 2);
+    }
+    let writer = DataWriter::new().map_err(|e| e.to_string())?;
+    writer.WriteBytes(&bgra).map_err(|e| e.to_string())?;
+    let buffer = writer.DetachBuffer().map_err(|e| e.to_string())?;
+    let bitmap = SoftwareBitmap::CreateCopyFromBuffer(
+        &buffer,
+        BitmapPixelFormat::Bgra8,
+        width as i32,
+        height as i32,
+    )
+    .map_err(|e| e.to_string())?;
+    let engine = OcrEngine::TryCreateFromUserProfileLanguages()
+        .map_err(|_| "No OCR language is installed in Windows".to_string())?;
+    let result = engine
+        .RecognizeAsync(&bitmap)
+        .map_err(|e| e.to_string())?
+        .get()
+        .map_err(|e| e.to_string())?;
+    let lines = result.Lines().map_err(|e| e.to_string())?;
+    let text = lines
+        .into_iter()
+        .filter_map(|l| l.Text().ok().map(|t| t.to_string()))
+        .collect::<Vec<_>>()
+        .join("\n");
+    if text.trim().is_empty() {
+        Err("No text found in the image".into())
+    } else {
+        Ok(text)
+    }
+}

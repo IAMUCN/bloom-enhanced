@@ -18,6 +18,7 @@ import {
 	Pipette,
 	Rocket,
 	Ruler,
+	ScanText,
 	Scissors,
 	Search,
 	Smile,
@@ -72,6 +73,7 @@ export interface ExtraTool extends Tool {
 }
 
 export type ExtraToolId =
+	| "ocr"
 	| "snip"
 	| "picker"
 	| "note"
@@ -90,6 +92,7 @@ export type ExtraToolId =
 	| "apps";
 
 export const EXTRA_TOOLS: ExtraTool[] = [
+	{ id: "ocr", label: "OCR", icon: ScanText, color: "#7CC4FF", size: ["M", "M"], release: "0.3", desc: "Read the text in a snip; on the device, nothing uploaded", load: () => import("./notchTools/Ocr") },
 	{ id: "snip", label: "Snip & record", icon: Scissors, color: "#FF7AB8", size: ["M", "S"], release: "0.3", desc: "Screenshot a region, window or screen, or record it", load: () => import("./notchTools/Snip") },
 	{ id: "picker", label: "Colour picker", icon: Pipette, color: "#F27BFF", size: ["M", "S"], release: "0.3", desc: "Pick a colour from the screen; copy HEX or RGB", load: () => import("./notchTools/ColorPicker") },
 	{ id: "note", label: "Quick note", icon: StickyNote, color: "#FFE066", size: ["M", "M"], release: "0.4", desc: "A note that saves itself", load: () => import("./notchTools/QuickNote") },
