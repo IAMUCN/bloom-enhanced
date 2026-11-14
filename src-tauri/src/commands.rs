@@ -15,6 +15,13 @@ use crate::types::{
 use crate::utils::*;
 use std::collections::HashMap;
 
+/// The notch says whether it wants the audio visualizer (see
+/// state::VISUALIZER_WANTED).
+#[tauri::command]
+pub fn set_visualizer_wanted(wanted: bool) {
+    crate::state::VISUALIZER_WANTED.store(wanted, Ordering::Relaxed);
+}
+
 /// The notch reports when it opens and closes, so the keyboard hook can close
 /// it on Esc (the notch window never takes keyboard focus).
 #[tauri::command]

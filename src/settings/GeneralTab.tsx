@@ -1,6 +1,96 @@
 import { useState } from "react";
-import { Power, Download, Clock, BatteryWarning, RefreshCw, RotateCcw, LogOut, Gauge } from "lucide-react";
+import { Power, Download, Clock, BatteryWarning, RefreshCw, RotateCcw, LogOut, Gauge, Leaf, AudioLines, Sparkles, Droplets } from "lucide-react";
+import { Choice } from "./Choice";
 import { SettingRow } from "./SettingRow";
+
+type Pauses = { visualizer: boolean; motion: boolean; glass: boolean };
+const PAUSES: [keyof Pauses, typeof Leaf, string, string][] = [
+	["visualizer", AudioLines, "Pause Visualizer", "Stops listening to audio for the music bars"],
+	["motion", Sparkles, "Calmer Motion", "Shorter, simpler animations in the notch"],
+	["glass", Droplets, "No Glass", "Turns off blur effects"]
+];
+
+/** Battery saver: when it turns on (`bloom-battery-saver`: off, on battery,
+ *  or on battery at or below `bloom-battery-saver-threshold`) and what it
+ *  pauses (`bloom-battery-saver-pauses`). A leaf shows on the notch while on. */
+function BatterySaver({ saveSetting }: { saveSetting: (key: string, value: string | null) => Promise<boolean> }) {
+	const [mode, setMode] = useState(() => localStorage.getItem("bloom-battery-saver") ?? "below");
+	const [threshold, setThreshold] = useState(
+		() => parseInt(localStorage.getItem("bloom-battery-saver-threshold") ?? "", 10) || 30
+	);
+	const [pauses, setPauses] = useState<Pauses>(() => {
+		const all = { visualizer: true, motion: true, glass: true };
+		try {
+			return { ...all, ...JSON.parse(localStorage.getItem("bloom-battery-saver-pauses") ?? "{}") };
+		} catch {
+			return all;
+		}
+	});
+	return (
+		<>
+			<div className="setting-group-label">Battery Saver</div>
+			<div className="setting-group">
+				<SettingRow
+					icon={Leaf}
+					label="Battery Saver"
+					desc={
+						mode === "off"
+							? "Never turns on"
+							: mode === "battery"
+								? "On whenever the PC runs on battery"
+								: `On when on battery at or below ${threshold}%`
+					}
+					divider={mode !== "off"}
+				>
+					<Choice
+						value={mode}
+						options={[["off", "Off"], ["battery", "On battery"], ["below", "Low battery"]] as const}
+						onChange={(v) => {
+							setMode(v);
+							saveSetting("bloom-battery-saver", v);
+						}}
+						label="When Battery saver turns on"
+					/>
+				</SettingRow>
+				{mode === "below" && (
+					<SettingRow icon={BatteryWarning} label="Turn On Below" desc={`At or below ${threshold}% on battery`}>
+						<input
+							type="range"
+							min="10"
+							max="80"
+							step="5"
+							value={threshold}
+							onChange={(e) => {
+								const v = parseInt(e.target.value, 10);
+								setThreshold(v);
+								saveSetting("bloom-battery-saver-threshold", String(v));
+							}}
+							className="settings-slider"
+							aria-label="Battery saver threshold"
+						/>
+					</SettingRow>
+				)}
+				{mode !== "off" &&
+					PAUSES.map(([key, icon, label, desc], i) => (
+						<SettingRow key={key} icon={icon} label={label} desc={desc} divider={i < PAUSES.length - 1}>
+							<label className="toggle-switch">
+								<input
+									type="checkbox"
+									checked={pauses[key]}
+									onChange={() => {
+										const next = { ...pauses, [key]: !pauses[key] };
+										setPauses(next);
+										saveSetting("bloom-battery-saver-pauses", JSON.stringify(next));
+									}}
+								/>
+								<span className="slider"></span>
+							</label>
+						</SettingRow>
+					))}
+			</div>
+		</>
+	);
+}
 
 interface GeneralTabProps {
 	autostart: boolean;
@@ -80,6 +170,8 @@ export function GeneralTab({
 					/>
 				</SettingRow>
 			</div>
+
+			<BatterySaver saveSetting={saveSetting} />
 
 			<div className="setting-group-label">Performance</div>
 			<div className="setting-group">

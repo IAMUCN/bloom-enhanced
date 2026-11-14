@@ -204,6 +204,7 @@ fn main() {
             get_custom_icons,
             set_menu_open,
             set_notch_open,
+            set_visualizer_wanted,
             focus_window,
             focus_app_windows,
             close_window,

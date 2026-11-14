@@ -694,6 +694,11 @@ pub fn setup_audio_visualization(app_handle: AppHandle) {
             let mut prev_values = [0.1f32; NUM_BANDS];
 
             loop {
+                // Unwanted (visualizer off, Battery saver): no capture at all,
+                // just a slow check until it's wanted again.
+                while !crate::state::VISUALIZER_WANTED.load(Ordering::Relaxed) {
+                    std::thread::sleep(std::time::Duration::from_millis(500));
+                }
                 let _: Result<(), String> = (|| {
                     let enumerator: IMMDeviceEnumerator = CoCreateInstance(
                         &windows::Win32::Media::Audio::MMDeviceEnumerator,
@@ -787,6 +792,10 @@ pub fn setup_audio_visualization(app_handle: AppHandle) {
                                     }
                                 }
                             }
+                        }
+
+                        if !crate::state::VISUALIZER_WANTED.load(Ordering::Relaxed) {
+                            return Err("Visualizer paused".into());
                         }
 
                         // Skip all heavy processing if nothing is playing

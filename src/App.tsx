@@ -1,4 +1,4 @@
-import { motion, AnimatePresence, useAnimation } from "framer-motion";
+import { motion, AnimatePresence, MotionConfig, useAnimation } from "framer-motion";
 import { useEffect, useLayoutEffect, useState, useCallback, useMemo, useRef, memo } from "react";
 import { listen } from "@tauri-apps/api/event";
 import { invoke } from "@tauri-apps/api/core";
@@ -78,7 +78,7 @@ import {
 	Activity,
 	ClipboardCheck
 } from "lucide-react";
-import { CircleAlert, CircleCheck, CircleSlash } from "lucide-react";
+import { CircleAlert, CircleCheck, CircleSlash, Leaf } from "lucide-react";
 import type { OrbitStatus } from "./orbitOps";
 
 /**
@@ -93,6 +93,19 @@ import type { OrbitStatus } from "./orbitOps";
  */
 type NotchPanel = "calendar" | "command-center" | "devices" | "clipboard";
 const NOTCH_PANELS: readonly NotchPanel[] = ["calendar", "command-center", "devices", "clipboard"];
+/** What Battery saver pauses (`bloom-battery-saver-pauses`, JSON); all three
+ *  by default. */
+type SaverPauses = { visualizer: boolean; motion: boolean; glass: boolean };
+function parseSaverPauses(raw: unknown): SaverPauses {
+	const all = { visualizer: true, motion: true, glass: true };
+	try {
+		const v = JSON.parse(String(raw ?? ""));
+		return v && typeof v === "object" ? { ...all, ...v } : all;
+	} catch {
+		return all;
+	}
+}
+
 /** Smart start's window for reopening the last panel. */
 const SMART_START_MS = 5 * 60 * 1000;
 const asNotchPanel = (value: unknown): NotchPanel | null =>
@@ -671,6 +684,12 @@ function App() {
 
 	const [batteryLevel, setBatteryLevel] = useState(100);
 	const [isCharging, setIsCharging] = useState(false);
+	// Battery saver (Settings › General): when it turns on and what it pauses.
+	const [saverMode, setSaverMode] = useState(() => localStorage.getItem("bloom-battery-saver") ?? "below");
+	const [saverThreshold, setSaverThreshold] = useState(
+		() => parseInt(localStorage.getItem("bloom-battery-saver-threshold") ?? "", 10) || 30
+	);
+	const [saverPauses, setSaverPauses] = useState(() => parseSaverPauses(localStorage.getItem("bloom-battery-saver-pauses")));
 	// Fetched when the pointer reaches the battery widget, for its tooltip.
 	const [batteryDetails, setBatteryDetails] = useState<BatteryDetails | null>(null);
 	// The status widget whose tooltip is open, the side of the pill it hangs
@@ -1171,6 +1190,8 @@ function App() {
 	// When the open notch last closed: Smart start returns to the last panel
 	// only within SMART_START_MS of that, else to the favourite.
 	const lastClosedAtRef = useRef(0);
+	const visualizerWantedRef = useRef(true);
+	const visualizerSentRef = useRef<boolean | null>(null);
 	// Open on click (default) or on hover after a delay.
 	const [notchOpenOn, setNotchOpenOn] = useState(() => localStorage.getItem("bloom-notch-open-on") === "hover" ? "hover" : "click");
 	const [notchHoverDelay, setNotchHoverDelay] = useState(() => {
@@ -1399,6 +1420,9 @@ function App() {
 			"bloom-notch-left-size": (v: unknown) => setLeftSize(sizeOf(v)),
 			"bloom-notch-right-size": (v: unknown) => setRightSize(sizeOf(v)),
 			"bloom-low-battery-threshold": setLowBatteryThreshold,
+			"bloom-battery-saver": (v: unknown) => setSaverMode(String(v ?? "below")),
+			"bloom-battery-saver-threshold": (v: unknown) => setSaverThreshold(parseInt(String(v ?? ""), 10) || 30),
+			"bloom-battery-saver-pauses": (v: unknown) => setSaverPauses(parseSaverPauses(v)),
 			"bloom-dock-enabled": setDockEnabled,
 			"bloom-dock-mode": setDockMode,
 			"bloom-notch-mode": setNotchMode,
@@ -1923,6 +1947,14 @@ function App() {
 	// Text fields in the notch (clipboard search, Wi-Fi password) need the
 	// keyboard handed to this no-activate window.
 	useTextInputKeyboard();
+
+	// The backend captures audio only while the visualizer is wanted.
+	useEffect(() => {
+		if (windowLabel !== "main") return;
+		if (visualizerSentRef.current === visualizerWantedRef.current) return;
+		visualizerSentRef.current = visualizerWantedRef.current;
+		invoke("set_visualizer_wanted", { wanted: visualizerWantedRef.current }).catch(() => {});
+	});
 
 	// Esc closes the open notch (the keyboard hook in services.rs reports it;
 	// this window never takes focus). The backend learns open/closed here.
@@ -3258,6 +3290,13 @@ function App() {
 		mediaInfo.has_media && (!musicActivityVisible || !settingsMusicCompactNotch);
 	const showCompactMusicIcons = isMusicMode || showMusicOnStatusHover;
 
+	// Battery saver: on battery ("battery"), or on battery at or below the
+	// threshold ("below", default 30 %); "off" never.
+	const saverOn =
+		!isCharging && (saverMode === "battery" || (saverMode === "below" && batteryLevel <= saverThreshold));
+	const visualizerOn = settingsVisualizerEnabled && !(saverOn && saverPauses.visualizer);
+	visualizerWantedRef.current = visualizerOn && settingsMusicModeEnabled;
+
 	// The open notch's tab bar: every enabled panel in the user's order, then
 	// Media while something is playing. Shown on the panels (the music view
 	// keeps its own layout).
@@ -3284,7 +3323,7 @@ function App() {
 		if (bloomMode === "command-center" && isOpen) return 350;
 		if (bloomMode === "wifi" || bloomMode === "bluetooth" || bloomMode === "devices") return 350;
 		if (showMusicOnStatusHover) {
-			return 170 + (settingsVisualizerEnabled ? 30 : 0);
+			return 170 + (visualizerOn ? 30 : 0);
 		}
 		if (bloomMode === "status" && isHovered) {
 			const totalWidgets = statusWidgets.left.length + statusWidgets.right.length;
@@ -3295,7 +3334,7 @@ function App() {
 
 		let w = 140 - clock24hTrim;
 		if (isMusicMode) {
-			if (settingsVisualizerEnabled && isPlaying) w += 30;
+			if (visualizerOn && isPlaying) w += 30;
 			if (settingsAlbumArtEnabled) w += 30;
 		}
 
@@ -3408,7 +3447,8 @@ function App() {
 	});
 
 	return (
-		<div className="screen" style={{ overflow: "hidden" }}>
+		<MotionConfig reducedMotion={saverOn && saverPauses.motion ? "always" : "user"}>
+		<div className={`screen${saverOn && saverPauses.glass ? " battery-saver" : ""}`} style={{ overflow: "hidden" }}>
 			<div
 				style={{
 					zoom: pillZoom,
@@ -3920,9 +3960,17 @@ function App() {
 														>
 															{/* Left: music on hover while a paused session remains, otherwise status widgets */}
 															<div className="side-content left">
-																{showCompactMusicIcons && settingsVisualizerEnabled ? (
+																{saverOn && !isOpen && (
+																	<Leaf
+																		size={13}
+																		strokeWidth={2.2}
+																		className="battery-saver-leaf"
+																		aria-label="Battery saver on"
+																	/>
+																)}
+																{showCompactMusicIcons && visualizerOn ? (
 																	<AnimatePresence>
-																		{settingsVisualizerEnabled && (
+																		{visualizerOn && (
 																			<motion.div
 																				key="visualizer"
 																				initial={{ scale: 0.8, opacity: 0 }}
@@ -4882,6 +4930,7 @@ function App() {
 				</AnimatePresence>
 			</div>
 		</div>
+		</MotionConfig>
 	);
 }
 

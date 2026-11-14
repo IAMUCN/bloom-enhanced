@@ -48,6 +48,9 @@ pub static CURRENT_BRIGHTNESS: AtomicU32 = AtomicU32::new(50);
 pub static CURRENT_VOLUME: AtomicU32 = AtomicU32::new(50);
 pub static LAST_BRIGHTNESS_CHANGE: AtomicI64 = AtomicI64::new(0);
 pub static ANY_MEDIA_PLAYING: AtomicBool = AtomicBool::new(false);
+/// The notch wants the audio visualizer (it's on, music mode is on and
+/// Battery saver doesn't pause it). Off stops the loopback capture entirely.
+pub static VISUALIZER_WANTED: AtomicBool = AtomicBool::new(true);
 // Whether the Start menu was open when the left button last went down,
 // recorded by the mouse hook before Start can react to the press.
 pub static START_OPEN_AT_PRESS: AtomicBool = AtomicBool::new(false);
