@@ -42,12 +42,9 @@ import { ScaleStepper } from "./ScaleStepper";
 import { Choice } from "./Choice";
 import {
 	NOTCH_STYLES,
-	SIZED_PANELS,
 	parsePanelOrder,
 	type OrderedPanel,
-	type NotchStyle,
-	type PanelScales,
-	type SizedPanel
+	type NotchStyle
 } from "../notchLayout";
 import { StatusWidgetConfig } from "../components/StatusWidgetConfig";
 import type { WidgetConfig } from "./types";
@@ -228,8 +225,6 @@ interface NotchTabProps {
 	handleWidgetsChange: (config: WidgetConfig) => void;
 	notchScale: number;
 	handleNotchScaleChange: (val: number) => void;
-	notchPanelScales: PanelScales;
-	handlePanelScaleChange: (panel: SizedPanel, val: number) => void;
 	notchStyle: NotchStyle;
 	handleNotchStyleChange: (style: NotchStyle) => void;
 	saveSetting: (key: string, value: string | null) => Promise<boolean>;
@@ -282,8 +277,6 @@ export function NotchTab({
 	handleWidgetsChange,
 	notchScale,
 	handleNotchScaleChange,
-	notchPanelScales,
-	handlePanelScaleChange,
 	notchStyle,
 	handleNotchStyleChange,
 	saveSetting
@@ -597,25 +590,6 @@ export function NotchTab({
 								<span className="slider"></span>
 							</label>
 						</SettingRow>
-					</div>
-
-					<div className="setting-group-label">Panel Sizes</div>
-					<div className="setting-group">
-						{SIZED_PANELS.map(([panel, label], index) => (
-							<SettingRow
-								key={panel}
-								icon={Maximize2}
-								label={label}
-								desc="Resizes this panel only"
-								divider={index < SIZED_PANELS.length - 1}
-							>
-								<ScaleStepper
-									value={notchPanelScales[panel] ?? 1}
-									onChange={(val) => handlePanelScaleChange(panel, val)}
-									label={`${label} size`}
-								/>
-							</SettingRow>
-						))}
 					</div>
 
 					<div className="setting-group-label">Weather</div>

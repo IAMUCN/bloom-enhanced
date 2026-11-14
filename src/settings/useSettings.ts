@@ -17,10 +17,7 @@ import {
 import type { WidgetConfig } from "./types";
 import {
 	asNotchStyle,
-	parsePanelScales,
-	type NotchStyle,
-	type PanelScales,
-	type SizedPanel
+	type NotchStyle
 } from "../notchLayout";
 
 function readBool(val: string | null): boolean {
@@ -178,9 +175,6 @@ export function useSettings() {
 		const value = localStorage.getItem("bloom-notch-scale");
 		return value ? parseFloat(value) : null;
 	});
-	const [notchPanelScales, setNotchPanelScales] = useState<PanelScales>(() =>
-		parsePanelScales(localStorage.getItem("bloom-notch-panel-scales"))
-	);
 	const [notchStyle, setNotchStyle] = useState<NotchStyle>(() =>
 		asNotchStyle(localStorage.getItem("bloom-notch-style"))
 	);
@@ -276,7 +270,6 @@ export function useSettings() {
 			apply(getVal("bloom-scale"), setScale, parseFloat);
 			apply(getVal("bloom-dock-scale"), setDockScaleOwn, parseFloat);
 			apply(getVal("bloom-notch-scale"), setNotchScaleOwn, parseFloat);
-			apply(getVal("bloom-notch-panel-scales"), setNotchPanelScales, parsePanelScales);
 			apply(getVal("bloom-notch-style"), setNotchStyle, asNotchStyle);
 			apply(getVal("bloom-low-battery-threshold"), setLowBatteryThreshold, parseInt);
 
@@ -444,7 +437,6 @@ export function useSettings() {
 		"bloom-scale": setScale,
 		"bloom-dock-scale": setDockScaleOwn,
 		"bloom-notch-scale": setNotchScaleOwn,
-		"bloom-notch-panel-scales": (v) => setNotchPanelScales(parsePanelScales(v)),
 		"bloom-notch-style": (v) => setNotchStyle(asNotchStyle(v)),
 		"bloom-temp-unit": (v) => setTempUnitFahrenheit(v === "fahrenheit"),
 		"bloom-auto-update": setAutoUpdate,
@@ -919,12 +911,6 @@ export function useSettings() {
 		saveSetting("bloom-notch-style", style);
 	};
 
-	const handlePanelScaleChange = (panel: SizedPanel, val: number) => {
-		const next = { ...notchPanelScales, [panel]: val };
-		setNotchPanelScales(next);
-		saveSetting("bloom-notch-panel-scales", JSON.stringify(next));
-	};
-
 	const handleWidgetsChange = (config: WidgetConfig) => {
 		setStatusWidgets(config);
 		saveSetting("bloom-status-widgets", JSON.stringify(config));
@@ -1121,8 +1107,6 @@ export function useSettings() {
 		handleDockScaleChange,
 		notchScale: notchScaleOwn ?? scale,
 		handleNotchScaleChange,
-		notchPanelScales,
-		handlePanelScaleChange,
 		notchStyle,
 		handleNotchStyleChange,
 

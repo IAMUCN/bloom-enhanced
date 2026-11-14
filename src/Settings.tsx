@@ -408,8 +408,6 @@ function SettingsApp() {
 								handleWidgetsChange={settings.handleWidgetsChange}
 								notchScale={settings.notchScale}
 								handleNotchScaleChange={settings.handleNotchScaleChange}
-								notchPanelScales={settings.notchPanelScales}
-								handlePanelScaleChange={settings.handlePanelScaleChange}
 								notchStyle={settings.notchStyle}
 								handleNotchStyleChange={settings.handleNotchStyleChange}
 							/>

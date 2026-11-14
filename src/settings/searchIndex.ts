@@ -56,7 +56,6 @@ export const SETTINGS_INDEX: SettingEntry[] = [
 		["Ambient Glow", "Colored glow behind expanded album art"],
 		["Compact Glow", "Glow around collapsed thumbnail"],
 		["Keep Items", "Keep shelf items after LotusNotch closes"],
-		["Panel Sizes", "Resize each notch panel on its own"],
 		["Weather Status", "Weather beside the clock, for your city or detected location"],
 		["Choose status widgets", "Arrange what appears beside the clock"],
 		["Time Size", "The clock in the middle"],

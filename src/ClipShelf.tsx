@@ -10,7 +10,7 @@ import { ClipboardPanel } from "./components/ClipboardPanel";
 import { EdgeSurface } from "./components/EdgeSurface";
 import { useTextInputKeyboard, releaseTextKeyboard } from "./hooks/useTextInputKeyboard";
 import { useSettingsSync } from "./hooks/useSettingsSync";
-import { PANEL_BASE, parsePanelScales } from "./notchLayout";
+import { panelZoom } from "./notchLayout";
 import { initTheme } from "./theme";
 import "./ClipShelf.css";
 
@@ -22,26 +22,23 @@ function ClipShelf() {
 	const [dragHover, setDragHover] = useState(false);
 	const [dragIcon, setDragIcon] = useState<string | null>(null);
 	const [globalScale, setGlobalScale] = useState(1);
-	const [panelScale, setPanelScale] = useState(1);
 	const selfDrag = useRef(false);
 
 	useTextInputKeyboard();
 	useEffect(() => initTheme(), []);
 
-	// Same size as the backend's window: bloom-scale × the clipboard panel size.
+	// Same size as the backend's window: bloom-scale × the clipboard's base.
 	useEffect(() => {
 		invoke<Record<string, string>>("load_settings")
 			.then((s) => {
 				setGlobalScale(parseFloat(s["bloom-scale"] ?? "1") || 1);
-				setPanelScale(parsePanelScales(s["bloom-notch-panel-scales"]).clipboard ?? 1);
 			})
 			.catch(() => {});
 		invoke<string | null>("shelf_drag_icon").then(setDragIcon).catch(() => {});
 		invoke("setup_shelf_drop").catch(() => {});
 	}, []);
 	useSettingsSync({
-		"bloom-scale": (v) => setGlobalScale(Number(v) || 1),
-		"bloom-notch-panel-scales": (v) => setPanelScale(parsePanelScales(String(v)).clipboard ?? 1)
+		"bloom-scale": (v) => setGlobalScale(Number(v) || 1)
 	});
 
 	useEffect(() => {
@@ -69,7 +66,7 @@ function ClipShelf() {
 	return (
 		<div
 			className={`clipshelf ${side} ${open ? "open" : ""} ${dragHover ? "drop-hover" : ""}`}
-			style={{ zoom: globalScale * panelScale * (PANEL_BASE.clipboard ?? 1) }}
+			style={{ zoom: globalScale * panelZoom("clipboard") }}
 		>
 			<EdgeSurface edge={side} />
 			<ClipboardPanel

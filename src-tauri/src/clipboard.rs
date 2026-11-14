@@ -908,17 +908,12 @@ static SHELF_RECT: Mutex<(i32, i32, i32, i32)> = Mutex::new((0, 0, 0, 0));
 /// (`PANEL_BASE` in src/notchLayout.ts).
 const SHELF_BASE: f64 = 1.3;
 
-/// Edge shelf size: `bloom-scale` times the clipboard panel's own size.
+/// Edge shelf size: `bloom-scale` times the clipboard's base.
 fn shelf_scale() -> f64 {
     let global = setting("bloom-scale")
         .and_then(|v| v.parse::<f64>().ok())
         .unwrap_or(1.0);
-    let panel = setting("bloom-notch-panel-scales")
-        .and_then(|v| serde_json::from_str::<serde_json::Value>(&v).ok())
-        .and_then(|v| v.get("clipboard").and_then(|s| s.as_f64()))
-        .filter(|s| (0.5..=1.5).contains(s))
-        .unwrap_or(1.0);
-    global * panel * SHELF_BASE
+    global * SHELF_BASE
 }
 
 /// Makes and shows the parked shelf window when an edge position is chosen;

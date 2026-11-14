@@ -48,7 +48,7 @@ Edit `settings.json` with any text editor while Bloom is running. Changes are ap
 | `bloom-notch-edge-delay` | milliseconds `"0"`–`"2000"`      | `"200"`   | In smart/peek mode, how long the cursor must rest against the top screen edge before the notch peeks. `"0"` reveals instantly. |
 | `bloom-notch-style`      | `"notch"` / `"pill"` / `"minimal"` | `"notch"` | Idle look. **notch** = attached to the top edge with flares. **pill** = floating capsule below the edge. **minimal** = thin bar while idle; content shows on hover, music, or alerts. |
 | `bloom-notch-scale`      | float string `"0.5"`–`"1.5"`     | (unset)   | Size of the notch only. Unset = follows `bloom-scale`. |
-| `bloom-notch-panel-scales` | JSON object, panel → `0.5`–`1.5` | `"{}"` | Per-panel notch size on top of `bloom-notch-scale`, e.g. `{"calendar":1.2,"music":0.9}`. Panels: `calendar`, `command-center` (incl. Wi-Fi/Bluetooth), `devices`, `music`, `shelf`, `clipboard`. Missing panels use 1. Command Center's 1 is 30% larger than its original layout. The time row keeps one size on every page. |
+| `bloom-notch-panel-scales` | — | — | Removed in 0.2 (one Notch Size for every panel); ignored if present. |
 | `bloom-notch-panel-order` | JSON list of `command-center`, `calendar`, `clipboard`, `devices` | `"[]"` | Order scrolling, swiping and the arrows go through the notch pages. Pages left out follow in the default order: Command Center, Calendar, Shelf (`clipboard`, when the clipboard is in the notch), Devices. |
 | `bloom-notch-time-size`  | `"0.7"`–`"1.5"` | `"1"` | Size of the clock in the notch, on top of the notch size. |
 | `bloom-notch-left-size`  | `"0.7"`–`"1.5"` | `"1"` | Size of the status widgets left of the clock. |

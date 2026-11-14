@@ -15,8 +15,6 @@ import {
 import {
 	asNotchStyle,
 	parsePanelOrder,
-	parsePanelScales,
-	type PanelScales,
 	type SizedPanel,
 	panelZoom
 } from "./notchLayout";
@@ -657,9 +655,6 @@ function App() {
 		return value ? parseFloat(value) : null;
 	});
 	const scale = notchScale ?? globalScale;
-	const [notchPanelScales, setNotchPanelScales] = useState<PanelScales>(() =>
-		parsePanelScales(localStorage.getItem("bloom-notch-panel-scales"))
-	);
 	const [panelOrder, setPanelOrder] = useState(() => parsePanelOrder(localStorage.getItem("bloom-notch-panel-order")));
 	const [notchStyle, setNotchStyle] = useState(() =>
 		asNotchStyle(localStorage.getItem("bloom-notch-style"))
@@ -1309,7 +1304,6 @@ function App() {
 				if (scaleVal !== null) setGlobalScale(parseFloat(scaleVal));
 				const notchScaleVal = getVal("bloom-notch-scale");
 				if (notchScaleVal !== null) setNotchScale(parseFloat(notchScaleVal));
-				setNotchPanelScales(parsePanelScales(getVal("bloom-notch-panel-scales")));
 				setNotchStyle(asNotchStyle(getVal("bloom-notch-style")));
 				setPanelOrder(parsePanelOrder(getVal("bloom-notch-panel-order")));
 				setTimeSize(sizeOf(getVal("bloom-notch-time-size")));
@@ -1399,7 +1393,6 @@ function App() {
 			"bloom-media-layout": setMediaLayout,
 			"bloom-scale": setGlobalScale,
 			"bloom-notch-scale": setNotchScale,
-			"bloom-notch-panel-scales": (v: unknown) => setNotchPanelScales(parsePanelScales(v)),
 			"bloom-notch-style": (v: unknown) => setNotchStyle(asNotchStyle(v)),
 			"bloom-notch-panel-order": (v: unknown) => setPanelOrder(parsePanelOrder(v)),
 			"bloom-notch-time-size": (v: unknown) => setTimeSize(sizeOf(v)),
@@ -3229,7 +3222,7 @@ function App() {
 				: isMusicMode && isOpen
 					? "music"
 					: null;
-	const panelZoomNow = sizedPanel && isExpanded && isVisible && !isHidden ? panelZoom(sizedPanel, notchPanelScales) : 1;
+	const panelZoomNow = sizedPanel && isExpanded && isVisible && !isHidden ? panelZoom(sizedPanel) : 1;
 	const pillZoom = scale * panelZoomNow;
 	// The floating pill style sits 6px below the edge (see pillTargetY).
 	const pillGap = notchStyle === "pill" ? 6 : 0;
