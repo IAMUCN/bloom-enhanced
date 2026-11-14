@@ -1933,8 +1933,14 @@ function App() {
 	useEffect(() => {
 		if (windowLabel !== "main") return;
 		const unlisten = listen("notch-escape", () => releaseNotchHoverRef.current());
+		// The notch shortcut (Ctrl+Alt+N by default) opens or closes the notch.
+		const unlistenShortcut = listen("notch-shortcut", () => {
+			if (isOpenRef.current) releaseNotchHoverRef.current();
+			else openFromShortcutRef.current();
+		});
 		return () => {
 			unlisten.then((f) => f());
+			unlistenShortcut.then((f) => f());
 		};
 	}, [windowLabel]);
 
@@ -2325,6 +2331,9 @@ function App() {
 		setIsOpen(true);
 		setBloomMode(view);
 	};
+
+	const openFromShortcutRef = useRef(() => {});
+	openFromShortcutRef.current = () => openNotch(openingPanel());
 
 	// Hover opening: resting on the notch for the delay opens it like a click.
 	useEffect(() => {

@@ -1,4 +1,5 @@
 import {
+	Keyboard,
 	PanelTop,
 	Calendar,
 	BellRing,
@@ -40,6 +41,7 @@ const NOTCH_MODES = [
 ] as const;
 import { ScaleStepper } from "./ScaleStepper";
 import { Choice } from "./Choice";
+import { shortcutFrom } from "./ClipboardTab";
 import {
 	NOTCH_STYLES,
 	parsePanelOrder,
@@ -130,6 +132,7 @@ const PANEL_CHOICES: readonly (readonly [NotchPanelChoice, string])[] = [
  *  (`bloom-notch-open-on`, `bloom-notch-hover-delay`). */
 function OpenOnRows({ saveSetting }: { saveSetting: (key: string, value: string | null) => Promise<boolean> }) {
 	const [openOn, setOpenOn] = useState(() => (localStorage.getItem("bloom-notch-open-on") === "hover" ? "hover" : "click"));
+	const [shortcut, setShortcut] = useState(() => localStorage.getItem("bloom-notch-shortcut") ?? "Ctrl+Alt+N");
 	const [delay, setDelay] = useState(() => {
 		const v = parseInt(localStorage.getItem("bloom-notch-hover-delay") ?? "", 10);
 		return Number.isFinite(v) ? v : 300;
@@ -149,6 +152,25 @@ function OpenOnRows({ saveSetting }: { saveSetting: (key: string, value: string 
 						saveSetting("bloom-notch-open-on", v);
 					}}
 					label="Open the notch on"
+				/>
+			</SettingRow>
+			<SettingRow
+				icon={Keyboard}
+				label="Notch Shortcut"
+				desc="Opens and closes the notch. Click the box and press keys to change it; Backspace turns it off"
+			>
+				<input
+					className="settings-select clip-shortcut"
+					readOnly
+					value={shortcut || "Off"}
+					aria-label="Notch shortcut"
+					onKeyDown={(e) => {
+						e.preventDefault();
+						const next = e.key === "Backspace" || e.key === "Delete" ? "" : shortcutFrom(e);
+						if (next === null) return;
+						setShortcut(next);
+						saveSetting("bloom-notch-shortcut", next);
+					}}
 				/>
 			</SettingRow>
 			{openOn === "hover" && (
