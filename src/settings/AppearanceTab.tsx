@@ -4,7 +4,8 @@ import { ScaleStepper } from "./ScaleStepper";
 import { Choice } from "./Choice";
 
 const THEME_MODES = [
-	["dark", "Dark", "Translucent dark surfaces"],
+	["dark", "Black", "Black surfaces; solid at 100% opacity"],
+	["graphite", "Graphite", "Dark grey surfaces"],
 	["light", "Light", "Translucent light surfaces"],
 	["custom", "Custom", "A colour you pick"],
 	["adaptive", "Adaptive", "Follows your Windows accent colour"]

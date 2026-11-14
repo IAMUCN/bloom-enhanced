@@ -186,7 +186,7 @@ export function useSettings() {
 	);
 	const [themeOpacity, setThemeOpacity] = useState(() => {
 		const val = localStorage.getItem("bloom-theme-opacity");
-		return val !== null ? parseFloat(val) : 0.8;
+		return val !== null ? parseFloat(val) : 1;
 	});
 	const [themeSaturation, setThemeSaturation] = useState(() => {
 		const val = localStorage.getItem("bloom-theme-saturation");

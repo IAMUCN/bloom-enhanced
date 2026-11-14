@@ -161,7 +161,7 @@ function SettingsApp() {
 	const { announcement, dismissed, dismiss } = useAnnouncement();
 
 	useEffect(() => {
-		return initTheme();
+		return initTheme({ followSystem: true });
 	}, []);
 
 	useEffect(() => {

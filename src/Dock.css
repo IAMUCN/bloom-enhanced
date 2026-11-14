@@ -264,9 +264,11 @@ body {
 	justify-content: center;
 	align-items: center;
 	border-radius: 12px;
-	background: linear-gradient(135deg, rgba(255, 255, 255, 0.2) 0%, rgba(255, 255, 255, 0.05) 100%);
+	/* LotusNotch tokens: a flat tile on Surface 2 with a hairline. */
+	box-sizing: border-box;
+	background: color-mix(in srgb, var(--bloom-text, #fff) 9%, transparent);
+	border: 1px solid var(--bloom-border, rgba(255, 255, 255, 0.1));
 	color: var(--bloom-text, white);
-	box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
 	transition: opacity 0.2s ease;
 }
 

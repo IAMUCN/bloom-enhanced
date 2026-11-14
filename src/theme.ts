@@ -122,7 +122,7 @@ export async function applyTheme(
 
 	if (opacity === undefined || opacity === null) {
 		const cachedOpacity = localStorage.getItem("bloom-theme-opacity");
-		opacity = cachedOpacity !== null ? parseFloat(cachedOpacity) : 0.8;
+		opacity = cachedOpacity !== null ? parseFloat(cachedOpacity) : 1;
 	}
 
 	if (saturation === undefined || saturation === null) {
@@ -232,14 +232,15 @@ export async function applyTheme(
 			applyTheme("dark", customColor, op, saturation, brightness);
 		}
 	} else {
-		// default/dark
-		root.style.setProperty("--bloom-bg", `rgba(0, 0, 0, ${op})`);
-		root.style.setProperty("--bloom-bg-expanded", `rgba(0, 0, 0, ${opExpanded})`);
+		// Black (default) or Graphite: the same tokens on a different base.
+		const base = mode === "graphite" ? "28, 28, 30" : "0, 0, 0";
+		root.style.setProperty("--bloom-bg", `rgba(${base}, ${op})`);
+		root.style.setProperty("--bloom-bg-expanded", `rgba(${base}, ${opExpanded})`);
 		root.style.setProperty("--bloom-text", "#ffffff");
 		root.style.setProperty("--bloom-text-muted", "rgba(255, 255, 255, 0.6)");
 		root.style.setProperty("--bloom-border", "rgba(255, 255, 255, 0.1)");
 		root.style.setProperty("--bloom-group-bg", "rgba(255, 255, 255, 0.04)");
-		root.style.setProperty("--bloom-accent", "#007aff");
+		root.style.setProperty("--bloom-accent", "#0a84ff");
 		root.style.setProperty("--bloom-scrollbar-thumb", "rgba(255, 255, 255, 0.1)");
 		root.classList.add("dark-mode");
 		root.classList.remove("light-mode");
@@ -251,12 +252,16 @@ export async function applyTheme(
 const THEME_DEFAULTS: Record<string, string> = {
 	"bloom-theme-mode": "dark",
 	"bloom-theme-color": "#007aff",
-	"bloom-theme-opacity": "0.8",
+	// Solid black by default (design: Glass is opt-in).
+	"bloom-theme-opacity": "1",
 	"bloom-theme-saturation": "0.5",
 	"bloom-theme-brightness": "0.15"
 };
 
-export function initTheme() {
+/** Settings follows Windows light/dark (0.2 design); the notch, dock and
+ *  overlays follow the user's theme. */
+export function initTheme({ followSystem = false }: { followSystem?: boolean } = {}) {
+	const system = followSystem ? window.matchMedia("(prefers-color-scheme: light)") : null;
 	const changedKeys = new Set<string>();
 	const values = Object.fromEntries(
 		Object.entries(THEME_DEFAULTS).map(([key, fallback]) => [
@@ -267,7 +272,7 @@ export function initTheme() {
 	let disposed = false;
 	const applyCurrentTheme = () =>
 		applyTheme(
-			values["bloom-theme-mode"],
+			system ? (system.matches ? "light" : "dark") : values["bloom-theme-mode"],
 			values["bloom-theme-color"],
 			parseFloat(values["bloom-theme-opacity"]),
 			parseFloat(values["bloom-theme-saturation"]),
@@ -309,8 +314,14 @@ export function initTheme() {
 		if (!disposed && values["bloom-theme-mode"] === "adaptive") applyCurrentTheme();
 	});
 
+	const onSystem = () => {
+		if (!disposed) applyCurrentTheme();
+	};
+	system?.addEventListener("change", onSystem);
+
 	return () => {
 		disposed = true;
+		system?.removeEventListener("change", onSystem);
 		settingsPromise.then((f) => f());
 		accentPromise.then((f) => f());
 		externalPromise.then((f) => f());
