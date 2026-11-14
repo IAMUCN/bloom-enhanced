@@ -2432,16 +2432,26 @@ fn run_mouse_hook_thread() {
             queue_cursor(point);
             MOUSE_HOOK_LAST_EVENT_MS.store(hook_tick_ms(), Ordering::Relaxed);
         }
+        // Set after a reinstall until the hook delivers an event again. While
+        // input goes to an elevated window or the secure desktop, no hook of
+        // ours sees it; reinstalling every tick then only churned (2,111
+        // reinstalls in 16 days, in once-a-second bursts). One reinstall per
+        // episode still recovers a hook Windows really removed.
+        let mut reinstall_mark: Option<i64> = None;
         while GetMessageW(&mut message, None, 0, 0).0 > 0 {
             if message.message == WM_TIMER && message.wParam.0 == timer {
                 if SHUTTING_DOWN.load(Ordering::Relaxed) {
                     break;
                 }
+                let last_event = MOUSE_HOOK_LAST_EVENT_MS.load(Ordering::Relaxed);
+                if reinstall_mark.is_some_and(|mark| last_event != mark) {
+                    reinstall_mark = None;
+                }
                 let mut current = windows::Win32::Foundation::POINT::default();
                 let cursor_moved_without_hook = GetCursorPos(&mut current).is_ok()
                     && pack_cursor(current) != MOUSE_HOOK_CURSOR.load(Ordering::Relaxed)
-                    && hook_tick_ms() - MOUSE_HOOK_LAST_EVENT_MS.load(Ordering::Relaxed) > 750;
-                if hook.is_none() || cursor_moved_without_hook {
+                    && hook_tick_ms() - last_event > 750;
+                if hook.is_none() || (cursor_moved_without_hook && reinstall_mark.is_none()) {
                     if let Some(old) = hook.take() {
                         let _ = UnhookWindowsHookEx(old);
                     }
@@ -2456,7 +2466,9 @@ fn run_mouse_hook_thread() {
                     );
                     if hook.is_some() {
                         queue_cursor(current);
-                        MOUSE_HOOK_LAST_EVENT_MS.store(hook_tick_ms(), Ordering::Relaxed);
+                        let mark = hook_tick_ms();
+                        MOUSE_HOOK_LAST_EVENT_MS.store(mark, Ordering::Relaxed);
+                        reinstall_mark = Some(mark);
                     }
                 }
             } else {
