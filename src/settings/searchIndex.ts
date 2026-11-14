@@ -107,6 +107,7 @@ export const SETTINGS_INDEX: SettingEntry[] = [
 		["Double Press on Selected Files", "With files selected in File Explorer, press the trigger key twice", "Double "],
 		["Double Press Speed", "The most time between the two presses", "Double "],
 		["Show Progress", "Where the percentage and the result appear: pointer or notch"],
+		["Progress Effect", "Edge light, center out, bar, glow only or off: how a job's progress shows on the notch"],
 		["Result Stays For", "How long the result shows (errors a bit longer, Canceled briefly)"],
 		["Your Menu", "Reorder, hide and preview the menu's options and modes"]
 	]),

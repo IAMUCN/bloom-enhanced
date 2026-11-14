@@ -1,0 +1,71 @@
+/* Drawn inside the notch, which clips to its rounded shape. The top edge is
+   flush with the screen, so the light runs down the sides and along the
+   bottom only. */
+.progress-edge {
+	position: absolute;
+	inset: 0;
+	border: 2px solid var(--bloom-accent, #0a84ff);
+	border-top: none;
+	border-radius: inherit;
+	pointer-events: none;
+	z-index: 3;
+	transition: mask-image 0.3s linear, -webkit-mask-image 0.3s linear;
+}
+
+.progress-bar {
+	position: absolute;
+	left: 0;
+	bottom: 0;
+	height: 3px;
+	border-radius: 999px;
+	background: var(--bloom-accent, #0a84ff);
+	pointer-events: none;
+	z-index: 3;
+	transition: width 0.3s linear;
+}
+
+/* One glow in the result colour, then still. */
+.progress-glow {
+	position: absolute;
+	inset: 0;
+	border-radius: inherit;
+	pointer-events: none;
+	z-index: 3;
+	border: 1.5px solid currentColor;
+	border-top: none;
+	animation: progress-glow 1.2s ease-out forwards;
+}
+
+.progress-glow.ok {
+	color: #30d158;
+}
+
+.progress-glow.failed {
+	color: #ff453a;
+}
+
+@keyframes progress-glow {
+	0% {
+		opacity: 0;
+		box-shadow: 0 0 0 0 currentColor;
+	}
+	25% {
+		opacity: 1;
+		box-shadow: 0 0 18px 2px currentColor;
+	}
+	100% {
+		opacity: 0.85;
+		box-shadow: 0 0 0 0 transparent;
+	}
+}
+
+@media (prefers-reduced-motion: reduce) {
+	.progress-edge,
+	.progress-bar {
+		transition: none;
+	}
+	.progress-glow {
+		animation: none;
+		opacity: 0.85;
+	}
+}

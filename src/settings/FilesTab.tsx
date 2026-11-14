@@ -1,12 +1,13 @@
 import { useEffect, useRef, useState } from "react";
 import { AnimatePresence, Reorder, motion } from "framer-motion";
 import { invoke } from "@tauri-apps/api/core";
-import { ArrowBigUp, ChevronRight, EyeOff, GripVertical, Hand, Keyboard, MapPin, Orbit, Timer, Zap } from "lucide-react";
+import { ArrowBigUp, ChevronRight, EyeOff, GripVertical, Hand, Keyboard, MapPin, Orbit, Sparkles, Timer, Zap } from "lucide-react";
 import { useSettingsSync } from "../hooks/useSettingsSync";
 import { MODE_LABEL, ordered, parseLayout, type OrbitLayout, type OrbitMode, type OrbitOp } from "../orbitOps";
 import { ORBIT_ICONS } from "../orbitIcons";
 import { ScaleStepper } from "./ScaleStepper";
 import { Choice } from "./Choice";
+import { PROGRESS_STYLES, asProgressStyle } from "../components/ProgressEffect";
 import { SettingRow } from "./SettingRow";
 
 const TRIGGER_KEYS = [
@@ -236,6 +237,20 @@ export function FilesTab({ saveSetting }: { saveSetting: (key: string, value: st
 								label="Show progress"
 							/>
 						</SettingRow>
+						{statusAt === "notch" && (
+							<SettingRow
+								icon={Sparkles}
+								label="Progress Effect"
+								desc="How a job's progress shows on the notch; a glow in green or red marks the result"
+							>
+								<Choice
+									value={asProgressStyle(s["bloom-progress-effect"])}
+									options={PROGRESS_STYLES}
+									onChange={(v) => save("bloom-progress-effect", v)}
+									label="Progress effect"
+								/>
+							</SettingRow>
+						)}
 						<SettingRow icon={Timer} label="Result Stays For" desc="How long the result shows (errors a bit longer, Canceled briefly)" divider={false}>
 							<ScaleStepper
 								value={seconds}

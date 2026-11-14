@@ -36,6 +36,7 @@ import { useSettingsSync } from "./hooks/useSettingsSync";
 import { useTrailingThrottle } from "./hooks/useTrailingThrottle";
 import { useAnnouncement } from "./hooks/useAnnouncement";
 import { NotchTabBar } from "./components/NotchTabBar";
+import { ProgressEffect, asProgressStyle } from "./components/ProgressEffect";
 import { TAB_BAR_HEIGHT, type ToolId } from "./tools";
 import { reloadIfMirrorWasStale } from "./hooks/settingsMirror";
 import { openUrl } from "@tauri-apps/plugin-opener";
@@ -1158,6 +1159,8 @@ function App() {
 	// The radial menu's job status, when Settings › Radial Menu shows it here
 	// (the menu sends it as `orbit-status`; null clears it).
 	const [fileStatus, setFileStatus] = useState<OrbitStatus>(null);
+	// How a job's progress shows on the notch (Settings › Radial Menu).
+	const [progressStyle, setProgressStyle] = useState(() => asProgressStyle(localStorage.getItem("bloom-progress-effect")));
 	useEffect(() => {
 		if (windowLabel !== "main") return;
 		const unlisten = listen<OrbitStatus>("orbit-status", (e) => {
@@ -1420,6 +1423,7 @@ function App() {
 			"bloom-notch-left-size": (v: unknown) => setLeftSize(sizeOf(v)),
 			"bloom-notch-right-size": (v: unknown) => setRightSize(sizeOf(v)),
 			"bloom-low-battery-threshold": setLowBatteryThreshold,
+			"bloom-progress-effect": (v: unknown) => setProgressStyle(asProgressStyle(v)),
 			"bloom-battery-saver": (v: unknown) => setSaverMode(String(v ?? "below")),
 			"bloom-battery-saver-threshold": (v: unknown) => setSaverThreshold(parseInt(String(v ?? ""), 10) || 30),
 			"bloom-battery-saver-pauses": (v: unknown) => setSaverPauses(parseSaverPauses(v)),
@@ -3518,6 +3522,9 @@ function App() {
 					}}
 				>
 					<EdgeSurface edge="top" flares={attachedToEdge} />
+					{fileStatus && !isOpen && (
+						<ProgressEffect style={progressStyle} percent={fileStatus.percent} result={fileStatus.result} />
+					)}
 					<AnimatePresence>
 						{isMusicMode && settingsAmbienceEnabled && albumArtUrl && isOpen && !isCalendarMode && (
 							<motion.div

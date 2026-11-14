@@ -79,6 +79,7 @@ Edit `settings.json` with any text editor while Bloom is running. Changes are ap
 | `bloom-battery-saver` | `"off"` / `"battery"` / `"below"` | `"below"` | When Battery saver turns on: never, on battery, or on battery at or below `bloom-battery-saver-threshold`. A leaf shows on the notch while it's on. |
 | `bloom-battery-saver-threshold` | percent as string, `"10"`–`"80"` | `"30"` | Battery level for `"below"`. |
 | `bloom-battery-saver-pauses` | JSON `{"visualizer","motion","glass"}` booleans | all `true` | What Battery saver pauses: the audio visualizer (stops the capture), animations (reduced motion), blur. |
+| `bloom-progress-effect` | `"edge"` / `"center"` / `"bar"` / `"glow"` / `"off"` | `"edge"` | How a radial-menu job's progress shows on the notch (when Show Progress is Notch); the result glows green or red once. |
 | `bloom-notch-shortcut` | e.g. `"Ctrl+Alt+N"`, `""` = none | `"Ctrl+Alt+N"` | Global shortcut that opens and closes the notch (RegisterHotKey; at least one modifier unless an F-key). |
 | `bloom-notch-open-on` | `"click"` / `"hover"` | `"click"` | How the notch opens: a click, or resting the pointer on it for `bloom-notch-hover-delay`. |
 | `bloom-notch-hover-delay` | ms as string, `"0"`–`"1000"` | `"300"` | Hover opening: how long the pointer rests on the notch first. |
