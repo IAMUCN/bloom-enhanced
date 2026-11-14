@@ -1,7 +1,6 @@
 import {
 	Keyboard,
 	PanelTop,
-	Calendar,
 	BellRing,
 	Music,
 	Minimize2,
@@ -11,8 +10,6 @@ import {
 	CloudSun,
 	Timer,
 	Archive,
-	Headphones,
-	SlidersHorizontal,
 	Maximize2,
 	X,
 	Clock,
@@ -42,6 +39,7 @@ const NOTCH_MODES = [
 import { ScaleStepper } from "./ScaleStepper";
 import { Choice } from "./Choice";
 import { shortcutFrom } from "./ClipboardTab";
+import { TOOLS } from "../tools";
 import {
 	NOTCH_STYLES,
 	parsePanelOrder,
@@ -82,41 +80,66 @@ function RowSizes({ saveSetting }: { saveSetting: (key: string, value: string | 
 	);
 }
 
-const PAGE_NAMES: Record<OrderedPanel, string> = {
-	"command-center": "Command Center",
-	calendar: "Calendar",
-	clipboard: "Shelf",
-	devices: "Devices"
+const TOOL_DESC: Record<OrderedPanel, string> = {
+	"command-center": "Quick toggles, Wi-Fi, Bluetooth, volume and brightness",
+	calendar: "Month, today's events and the timer",
+	clipboard: "Clipboard history; a tab while the Shelf sits in the notch (Shelf › Position)",
+	devices: "Batteries and audio of your connected devices"
 };
 
-/** Settings › Notch › Page Order: drag the pages into the order the wheel,
- *  swipes and arrows go through them. Pages that are off are dimmed. */
-function PageOrder({
+/** Settings › Notch › Tools: one card per tool in its colour, with its own
+ *  switch; drag the cards into the tab bar's order. The Shelf's tab follows
+ *  the Shelf's position, so its card has no switch here. */
+function ToolCards({
 	isOn,
+	toggles,
 	saveSetting
 }: {
 	isOn: (panel: OrderedPanel) => boolean;
+	toggles: Partial<Record<OrderedPanel, { onToggle: () => void; locked: boolean; title?: string }>>;
 	saveSetting: (key: string, value: string | null) => Promise<boolean>;
 }) {
 	const [order, setOrder] = useState(() => parsePanelOrder(localStorage.getItem("bloom-notch-panel-order")));
 	const latest = useRef(order);
 	latest.current = order;
 	return (
-		<Reorder.Group axis="y" values={order} onReorder={setOrder} className="radial-rows page-order">
-			{order.map((panel, i) => (
-				<Reorder.Item
-					key={panel}
-					value={panel}
-					className={`radial-row${isOn(panel) ? "" : " off"}`}
-					whileDrag={{ scale: 1.04, zIndex: 2 }}
-					onDragEnd={() => saveSetting("bloom-notch-panel-order", JSON.stringify(latest.current))}
-				>
-					<GripVertical size={13} className="radial-grip" />
-					<span className="page-order-number">{i + 1}</span>
-					<span className="radial-row-label">{PAGE_NAMES[panel]}</span>
-					{!isOn(panel) && <span className="page-order-off">off</span>}
-				</Reorder.Item>
-			))}
+		<Reorder.Group axis="y" values={order} onReorder={setOrder} className="radial-rows page-order tool-cards">
+			{order.map((panel) => {
+				const { label, icon: Icon, color } = TOOLS[panel];
+				const toggle = toggles[panel];
+				return (
+					<Reorder.Item
+						key={panel}
+						value={panel}
+						className={`radial-row tool-card${isOn(panel) ? "" : " off"}`}
+						whileDrag={{ scale: 1.03, zIndex: 2 }}
+						onDragEnd={() => saveSetting("bloom-notch-panel-order", JSON.stringify(latest.current))}
+					>
+						<GripVertical size={13} className="radial-grip" />
+						<span className="tool-card-icon" style={{ color }}>
+							<Icon size={16} />
+						</span>
+						<span className="tool-card-text">
+							<span className="radial-row-label">{label}</span>
+							<span className="tool-card-desc">{TOOL_DESC[panel]}</span>
+						</span>
+						{toggle ? (
+							<label className="toggle-switch" title={toggle.title} onPointerDown={(e) => e.stopPropagation()}>
+								<input
+									type="checkbox"
+									checked={isOn(panel)}
+									disabled={toggle.locked}
+									onChange={toggle.onToggle}
+									aria-label={`${label} on`}
+								/>
+								<span className="slider"></span>
+							</label>
+						) : (
+							!isOn(panel) && <span className="page-order-off">off</span>
+						)}
+					</Reorder.Item>
+				);
+			})}
 		</Reorder.Group>
 	);
 }
@@ -403,23 +426,35 @@ export function NotchTab({
 						</SettingRow>
 					</div>
 
-					<div className="setting-group-label">Panels</div>
+					<div className="setting-group-label">Tools</div>
 					<div className="setting-group">
 						<SettingRow
-							icon={Calendar}
-							label="Calendar & Timer"
-							desc="Enable productivity split-view"
-						>
-							<label className="toggle-switch" title={lastPanelTitle(calendarEnabled)}>
-								<input
-									type="checkbox"
-									checked={calendarEnabled}
-									disabled={isLastPanel(calendarEnabled)}
-									onChange={toggleCalendar}
-								/>
-								<span className="slider"></span>
-							</label>
-						</SettingRow>
+							icon={ListOrdered}
+							label="Tools"
+							desc="Drag to set the tab bar's order; each switch turns a tool fully off (0 MB)"
+							divider={false}
+						/>
+						<div className="page-order-wrap">
+							<ToolCards
+								isOn={(panel) =>
+									panel === "clipboard"
+										? // The Shelf is a notch page while the clipboard sits in the notch.
+											localStorage.getItem("bloom-clipboard-enabled") !== "false" &&
+											(localStorage.getItem("bloom-clipboard-position") ?? "notch") === "notch"
+										: panelOn[panel]
+								}
+								toggles={{
+									calendar: { onToggle: toggleCalendar, locked: isLastPanel(calendarEnabled), title: lastPanelTitle(calendarEnabled) },
+									"command-center": {
+										onToggle: toggleControlsPanel,
+										locked: isLastPanel(controlsPanelEnabled),
+										title: lastPanelTitle(controlsPanelEnabled)
+									},
+									devices: { onToggle: toggleDevicesPanel, locked: isLastPanel(devicesPanelEnabled), title: lastPanelTitle(devicesPanelEnabled) }
+								}}
+								saveSetting={saveSetting}
+							/>
+						</div>
 
 						{calendarEnabled && (
 							<SettingRow
@@ -433,57 +468,6 @@ export function NotchTab({
 								</label>
 							</SettingRow>
 						)}
-
-						<SettingRow
-							icon={SlidersHorizontal}
-							label="Command Center"
-							desc="Quick toggles, Wi-Fi and Bluetooth"
-						>
-							<label className="toggle-switch" title={lastPanelTitle(controlsPanelEnabled)}>
-								<input
-									type="checkbox"
-									checked={controlsPanelEnabled}
-									disabled={isLastPanel(controlsPanelEnabled)}
-									onChange={toggleControlsPanel}
-								/>
-								<span className="slider"></span>
-							</label>
-						</SettingRow>
-
-						<SettingRow
-							icon={Headphones}
-							label="Connected Devices"
-							desc="Batteries and audio of your connected devices"
-						>
-							<label className="toggle-switch" title={lastPanelTitle(devicesPanelEnabled)}>
-								<input
-									type="checkbox"
-									checked={devicesPanelEnabled}
-									disabled={isLastPanel(devicesPanelEnabled)}
-									onChange={toggleDevicesPanel}
-								/>
-								<span className="slider"></span>
-							</label>
-						</SettingRow>
-
-						<SettingRow
-							icon={ListOrdered}
-							label="Page Order"
-							desc="Drag to set the order scrolling, swiping and the arrows go through the pages"
-							divider={false}
-						/>
-						<div className="page-order-wrap">
-							<PageOrder
-								isOn={(panel) =>
-									panel === "clipboard"
-										? // The Shelf is a notch page while the clipboard sits in the notch.
-											localStorage.getItem("bloom-clipboard-enabled") !== "false" &&
-											(localStorage.getItem("bloom-clipboard-position") ?? "notch") === "notch"
-										: panelOn[panel]
-								}
-								saveSetting={saveSetting}
-							/>
-						</div>
 						<div className="setting-divider" />
 
 						<SettingRow

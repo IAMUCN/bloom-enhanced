@@ -1969,3 +1969,36 @@ input:checked + .slider:before {
 	font-size: 11.5px;
 	color: var(--bloom-text-muted, rgba(255, 255, 255, 0.55));
 }
+
+/* Settings › Notch › Tools: one card per tool, in its colour. */
+.tool-cards .tool-card {
+	gap: 10px;
+	padding-top: 8px;
+	padding-bottom: 8px;
+}
+
+.tool-card-icon {
+	display: grid;
+	place-items: center;
+	width: 30px;
+	height: 30px;
+	flex: none;
+	border-radius: 9px;
+	background: color-mix(in srgb, currentColor 16%, transparent);
+}
+
+.tool-card-text {
+	display: flex;
+	flex-direction: column;
+	gap: 2px;
+	min-width: 0;
+	flex: 1;
+}
+
+.tool-card-desc {
+	font-size: 11px;
+	opacity: 0.6;
+	white-space: nowrap;
+	overflow: hidden;
+	text-overflow: ellipsis;
+}
