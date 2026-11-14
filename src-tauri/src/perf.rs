@@ -1,7 +1,7 @@
 //! Local performance recorder for testing builds (Phase 03 audit), compiled
 //! in only with `--features perf-recorder`. Nothing leaves the PC: every 30 s
 //! (and on each `perf_mark` from the notch) it appends a CSV line to
-//! `%LOCALAPPDATA%\com.ucnindustries.bloomenhanced\perf\perf-<date>.csv`:
+//! `%LOCALAPPDATA%\com.ucnindustries.lotusnotch\perf\perf-<date>.csv`:
 //! Bloom's memory (private working set = Windows Task Manager, working set =
 //! TMOG-style, commit), CPU, power state, which windows exist and what is in
 //! use. Normal release builds don't contain any of it.
@@ -77,7 +77,7 @@ mod recorder {
 
     fn file() -> Option<PathBuf> {
         let dir = PathBuf::from(std::env::var_os("LOCALAPPDATA")?)
-            .join("com.ucnindustries.bloomenhanced")
+            .join("com.ucnindustries.lotusnotch")
             .join("perf");
         std::fs::create_dir_all(&dir).ok()?;
         let t = unsafe { GetLocalTime() };

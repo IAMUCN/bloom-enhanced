@@ -11,7 +11,7 @@ pub fn initialize() {
     let Some(local_data) = std::env::var_os("LOCALAPPDATA") else {
         return;
     };
-    let directory = PathBuf::from(local_data).join("com.ucnindustries.bloomenhanced");
+    let directory = PathBuf::from(local_data).join("com.ucnindustries.lotusnotch");
     if fs::create_dir_all(&directory).is_err() {
         return;
     }

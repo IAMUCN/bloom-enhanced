@@ -3,7 +3,7 @@ import { openUrl } from "@tauri-apps/plugin-opener";
 import { GithubIcon } from "../icons";
 import { SettingRow } from "./SettingRow";
 
-/** The open-source projects Bloom Enhanced is built from. */
+/** The open-source projects LotusNotch is built from. */
 const CREDITS = [
 	["Bloom", "SehajveerSingh2005", "The notch, dock and overlays this app is built on", "https://github.com/SehajveerSingh2005/bloom"],
 	["Edge-Drop", "Deepender25", "The edge shelf for what you copy and drag", "https://github.com/Deepender25/Edge-Drop"],
@@ -46,7 +46,7 @@ export function AboutTab({
 			case "available":
 				return `Update Available (v${updateVersion})`;
 			case "uptodate":
-				return "Bloom Enhanced is up to date";
+				return "LotusNotch is up to date";
 			case "downloading":
 				return "Downloading Update...";
 			case "installing":
@@ -80,8 +80,8 @@ export function AboutTab({
 	return (
 		<div className="about-tab-container">
 			<div className="about-header">
-				<img src="/bloom-biscuit.png" className="about-logo" alt="Bloom Enhanced logo" draggable={false} />
-				<h1 className="about-title">Bloom Enhanced</h1>
+				<img src="/lotusnotch.png" className="about-logo" alt="LotusNotch logo" draggable={false} />
+				<h1 className="about-title">LotusNotch</h1>
 				<p className="about-version">Version {appVersion}</p>
 				<p className="about-credit">
 					Made with <span className="about-heart">❤️</span> by{" "}
@@ -123,7 +123,7 @@ export function AboutTab({
 				<SettingRow
 					icon={Upload}
 					label={getImportLabel()}
-					desc="From a Bloom Enhanced or Bloom settings file; applies right away"
+					desc="From a LotusNotch, Bloom Enhanced or Bloom settings file; applies right away"
 					action
 					divider={false}
 					onClick={handleImportSettings}

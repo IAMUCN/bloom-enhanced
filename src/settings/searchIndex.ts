@@ -18,14 +18,14 @@ const page = (tab: SettingsTab, rows: [string, string, string?][]): SettingEntry
 
 export const SETTINGS_INDEX: SettingEntry[] = [
 	...page("general", [
-		["Launch at Login", "Open Bloom automatically"],
+		["Launch at Login", "Open LotusNotch automatically"],
 		["Update Indicator", "Show green dot when update available"],
 		["24-Hour Time", "Use 24-hour clock format"],
 		["Low Battery Alert", "Battery level that triggers the alert"],
 		["Keep Windows Loaded", "Settings, the radial menu and the shelf open instantly but use more memory"],
-		["Reset to Defaults", "Restore all settings and restart Bloom"],
-		["Restart Bloom", "Reinitialize all components"],
-		["Quit Bloom", "Exit application completely"]
+		["Reset to Defaults", "Restore all settings and restart LotusNotch"],
+		["Restart LotusNotch", "Reinitialize all components"],
+		["Quit LotusNotch", "Exit application completely"]
 	]),
 	...page("appearance", [
 		["Theme Mode", "Dark, light, a custom colour or your Windows accent"],
@@ -36,7 +36,7 @@ export const SETTINGS_INDEX: SettingEntry[] = [
 		["UI & Font Scale", "Settings and overlays; also the dock and notch until they get their own size"]
 	]),
 	...page("notch", [
-		["Bloom Notch", "Turn off to remove the notch; Settings stay in the tray menu"],
+		["Notch", "Turn off to remove the notch; Settings stay in the tray menu"],
 		["When It Shows", "Fixed, Smart or Peek: when the notch is on screen"],
 		["Peek Delay", "How long to rest on the top edge before it shows"],
 		["Style", "Notch, floating pill or minimal bar"],
@@ -53,7 +53,7 @@ export const SETTINGS_INDEX: SettingEntry[] = [
 		["Media Layout", "Choose expanded player style"],
 		["Ambient Glow", "Colored glow behind expanded album art"],
 		["Compact Glow", "Glow around collapsed thumbnail"],
-		["Keep Items", "Keep shelf items after Bloom closes"],
+		["Keep Items", "Keep shelf items after LotusNotch closes"],
 		["Panel Sizes", "Resize each notch panel on its own"],
 		["Weather Status", "Weather beside the clock, for your city or detected location"],
 		["Choose status widgets", "Arrange what appears beside the clock"],
@@ -62,7 +62,7 @@ export const SETTINGS_INDEX: SettingEntry[] = [
 		["Right Icons", "Widgets right of the clock"]
 	]),
 	...page("dock", [
-		["Bloom Dock", "Replace Windows taskbar"],
+		["Dock", "Replace Windows taskbar"],
 		["When It Shows", "Fixed, Smart or Peek: when the dock is on screen"],
 		["Peek Delay", "How long to rest on the bottom edge before it shows"],
 		["Dock Size", "Size of the dock only; the notch keeps its own"],
@@ -107,16 +107,16 @@ export const SETTINGS_INDEX: SettingEntry[] = [
 		["Your Menu", "Reorder, hide and preview the menu's options and modes"]
 	]),
 	...page("overlays", [
-		["Volume HUD", "Bloom volume overlay"],
+		["Volume HUD", "LotusNotch volume overlay"],
 		["Show on Edge Hover", "Volume: slide in from left edge"],
-		["Brightness HUD", "Bloom brightness overlay"],
+		["Brightness HUD", "LotusNotch brightness overlay"],
 		["Show on Edge Hover", "Brightness: slide in from right edge"]
 	]),
 	...page("about", [
 		["Auto Update", "Update automatically on startup"],
-		["Check for Updates", "See if a newer Bloom Enhanced is available"],
+		["Check for Updates", "See if a newer LotusNotch is available"],
 		["Export Settings", "Save every preference, pinned dock apps and custom icons to a file"],
-		["Import Settings", "Load preferences from a Bloom Enhanced or Bloom settings file"],
+		["Import Settings", "Load preferences from a LotusNotch, Bloom Enhanced or Bloom settings file"],
 		["Built On", "Bloom, Edge-Drop and OrbitDrop, with links to their GitHub pages"]
 	])
 ];

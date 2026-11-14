@@ -3934,8 +3934,8 @@ pub async fn export_settings_to_file(
         app.dialog()
             .file()
             .set_parent(&window)
-            .set_title("Export Bloom Enhanced Settings")
-            .set_file_name("bloom-enhanced-settings.json")
+            .set_title("Export LotusNotch Settings")
+            .set_file_name("lotusnotch-settings.json")
             .add_filter("JSON", &["json"])
             .blocking_save_file()
     })
@@ -3965,7 +3965,7 @@ pub async fn import_settings_from_file(
             app.dialog()
                 .file()
                 .set_parent(&window)
-                .set_title("Import Bloom Enhanced Settings")
+                .set_title("Import LotusNotch Settings")
                 .add_filter("JSON", &["json"])
                 .blocking_pick_file()
         }
@@ -4078,7 +4078,7 @@ fn build_settings_export(
             .collect::<Vec<_>>()
     });
     serde_json::json!({
-        "app": "Bloom Enhanced",
+        "app": "LotusNotch",
         "format": SETTINGS_EXPORT_FORMAT,
         "appVersion": app_version,
         "preferences": sections,
@@ -4115,7 +4115,7 @@ fn parse_settings_import(text: &str) -> Result<SettingsImport, String> {
         });
     };
     if object.get("format").and_then(|f| f.as_u64()).unwrap_or(0) > SETTINGS_EXPORT_FORMAT {
-        return Err("This file was made by a newer version of Bloom Enhanced.".into());
+        return Err("This file was made by a newer version of LotusNotch.".into());
     }
     let mut preferences = HashMap::new();
     for section in sections
@@ -4646,7 +4646,7 @@ mod pwa_icon_tests {
 
     #[test]
     fn bloom_launch_targets_reuse_the_running_settings_window() {
-        let identifier = "com.ucnindustries.bloomenhanced";
+        let identifier = "com.ucnindustries.lotusnotch";
         assert!(is_bloom_launch_target(identifier, identifier));
         assert!(is_bloom_launch_target("bloom-settings", identifier));
         assert!(is_bloom_launch_target(

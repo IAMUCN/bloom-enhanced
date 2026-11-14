@@ -1,17 +1,18 @@
 # Third-party notices
 
-Bloom Enhanced is licensed under the GNU General Public License v3.0 (see
-[LICENSE](LICENSE)). It is built from three open-source projects. Their
+LotusNotch (formerly LotusNotch) is licensed under the GNU General Public License v3.0 (see
+[LICENSE](LICENSE)). It is built from three open-source projects and uses the Inter font and
+Lucide icons. Their
 notices and licenses are kept below as their licenses require.
 
 ## Bloom
 
 - Project: https://github.com/SehajveerSingh2005/bloom
 - Copyright © 2026 Sehajveer Singh
-- License: GNU General Public License v3.0 (the same license as Bloom
-  Enhanced, full text in [LICENSE](LICENSE))
+- License: GNU General Public License v3.0 (the same license as
+  LotusNotch, full text in [LICENSE](LICENSE))
 
-Bloom Enhanced is a modified version of Bloom. The notch, dock, overlays and
+LotusNotch is a modified version of Bloom. The notch, dock, overlays and
 the app around them come from Bloom; the changes are listed in the git
 history of this repository.
 
@@ -21,9 +22,9 @@ history of this repository.
 - Copyright © Deepender25
 - License: Apache License 2.0
 
-Bloom Enhanced's edge clipboard shelf recreates Edge-Drop's behaviour
+LotusNotch's edge clipboard shelf recreates Edge-Drop's behaviour
 (the shelf that slides out of a screen edge, dragging files and text onto
-it), written anew in Bloom Enhanced's own code.
+it), written anew in LotusNotch's own code.
 
 ```text
 Apache License
@@ -241,9 +242,9 @@ Licensed under CC-BY 4.0. https://github.com/twitter/twemoji
 - Project: https://github.com/i3sam/OrbitDrop
 - License: MIT
 
-Bloom Enhanced's radial menu recreates OrbitDrop's design (opening a wheel
+LotusNotch's radial menu recreates OrbitDrop's design (opening a wheel
 during a drag, its Convert / Tools / Actions modes and options), written
-anew in Bloom Enhanced's own code.
+anew in LotusNotch's own code.
 
 ```text
 MIT License
@@ -268,3 +269,21 @@ LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
 OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 SOFTWARE.
 ```
+
+## Inter
+
+- Project: https://github.com/rsms/inter
+- Copyright © 2016 The Inter Project Authors
+- License: SIL Open Font License 1.1 (full text in
+  [src/assets/fonts/Inter-LICENSE.txt](src/assets/fonts/Inter-LICENSE.txt))
+
+Bundled as `src/assets/fonts/InterVariable.woff2`, unmodified.
+
+## Lucide
+
+- Project: https://lucide.dev
+- Copyright © Lucide Contributors 2022 (portions © Cole Bemis 2013–2022, Feather, MIT)
+- License: ISC License
+
+Icons used through the `lucide-react` package.
+

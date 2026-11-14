@@ -1012,9 +1012,9 @@ export function useSettings() {
 		try {
 			const { ask } = await import("@tauri-apps/plugin-dialog");
 			const confirmed = await ask(
-				"All settings return to their defaults and Bloom restarts. Pinned apps and custom icons are kept.",
+				"All settings return to their defaults and LotusNotch restarts. Pinned apps and custom icons are kept.",
 				{
-					title: "Reset Bloom to Defaults",
+					title: "Reset LotusNotch to Defaults",
 					kind: "warning",
 					okLabel: "Reset and Restart",
 					cancelLabel: "Cancel"
@@ -1048,7 +1048,7 @@ export function useSettings() {
 	const resetPage = async (page: string, prefixes: string[]) => {
 		try {
 			const { ask } = await import("@tauri-apps/plugin-dialog");
-			const confirmed = await ask(`The ${page} settings return to their defaults and Bloom restarts.`, {
+			const confirmed = await ask(`The ${page} settings return to their defaults and LotusNotch restarts.`, {
 				title: `Reset ${page}`,
 				kind: "warning",
 				okLabel: "Reset and Restart",

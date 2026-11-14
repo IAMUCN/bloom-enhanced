@@ -38,7 +38,7 @@ export function GeneralTab({
 		<>
 			<div className="setting-group-label">System</div>
 			<div className="setting-group">
-				<SettingRow icon={Power} label="Launch at Login" desc="Open Bloom automatically">
+				<SettingRow icon={Power} label="Launch at Login" desc="Open LotusNotch automatically">
 					<label className="toggle-switch">
 						<input type="checkbox" checked={autostart} onChange={toggleAutostart} />
 						<span className="slider"></span>
@@ -112,21 +112,21 @@ export function GeneralTab({
 				<SettingRow
 					icon={RotateCcw}
 					label="Reset to Defaults"
-					desc="Restore all settings and restart Bloom"
+					desc="Restore all settings and restart LotusNotch"
 					action
 					danger
 					onClick={resetToDefaults}
 				/>
 				<SettingRow
 					icon={RefreshCw}
-					label="Restart Bloom"
+					label="Restart LotusNotch"
 					desc="Reinitialize all components"
 					action
 					onClick={restartBloom}
 				/>
 				<SettingRow
 					icon={LogOut}
-					label="Quit Bloom"
+					label="Quit LotusNotch"
 					desc="Exit application completely"
 					action
 					danger

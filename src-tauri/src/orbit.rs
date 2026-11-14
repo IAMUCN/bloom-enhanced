@@ -874,7 +874,7 @@ fn decode(path: &Path) -> Result<image::DynamicImage, String> {
         .map_err(|e| e.to_string())?;
     let mut decoder = reader
         .into_decoder()
-        .map_err(|_| "This isn't an image Bloom Enhanced can read.".to_string())?;
+        .map_err(|_| "This isn't an image LotusNotch can read.".to_string())?;
     let orientation = decoder.orientation().ok();
     let mut img = image::DynamicImage::from_decoder(decoder)
         .map_err(|e| format!("The image couldn't be read: {e}"))?;
@@ -1327,7 +1327,7 @@ const OFFICE_EXTS: [&str; 9] = [
 fn extract_zip(path: &Path) -> Result<PathBuf, String> {
     let file = std::fs::File::open(path).map_err(|e| e.to_string())?;
     let mut archive = zip::ZipArchive::new(file)
-        .map_err(|_| "This isn't a ZIP file Bloom Enhanced can read.".to_string())?;
+        .map_err(|_| "This isn't a ZIP file LotusNotch can read.".to_string())?;
     let dir = out_dir(path)?;
     let stem = path
         .file_stem()

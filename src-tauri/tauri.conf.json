@@ -1,9 +1,9 @@
 {
   "$schema": "https://schema.tauri.app/config/2",
-  "productName": "Bloom Enhanced",
+  "productName": "LotusNotch",
   "mainBinaryName": "bloom",
   "version": "0.1.0",
-  "identifier": "com.ucnindustries.bloomenhanced",
+  "identifier": "com.ucnindustries.lotusnotch",
   "build": {
     "beforeDevCommand": "bun run dev",
     "devUrl": "http://localhost:1420",

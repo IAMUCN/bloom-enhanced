@@ -4340,7 +4340,7 @@ function App() {
 														e.stopPropagation();
 														openSettingsWindow();
 													}}
-													title="Bloom Settings"
+													title="LotusNotch Settings"
 												>
 													<SettingsIcon />
 												</button>
@@ -4350,7 +4350,7 @@ function App() {
 														e.stopPropagation();
 														invoke("restart_bloom");
 													}}
-													title="Restart Bloom"
+													title="Restart LotusNotch"
 												>
 													<ReloadIcon />
 												</button>

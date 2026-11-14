@@ -1265,16 +1265,23 @@ pub fn save_setting_file(
     Ok(settings)
 }
 
-/// Bloom Enhanced ran under Bloom's app ID (com.sehaz.bloom) before it had
-/// its own. On the first start under the new ID, those files (settings,
-/// pinned apps, clipboard history, custom icons) are copied over, once.
+/// App IDs this app ran under before, newest first: Bloom Enhanced, then
+/// Bloom. On the first start under the current ID, the newest one's files
+/// (settings, pinned apps, clipboard history, custom icons) are copied over,
+/// once.
+const PREVIOUS_IDS: [&str; 2] = ["com.ucnindustries.bloomenhanced", "com.sehaz.bloom"];
+
 pub fn migrate_from_bloom(app: &tauri::AppHandle) {
     let Ok(new_dir) = app.path().app_config_dir() else {
         return;
     };
-    if let Some(old_dir) = new_dir.parent().map(|p| p.join("com.sehaz.bloom")) {
-        if migrate_dir(&old_dir, &new_dir) {
-            crate::diagnostics::record("migrated", "copied com.sehaz.bloom files");
+    let Some(parent) = new_dir.parent() else {
+        return;
+    };
+    for id in PREVIOUS_IDS {
+        if migrate_dir(&parent.join(id), &new_dir) {
+            crate::diagnostics::record("migrated", &format!("copied {id} files"));
+            return;
         }
     }
 }

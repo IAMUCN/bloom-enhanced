@@ -258,7 +258,7 @@ export function NotchTab({
 			<div className="setting-group">
 				<SettingRow
 					icon={PanelTop}
-					label="Bloom Notch"
+					label="Notch"
 					desc="Turn off to remove the notch; Settings stay in the tray menu"
 					divider={notchEnabled}
 				>
@@ -542,7 +542,7 @@ export function NotchTab({
 						<SettingRow
 							icon={Archive}
 							label="Keep Items"
-							desc="Keep shelf items after Bloom closes"
+							desc="Keep shelf items after LotusNotch closes"
 							divider={false}
 						>
 							<label className="toggle-switch">

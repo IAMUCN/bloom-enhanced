@@ -51,17 +51,17 @@ const FEATURES: Partial<Record<SettingsTab, { id: Feature; label: string; descri
 		{
 			id: "theme",
 			label: "Theme",
-			description: "Your current theme applied to Bloom's actual notch and dock surfaces."
+			description: "Your current theme applied to the real notch and dock."
 		}
 	],
 	notch: [
 		{ id: "resting", label: "Resting", description: "The same compact notch shown on your desktop." },
-		{ id: "device", label: "Device alert", description: "Bloom's USB alert wakes the notch, even when it was hidden." },
+		{ id: "device", label: "Device alert", description: "The USB alert wakes the notch, even when it was hidden." },
 		{ id: "music", label: "Music", description: "Music controls appear when a player is active." }
 	],
-	dock: [{ id: "dock", label: "Dock", description: "The Bloom dock rises from the bottom edge." }],
+	dock: [{ id: "dock", label: "Dock", description: "The dock rises from the bottom edge." }],
 	overlays: [
-		{ id: "volume", label: "Volume", description: "Bloom's volume HUD slides in from the left edge." },
+		{ id: "volume", label: "Volume", description: "The volume HUD slides in from the left edge." },
 		{ id: "brightness", label: "Brightness", description: "The brightness HUD appears on the right edge." }
 	],
 	clipboard: [
@@ -532,7 +532,7 @@ export function FeaturePreview({ tab, settings, focus }: FeaturePreviewProps) {
 				"Compact Glow": "music"
 			},
 			dock: {
-				"Bloom Dock": "dock",
+				"Dock": "dock",
 				Behavior: "dock",
 				"Peek Delay": "dock",
 				"Show App Previews": "dock",

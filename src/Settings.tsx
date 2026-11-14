@@ -50,7 +50,7 @@ const TABS: { id: SettingsTab; label: string; icon: typeof Settings }[] = [
 ];
 
 const TAB_COPY: Record<SettingsTab, string> = {
-	general: "The essentials for how Bloom starts and runs.",
+	general: "The essentials for how LotusNotch starts and runs.",
 	appearance: "Make every surface feel at home on your desktop.",
 	notch: "Choose what appears at the top of your screen.",
 	dock: "Shape the taskbar replacement around your workflow.",
@@ -209,7 +209,7 @@ function SettingsApp() {
 
 			<div className="settings-body">
 				<div className="settings-sidebar">
-					<div className="settings-sidebar-intro"><strong>Bloom Enhanced</strong><span>Make it yours</span></div>
+					<div className="settings-sidebar-intro"><strong>LotusNotch</strong><span>Make it yours</span></div>
 					<label className="settings-search">
 						<Search size={13} strokeWidth={1.75} />
 						<input

@@ -193,7 +193,7 @@ export function DockTab({
 		<>
 			<div className="setting-group-label">Dock</div>
 			<div className="setting-group">
-				<SettingRow icon={Monitor} label="Bloom Dock" desc="Replace Windows taskbar">
+				<SettingRow icon={Monitor} label="Dock" desc="Replace Windows taskbar">
 					<label className="toggle-switch">
 						<input type="checkbox" checked={dockEnabled} onChange={toggleDock} />
 						<span className="slider"></span>
