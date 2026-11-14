@@ -4,6 +4,7 @@
 // key, for example); scripts/searchIndex.test.ts checks every label still
 // exists on its page.
 import type { SettingsTab } from "./types";
+import { EXTRA_TOOLS } from "../tools";
 
 export interface SettingEntry {
 	tab: SettingsTab;
@@ -65,6 +66,11 @@ export const SETTINGS_INDEX: SettingEntry[] = [
 		["Left Icons", "Widgets left of the clock"],
 		["Right Icons", "Widgets right of the clock"]
 	]),
+	// Every tool beyond the built-in panels (Settings › Notch › More Tools).
+	...page(
+		"notch",
+		EXTRA_TOOLS.map((t) => [t.label, `${t.desc} (More Tools, ${t.release})`])
+	),
 	...page("dock", [
 		["Dock", "Replace Windows taskbar"],
 		["When It Shows", "Fixed, Smart or Peek: when the dock is on screen"],

@@ -2014,7 +2014,7 @@ input:checked + .slider:before {
 }
 
 .pick-tools {
-	width: min(560px, calc(100% - 32px));
+	width: min(720px, calc(100% - 32px));
 	padding: 28px;
 	border-radius: 18px;
 	background: var(--bg-color);
@@ -2070,8 +2070,10 @@ input:checked + .slider:before {
 
 .pick-tools-grid {
 	display: grid;
-	grid-template-columns: repeat(2, 1fr);
+	grid-template-columns: repeat(3, 1fr);
 	gap: 8px;
+	max-height: 320px;
+	overflow-y: auto;
 }
 
 .pick-tool {
@@ -2129,4 +2131,32 @@ input:checked + .slider:before {
 .pick-start:focus-visible {
 	outline: 2px solid var(--bloom-accent, #0a84ff);
 	outline-offset: 2px;
+}
+
+.tool-row-controls {
+	display: flex;
+	align-items: center;
+	gap: 10px;
+}
+
+.tool-dot {
+	width: 8px;
+	height: 8px;
+	border-radius: 999px;
+}
+
+.tool-erase {
+	display: grid;
+	place-items: center;
+	padding: 4px;
+	border: none;
+	border-radius: 8px;
+	background: none;
+	color: var(--text-muted);
+	cursor: pointer;
+}
+
+.tool-erase:hover {
+	color: #ff453a;
+	background: rgba(255, 69, 58, 0.12);
 }

@@ -14,6 +14,8 @@ mod services;
 mod shelf;
 mod shelf_preview;
 mod state;
+mod system_tools;
+mod tool_data;
 mod tray;
 mod types;
 mod updater;
@@ -205,6 +207,18 @@ fn main() {
             set_menu_open,
             set_notch_open,
             set_visualizer_wanted,
+            tool_data::tool_data_get,
+            tool_data::tool_data_set,
+            tool_data::tool_data_erase,
+            system_tools::keep_awake,
+            system_tools::keep_awake_status,
+            system_tools::mic_muted,
+            system_tools::set_mic_muted,
+            system_tools::system_stats,
+            system_tools::power_mode,
+            system_tools::set_power_mode,
+            system_tools::pick_screen_color,
+            system_tools::screen_clip,
             focus_window,
             focus_app_windows,
             close_window,

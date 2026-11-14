@@ -16,8 +16,8 @@ const FILES: Record<string, string> = {
 test("every searchable setting still exists on its page", () => {
 	for (const entry of SETTINGS_INDEX) {
 		const source = readFileSync(`src/settings/${FILES[entry.tab]}.tsx`, "utf8");
-		// Labels made from lists elsewhere (panel and row sizes).
-		const extra = entry.tab === "notch" ? readFileSync("src/notchLayout.ts", "utf8") : "";
+		// Labels made from lists elsewhere (panel and row sizes, the tools).
+		const extra = entry.tab === "notch" ? readFileSync("src/notchLayout.ts", "utf8") + readFileSync("src/tools.ts", "utf8") : "";
 		expect(`${entry.tab}: ${entry.match ?? entry.label}`).toBe(
 			source.includes(entry.match ?? entry.label) || extra.includes(entry.label)
 				? `${entry.tab}: ${entry.match ?? entry.label}`

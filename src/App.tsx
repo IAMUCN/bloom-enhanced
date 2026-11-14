@@ -37,7 +37,8 @@ import { useTrailingThrottle } from "./hooks/useTrailingThrottle";
 import { useAnnouncement } from "./hooks/useAnnouncement";
 import { NotchTabBar } from "./components/NotchTabBar";
 import { ProgressEffect, asProgressStyle } from "./components/ProgressEffect";
-import { TAB_BAR_HEIGHT, type ToolId } from "./tools";
+import { EXTRA_BY_ID, GRID_H, GRID_W, TAB_BAR_HEIGHT, TOOLS, parseEnabledTools, type ExtraToolId, type Tool } from "./tools";
+import { ToolHost } from "./notchTools/ToolHost";
 import { reloadIfMirrorWasStale } from "./hooks/settingsMirror";
 import { openUrl } from "@tauri-apps/plugin-opener";
 import { writeText } from "@tauri-apps/plugin-clipboard-manager";
@@ -486,7 +487,8 @@ type BloomMode =
 	| "bluetooth"
 	| "devices"
 	| "clipboard"
-	| "device";
+	| "device"
+	| "tool";
 
 // A device that just connected or disconnected, shown briefly in the pill.
 interface DeviceAlert {
@@ -1193,6 +1195,31 @@ function App() {
 	// When the open notch last closed: Smart start returns to the last panel
 	// only within SMART_START_MS of that, else to the favourite.
 	const lastClosedAtRef = useRef(0);
+	// The extra tools turned on (Settings › Notch › Tools), in tab order, and
+	// the one showing while bloomMode is "tool".
+	const [enabledTools, setEnabledTools] = useState(() => parseEnabledTools(localStorage.getItem("bloom-tools-enabled")));
+	const [activeTool, setActiveTool] = useState<ExtraToolId | null>(null);
+	// Reminders ring while that tool is on, even with its tab closed: a due
+	// reminder opens the notch on it, once per reminder time.
+	const rungRef = useRef(new Set<string>());
+	useEffect(() => {
+		if (windowLabel !== "main" || !enabledTools.includes("reminders")) return;
+		const check = () =>
+			invoke<string | null>("tool_data_get", { tool: "reminders" })
+				.then((text) => {
+					const items: { id: string; at: number }[] = text ? JSON.parse(text).items ?? [] : [];
+					const due = items.find((r) => r.at <= Date.now() && !rungRef.current.has(`${r.id}@${r.at}`));
+					if (!due) return;
+					rungRef.current.add(`${due.id}@${due.at}`);
+					setActiveTool("reminders");
+					setIsOpen(true);
+					setBloomMode("tool");
+				})
+				.catch(() => {});
+		check();
+		const timer = window.setInterval(check, 20000);
+		return () => window.clearInterval(timer);
+	}, [windowLabel, enabledTools]);
 	const visualizerWantedRef = useRef(true);
 	const visualizerSentRef = useRef<boolean | null>(null);
 	// Open on click (default) or on hover after a delay.
@@ -1423,6 +1450,7 @@ function App() {
 			"bloom-notch-left-size": (v: unknown) => setLeftSize(sizeOf(v)),
 			"bloom-notch-right-size": (v: unknown) => setRightSize(sizeOf(v)),
 			"bloom-low-battery-threshold": setLowBatteryThreshold,
+			"bloom-tools-enabled": (v: unknown) => setEnabledTools(parseEnabledTools(v)),
 			"bloom-progress-effect": (v: unknown) => setProgressStyle(asProgressStyle(v)),
 			"bloom-battery-saver": (v: unknown) => setSaverMode(String(v ?? "below")),
 			"bloom-battery-saver-threshold": (v: unknown) => setSaverThreshold(parseInt(String(v ?? ""), 10) || 30),
@@ -1809,7 +1837,8 @@ function App() {
 			prev === "wifi" ||
 			prev === "bluetooth" ||
 			prev === "devices" ||
-			prev === "clipboard"
+			prev === "clipboard" ||
+			prev === "tool"
 				? restingModeRef.current
 				: prev
 		);
@@ -3304,11 +3333,21 @@ function App() {
 	// The open notch's tab bar: every enabled panel in the user's order, then
 	// Media while something is playing. Shown on the panels (the music view
 	// keeps its own layout).
-	const tabTools: ToolId[] = [
-		...panelOrder.filter(panelAvailable),
-		...(settingsMusicModeEnabled && mediaInfo.has_media ? (["music"] as const) : [])
+	const tabTools: Tool[] = [
+		...panelOrder.filter(panelAvailable).map((p) => TOOLS[p]),
+		...enabledTools.map((id) => EXTRA_BY_ID[id]),
+		...(settingsMusicModeEnabled && mediaInfo.has_media ? [TOOLS.music] : [])
 	];
-	const showTabBar = isOpen && asNotchPanel(bloomMode) !== null && tabTools.length > 1;
+	const toolShowing = bloomMode === "tool" && activeTool !== null && enabledTools.includes(activeTool) ? activeTool : null;
+	const activeTabId: string | null = toolShowing ?? asNotchPanel(bloomMode);
+	const showTabBar = isOpen && activeTabId !== null && tabTools.length > 1;
+	const selectTab = (id: string) => {
+		if (id === "music") openNotch("music");
+		else if (id in EXTRA_BY_ID) {
+			setActiveTool(id as ExtraToolId);
+			setBloomMode("tool");
+		} else setBloomMode(id as NotchPanel);
+	};
 	const tabBarSpace = showTabBar ? TAB_BAR_HEIGHT / panelZoomNow : 0;
 
 	// The 24-hour clock is ~16px narrower than the 12-hour one.
@@ -3317,6 +3356,7 @@ function App() {
 	// Calculate width dynamically based on enabled features
 	const getDynamicWidth = () => Math.max(getBaseWidth(), showTabBar ? (tabTools.length * 40 + 24) / panelZoomNow : 0);
 	const getBaseWidth = () => {
+		if (toolShowing && isOpen) return GRID_W[EXTRA_BY_ID[toolShowing].size[0]];
 		if (minimalIdle) return 72;
 		if (fileStatus && !isOpen) return 300;
 		if (bloomMode === "announcement" && announcement && !announcementDismissed) return 380;
@@ -3350,6 +3390,8 @@ function App() {
 		if (!isExpanded || !isVisible || isHidden) {
 			return isImpacted ? 28.9 : 44.2;
 		}
+		// An extra tool: the clock row plus the tool's height from the grid.
+		if (toolShowing && isOpen) return 36 + GRID_H[EXTRA_BY_ID[toolShowing].size[1]];
 		if (minimalIdle) return 8;
 		// Announcement card: body is line-clamped, so a fixed size fits both cases.
 		if (bloomMode === "announcement" && announcement && !announcementDismissed) {
@@ -4179,9 +4221,16 @@ function App() {
 								{showTabBar && (
 									<NotchTabBar
 										tools={tabTools}
-										active={asNotchPanel(bloomMode)}
+										active={activeTabId}
 										zoom={1 / panelZoomNow}
-										onSelect={(id) => (id === "music" ? openNotch("music") : setBloomMode(id))}
+										onSelect={selectTab}
+									/>
+								)}
+								{toolShowing && isOpen && (
+									<ToolHost
+										key={toolShowing}
+										id={toolShowing}
+										setPinned={setNotchPinned}
 									/>
 								)}
 

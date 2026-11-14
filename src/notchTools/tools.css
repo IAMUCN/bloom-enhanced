@@ -1,0 +1,145 @@
+/* Shared look of the notch's tools (design file › Notch — Tools). */
+.notch-tool {
+	box-sizing: border-box;
+	width: 100%;
+	flex: 1;
+	min-height: 0;
+	display: flex;
+	flex-direction: column;
+	gap: 8px;
+	padding: 2px 16px 14px;
+	color: var(--bloom-text, #fff);
+	font-family: "Inter", "Segoe UI Variable Text", "Segoe UI", sans-serif;
+	font-size: 12px;
+	pointer-events: auto;
+	overflow: hidden;
+}
+
+.nt-row {
+	display: flex;
+	align-items: center;
+	gap: 8px;
+}
+
+.nt-grow {
+	flex: 1;
+	min-width: 0;
+}
+
+.nt-card {
+	box-sizing: border-box;
+	border-radius: 12px;
+	background: color-mix(in srgb, var(--bloom-text, #fff) 7%, transparent);
+	padding: 8px 10px;
+}
+
+.nt-muted {
+	color: var(--bloom-text-muted, rgba(255, 255, 255, 0.6));
+	font-size: 11px;
+}
+
+.nt-big {
+	font-size: 30px;
+	font-weight: 600;
+	font-variant-numeric: tabular-nums;
+	line-height: 1.1;
+}
+
+.nt-btn {
+	font: inherit;
+	display: inline-flex;
+	align-items: center;
+	justify-content: center;
+	gap: 5px;
+	border: none;
+	border-radius: 999px;
+	padding: 6px 12px;
+	background: color-mix(in srgb, var(--bloom-text, #fff) 10%, transparent);
+	color: inherit;
+	cursor: pointer;
+	white-space: nowrap;
+}
+
+.nt-btn:hover {
+	background: color-mix(in srgb, var(--bloom-text, #fff) 16%, transparent);
+}
+
+.nt-btn.primary {
+	background: var(--tool-color, var(--bloom-accent, #0a84ff));
+	color: #000;
+}
+
+.nt-btn:disabled {
+	opacity: 0.4;
+	cursor: default;
+}
+
+.nt-btn:focus-visible,
+.nt-input:focus-visible,
+.nt-seg button:focus-visible {
+	outline: 2px solid var(--bloom-accent, #0a84ff);
+	outline-offset: 1px;
+}
+
+.nt-icon-btn {
+	padding: 6px;
+}
+
+.nt-input {
+	font: inherit;
+	box-sizing: border-box;
+	width: 100%;
+	border: none;
+	border-radius: 10px;
+	padding: 7px 10px;
+	background: color-mix(in srgb, var(--bloom-text, #fff) 7%, transparent);
+	color: inherit;
+	outline: none;
+}
+
+textarea.nt-input {
+	resize: none;
+	line-height: 1.45;
+}
+
+.nt-seg {
+	display: inline-flex;
+	gap: 2px;
+	padding: 3px;
+	border-radius: 999px;
+	background: color-mix(in srgb, var(--bloom-text, #fff) 7%, transparent);
+}
+
+.nt-seg button {
+	font: inherit;
+	font-size: 11px;
+	border: none;
+	border-radius: 999px;
+	padding: 4px 10px;
+	background: none;
+	color: var(--bloom-text-muted, rgba(255, 255, 255, 0.6));
+	cursor: pointer;
+}
+
+.nt-seg button.on {
+	background: var(--tool-color, var(--bloom-accent, #0a84ff));
+	color: #000;
+}
+
+.nt-list {
+	display: flex;
+	flex-direction: column;
+	gap: 6px;
+	overflow-y: auto;
+	min-height: 0;
+	flex: 1;
+}
+
+.nt-list::-webkit-scrollbar {
+	width: 4px;
+}
+
+.nt-list::-webkit-scrollbar-thumb {
+	background: var(--bloom-scrollbar-thumb, rgba(255, 255, 255, 0.15));
+	border-radius: 999px;
+}

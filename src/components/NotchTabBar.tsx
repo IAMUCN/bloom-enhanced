@@ -1,5 +1,5 @@
 import { motion } from "framer-motion";
-import { TOOLS, type ToolId } from "../tools";
+import type { Tool } from "../tools";
 import "./NotchTabBar.css";
 
 /** The open notch's tab bar (NotchPixel style): one icon per enabled tool, in
@@ -11,15 +11,15 @@ export function NotchTabBar({
 	onSelect,
 	zoom = 1
 }: {
-	tools: ToolId[];
-	active: ToolId | null;
-	onSelect: (tool: ToolId) => void;
+	tools: Tool[];
+	active: string | null;
+	onSelect: (tool: string) => void;
 	/** Counter-zoom so the bar keeps one size whatever the panel's zoom. */
 	zoom?: number;
 }) {
 	const move = (delta: number) => {
-		const i = active ? tools.indexOf(active) : -1;
-		onSelect(tools[(i + delta + tools.length) % tools.length]);
+		const i = tools.findIndex((t) => t.id === active);
+		onSelect(tools[(i + delta + tools.length) % tools.length].id);
 	};
 	return (
 		<div
@@ -34,8 +34,7 @@ export function NotchTabBar({
 				e.preventDefault();
 			}}
 		>
-			{tools.map((id) => {
-				const { label, icon: Icon, color } = TOOLS[id];
+			{tools.map(({ id, label, icon: Icon, color }) => {
 				const on = id === active;
 				return (
 					<button

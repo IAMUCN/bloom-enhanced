@@ -1,4 +1,5 @@
 import {
+	Trash2,
 	Keyboard,
 	PanelTop,
 	BellRing,
@@ -39,7 +40,9 @@ const NOTCH_MODES = [
 import { ScaleStepper } from "./ScaleStepper";
 import { Choice } from "./Choice";
 import { shortcutFrom } from "./ClipboardTab";
-import { TOOLS } from "../tools";
+import { EXTRA_TOOLS, TOOLS, parseEnabledTools, type ExtraToolId } from "../tools";
+import { invoke } from "@tauri-apps/api/core";
+import { ask } from "@tauri-apps/plugin-dialog";
 import {
 	NOTCH_STYLES,
 	parsePanelOrder,
@@ -150,6 +153,49 @@ const PANEL_CHOICES: readonly (readonly [NotchPanelChoice, string])[] = [
 	["command-center", "Command Center"],
 	["devices", "Devices"]
 ];
+
+/** Settings › Notch › More Tools: every tool beyond the built-in panels,
+ *  by release, each with its own switch (`bloom-tools-enabled`, in the order
+ *  they were turned on = their tab order) and Erase data. Off = never
+ *  loaded. */
+function MoreTools({ saveSetting }: { saveSetting: (key: string, value: string | null) => Promise<boolean> }) {
+	const [enabled, setEnabled] = useState(() => parseEnabledTools(localStorage.getItem("bloom-tools-enabled")));
+	const toggle = (id: ExtraToolId) => {
+		const next = enabled.includes(id) ? enabled.filter((t) => t !== id) : [...enabled, id];
+		setEnabled(next);
+		saveSetting("bloom-tools-enabled", JSON.stringify(next));
+	};
+	const erase = async (id: ExtraToolId, label: string) => {
+		const ok = await ask(`Erase everything ${label} has saved? This can't be undone.`, { title: `Erase ${label} data`, kind: "warning" });
+		if (ok) invoke("tool_data_erase", { tool: id }).catch(() => {});
+	};
+	const releases = [...new Set(EXTRA_TOOLS.map((t) => t.release))];
+	return (
+		<>
+			{releases.map((release) => (
+				<div key={release}>
+					<div className="setting-group-label">More Tools · {release}</div>
+					<div className="setting-group">
+						{EXTRA_TOOLS.filter((t) => t.release === release).map(({ id, label, desc, icon: Icon, color }, i, list) => (
+							<SettingRow key={id} icon={Icon} label={label} desc={desc} divider={i < list.length - 1}>
+								<div className="tool-row-controls">
+									<button type="button" className="tool-erase" title={`Erase ${label} data`} aria-label={`Erase ${label} data`} onClick={() => erase(id, label)}>
+										<Trash2 size={13} />
+									</button>
+									<span className="tool-dot" style={{ background: color }} aria-hidden />
+									<label className="toggle-switch">
+										<input type="checkbox" checked={enabled.includes(id)} onChange={() => toggle(id)} aria-label={`${label} on`} />
+										<span className="slider"></span>
+									</label>
+								</div>
+							</SettingRow>
+						))}
+					</div>
+				</div>
+			))}
+		</>
+	);
+}
 
 /** How the notch opens: Click (default) or Hover after a delay
  *  (`bloom-notch-open-on`, `bloom-notch-hover-delay`). */
@@ -498,6 +544,8 @@ export function NotchTab({
 							/>
 						</SettingRow>
 					</div>
+
+					<MoreTools saveSetting={saveSetting} />
 
 					<div className="setting-group-label">Music</div>
 					<div className="setting-group">
