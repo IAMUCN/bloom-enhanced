@@ -3282,6 +3282,21 @@ function App() {
 	const showPanelArrows =
 		isOpen && asNotchPanel(bloomMode) !== null && panelOrder.filter(panelAvailable).length > 1;
 
+	// What the notch is doing, for the local perf recorder of testing builds
+	// (src-tauri/src/perf.rs); a no-op in normal builds.
+	useEffect(() => {
+		if (windowLabel !== "main") return;
+		const notch = isOpen ? `open:${bloomMode}` : isHovered ? "peek" : "closed";
+		invoke("perf_mark", { name: "notch", value: notch }).catch(() => {});
+	}, [isOpen, isHovered, bloomMode]);
+	useEffect(() => {
+		if (windowLabel !== "main") return;
+		invoke("perf_mark", { name: "music", value: isPlaying ? "playing" : "" }).catch(() => {});
+	}, [isPlaying]);
+	useEffect(() => {
+		if (windowLabel === "main" && isReady) invoke("perf_mark", { name: "ready", value: "1" }).catch(() => {});
+	}, [isReady]);
+
 	// Close compact media player expansions when notch is unhovered or mode changes
 	useEffect(() => {
 		if (mediaLayout === "compact") {

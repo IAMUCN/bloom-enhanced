@@ -892,6 +892,12 @@ const SHELF_LINGER_MS: u64 = 400;
 
 static SHELF_SHOWN: AtomicBool = AtomicBool::new(false);
 static SHELF_OPEN: AtomicBool = AtomicBool::new(false);
+
+/// The edge shelf is out (for the perf recorder).
+#[allow(dead_code)]
+pub fn shelf_open() -> bool {
+    SHELF_OPEN.load(Ordering::Relaxed)
+}
 /// Opened by the shortcut: stays open until the cursor has been in it.
 static SHELF_HELD: AtomicBool = AtomicBool::new(false);
 static SHELF_EXPIRY: AtomicU64 = AtomicU64::new(0);

@@ -45,6 +45,12 @@ static ARMED: AtomicBool = AtomicBool::new(false);
 static CANCEL: AtomicBool = AtomicBool::new(false);
 /// A job is running: Esc cancels it instead of closing the wheel.
 static RUNNING: AtomicBool = AtomicBool::new(false);
+
+/// A radial-menu job is running (for the perf recorder).
+#[allow(dead_code)]
+pub fn job_running() -> bool {
+    RUNNING.load(Ordering::Relaxed)
+}
 static APP: OnceLock<AppHandle> = OnceLock::new();
 /// Progress of the running job: file `FILE` of `FILES`, last percent sent.
 static FILE: AtomicU32 = AtomicU32::new(0);

@@ -9,6 +9,7 @@ mod diagnostics;
 mod dock_extras;
 mod jack;
 mod orbit;
+mod perf;
 mod services;
 mod shelf;
 mod shelf_preview;
@@ -175,6 +176,7 @@ fn main() {
             orbit::orbit_shrink,
             orbit::orbit_focus,
             orbit::orbit_ready,
+            perf::perf_mark,
             orbit::orbit_pdf_pages,
             clipboard::clipboard_drag_text,
             shelf_prune,
@@ -256,6 +258,7 @@ fn main() {
         ])
         .setup(|app| {
             crate::utils::migrate_from_bloom(app.handle());
+            crate::perf::start(app.handle().clone());
             init_taskbar_marker(app.handle());
             // Populate the settings cache before anything else: a webview can
             // invoke save_setting as soon as it loads, which happens before the
