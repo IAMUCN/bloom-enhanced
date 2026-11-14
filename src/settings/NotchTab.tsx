@@ -424,8 +424,8 @@ export function NotchTab({
 
 						<SettingRow
 							icon={PanelTop}
-							label="Remember Last Panel"
-							desc="Reopen the panel you last used; turn off to choose a fixed default"
+							label="Smart Start"
+							desc="Reopen the last panel if you come back within 5 minutes; otherwise open your favourite"
 						>
 							<label className="toggle-switch">
 								<input
@@ -437,20 +437,18 @@ export function NotchTab({
 							</label>
 						</SettingRow>
 
-						{!notchRememberPanel && (
-							<SettingRow
-								icon={PanelTop}
-								label="Default Panel"
-								desc="Open this panel when you click the notch"
-							>
-								<Choice
-									value={panelOn[notchDefaultPanel] ? notchDefaultPanel : firstPanelOn}
-									options={PANEL_CHOICES.filter(([panel]) => panelOn[panel])}
-									onChange={changeNotchDefaultPanel}
-									label="Default panel"
-								/>
-							</SettingRow>
-						)}
+						<SettingRow
+							icon={PanelTop}
+							label="Favourite Panel"
+							desc={notchRememberPanel ? "Opens when Smart Start doesn't reopen the last panel" : "Always opens when you click the notch"}
+						>
+							<Choice
+								value={panelOn[notchDefaultPanel] ? notchDefaultPanel : firstPanelOn}
+								options={PANEL_CHOICES.filter(([panel]) => panelOn[panel])}
+								onChange={changeNotchDefaultPanel}
+								label="Default panel"
+							/>
+						</SettingRow>
 					</div>
 
 					<div className="setting-group-label">Music</div>

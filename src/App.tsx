@@ -95,6 +95,8 @@ import type { OrbitStatus } from "./orbitOps";
  */
 type NotchPanel = "calendar" | "command-center" | "devices" | "clipboard";
 const NOTCH_PANELS: readonly NotchPanel[] = ["calendar", "command-center", "devices", "clipboard"];
+/** Smart start's window for reopening the last panel. */
+const SMART_START_MS = 5 * 60 * 1000;
 const asNotchPanel = (value: unknown): NotchPanel | null =>
 	NOTCH_PANELS.includes(value as NotchPanel) ? (value as NotchPanel) : null;
 
@@ -1169,8 +1171,11 @@ function App() {
 	const rememberPanelEnabledRef = useRef(rememberPanelEnabled);
 	rememberPanelEnabledRef.current = rememberPanelEnabled;
 	const [defaultPanel, setDefaultPanel] = useState<NotchPanel>(() =>
-		asNotchPanel(localStorage.getItem("bloom-notch-default-panel")) ?? "calendar"
+		asNotchPanel(localStorage.getItem("bloom-notch-default-panel")) ?? "command-center"
 	);
+	// When the open notch last closed: Smart start returns to the last panel
+	// only within SMART_START_MS of that, else to the favourite.
+	const lastClosedAtRef = useRef(0);
 	// The panel the open notch was last left on. Opening the notch returns to it,
 	// across restarts too (bloom-notch-last-panel).
 	const [lastPanel, setLastPanel] = useState<NotchPanel | null>(() =>
@@ -1755,6 +1760,7 @@ function App() {
 		if (isOpenRef.current) {
 			const panel = asNotchPanel(bloomModeRef.current);
 			if (panel && rememberPanelEnabledRef.current) rememberPanelRef.current(panel);
+			lastClosedAtRef.current = Date.now();
 			setIsOpen(false);
 		}
 		setBloomMode((prev) =>
@@ -2275,10 +2281,14 @@ function App() {
 	restingModeRef.current = collapsedMode;
 	bloomModeRef.current = bloomMode;
 
-	// A click opens the last-used panel when memory is enabled, otherwise the
-	// selected default. If that panel is turned off, the first one that's on.
+	// Smart start: a click reopens the last-used panel if the notch closed
+	// less than 5 minutes ago (and memory is on), otherwise the favourite
+	// (Default Panel, Command Center unless changed). If that panel is turned
+	// off, the first one that's on. A live activity opens its own view instead
+	// (its click handler).
 	const openingPanel = (): NotchPanel => {
-		const preferred = rememberPanelEnabled ? lastPanel ?? defaultPanel : defaultPanel;
+		const recent = Date.now() - lastClosedAtRef.current < SMART_START_MS;
+		const preferred = rememberPanelEnabled && recent ? lastPanel ?? defaultPanel : defaultPanel;
 		if (panelAvailable(preferred)) return preferred;
 		return panelOrder.find(panelAvailable) ?? "command-center";
 	};

@@ -31,7 +31,7 @@ function readBool(val: string | null): boolean {
 export type NotchPanelChoice = "calendar" | "command-center" | "devices";
 
 function asPanelChoice(val: unknown): NotchPanelChoice {
-	return val === "command-center" || val === "devices" ? val : "calendar";
+	return val === "calendar" || val === "devices" ? val : "command-center";
 }
 
 export function useSettings() {
