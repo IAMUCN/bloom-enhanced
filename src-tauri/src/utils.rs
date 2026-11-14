@@ -64,6 +64,23 @@ static TASKBAR_OWNER_HWND: std::sync::atomic::AtomicIsize = std::sync::atomic::A
 static TASKBAR_MARKER: OnceLock<PathBuf> = OnceLock::new();
 static TASKBAR_WATCHDOG_STARTED: std::sync::Mutex<bool> = std::sync::Mutex::new(false);
 
+/// Hands memory a finished job freed back to Windows at once. Freed heap
+/// blocks otherwise stay committed (and in Task Manager's "Memory") for
+/// minutes after a big conversion.
+pub fn release_freed_memory() {
+    use windows::Win32::System::Memory::{GetProcessHeaps, HeapCompact, HEAP_FLAGS};
+    use windows::Win32::System::ProcessStatus::EmptyWorkingSet;
+    use windows::Win32::System::Threading::GetCurrentProcess;
+    unsafe {
+        let mut heaps = [windows::Win32::Foundation::HANDLE::default(); 64];
+        let n = (GetProcessHeaps(&mut heaps) as usize).min(heaps.len());
+        for heap in &heaps[..n] {
+            HeapCompact(*heap, HEAP_FLAGS(0));
+        }
+        let _ = EmptyWorkingSet(GetCurrentProcess());
+    }
+}
+
 /// Point the crash-recovery marker at this user's app config dir (called from setup).
 pub fn init_taskbar_marker(app: &tauri::AppHandle) {
     if let Ok(dir) = app.path().app_config_dir() {

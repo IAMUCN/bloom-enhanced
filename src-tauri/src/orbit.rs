@@ -1720,6 +1720,7 @@ pub async fn orbit_run(
         .await
         .map_err(|e| e.to_string());
     RUNNING.store(false, Ordering::Relaxed);
+    crate::utils::release_freed_memory();
     // Something dragged out of a browser: show the result straight away (a
     // PDF opens in the default PDF viewer, usually the browser).
     if let Ok(outcomes) = &result {
