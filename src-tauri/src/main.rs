@@ -48,7 +48,15 @@ const AUTOSTART_ARG: &str = "--autostart";
 
 fn main() {
     let mut args = std::env::args_os();
-    if args.nth(1).as_deref() == Some(std::ffi::OsStr::new("--taskbar-watchdog")) {
+    let first = args.nth(1);
+    if first.as_deref() == Some(std::ffi::OsStr::new("--taskbar-watchdog-launch")) {
+        // Exits at once so the watchdog it starts outlives Bloom's process tree.
+        if let (Some(pid), Some(marker)) = (args.next(), args.next()) {
+            let _ = utils::spawn_detached(&["--taskbar-watchdog".as_ref(), &pid, &marker]);
+        }
+        return;
+    }
+    if first.as_deref() == Some(std::ffi::OsStr::new("--taskbar-watchdog")) {
         if let (Some(pid), Some(marker)) = (args.next(), args.next()) {
             if let Ok(pid) = pid.to_string_lossy().parse::<u32>() {
                 utils::run_taskbar_watchdog(pid, marker.into());
@@ -520,7 +528,12 @@ fn main() {
         .build(tauri::generate_context!())
         .expect("error while building tauri application");
     app.run(|_, event| {
-        if let tauri::RunEvent::Exit = event {
+        // Every quit path has already restored the taskbar (and removed the
+        // marker) while the event loop was alive. Doing it again here, as the
+        // loop is torn down, made Explorer's reply messages reach a destroyed
+        // loop and panic ("cannot move state from Destroyed"), so this is
+        // only a fallback for when the taskbar is still hidden.
+        if matches!(event, tauri::RunEvent::Exit) && utils::taskbar_marker_exists() {
             diagnostics::record("exit", "restoring native taskbar");
             set_taskbar_visibility(true, true);
             NATIVE_TASKBAR_HIDDEN.store(false, Ordering::Relaxed);

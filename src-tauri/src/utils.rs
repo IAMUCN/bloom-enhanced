@@ -89,13 +89,40 @@ pub fn start_taskbar_watchdog() -> std::io::Result<()> {
     if let Some(dir) = marker.parent() {
         std::fs::create_dir_all(dir)?;
     }
-    std::process::Command::new(std::env::current_exe()?)
-        .arg("--taskbar-watchdog")
-        .arg(std::process::id().to_string())
-        .arg(marker)
-        .spawn()?;
+    // Through a launcher that exits at once: the watchdog then has no living
+    // parent, so killing Bloom's process tree (Task Manager's "End task" ends
+    // the whole group) no longer kills the watchdog with it.
+    spawn_detached(&[
+        "--taskbar-watchdog-launch".as_ref(),
+        std::process::id().to_string().as_ref(),
+        marker.as_os_str(),
+    ])?;
     *started = true;
     Ok(())
+}
+
+/// Starts this exe with `args`, outside Bloom's console, process group and,
+/// where the job allows it, job object (a job that kills its processes when
+/// Bloom's launcher closes it would take the watchdog down too).
+pub fn spawn_detached(args: &[&std::ffi::OsStr]) -> std::io::Result<()> {
+    use std::os::windows::process::CommandExt;
+    const DETACHED_PROCESS: u32 = 0x0000_0008;
+    const CREATE_NEW_PROCESS_GROUP: u32 = 0x0000_0200;
+    const CREATE_BREAKAWAY_FROM_JOB: u32 = 0x0100_0000;
+    let exe = std::env::current_exe()?;
+    let flags = DETACHED_PROCESS | CREATE_NEW_PROCESS_GROUP;
+    std::process::Command::new(&exe)
+        .args(args)
+        .creation_flags(flags | CREATE_BREAKAWAY_FROM_JOB)
+        .spawn()
+        // A job that forbids breaking away refuses the whole spawn.
+        .or_else(|_| {
+            std::process::Command::new(&exe)
+                .args(args)
+                .creation_flags(flags)
+                .spawn()
+        })
+        .map(|_| ())
 }
 
 pub fn run_taskbar_watchdog(parent_pid: u32, marker: PathBuf) {
