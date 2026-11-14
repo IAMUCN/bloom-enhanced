@@ -75,6 +75,7 @@ Edit `settings.json` with any text editor while Bloom is running. Changes are ap
 | `bloom-notch-devices-enabled` | `"true"` / `"false"` | `"false"` | Show the Connected devices panel in the notch. Settings keeps at least one of the panels (calendar, Command Center, Connected devices) on; if all are off, the notch shows Command Center. |
 | `bloom-music-mode-enabled`  | `"true"` / `"false"`              | `"true"` | Enable interactive music media widget.                                                                   |
 | `bloom-music-compact-notch` | `"true"` / `"false"`              | `"true"` | Show compact music display (visualizer + artwork) in collapsed notch.                                    |
+| `bloom-tools-picked` | `"true"` / absent | absent | Set once the first-run "Pick your tools" welcome in Settings was finished or skipped. |
 | `bloom-notch-shortcut` | e.g. `"Ctrl+Alt+N"`, `""` = none | `"Ctrl+Alt+N"` | Global shortcut that opens and closes the notch (RegisterHotKey; at least one modifier unless an F-key). |
 | `bloom-notch-open-on` | `"click"` / `"hover"` | `"click"` | How the notch opens: a click, or resting the pointer on it for `bloom-notch-hover-delay`. |
 | `bloom-notch-hover-delay` | ms as string, `"0"`–`"1000"` | `"300"` | Hover opening: how long the pointer rests on the notch first. |

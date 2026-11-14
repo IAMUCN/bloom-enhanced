@@ -31,6 +31,7 @@ import {
 } from "./settings/index";
 import type { SettingsTab } from "./settings/index";
 import { useAnnouncement } from "./hooks/useAnnouncement";
+import { PickTools } from "./settings/PickTools";
 import { initTheme } from "./theme";
 import { FeaturePreview } from "./settings/FeaturePreview";
 import { searchSettings, type SettingEntry } from "./settings/searchIndex";
@@ -155,6 +156,8 @@ function SettingsApp() {
 		return () => window.removeEventListener("keydown", onKey);
 	}, []);
 	const settings = useSettings();
+	// First run: "Pick your tools", once (bloom-tools-picked).
+	const [pickTools, setPickTools] = useState(() => localStorage.getItem("bloom-tools-picked") !== "true");
 	const { announcement, dismissed, dismiss } = useAnnouncement();
 
 	useEffect(() => {
@@ -198,6 +201,7 @@ function SettingsApp() {
 
 	return (
 		<div className="settings-container" style={{ zoom: settings.scale }}>
+			{pickTools && <PickTools saveSetting={settings.saveSetting} onDone={() => setPickTools(false)} />}
 			<div className="title-bar" data-tauri-drag-region>
 				<span className="title-text" data-tauri-drag-region>
 					Settings
