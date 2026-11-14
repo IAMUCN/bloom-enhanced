@@ -25,9 +25,27 @@ body,
 	display: flex;
 	align-items: center;
 	justify-content: center;
+	position: relative;
+}
+
+/* The disc's shadow as a plain box-shadow under the SVG. An SVG drop-shadow
+   filter re-renders through an offscreen GPU surface on every frame of the
+   open animation (+80 MB in the GPU process); this is drawn once. */
+.orbit::before {
+	content: "";
+	position: absolute;
+	left: 50%;
+	top: 50%;
+	width: 316px;
+	height: 316px;
+	margin: -158px 0 0 -158px;
+	border-radius: 50%;
+	box-shadow: 0 8px 24px rgba(0, 0, 0, 0.45);
+	pointer-events: none;
 }
 
 .orbit svg {
+	position: relative; /* above the ::before shadow */
 	overflow: visible;
 	cursor: default;
 }
@@ -36,7 +54,6 @@ body,
 	fill: var(--bloom-bg-expanded, rgba(0, 0, 0, 0.92));
 	stroke: var(--bloom-border, rgba(255, 255, 255, 0.08));
 	stroke-width: 1;
-	filter: drop-shadow(0 8px 24px rgba(0, 0, 0, 0.45));
 }
 
 .orbit-slice path {
