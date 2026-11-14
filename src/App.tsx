@@ -1176,6 +1176,12 @@ function App() {
 	// When the open notch last closed: Smart start returns to the last panel
 	// only within SMART_START_MS of that, else to the favourite.
 	const lastClosedAtRef = useRef(0);
+	// Open on click (default) or on hover after a delay.
+	const [notchOpenOn, setNotchOpenOn] = useState(() => localStorage.getItem("bloom-notch-open-on") === "hover" ? "hover" : "click");
+	const [notchHoverDelay, setNotchHoverDelay] = useState(() => {
+		const v = parseInt(localStorage.getItem("bloom-notch-hover-delay") ?? "", 10);
+		return Number.isFinite(v) ? v : 300;
+	});
 	// The panel the open notch was last left on. Opening the notch returns to it,
 	// across restarts too (bloom-notch-last-panel).
 	const [lastPanel, setLastPanel] = useState<NotchPanel | null>(() =>
@@ -1243,7 +1249,12 @@ function App() {
 				setRememberPanelEnabled(
 					(getVal("bloom-notch-remember-panel") ?? getVal("bloom-notch-click-to-open", "true")) !== "false"
 				);
-				setDefaultPanel(asNotchPanel(getVal("bloom-notch-default-panel")) ?? "calendar");
+				setDefaultPanel(asNotchPanel(getVal("bloom-notch-default-panel")) ?? "command-center");
+				setNotchOpenOn(getVal("bloom-notch-open-on") === "hover" ? "hover" : "click");
+				{
+					const v = parseInt(String(getVal("bloom-notch-hover-delay") ?? ""), 10);
+					setNotchHoverDelay(Number.isFinite(v) ? v : 300);
+				}
 				setShelfPersist(getVal("bloom-shelf-persist", "false") === "true");
 				setSettingsMusicCompactNotch(getVal("bloom-music-compact-notch", "true") !== "false");
 				setLastPanel(asNotchPanel(getVal("bloom-notch-last-panel")));
@@ -1371,7 +1382,12 @@ function App() {
 			"bloom-music-mode-enabled": setSettingsMusicModeEnabled,
 			"bloom-notch-remember-panel": setRememberPanelEnabled,
 			"bloom-notch-default-panel": (v: unknown) =>
-				setDefaultPanel(asNotchPanel(v) ?? "calendar"),
+				setDefaultPanel(asNotchPanel(v) ?? "command-center"),
+			"bloom-notch-open-on": (v: unknown) => setNotchOpenOn(v === "hover" ? "hover" : "click"),
+			"bloom-notch-hover-delay": (v: unknown) => {
+				const n = parseInt(String(v ?? ""), 10);
+				setNotchHoverDelay(Number.isFinite(n) ? n : 300);
+			},
 			"bloom-shelf-persist": setShelfPersist,
 			"bloom-music-compact-notch": setSettingsMusicCompactNotch,
 			"bloom-notch-last-panel": (v: unknown) => setLastPanel(asNotchPanel(v)),
@@ -2316,6 +2332,13 @@ function App() {
 		setIsOpen(true);
 		setBloomMode(view);
 	};
+
+	// Hover opening: resting on the notch for the delay opens it like a click.
+	useEffect(() => {
+		if (notchOpenOn !== "hover" || !isHovered || isOpen || fileStatus || bloomMode === "announcement") return;
+		const timer = window.setTimeout(() => openNotch(openingPanel()), notchHoverDelay);
+		return () => window.clearTimeout(timer);
+	}, [notchOpenOn, notchHoverDelay, isHovered, isOpen, fileStatus, bloomMode]);
 
 	const rememberPanel = (panel: NotchPanel) => {
 		if (panel === lastPanel) return;

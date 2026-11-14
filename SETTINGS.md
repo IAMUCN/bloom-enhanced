@@ -75,6 +75,8 @@ Edit `settings.json` with any text editor while Bloom is running. Changes are ap
 | `bloom-notch-devices-enabled` | `"true"` / `"false"` | `"false"` | Show the Connected devices panel in the notch. Settings keeps at least one of the panels (calendar, Command Center, Connected devices) on; if all are off, the notch shows Command Center. |
 | `bloom-music-mode-enabled`  | `"true"` / `"false"`              | `"true"` | Enable interactive music media widget.                                                                   |
 | `bloom-music-compact-notch` | `"true"` / `"false"`              | `"true"` | Show compact music display (visualizer + artwork) in collapsed notch.                                    |
+| `bloom-notch-open-on` | `"click"` / `"hover"` | `"click"` | How the notch opens: a click, or resting the pointer on it for `bloom-notch-hover-delay`. |
+| `bloom-notch-hover-delay` | ms as string, `"0"`–`"1000"` | `"300"` | Hover opening: how long the pointer rests on the notch first. |
 | `bloom-notch-remember-panel` | `"true"` / `"false"` | `"true"` | Smart Start: a click reopens the last-used panel if the notch closed less than 5 minutes ago; otherwise (or when off) it opens `bloom-notch-default-panel`. |
 | `bloom-notch-default-panel` | `"calendar"` / `"command-center"` / `"devices"` | `"command-center"` | The favourite panel: opened on click when Smart Start doesn't reopen the last one. If that panel is turned off, the first panel that's on opens instead. |
 | `bloom-notch-last-panel`    | `"calendar"` / `"command-center"` / `"devices"` | (unset)  | Last panel the notch was left on, saved by Bloom while panel memory is on. |

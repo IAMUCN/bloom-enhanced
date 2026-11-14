@@ -129,6 +129,53 @@ const PANEL_CHOICES: readonly (readonly [NotchPanelChoice, string])[] = [
 	["devices", "Devices"]
 ];
 
+/** How the notch opens: Click (default) or Hover after a delay
+ *  (`bloom-notch-open-on`, `bloom-notch-hover-delay`). */
+function OpenOnRows({ saveSetting }: { saveSetting: (key: string, value: string | null) => Promise<boolean> }) {
+	const [openOn, setOpenOn] = useState(() => (localStorage.getItem("bloom-notch-open-on") === "hover" ? "hover" : "click"));
+	const [delay, setDelay] = useState(() => {
+		const v = parseInt(localStorage.getItem("bloom-notch-hover-delay") ?? "", 10);
+		return Number.isFinite(v) ? v : 300;
+	});
+	return (
+		<>
+			<SettingRow
+				icon={PanelTop}
+				label="Open On"
+				desc={openOn === "hover" ? "Resting the pointer on the notch opens it" : "Clicking the notch opens it"}
+			>
+				<Choice
+					value={openOn}
+					options={[["click", "Click"], ["hover", "Hover"]] as const}
+					onChange={(v) => {
+						setOpenOn(v);
+						saveSetting("bloom-notch-open-on", v);
+					}}
+					label="Open the notch on"
+				/>
+			</SettingRow>
+			{openOn === "hover" && (
+				<SettingRow icon={Timer} label="Hover Delay" desc={`How long to rest on the notch before it opens: ${delay}ms`}>
+					<input
+						type="range"
+						min="0"
+						max="1000"
+						step="50"
+						value={delay}
+						onChange={(e) => {
+							const v = parseInt(e.target.value, 10);
+							setDelay(v);
+							saveSetting("bloom-notch-hover-delay", String(v));
+						}}
+						className="settings-slider"
+						aria-label="Hover delay"
+					/>
+				</SettingRow>
+			)}
+		</>
+	);
+}
+
 interface NotchTabProps {
 	notchEnabled: boolean;
 	toggleNotch: () => void;
@@ -284,6 +331,8 @@ export function NotchTab({
 								label="When the notch shows"
 							/>
 						</SettingRow>
+
+						<OpenOnRows saveSetting={saveSetting} />
 
 						{notchMode !== "fixed" && (
 							<SettingRow

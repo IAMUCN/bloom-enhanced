@@ -38,6 +38,8 @@ export const SETTINGS_INDEX: SettingEntry[] = [
 	...page("notch", [
 		["Notch", "Turn off to remove the notch; Settings stay in the tray menu"],
 		["When It Shows", "Fixed, Smart or Peek: when the notch is on screen"],
+		["Open On", "Click or hover opens the notch"],
+		["Hover Delay", "How long to rest on the notch before it opens"],
 		["Peek Delay", "How long to rest on the top edge before it shows"],
 		["Style", "Notch, floating pill or minimal bar"],
 		["Notch Size", "Size of the notch only; the dock keeps its own"],
