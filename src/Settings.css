@@ -2160,3 +2160,25 @@ input:checked + .slider:before {
 	color: #ff453a;
 	background: rgba(255, 69, 58, 0.12);
 }
+
+/* Settings › Notch › Command Center tiles */
+.cc-tile-picker {
+	max-height: none;
+	padding: 4px 0;
+}
+
+.cc-tiles-reset {
+	margin: 4px 0 8px;
+	padding: 4px 10px;
+	border: none;
+	border-radius: 8px;
+	background: var(--bloom-group-bg, rgba(255, 255, 255, 0.06));
+	color: var(--bloom-text-secondary, #a1a1aa);
+	font: inherit;
+	font-size: 12px;
+	cursor: pointer;
+}
+
+.cc-tiles-reset:hover {
+	color: var(--bloom-text, #fff);
+}

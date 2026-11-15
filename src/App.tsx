@@ -39,6 +39,7 @@ import { NotchTabBar } from "./components/NotchTabBar";
 import { ProgressEffect, asProgressStyle } from "./components/ProgressEffect";
 import { EXTRA_BY_ID, GRID_H, GRID_W, TAB_BAR_HEIGHT, TOOLS, parseEnabledTools, type ExtraToolId, type Tool } from "./tools";
 import { ToolHost } from "./notchTools/ToolHost";
+import { CommandCenterTiles, ccTilesHeight, parseCcTiles, type CcTileId, type CcTileState } from "./components/CommandCenter";
 import { reloadIfMirrorWasStale } from "./hooks/settingsMirror";
 import { openUrl } from "@tauri-apps/plugin-opener";
 import { writeText } from "@tauri-apps/plugin-clipboard-manager";
@@ -77,7 +78,6 @@ import {
 	Inbox,
 	Music,
 	Zap,
-	Activity,
 	ClipboardCheck
 } from "lucide-react";
 import { CircleAlert, CircleCheck, CircleSlash, Leaf } from "lucide-react";
@@ -198,47 +198,6 @@ const playTimerChime = () => {
 };
 
 // Simple SVG icons
-function WifiIcon({ enabled, connected }: { enabled: boolean; connected: boolean }) {
-	return (
-		<svg
-			width="18"
-			height="18"
-			viewBox="0 0 24 24"
-			fill="none"
-			stroke="currentColor"
-			strokeWidth="2.5"
-			strokeLinecap="round"
-			strokeLinejoin="round"
-			opacity={!enabled ? 0.4 : connected ? 1 : 0.7}
-		>
-			<path d="M5 12.55a11 11 0 0 1 14.08 0" />
-			<path d="M1.42 9a16 16 0 0 1 21.16 0" />
-			<path d="M8.53 16.11a6 6 0 0 1 6.95 0" />
-			<line x1="12" y1="20" x2="12.01" y2="20" />
-		</svg>
-	);
-}
-
-function TrayIcon() {
-	return (
-		<svg
-			width="14"
-			height="14"
-			viewBox="0 0 24 24"
-			fill="none"
-			stroke="currentColor"
-			strokeWidth="2.5"
-			strokeLinecap="round"
-			strokeLinejoin="round"
-		>
-			<rect x="3" y="3" width="6" height="6" rx="1" />
-			<rect x="15" y="3" width="6" height="6" rx="1" />
-			<rect x="15" y="15" width="6" height="6" rx="1" />
-			<rect x="3" y="15" width="6" height="6" rx="1" />
-		</svg>
-	);
-}
-
 function BatteryIcon({
 	charging,
 	level,
@@ -1198,6 +1157,7 @@ function App() {
 	// The extra tools turned on (Settings › Notch › Tools), in tab order, and
 	// the one showing while bloomMode is "tool".
 	const [enabledTools, setEnabledTools] = useState(() => parseEnabledTools(localStorage.getItem("bloom-tools-enabled")));
+	const [ccTiles, setCcTiles] = useState(() => parseCcTiles(localStorage.getItem("bloom-cc-tiles")));
 	const [activeTool, setActiveTool] = useState<ExtraToolId | null>(null);
 	// Reminders ring while that tool is on, even with its tab closed: a due
 	// reminder opens the notch on it, once per reminder time.
@@ -1451,6 +1411,7 @@ function App() {
 			"bloom-notch-right-size": (v: unknown) => setRightSize(sizeOf(v)),
 			"bloom-low-battery-threshold": setLowBatteryThreshold,
 			"bloom-tools-enabled": (v: unknown) => setEnabledTools(parseEnabledTools(v)),
+			"bloom-cc-tiles": (v: unknown) => setCcTiles(parseCcTiles(v)),
 			"bloom-progress-effect": (v: unknown) => setProgressStyle(asProgressStyle(v)),
 			"bloom-battery-saver": (v: unknown) => setSaverMode(String(v ?? "below")),
 			"bloom-battery-saver-threshold": (v: unknown) => setSaverThreshold(parseInt(String(v ?? ""), 10) || 30),
@@ -3090,13 +3051,6 @@ function App() {
 		}
 	}, []);
 
-	// Right-click opens the tile's own view, the same as its › button.
-	const handleWifiRightClick = useCallback((e: React.MouseEvent) => {
-		e.preventDefault();
-		e.stopPropagation();
-		setBloomMode("wifi");
-	}, []);
-
 	const toggleDockModeSetting = useCallback(
 		async (e: React.MouseEvent) => {
 			e.stopPropagation();
@@ -3128,12 +3082,6 @@ function App() {
 		},
 		[notchMode]
 	);
-
-	const handleBluetoothRightClick = useCallback((e: React.MouseEvent) => {
-		e.preventDefault();
-		e.stopPropagation();
-		setBloomMode("bluetooth");
-	}, []);
 
 	const toggleCalendarMode = (e: React.MouseEvent) => {
 		e.stopPropagation();
@@ -3357,6 +3305,53 @@ function App() {
 	};
 	const tabBarSpace = showTabBar ? TAB_BAR_HEIGHT / panelZoomNow : 0;
 
+	// Command Center tiles. Most Windows quick settings have no public
+	// switch, so their tiles open Windows' own page or flyout.
+	const openSystem = (action: string) => () => {
+		invoke("open_system_action", { action }).catch(console.error);
+	};
+	const modeName = (m: string) => (m === "fixed" ? "Fixed" : m === "smart" ? "Smart" : "Peek");
+	const ccState: Record<CcTileId, CcTileState> = {
+		wifi: {
+			on: wifiEnabled,
+			status: wifiStatus === null ? "…" : !wifiEnabled ? "Off" : wifiConnected ? (wifiStatus?.ssid ?? "Connected") : "Not connected",
+			onClick: () => toggleWifi(),
+			onMore: () => setBloomMode("wifi")
+		},
+		bluetooth: {
+			on: bluetoothEnabled,
+			status: !bluetoothEnabled
+				? "Off"
+				: btConnectedNames.length === 1
+					? btConnectedNames[0]
+					: btConnectedNames.length > 1
+						? `${btConnectedNames.length} connected`
+						: "On",
+			onClick: () => toggleBluetooth(),
+			onMore: () => setBloomMode("bluetooth")
+		},
+		dnd: { onClick: openSystem("notification-settings") },
+		"night-light": { onClick: openSystem("night-light") },
+		energy: { on: batterySaverEnabled, status: batterySaverEnabled ? "On" : "Off", onClick: () => openBatterySaverSettings() },
+		airplane: { onClick: openSystem("airplane") },
+		hotspot: { onClick: openSystem("hotspot") },
+		captions: { onClick: openSystem("live-captions") },
+		studio: { onClick: openSystem("studio-effects") },
+		accessibility: { onClick: openSystem("accessibility") },
+		nearby: { onClick: openSystem("nearby-sharing") },
+		cast: { onClick: openSystem("cast") },
+		project: { onClick: openSystem("project") },
+		battery: { status: `${batteryLevel}%${isCharging ? " · charging" : ""}`, onClick: openSystem("battery") },
+		"dock-mode": { status: modeName(dockMode), onClick: toggleDockModeSetting },
+		"notch-mode": { status: modeName(notchMode), onClick: toggleNotchModeSetting },
+		tray: { onClick: openSystemTray },
+		"task-manager": { onClick: openSystem("task-manager") },
+		notifications: { onClick: () => invoke("open_notification_center").catch(console.error) },
+		"windows-settings": { onClick: openSystem("settings") },
+		"lotus-settings": { onClick: () => openSettingsWindow() },
+		restart: { onClick: () => invoke("restart_bloom").catch(console.error) }
+	};
+
 	// The 24-hour clock is ~16px narrower than the 12-hour one.
 	const clock24hTrim = timeFormat24h ? 16 : 0;
 
@@ -3371,7 +3366,7 @@ function App() {
 		if (isCalendarMode) return 480;
 		if (bloomMode === "clipboard" && clipOptions.notchWide) return 560;
 		if (bloomMode === "shelf" || bloomMode === "clipboard") return 380;
-		if (bloomMode === "command-center" && isOpen) return 350;
+		if (bloomMode === "command-center" && isOpen) return 400;
 		if (bloomMode === "wifi" || bloomMode === "bluetooth" || bloomMode === "devices") return 350;
 		if (showMusicOnStatusHover) {
 			return 170 + (visualizerOn ? 30 : 0);
@@ -3415,7 +3410,7 @@ function App() {
 			if (shelfItems.length === 0) return 130;
 			return shelfOverflowing ? 190 : 176;
 		}
-		if (bloomMode === "command-center") return isOpen ? 230 : 36;
+		if (bloomMode === "command-center") return isOpen ? 36 + 12 + ccTilesHeight(ccTiles.length) + (ccTiles.length ? 12 : 0) + 56 + 12 : 36;
 		if (bloomMode === "devices") {
 			return devicesPanelHeight;
 		}
@@ -3557,7 +3552,8 @@ function App() {
 						if (bloomMode === "shelf") clearShelfCollapse();
 					}}
 					onHoverEnd={releaseNotchHover}
-					style={{ originY: 0 }}
+					// Panels placed below the clock row move down by the tab bar.
+					style={{ originY: 0, "--tab-bar-space": `${tabBarSpace}px` } as React.CSSProperties}
 					transition={{
 						width: { type: "spring", stiffness: 400, damping: 31 },
 						height: { type: "spring", stiffness: 450, damping: 29 },
@@ -4342,205 +4338,7 @@ function App() {
 											exit={{ opacity: 0, filter: "blur(4px)", transition: { duration: 0.1 } }}
 											transition={{ type: "spring", stiffness: 400, damping: 30 }}
 										>
-											{/* Pills Grid */}
-											<div className="cc-pills-grid">
-												{/* Wi-Fi Pill */}
-												<div
-													className={`cc-pill-tile ${wifiEnabled ? "active" : ""}`}
-													onClick={(e) => {
-														e.stopPropagation();
-														toggleWifi();
-													}}
-													onContextMenu={handleWifiRightClick}
-													title="Left-click to toggle, Right-click for networks"
-												>
-													<div className="cc-pill-icon-wrapper">
-														<WifiIcon enabled={wifiEnabled} connected={wifiConnected} />
-													</div>
-													<div className="cc-pill-info">
-														<span className="cc-pill-title">Wi-Fi</span>
-														<span className="cc-pill-status">
-															{wifiStatus === null
-																? "…"
-																: !wifiEnabled
-																	? "Off"
-																	: wifiConnected
-																		? (wifiStatus?.ssid ?? "Connected")
-																		: "Not connected"}
-														</span>
-													</div>
-													<button
-														className="cc-pill-more"
-														aria-label="Wi-Fi networks"
-														title="Wi-Fi networks"
-														onClick={(e) => {
-															e.stopPropagation();
-															setBloomMode("wifi");
-														}}
-													>
-														<ChevronRight />
-													</button>
-												</div>
-
-												{/* Dock Mode Pill */}
-												<div
-													className={`cc-pill-tile ${dockMode === "fixed" ? "active" : ""}`}
-													onClick={toggleDockModeSetting}
-													title="Cycle dock mode: Fixed / Smart / Peek"
-												>
-													<div className="cc-pill-icon-wrapper">
-														<DockIcon />
-													</div>
-													<div className="cc-pill-info">
-														<span className="cc-pill-title">Dock Mode</span>
-														<span className="cc-pill-status">
-															{dockMode === "fixed"
-																? "Fixed"
-																: dockMode === "smart"
-																	? "Smart"
-																	: "Peek"}
-														</span>
-													</div>
-												</div>
-
-												{/* Bluetooth Pill */}
-												<div
-													className={`cc-pill-tile ${bluetoothEnabled ? "active" : ""}`}
-													onClick={(e) => {
-														e.stopPropagation();
-														toggleBluetooth();
-													}}
-													onContextMenu={handleBluetoothRightClick}
-													title="Left-click to toggle, Right-click for devices"
-												>
-													<div className="cc-pill-icon-wrapper">
-														<BluetoothIcon />
-													</div>
-													<div className="cc-pill-info">
-														<span className="cc-pill-title">Bluetooth</span>
-														<span className="cc-pill-status">
-															{!bluetoothEnabled
-																? "Off"
-																: btConnectedNames.length === 1
-																	? btConnectedNames[0]
-																	: btConnectedNames.length > 1
-																		? `${btConnectedNames.length} connected`
-																		: "On"}
-														</span>
-													</div>
-													<button
-														className="cc-pill-more"
-														aria-label="Bluetooth devices"
-														title="Bluetooth devices"
-														onClick={(e) => {
-															e.stopPropagation();
-															setBloomMode("bluetooth");
-														}}
-													>
-														<ChevronRight />
-													</button>
-												</div>
-
-												{/* Notch Mode Pill */}
-												<div
-													className={`cc-pill-tile ${notchMode === "fixed" ? "active" : ""}`}
-													onClick={toggleNotchModeSetting}
-													title="Cycle notch mode: Fixed / Smart / Peek"
-												>
-													<div className="cc-pill-icon-wrapper">
-														<NotchIcon />
-													</div>
-													<div className="cc-pill-info">
-														<span className="cc-pill-title">Notch Mode</span>
-														<span className="cc-pill-status">
-															{notchMode === "fixed"
-																? "Fixed"
-																: notchMode === "smart"
-																	? "Smart"
-																	: "Peek"}
-														</span>
-													</div>
-												</div>
-											</div>
-
-											{/* Circular Actions Row */}
-											<div className="cc-circular-actions-row">
-												<button
-													className="cc-circular-btn"
-													onClick={(e) => {
-														e.stopPropagation();
-														invoke("open_app", { appName: "ms-settings:notifications" }).catch(
-															console.error
-														);
-													}}
-													title="Do Not Disturb — Open Windows notification settings"
-												>
-													<MoonIcon />
-												</button>
-												<button
-													className={`cc-circular-btn ${batterySaverEnabled ? "active" : ""}`}
-													onClick={(e) => {
-														e.stopPropagation();
-														openBatterySaverSettings();
-													}}
-													title={`Energy Saver: ${batterySaverEnabled ? "On" : "Off"} — Click to open Settings`}
-												>
-													<BatterySaverIcon />
-												</button>
-												<button
-													className="cc-circular-btn"
-													onClick={(e) => {
-														e.stopPropagation();
-														openSystemTray(e);
-													}}
-													title="System Tray"
-												>
-													<TrayIcon />
-												</button>
-												<button
-													className="cc-circular-btn"
-													onClick={(e) => {
-														e.stopPropagation();
-														invoke("open_system_action", { action: "task-manager" }).catch(
-															console.error
-														);
-													}}
-													title="Task Manager"
-													aria-label="Task Manager"
-												>
-													<Activity size={18} strokeWidth={2.5} />
-												</button>
-												<button
-													className="cc-circular-btn"
-													onClick={(e) => {
-														e.stopPropagation();
-														invoke("open_notification_center");
-													}}
-													title="Notification Center"
-												>
-													<BellIcon />
-												</button>
-												<button
-													className="cc-circular-btn"
-													onClick={(e) => {
-														e.stopPropagation();
-														openSettingsWindow();
-													}}
-													title="LotusNotch Settings"
-												>
-													<SettingsIcon />
-												</button>
-												<button
-													className="cc-circular-btn"
-													onClick={(e) => {
-														e.stopPropagation();
-														invoke("restart_bloom");
-													}}
-													title="Restart LotusNotch"
-												>
-													<ReloadIcon />
-												</button>
-											</div>
+											<CommandCenterTiles tiles={ccTiles} state={ccState} />
 
 											{/* Classic Sliders Area */}
 											<div className="cc-classic-sliders-area">
@@ -5048,42 +4846,6 @@ function Calendar() {
 	);
 }
 
-function BluetoothIcon() {
-	return (
-		<svg
-			width="18"
-			height="18"
-			viewBox="0 0 24 24"
-			fill="none"
-			stroke="currentColor"
-			strokeWidth="2.5"
-			strokeLinecap="round"
-			strokeLinejoin="round"
-		>
-			<path d="M6.5 6.5l11 11L12 23V1l5.5 5.5-11 11" />
-		</svg>
-	);
-}
-
-function SettingsIcon() {
-	return (
-		<svg
-			width="14"
-			height="14"
-			viewBox="0 0 24 24"
-			fill="none"
-			stroke="currentColor"
-			strokeWidth="2.5"
-			strokeLinecap="round"
-			strokeLinejoin="round"
-			style={{ opacity: 0.9 }}
-		>
-			<circle cx="12" cy="12" r="3" />
-			<path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z" />
-		</svg>
-	);
-}
-
 function BrightnessLowIcon() {
 	return (
 		<svg
@@ -5098,116 +4860,6 @@ function BrightnessLowIcon() {
 			style={{ opacity: 0.5 }}
 		>
 			<circle cx="12" cy="12" r="5" fill="currentColor" />
-		</svg>
-	);
-}
-
-function MoonIcon() {
-	return (
-		<svg
-			width="18"
-			height="18"
-			viewBox="0 0 24 24"
-			fill="none"
-			stroke="currentColor"
-			strokeWidth="2.5"
-			strokeLinecap="round"
-			strokeLinejoin="round"
-		>
-			<path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z" />
-		</svg>
-	);
-}
-
-function DockIcon() {
-	return (
-		<svg
-			width="18"
-			height="18"
-			viewBox="0 0 24 24"
-			fill="none"
-			stroke="currentColor"
-			strokeWidth="2.5"
-			strokeLinecap="round"
-			strokeLinejoin="round"
-		>
-			<rect x="2" y="14" width="20" height="8" rx="2" />
-			<line x1="6" y1="18" x2="6.01" y2="18" strokeWidth="3.5" strokeLinecap="round" />
-			<line x1="10" y1="18" x2="10.01" y2="18" strokeWidth="3.5" strokeLinecap="round" />
-			<line x1="14" y1="18" x2="14.01" y2="18" strokeWidth="3.5" strokeLinecap="round" />
-			<line x1="18" y1="18" x2="18.01" y2="18" strokeWidth="3.5" strokeLinecap="round" />
-		</svg>
-	);
-}
-
-function NotchIcon() {
-	return (
-		<svg
-			width="18"
-			height="18"
-			viewBox="0 0 24 24"
-			fill="none"
-			stroke="currentColor"
-			strokeWidth="2.5"
-			strokeLinecap="round"
-			strokeLinejoin="round"
-		>
-			<path d="M4 3h16a2 2 0 0 1 2 2v2a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2z" />
-			<path d="M9 9v4a2 2 0 0 0 2 2h2a2 2 0 0 0 2-2V9" />
-		</svg>
-	);
-}
-
-function BellIcon() {
-	return (
-		<svg
-			width="14"
-			height="14"
-			viewBox="0 0 24 24"
-			fill="none"
-			stroke="currentColor"
-			strokeWidth="2.5"
-			strokeLinecap="round"
-			strokeLinejoin="round"
-		>
-			<path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9z" />
-			<path d="M13.73 21a2 2 0 0 1-3.46 0" />
-		</svg>
-	);
-}
-
-function ReloadIcon() {
-	return (
-		<svg
-			width="14"
-			height="14"
-			viewBox="0 0 24 24"
-			fill="none"
-			stroke="currentColor"
-			strokeWidth="2.5"
-			strokeLinecap="round"
-			strokeLinejoin="round"
-		>
-			<path d="M21.5 2v6h-6M21.34 15.57a10 10 0 1 1-.57-8.38l5.67-5.67" />
-		</svg>
-	);
-}
-
-function BatterySaverIcon() {
-	return (
-		<svg
-			width="18"
-			height="18"
-			viewBox="0 0 24 24"
-			fill="none"
-			stroke="currentColor"
-			strokeWidth="2.5"
-			strokeLinecap="round"
-			strokeLinejoin="round"
-		>
-			<rect x="2" y="7" width="16" height="10" rx="2" />
-			<path d="M22 11v2" />
-			<path d="M6 12h4l2-3v6l-2-3H6" />
 		</svg>
 	);
 }

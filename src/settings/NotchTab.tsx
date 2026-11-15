@@ -17,7 +17,9 @@ import {
 	PanelLeft,
 	PanelRight,
 	GripVertical,
-	ListOrdered
+	ListOrdered,
+	Check,
+	LayoutGrid
 } from "lucide-react";
 import { useRef, useState } from "react";
 import { Reorder } from "framer-motion";
@@ -41,6 +43,7 @@ import { ScaleStepper } from "./ScaleStepper";
 import { Choice } from "./Choice";
 import { shortcutFrom } from "./ClipboardTab";
 import { EXTRA_TOOLS, TOOLS, parseEnabledTools, type ExtraToolId } from "../tools";
+import { CC_DEFAULT, CC_TILES, parseCcTiles, type CcTileId } from "../components/CommandCenter";
 import { invoke } from "@tauri-apps/api/core";
 import { ask } from "@tauri-apps/plugin-dialog";
 import {
@@ -193,6 +196,44 @@ function MoreTools({ saveSetting }: { saveSetting: (key: string, value: string |
 					</div>
 				</div>
 			))}
+		</>
+	);
+}
+
+/** Settings › Notch › Command Center: which tiles show (`bloom-cc-tiles`).
+ *  Tiles keep one fixed order, so the grid never reshuffles. */
+function CcTilePicker({ saveSetting }: { saveSetting: (key: string, value: string | null) => Promise<boolean> }) {
+	const [tiles, setTiles] = useState(() => parseCcTiles(localStorage.getItem("bloom-cc-tiles")));
+	const save = (next: CcTileId[]) => {
+		setTiles(next);
+		saveSetting("bloom-cc-tiles", JSON.stringify(next));
+	};
+	return (
+		<>
+			<div className="pick-tools-grid cc-tile-picker">
+				{CC_TILES.map(([id, label, Icon]) => {
+					const on = tiles.includes(id);
+					return (
+						<button
+							key={id}
+							type="button"
+							role="checkbox"
+							aria-checked={on}
+							className={`pick-tool${on ? " on" : ""}`}
+							onClick={() => save(on ? tiles.filter((t) => t !== id) : [...tiles, id])}
+						>
+							<span className="tool-card-icon" style={{ color: TOOLS["command-center"].color }}>
+								<Icon size={16} />
+							</span>
+							<span className="pick-tool-label">{label}</span>
+							<span className="pick-check">{on && <Check size={12} strokeWidth={3} />}</span>
+						</button>
+					);
+				})}
+			</div>
+			<button type="button" className="cc-tiles-reset" onClick={() => save(CC_DEFAULT)}>
+				Reset to default
+			</button>
 		</>
 	);
 }
@@ -544,6 +585,23 @@ export function NotchTab({
 							/>
 						</SettingRow>
 					</div>
+
+					{controlsPanelEnabled && (
+						<>
+							<div className="setting-group-label">Command Center</div>
+							<div className="setting-group">
+								<SettingRow
+									icon={LayoutGrid}
+									label="Tiles"
+									desc="Pick the quick settings you use. Tiles without a Windows switch open Windows' own page for it"
+									divider={false}
+								/>
+								<div className="page-order-wrap">
+									<CcTilePicker saveSetting={saveSetting} />
+								</div>
+							</div>
+						</>
+					)}
 
 					<MoreTools saveSetting={saveSetting} />
 

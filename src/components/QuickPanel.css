@@ -3,10 +3,10 @@
    controls panel itself. */
 .qp {
 	position: absolute;
-	top: 36px;
+	top: calc(36px + var(--tab-bar-space, 0px));
 	left: 0;
 	width: 100%;
-	height: calc(100% - 36px);
+	height: calc(100% - 36px - var(--tab-bar-space, 0px));
 	box-sizing: border-box;
 	z-index: 2;
 	padding: 4px 12px 8px;

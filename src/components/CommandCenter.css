@@ -1,0 +1,108 @@
+/* Command Center tiles (design › Tools 0.2): three columns, an icon disc in
+   the tool colour when on, the label and a short status. */
+.cc-tiles {
+	display: grid;
+	grid-template-columns: repeat(3, minmax(0, 1fr));
+	gap: 8px;
+	width: 100%;
+}
+
+.cc-tile {
+	position: relative;
+	display: flex;
+	align-items: center;
+	height: 44px;
+	border-radius: 12px;
+	background: var(--bloom-group-bg, rgba(255, 255, 255, 0.06));
+	transition: background 0.15s ease;
+}
+
+.cc-tile:hover {
+	background: rgba(255, 255, 255, 0.1);
+}
+
+.cc-tile-main {
+	flex: 1;
+	min-width: 0;
+	height: 100%;
+	display: flex;
+	align-items: center;
+	gap: 8px;
+	padding: 0 4px 0 8px;
+	border: none;
+	background: none;
+	color: var(--bloom-text, #fff);
+	font: inherit;
+	text-align: left;
+	cursor: pointer;
+}
+
+.cc-tile-icon {
+	flex: none;
+	display: grid;
+	place-items: center;
+	width: 28px;
+	height: 28px;
+	border-radius: 50%;
+	background: rgba(255, 255, 255, 0.1);
+	color: var(--bloom-text, #fff);
+}
+
+.cc-tile.on .cc-tile-icon {
+	background: #5b9bff;
+	color: #fff;
+}
+
+.cc-tile-text {
+	min-width: 0;
+	display: flex;
+	flex-direction: column;
+	gap: 1px;
+}
+
+.cc-tile-label,
+.cc-tile-status {
+	overflow: hidden;
+	white-space: nowrap;
+	text-overflow: ellipsis;
+}
+
+.cc-tile-label {
+	font-size: 11.5px;
+	font-weight: 500;
+}
+
+.cc-tile-status {
+	font-size: 10px;
+	color: var(--bloom-text-secondary, #a1a1aa);
+}
+
+.cc-tile-more {
+	flex: none;
+	display: grid;
+	place-items: center;
+	width: 20px;
+	height: 100%;
+	padding: 0;
+	border: none;
+	background: none;
+	color: var(--bloom-text-secondary, #a1a1aa);
+	cursor: pointer;
+}
+
+.cc-tile-more:hover {
+	color: var(--bloom-text, #fff);
+}
+
+.cc-tile-main:focus-visible,
+.cc-tile-more:focus-visible {
+	outline: 2px solid var(--bloom-accent, #0a84ff);
+	outline-offset: -2px;
+	border-radius: 12px;
+}
+
+@media (prefers-reduced-motion: reduce) {
+	.cc-tile {
+		transition: none;
+	}
+}

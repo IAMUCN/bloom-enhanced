@@ -1366,10 +1366,10 @@ img {
 
 .calendar-timer-content {
 	position: absolute;
-	top: 36px;
+	top: calc(36px + var(--tab-bar-space, 0px));
 	left: 0;
 	width: 100%;
-	height: calc(100% - 36px);
+	height: calc(100% - 36px - var(--tab-bar-space, 0px));
 	box-sizing: border-box;
 	z-index: 2;
 }
@@ -1377,10 +1377,10 @@ img {
 /* Command Center Panel - Minimal */
 .command-center-content-minimal {
 	position: absolute;
-	top: 36px;
+	top: calc(36px + var(--tab-bar-space, 0px));
 	left: 0;
 	width: 100%;
-	height: calc(100% - 36px);
+	height: calc(100% - 36px - var(--tab-bar-space, 0px));
 	box-sizing: border-box;
 	z-index: 2;
 	padding: 12px 14px 12px 14px;
@@ -1815,178 +1815,6 @@ img {
 	opacity: 0.85;
 }
 
-/* Pills Grid */
-.cc-pills-grid {
-	display: grid;
-	grid-template-columns: 1fr 1fr;
-	gap: 10px;
-	width: 100%;
-	height: 78px;
-}
-
-.cc-pill-tile {
-	display: flex;
-	align-items: center;
-	gap: 8px;
-	padding: 5px 8px;
-	border-radius: 10px;
-	background: var(--bloom-group-bg, rgba(255, 255, 255, 0.04));
-	border: 1px solid var(--bloom-border, rgba(255, 255, 255, 0.02));
-	cursor: pointer;
-	transition: all 0.15s cubic-bezier(0.16, 1, 0.3, 1);
-	user-select: none;
-	height: 34px;
-	box-sizing: border-box;
-}
-
-.cc-pill-tile:hover {
-	background: var(--bloom-border, rgba(255, 255, 255, 0.08));
-	transform: translateY(-0.5px);
-}
-
-.cc-pill-tile:active {
-	transform: scale(0.98);
-}
-
-.cc-pill-icon-wrapper {
-	display: flex;
-	align-items: center;
-	justify-content: center;
-	width: 20px;
-	height: 20px;
-	border-radius: 50%;
-	background: var(--bloom-group-bg, rgba(255, 255, 255, 0.08));
-	color: var(--bloom-text, rgba(255, 255, 255, 0.9));
-	transition: all 0.15s ease;
-}
-
-.cc-pill-icon-wrapper svg {
-	width: 12px;
-	height: 12px;
-}
-
-.cc-pill-info {
-	display: flex;
-	flex-direction: column;
-	min-width: 0;
-	line-height: 1.15;
-}
-
-.cc-pill-title {
-	font-size: 9px;
-	font-weight: 600;
-	color: var(--bloom-text, rgba(255, 255, 255, 0.9));
-}
-
-.cc-pill-status {
-	font-size: 7.5px;
-	color: var(--bloom-text-muted, rgba(255, 255, 255, 0.4));
-	font-weight: 500;
-	/* The connected network's name can be long. */
-	white-space: nowrap;
-	overflow: hidden;
-	text-overflow: ellipsis;
-}
-
-/* Active Monochrome pill states */
-.cc-pill-tile.active {
-	background: var(--bloom-text, rgba(255, 255, 255, 0.95));
-	border-color: var(--bloom-text, rgba(255, 255, 255, 0.95));
-}
-
-.cc-pill-tile.active .cc-pill-title {
-	color: var(--bloom-bg-expanded, rgba(0, 0, 0, 0.9));
-}
-
-.cc-pill-tile.active .cc-pill-status {
-	color: var(--bloom-bg-expanded, rgba(0, 0, 0, 0.5));
-}
-
-.cc-pill-tile.active .cc-pill-icon-wrapper {
-	background: var(--bloom-group-bg, rgba(0, 0, 0, 0.08));
-	color: var(--bloom-bg-expanded, #000);
-}
-
-/* Opens a tile's detail view from the controls panel. */
-.cc-pill-more {
-	margin-left: auto;
-	width: 18px;
-	height: 18px;
-	padding: 0;
-	flex: none;
-	display: flex;
-	align-items: center;
-	justify-content: center;
-	border: none;
-	border-radius: 6px;
-	background: transparent;
-	color: inherit;
-	opacity: 0.55;
-	cursor: pointer;
-	transition:
-		opacity 0.15s ease,
-		background 0.15s ease;
-}
-
-.cc-pill-more:hover {
-	opacity: 1;
-	background: var(--bloom-group-bg, rgba(255, 255, 255, 0.12));
-}
-
-.cc-pill-more svg {
-	width: 12px;
-	height: 12px;
-}
-
-.cc-pill-tile.active .cc-pill-more {
-	color: var(--bloom-bg-expanded, black);
-}
-
-/* Circular Actions Row */
-.cc-circular-actions-row {
-	display: flex;
-	justify-content: space-between;
-	align-items: center;
-	width: 100%;
-	padding: 0 4px;
-}
-
-.cc-circular-btn {
-	width: 32px;
-	height: 32px;
-	border-radius: 50%;
-	background: var(--bloom-group-bg, rgba(255, 255, 255, 0.04));
-	border: 1px solid var(--bloom-border, rgba(255, 255, 255, 0.02));
-	color: var(--bloom-text-muted, rgba(255, 255, 255, 0.7));
-	display: flex;
-	align-items: center;
-	justify-content: center;
-	cursor: pointer;
-	transition: all 0.2s cubic-bezier(0.16, 1, 0.3, 1);
-}
-
-.cc-circular-btn:hover {
-	background: var(--bloom-border, rgba(255, 255, 255, 0.1));
-	color: var(--bloom-text, #fff);
-	transform: translateY(-1px);
-}
-
-.cc-circular-btn:active {
-	transform: scale(0.95) translateY(0);
-}
-
-.cc-circular-btn.active {
-	background: var(--bloom-text, #ffffff);
-	border-color: var(--bloom-text, #ffffff);
-	color: var(--bloom-bg-expanded, #000000);
-	box-shadow: 0 2px 8px var(--bloom-border, rgba(255, 255, 255, 0.1));
-}
-
-.cc-circular-btn.active:hover {
-	background: rgba(255, 255, 255, 0.9);
-}
-
-/* Classic Sliders Area */
 .cc-classic-sliders-area {
 	display: flex;
 	flex-direction: column;

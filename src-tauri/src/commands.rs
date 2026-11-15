@@ -4884,6 +4884,19 @@ pub enum SystemAction {
     PowerOptions,
     NetworkConnections,
     TaskView,
+    // Command Center tiles: Windows has no public switch for these, so each
+    // opens Windows' own page or flyout.
+    NotificationSettings,
+    NightLight,
+    Airplane,
+    Hotspot,
+    LiveCaptions,
+    StudioEffects,
+    Accessibility,
+    NearbySharing,
+    Cast,
+    Project,
+    Battery,
 }
 
 #[tauri::command]
@@ -4917,6 +4930,22 @@ pub async fn open_system_action(action: SystemAction) -> Result<(), String> {
             SystemAction::InstalledApps => ("ms-settings:appsfeatures".into(), String::new()),
             SystemAction::PowerOptions => ("ms-settings:powersleep".into(), String::new()),
             SystemAction::NetworkConnections => ("ms-settings:network".into(), String::new()),
+            SystemAction::NotificationSettings => {
+                ("ms-settings:notifications".into(), String::new())
+            }
+            SystemAction::NightLight => ("ms-settings:nightlight".into(), String::new()),
+            SystemAction::Airplane => ("ms-settings:network-airplanemode".into(), String::new()),
+            SystemAction::Hotspot => ("ms-settings:network-mobilehotspot".into(), String::new()),
+            SystemAction::LiveCaptions => (format!("{system}\\LiveCaptions.exe"), String::new()),
+            SystemAction::StudioEffects => ("ms-settings:camera".into(), String::new()),
+            SystemAction::Accessibility => ("ms-settings:easeofaccess".into(), String::new()),
+            SystemAction::NearbySharing => ("ms-settings:crossdevice".into(), String::new()),
+            SystemAction::Cast => (
+                "ms-settings-connectabledevices:devicediscovery".into(),
+                String::new(),
+            ),
+            SystemAction::Project => (format!("{system}\\DisplaySwitch.exe"), String::new()),
+            SystemAction::Battery => ("ms-settings:batterysaver".into(), String::new()),
             // Task View's shell folder opens Task View like the taskbar's
             // button, without sending Win+Tab, which a held Ctrl or Shift
             // would turn into a different shortcut.

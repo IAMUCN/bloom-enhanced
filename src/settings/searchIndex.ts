@@ -54,6 +54,7 @@ export const SETTINGS_INDEX: SettingEntry[] = [
 		["Tools", "Turn Command Center, Calendar & Timer, Devices and the Shelf on or off, and drag them into the tab bar's order"],
 		["Smart Start", "Reopen the last panel if you come back within 5 minutes; otherwise open your favourite"],
 		["Favourite Panel", "The panel the notch opens on when Smart Start doesn't reopen the last one"],
+		["Tiles", "Command Center quick settings: Wi-Fi, Bluetooth, Do not disturb, Night light, Energy saver, Airplane mode, Mobile hotspot, Live captions, Studio effects, Cast, Project, Battery"],
 		["Music Mode", "Interactive live music widget"],
 		["Compact Mode", "Show visualizer & artwork when collapsed"],
 		["Media Layout", "Choose expanded player style"],
