@@ -2288,7 +2288,8 @@ function App() {
 
 	// The Game strip glance: CPU · GPU · RAM in the clock's place, read every
 	// 2 s only while it shows.
-	const showGlance = glanceOn && !isOpen && !timesUp && !toolTimer && timerSeconds === 0 && !isTimerFinished;
+	// Hidden while hovered: the hover widgets beside the clock would land on it.
+	const showGlance = glanceOn && !isOpen && !isHovered && !timesUp && !toolTimer && timerSeconds === 0 && !isTimerFinished;
 	useEffect(() => {
 		if (windowLabel !== "main" || !showGlance) return setGlance(null);
 		const read = () =>
@@ -3625,7 +3626,7 @@ function App() {
 		if (toolShowing && isOpen) return OPEN_WIDTH;
 		if (minimalIdle) return 72;
 		if (fileStatus && !isOpen) return 300;
-		if (showGlance && glance) return 250;
+		if (showGlance && glance) return 300;
 		if (bloomMode === "announcement" && announcement && !announcementDismissed) return 380;
 		if (bloomMode === "device" && deviceAlert) return 330;
 		if (isCalendarMode) return 480;
@@ -4360,7 +4361,8 @@ function App() {
 																	)}
 																</AnimatePresence>
 																<div className="time-flip-container" style={{ zoom: timeSize }} onClick={toggleCalendarMode}>
-																	<AnimatePresence initial={false}>
+																	{/* One text at a time: the old one flips out before the new one flips in. */}
+																	<AnimatePresence initial={false} mode="wait">
 																		{showGlance && glance ? (
 																			<motion.span
 																				key="game-glance"
@@ -4370,6 +4372,7 @@ function App() {
 																				exit={{ rotateX: 90, opacity: 0 }}
 																				transition={{ type: "spring", stiffness: 600, damping: 30 }}
 																			>
+																				<span>{time}</span>
 																				<span>CPU {Math.round(glance.cpu)}%</span>
 																				<span>GPU {glance.gpu === null ? "–" : Math.round(glance.gpu)}%</span>
 																				<span>RAM {Math.round(glance.ram)}%</span>

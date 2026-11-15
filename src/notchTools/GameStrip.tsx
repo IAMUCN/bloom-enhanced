@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
 import { invoke } from "@tauri-apps/api/core";
-import { Clock, Cpu, Gamepad2, MemoryStick, MonitorPlay } from "lucide-react";
+import { Clock, Cpu, Eye, EyeOff, Gamepad2, MemoryStick, MonitorPlay } from "lucide-react";
 
 type Stats = { cpu: number; mem_used: number; mem_total: number };
 
@@ -12,6 +12,14 @@ export default function GameStrip() {
 	const [stats, setStats] = useState<Stats | null>(null);
 	const [gpu, setGpu] = useState<number | null>(null);
 	const [now, setNow] = useState(() => new Date());
+	// On: time, CPU, GPU and RAM stay on the closed notch (`bloom-game-glance`).
+	const [glance, setGlance] = useState(() => localStorage.getItem("bloom-game-glance") === "on");
+	const toggleGlance = () => {
+		const next = glance ? "off" : "on";
+		setGlance(!glance);
+		localStorage.setItem("bloom-game-glance", next);
+		invoke("save_setting", { key: "bloom-game-glance", value: next }).catch(() => {});
+	};
 	useEffect(() => {
 		const read = () => {
 			invoke<Stats>("system_stats").then(setStats).catch(() => {});
@@ -37,6 +45,15 @@ export default function GameStrip() {
 					<span className="gs-label">{label}</span>
 				</div>
 			))}
+			<button
+				type="button"
+				className={`nt-btn gs-bar gs-glance${glance ? " on" : ""}`}
+				aria-pressed={glance}
+				title={glance ? "On: time, CPU, GPU and RAM stay on the closed notch" : "Off: readings show only here"}
+				onClick={toggleGlance}
+			>
+				{glance ? <Eye size={14} /> : <EyeOff size={14} />} {glance ? "On notch" : "Off"}
+			</button>
 			<button type="button" className="nt-btn gs-bar" onClick={() => invoke("open_app", { appName: "ms-gamebar:" }).catch(() => {})}>
 				<Gamepad2 size={14} /> Game Bar
 			</button>

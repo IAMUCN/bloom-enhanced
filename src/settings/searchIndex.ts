@@ -70,7 +70,6 @@ export const SETTINGS_INDEX: SettingEntry[] = [
 		["Tiles", "Command Center quick settings: Wi-Fi, Bluetooth, Do not disturb, Night light, Energy saver, Airplane mode, Mobile hotspot, Live captions, Studio effects, Cast, Project"],
 		["Timer Sound", "Play a chime when the timer finishes"],
 		["Countdown", "How a running Timer shows on the closed notch: time, edge light, both or off"],
-		["Glance", "Game strip readings (CPU, GPU, RAM) on the closed notch, on or off"],
 		["Erase Data", "Delete what a tool has saved on this PC"]
 	]),
 	...page(

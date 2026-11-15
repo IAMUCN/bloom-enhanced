@@ -615,3 +615,7 @@ textarea.nt-input {
 	height: 44px;
 	border-radius: 12px !important;
 }
+
+.gs-glance.on {
+	color: #b6f36b;
+}

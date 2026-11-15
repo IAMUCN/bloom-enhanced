@@ -174,6 +174,15 @@ pub fn set_notch_key_capture(on: bool) {
     KEY_CAPTURE.store(on, Ordering::Relaxed);
 }
 
+/// The Teleprompter is showing: Ctrl+V loads the copied script into it,
+/// even with the keyboard in another app.
+static PASTE_CAPTURE: AtomicBool = AtomicBool::new(false);
+
+#[tauri::command]
+pub fn set_notch_paste_capture(on: bool) {
+    PASTE_CAPTURE.store(on, Ordering::Relaxed);
+}
+
 /// A calculator key as the web names it (KeyboardEvent.key), or None.
 fn calc_key(vk: u16, shift: bool) -> Option<&'static str> {
     const DIGITS: [&str; 10] = ["0", "1", "2", "3", "4", "5", "6", "7", "8", "9"];
@@ -208,6 +217,24 @@ pub fn on_open_notch_digit(vk: u16) -> bool {
         return false;
     }
     let down = |k: u16| unsafe { (GetAsyncKeyState(k as i32) as u16 & 0x8000) != 0 };
+    // Ctrl+V for the Teleprompter (only Ctrl: Ctrl+Alt+V is a shortcut chord).
+    if PASTE_CAPTURE.load(Ordering::Relaxed)
+        && vk == 0x56
+        && down(VK_CONTROL.0)
+        && ![VK_MENU.0, VK_LWIN.0, VK_RWIN.0].into_iter().any(down)
+    {
+        let mut pid = 0u32;
+        unsafe { GetWindowThreadProcessId(GetForegroundWindow(), Some(&mut pid)) };
+        if pid == std::process::id() {
+            return false;
+        }
+        if let Some(app) = KEYBOARD_APP.get().cloned() {
+            std::thread::spawn(move || {
+                let _ = app.emit_to("main", "notch-paste", ());
+            });
+        }
+        return true;
+    }
     if [VK_CONTROL.0, VK_MENU.0, VK_LWIN.0, VK_RWIN.0]
         .into_iter()
         .any(down)

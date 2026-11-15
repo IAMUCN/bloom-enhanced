@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from "react";
 import { invoke } from "@tauri-apps/api/core";
-import { Check, ClipboardPaste, Pause, Pencil, Play, RotateCcw, Type, Gauge } from "lucide-react";
+import { Check, Pause, Pencil, Play, RotateCcw, Type, Gauge } from "lucide-react";
+import { listen } from "@tauri-apps/api/event";
 import { readText } from "@tauri-apps/plugin-clipboard-manager";
 import type { ToolProps } from "../tools";
 import { useToolData } from "./useToolData";
@@ -22,6 +23,38 @@ export default function Teleprompter({ setPinned }: ToolProps) {
 	useEffect(() => {
 		invoke("set_capture_excluded", { excluded: true }).catch(() => {});
 		return () => void invoke("set_capture_excluded", { excluded: false }).catch(() => {});
+	}, []);
+
+	// Ctrl+V on this page loads the copied text as the script: from another
+	// app's keyboard via the hook (shortcuts.rs), or here when the notch has it
+	// (inside the editor, Ctrl+V just pastes as usual).
+	const loadRef = useRef(() => {});
+	loadRef.current = () =>
+		readText()
+			.then((t) => {
+				if (!t?.trim()) return;
+				setData((d) => ({ ...d, script: t }));
+				setPlaying(false);
+				setEditing(false);
+				offset.current = 0;
+				if (text.current) text.current.style.transform = "translateY(0)";
+			})
+			.catch(() => {});
+	useEffect(() => {
+		invoke("set_notch_paste_capture", { on: true }).catch(() => {});
+		const off = listen("notch-paste", () => loadRef.current());
+		const onKey = (e: KeyboardEvent) => {
+			if (!(e.ctrlKey && !e.altKey && e.key.toLowerCase() === "v")) return;
+			if ((e.target as HTMLElement | null)?.closest("textarea, input")) return;
+			e.preventDefault();
+			loadRef.current();
+		};
+		window.addEventListener("keydown", onKey);
+		return () => {
+			invoke("set_notch_paste_capture", { on: false }).catch(() => {});
+			off.then((f) => f());
+			window.removeEventListener("keydown", onKey);
+		};
 	}, []);
 
 	// Scroll at `speed` px/s while playing; stop at the end.
@@ -65,7 +98,7 @@ export default function Teleprompter({ setPinned }: ToolProps) {
 			) : (
 				<div ref={box} className="tp-view" onDoubleClick={() => setEditing(true)}>
 					<div ref={text} className="tp-text" style={{ fontSize: data.size }}>
-						{data.script || <span className="tp-empty">Paste your script here.</span>}
+						{data.script || <span className="tp-empty">Copy your script and press Ctrl+V here.</span>}
 					</div>
 				</div>
 			)}
@@ -80,24 +113,6 @@ export default function Teleprompter({ setPinned }: ToolProps) {
 					}}
 				>
 					{editing ? <Check size={14} /> : <Pencil size={14} />}
-				</button>
-				<button
-					type="button"
-					className="nt-btn nt-icon-btn tp-round"
-					aria-label="Paste script from the clipboard"
-					title="Paste script"
-					onClick={() =>
-						readText()
-							.then((t) => {
-								if (!t) return;
-								setData((d) => ({ ...d, script: t }));
-								setEditing(false);
-								restart();
-							})
-							.catch(() => {})
-					}
-				>
-					<ClipboardPaste size={14} />
 				</button>
 				<button
 					type="button"

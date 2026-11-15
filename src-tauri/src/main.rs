@@ -228,6 +228,7 @@ fn main() {
             system_tools::gpu_usage,
             shortcuts::set_shortcuts_paused,
             shortcuts::set_notch_key_capture,
+            shortcuts::set_notch_paste_capture,
             focus_window,
             focus_app_windows,
             close_window,
