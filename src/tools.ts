@@ -52,6 +52,9 @@ export const TOOLS: Record<ToolId, Tool> = {
 /** Height the tab bar adds to the open notch, in notch pixels. */
 export const TAB_BAR_HEIGHT = 36;
 
+/** The open notch's one width while the tab bar shows (all tools). */
+export const OPEN_WIDTH = 580;
+
 /** The size grid (design › Foundations): widths S/M/L and the tool body's
  *  height S/M/L, below the clock row and the tab bar. */
 export const GRID_W = { S: 440, M: 580, L: 720 } as const;

@@ -1,10 +1,12 @@
 import { motion } from "framer-motion";
+import { useEffect, useRef } from "react";
 import type { Tool } from "../tools";
 import "./NotchTabBar.css";
 
 /** The open notch's tab bar (NotchPixel style): one icon per enabled tool, in
  *  the user's order. The active tab shows its tool colour on a raised chip.
- *  ← → move between tabs when the bar has focus. */
+ *  ← → move between tabs when the bar has focus. Too many tabs scroll
+ *  sideways (mouse wheel too); the active one scrolls into view. */
 export function NotchTabBar({
 	tools,
 	active,
@@ -17,13 +19,22 @@ export function NotchTabBar({
 	/** Counter-zoom so the bar keeps one size whatever the panel's zoom. */
 	zoom?: number;
 }) {
+	const bar = useRef<HTMLDivElement>(null);
+	useEffect(() => {
+		bar.current?.querySelector(".notch-tab.active")?.scrollIntoView({ block: "nearest", inline: "nearest" });
+	}, [active]);
 	const move = (delta: number) => {
 		const i = tools.findIndex((t) => t.id === active);
 		onSelect(tools[(i + delta + tools.length) % tools.length].id);
 	};
 	return (
 		<div
+			ref={bar}
 			className="notch-tab-bar"
+			onWheel={(e) => {
+				e.stopPropagation();
+				if (bar.current) bar.current.scrollLeft += e.deltaY || e.deltaX;
+			}}
 			role="tablist"
 			aria-label="Notch tools"
 			style={{ zoom }}

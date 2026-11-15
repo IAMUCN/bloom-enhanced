@@ -1374,25 +1374,6 @@ img {
 	z-index: 2;
 }
 
-/* Command Center Panel - Minimal */
-.command-center-content-minimal {
-	position: absolute;
-	top: calc(36px + var(--tab-bar-space, 0px));
-	left: 0;
-	width: 100%;
-	height: calc(100% - 36px - var(--tab-bar-space, 0px));
-	box-sizing: border-box;
-	z-index: 2;
-	padding: 12px 14px 12px 14px;
-	display: flex;
-	flex-direction: column;
-	justify-content: space-between;
-	align-items: center;
-	color: var(--bloom-text, white);
-	border-radius: 0 0 18px 18px;
-	overflow: hidden;
-}
-
 /* Shelf panel */
 .shelf-content {
 	position: absolute;
@@ -1815,96 +1796,6 @@ img {
 	opacity: 0.85;
 }
 
-.cc-classic-sliders-area {
-	display: flex;
-	flex-direction: column;
-	gap: 8px;
-	width: 100%;
-}
-
-.cc-classic-slider-row {
-	display: flex;
-	align-items: center;
-	gap: 10px;
-	width: 100%;
-	height: 18px;
-	position: relative;
-}
-
-.cc-classic-slider-label {
-	display: flex;
-	align-items: center;
-	gap: 6px;
-	width: 75px;
-	font-size: 9px;
-	font-weight: 600;
-	color: var(--bloom-text-muted, rgba(255, 255, 255, 0.65));
-}
-
-.cc-classic-slider-label svg {
-	opacity: 0.7;
-	width: 12px;
-	height: 12px;
-}
-
-.cc-classic-slider-track {
-	flex: 1;
-	height: 6px;
-	border-radius: 3px;
-	background: var(--bloom-group-bg, rgba(255, 255, 255, 0.08));
-	position: relative;
-	display: flex;
-	align-items: center;
-	transition: background 0.15s ease;
-}
-
-.cc-classic-slider-row:hover .cc-classic-slider-track {
-	background: var(--bloom-border, rgba(255, 255, 255, 0.12));
-}
-
-.cc-classic-fill {
-	background: var(--bloom-text, rgba(255, 255, 255, 0.9));
-	border-radius: 3px;
-	height: 100%;
-	position: absolute;
-	left: 0;
-	top: 0;
-	pointer-events: none;
-	transition:
-		width 0.05s linear,
-		background 0.15s ease;
-}
-
-.cc-classic-slider-row:hover .cc-classic-fill {
-	background: var(--bloom-text, #ffffff);
-	box-shadow: 0 0 4px var(--bloom-border, rgba(255, 255, 255, 0.15));
-}
-
-.cc-classic-percentage {
-	width: 28px;
-	text-align: right;
-	font-size: 9px;
-	font-weight: 600;
-	color: var(--bloom-text-muted, rgba(255, 255, 255, 0.55));
-	font-variant-numeric: tabular-nums;
-}
-
-.cc-classic-slider-row:hover .cc-classic-percentage {
-	color: var(--bloom-text, rgba(255, 255, 255, 0.85));
-}
-
-.cc-classic-input {
-	position: absolute;
-	top: -6px;
-	left: 0;
-	width: 100%;
-	height: 18px;
-	opacity: 0;
-	cursor: pointer;
-	z-index: 4;
-	margin: 0;
-}
-
 /* Light Mode overrides for Notch App components */
 .light-mode .power-pulse-content .label {
 	color: var(--bloom-text);
@@ -1927,17 +1818,12 @@ img {
 
 .light-mode .volume-slider-bar,
 .light-mode .brightness-slider-bar,
-.light-mode .cc-classic-slider,
 .light-mode .slider-track-premium {
 	background: rgba(0, 0, 0, 0.12);
 }
 
 .light-mode .slider-track-premium:hover {
 	background: rgba(0, 0, 0, 0.18);
-}
-
-.light-mode .cc-classic-slider-row svg {
-	color: var(--bloom-text);
 }
 
 /* ===== Immersive Media Player (iPhone Dynamic Island style) ===== */

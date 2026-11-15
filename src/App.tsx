@@ -37,9 +37,9 @@ import { useTrailingThrottle } from "./hooks/useTrailingThrottle";
 import { useAnnouncement } from "./hooks/useAnnouncement";
 import { NotchTabBar } from "./components/NotchTabBar";
 import { ProgressEffect, asProgressStyle } from "./components/ProgressEffect";
-import { EXTRA_BY_ID, GRID_H, GRID_W, TAB_BAR_HEIGHT, TOOLS, parseEnabledTools, type ExtraToolId, type Tool } from "./tools";
+import { EXTRA_BY_ID, GRID_H, OPEN_WIDTH, TAB_BAR_HEIGHT, TOOLS, parseEnabledTools, type ExtraToolId, type Tool } from "./tools";
 import { ToolHost } from "./notchTools/ToolHost";
-import { CommandCenterTiles, ccTilesHeight, parseCcTiles, type CcTileId, type CcTileState } from "./components/CommandCenter";
+import { CommandCenter, ccBodyHeight, parseCcTiles, type CcTileId, type CcTileState } from "./components/CommandCenter";
 import { reloadIfMirrorWasStale } from "./hooks/settingsMirror";
 import { openUrl } from "@tauri-apps/plugin-opener";
 import { writeText } from "@tauri-apps/plugin-clipboard-manager";
@@ -736,6 +736,9 @@ function App() {
 	const [isMuted, setIsMuted] = useState(false);
 	// Sliders show 0 while muted, matching the overlay HUD.
 	const displayVolume = isMuted ? 0 : volume;
+	// What the Command Center's slider icons bring back after muting / dimming to 0.
+	const restoreVolumeRef = useRef(0.5);
+	const restoreBrightnessRef = useRef(50);
 	// Null until the first successful fetch so the pill can't flash a wrong
 	// default on startup.
 	const [wifiStatus, setWifiStatus] = useState<WifiStatus | null>(null);
@@ -3330,24 +3333,24 @@ function App() {
 			onClick: () => toggleBluetooth(),
 			onMore: () => setBloomMode("bluetooth")
 		},
-		dnd: { onClick: openSystem("notification-settings") },
-		"night-light": { onClick: openSystem("night-light") },
-		energy: { on: batterySaverEnabled, status: batterySaverEnabled ? "On" : "Off", onClick: () => openBatterySaverSettings() },
-		airplane: { onClick: openSystem("airplane") },
-		hotspot: { onClick: openSystem("hotspot") },
-		captions: { onClick: openSystem("live-captions") },
-		studio: { onClick: openSystem("studio-effects") },
-		accessibility: { onClick: openSystem("accessibility") },
-		nearby: { onClick: openSystem("nearby-sharing") },
-		cast: { onClick: openSystem("cast") },
-		project: { onClick: openSystem("project") },
-		battery: { status: `${batteryLevel}%${isCharging ? " · charging" : ""}`, onClick: openSystem("battery") },
+		dnd: { opens: true, onClick: openSystem("notification-settings") },
+		"night-light": { opens: true, onClick: openSystem("night-light") },
+		energy: { on: batterySaverEnabled, status: batterySaverEnabled ? "On" : "Off", opens: true, onClick: () => openBatterySaverSettings() },
+		airplane: { opens: true, onClick: openSystem("airplane") },
+		hotspot: { opens: true, onClick: openSystem("hotspot") },
+		captions: { opens: true, onClick: openSystem("live-captions") },
+		studio: { opens: true, onClick: openSystem("studio-effects") },
+		accessibility: { opens: true, onClick: openSystem("accessibility") },
+		nearby: { opens: true, onClick: openSystem("nearby-sharing") },
+		cast: { opens: true, onClick: openSystem("cast") },
+		project: { opens: true, onClick: openSystem("project") },
+		battery: { status: `${batteryLevel}%`, opens: true, onClick: openSystem("battery") },
 		"dock-mode": { status: modeName(dockMode), onClick: toggleDockModeSetting },
 		"notch-mode": { status: modeName(notchMode), onClick: toggleNotchModeSetting },
-		tray: { onClick: openSystemTray },
-		"task-manager": { onClick: openSystem("task-manager") },
-		notifications: { onClick: () => invoke("open_notification_center").catch(console.error) },
-		"windows-settings": { onClick: openSystem("settings") },
+		tray: { opens: true, onClick: openSystemTray },
+		"task-manager": { opens: true, onClick: openSystem("task-manager") },
+		notifications: { opens: true, onClick: () => invoke("open_notification_center").catch(console.error) },
+		"windows-settings": { opens: true, onClick: openSystem("settings") },
 		"lotus-settings": { onClick: () => openSettingsWindow() },
 		restart: { onClick: () => invoke("restart_bloom").catch(console.error) }
 	};
@@ -3356,9 +3359,11 @@ function App() {
 	const clock24hTrim = timeFormat24h ? 16 : 0;
 
 	// Calculate width dynamically based on enabled features
-	const getDynamicWidth = () => Math.max(getBaseWidth(), showTabBar ? (tabTools.length * 40 + 24) / panelZoomNow : 0);
+	// With the tab bar showing, every tool gets one width so the clock and the
+	// tab bar never move when switching; only the height changes.
+	const getDynamicWidth = () => (showTabBar ? OPEN_WIDTH / panelZoomNow : getBaseWidth());
 	const getBaseWidth = () => {
-		if (toolShowing && isOpen) return GRID_W[EXTRA_BY_ID[toolShowing].size[0]];
+		if (toolShowing && isOpen) return OPEN_WIDTH;
 		if (minimalIdle) return 72;
 		if (fileStatus && !isOpen) return 300;
 		if (bloomMode === "announcement" && announcement && !announcementDismissed) return 380;
@@ -3410,7 +3415,7 @@ function App() {
 			if (shelfItems.length === 0) return 130;
 			return shelfOverflowing ? 190 : 176;
 		}
-		if (bloomMode === "command-center") return isOpen ? 36 + 12 + ccTilesHeight(ccTiles.length) + (ccTiles.length ? 12 : 0) + 56 + 12 : 36;
+		if (bloomMode === "command-center") return isOpen ? 36 + ccBodyHeight(ccTiles) : 36;
 		if (bloomMode === "devices") {
 			return devicesPanelHeight;
 		}
@@ -4327,75 +4332,37 @@ function App() {
 									)}
 								</AnimatePresence>
 
-								{/* Command Center Panel */}
+								{/* Command Center */}
 								<AnimatePresence>
 									{bloomMode === "command-center" && (
 										<motion.div
-											className="command-center-content-minimal"
-											onClick={(e) => e.stopPropagation()}
+											key="command-center"
 											initial={{ opacity: 0 }}
 											animate={{ opacity: 1 }}
 											exit={{ opacity: 0, filter: "blur(4px)", transition: { duration: 0.1 } }}
 											transition={{ type: "spring", stiffness: 400, damping: 30 }}
 										>
-											<CommandCenterTiles tiles={ccTiles} state={ccState} />
-
-											{/* Classic Sliders Area */}
-											<div className="cc-classic-sliders-area">
-												{/* Volume Slider */}
-												<div className="cc-classic-slider-row">
-													<div className="cc-classic-slider-label">
-														<VolumeLowIcon style={{ opacity: 0.5 }} />
-														<span>Volume</span>
-													</div>
-													<div className="cc-classic-slider-track">
-														<input
-															type="range"
-															min="0"
-															max="1"
-															step="0.01"
-															value={displayVolume}
-															onChange={(e) => handleVolumeChange(parseFloat(e.target.value))}
-															onPointerDown={(e) => e.stopPropagation()}
-															onClick={(e) => e.stopPropagation()}
-															className="cc-classic-input"
-														/>
-														<div
-															className="cc-classic-fill"
-															style={{ width: `${displayVolume * 100}%` }}
-														/>
-													</div>
-													<span className="cc-classic-percentage">
-														{Math.round(displayVolume * 100)}%
-													</span>
-												</div>
-
-												{/* Brightness Slider */}
-												<div className="cc-classic-slider-row">
-													<div className="cc-classic-slider-label">
-														<BrightnessLowIcon />
-														<span>Brightness</span>
-													</div>
-													<div className="cc-classic-slider-track">
-														<input
-															type="range"
-															min="0"
-															max="100"
-															step="1"
-															value={currentBrightness}
-															onChange={(e) => handleBrightnessChange(parseInt(e.target.value))}
-															onPointerDown={(e) => e.stopPropagation()}
-															onClick={(e) => e.stopPropagation()}
-															className="cc-classic-input"
-														/>
-														<div
-															className="cc-classic-fill"
-															style={{ width: `${currentBrightness}%` }}
-														/>
-													</div>
-													<span className="cc-classic-percentage">{currentBrightness}%</span>
-												</div>
-											</div>
+											<CommandCenter
+												tiles={ccTiles}
+												state={ccState}
+												volume={Math.round(displayVolume * 100)}
+												muted={isMuted}
+												onVolume={(v) => handleVolumeChange(v / 100)}
+												onMute={() => {
+													if (displayVolume > 0) {
+														restoreVolumeRef.current = displayVolume;
+														handleVolumeChange(0);
+													} else handleVolumeChange(restoreVolumeRef.current || 0.5);
+												}}
+												brightness={currentBrightness}
+												onBrightness={handleBrightnessChange}
+												onBrightnessIcon={() => {
+													if (currentBrightness > 0) {
+														restoreBrightnessRef.current = currentBrightness;
+														handleBrightnessChange(0);
+													} else handleBrightnessChange(restoreBrightnessRef.current || 50);
+												}}
+											/>
 										</motion.div>
 									)}
 								</AnimatePresence>
@@ -4843,24 +4810,6 @@ function Calendar() {
 				{days}
 			</div>
 		</div>
-	);
-}
-
-function BrightnessLowIcon() {
-	return (
-		<svg
-			width="12"
-			height="12"
-			viewBox="0 0 24 24"
-			fill="none"
-			stroke="currentColor"
-			strokeWidth="2"
-			strokeLinecap="round"
-			strokeLinejoin="round"
-			style={{ opacity: 0.5 }}
-		>
-			<circle cx="12" cy="12" r="5" fill="currentColor" />
-		</svg>
 	);
 }
 

@@ -9,9 +9,9 @@ export const MAX_SCALE = 1.5;
 
 export type SizedPanel = "calendar" | "command-center" | "clipboard" | "devices" | "music" | "shelf";
 
-/** What 100% means per panel: Command Center and the clipboard shelf are
- *  drawn 30% larger than their original layout. */
-const PANEL_BASE: Partial<Record<SizedPanel, number>> = { "command-center": 1.3, clipboard: 1.3 };
+/** What 100% means per panel: the clipboard shelf is drawn 30% larger than
+ *  its original layout. */
+const PANEL_BASE: Partial<Record<SizedPanel, number>> = { clipboard: 1.3 };
 
 /** A panel's zoom. */
 export const panelZoom = (panel: SizedPanel) => PANEL_BASE[panel] ?? 1;

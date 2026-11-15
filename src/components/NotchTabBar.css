@@ -1,11 +1,32 @@
 .notch-tab-bar {
 	display: flex;
-	justify-content: center;
 	align-items: center;
 	gap: 4px;
 	height: 36px;
 	flex: none;
+	box-sizing: border-box;
+	max-width: 100%;
+	padding: 0 12px;
+	overflow-x: auto;
+	scrollbar-width: none;
 	pointer-events: auto;
+}
+
+.notch-tab-bar::-webkit-scrollbar {
+	display: none;
+}
+
+/* Centred while the tabs fit; from the start once they scroll. */
+.notch-tab-bar > :first-child {
+	margin-left: auto;
+}
+
+.notch-tab-bar > :last-child {
+	margin-right: auto;
+}
+
+.notch-tab {
+	flex: none;
 }
 
 .notch-tab {
