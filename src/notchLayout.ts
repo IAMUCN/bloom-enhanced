@@ -7,11 +7,12 @@
 export const MIN_SCALE = 0.5;
 export const MAX_SCALE = 1.5;
 
-export type SizedPanel = "calendar" | "command-center" | "clipboard" | "devices" | "music" | "shelf";
+export type SizedPanel = "calendar" | "command-center" | "clipboard" | "devices" | "music" | "shelf" | "quick-list";
 
-/** What 100% means per panel: the clipboard shelf is drawn 30% larger than
- *  its original layout. */
-const PANEL_BASE: Partial<Record<SizedPanel, number>> = { clipboard: 1.3 };
+/** What 100% means per panel: the clipboard shelf and the Wi-Fi /
+ *  Bluetooth lists are drawn 30% larger than their original layout (the
+ *  lists keep the size they had in Bloom Enhanced). */
+const PANEL_BASE: Partial<Record<SizedPanel, number>> = { clipboard: 1.3, "quick-list": 1.3 };
 
 /** A panel's zoom. */
 export const panelZoom = (panel: SizedPanel) => PANEL_BASE[panel] ?? 1;

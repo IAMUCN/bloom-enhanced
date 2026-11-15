@@ -48,13 +48,16 @@ export function NotchTabBar({
 			{tools.map(({ id, label, icon: Icon, color }) => {
 				const on = id === active;
 				return (
-					<button
+					<motion.button
 						key={id}
 						type="button"
 						role="tab"
 						aria-selected={on}
 						aria-label={label}
-						title={label}
+						data-tip={label}
+						data-tip-place="below"
+						whileTap={{ scale: 0.92 }}
+						transition={{ type: "spring", stiffness: 600, damping: 35 }}
 						tabIndex={on ? 0 : -1}
 						className={`notch-tab${on ? " active" : ""}`}
 						onClick={(e) => {
@@ -66,11 +69,11 @@ export function NotchTabBar({
 							<motion.span
 								layoutId="notch-tab-chip"
 								className="notch-tab-chip"
-								transition={{ type: "spring", stiffness: 500, damping: 32 }}
+								transition={{ type: "spring", stiffness: 500, damping: 38 }}
 							/>
 						)}
 						<Icon size={16} strokeWidth={2} color={on ? color : undefined} />
-					</button>
+					</motion.button>
 				);
 			})}
 		</div>

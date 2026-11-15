@@ -41,7 +41,7 @@
 	display: flex;
 	align-items: center;
 	height: 52px;
-	padding-left: 8px;
+	padding-left: 6px;
 	border-radius: 999px;
 	background: #1c1c20;
 	color: #fff;
@@ -58,8 +58,8 @@
 	flex: none;
 	display: grid;
 	place-items: center;
-	width: 36px;
-	height: 36px;
+	width: 40px;
+	height: 40px;
 	border-radius: 50%;
 	background: #26262b !important;
 	color: #fff !important;
@@ -99,8 +99,8 @@
 /* Round tiles: seven columns lined up across both rows */
 .cc-icons {
 	display: grid;
-	grid-template-columns: repeat(7, 44px);
-	grid-auto-rows: 44px;
+	grid-template-columns: repeat(7, 48px);
+	grid-auto-rows: 48px;
 	justify-content: space-between;
 	row-gap: 10px;
 	flex: none;
@@ -110,24 +110,30 @@
 .cc-icon {
 	display: grid;
 	place-items: center;
-	width: 44px;
-	height: 44px;
+	width: 48px;
+	height: 48px;
 	border-radius: 50%;
 	background: #1c1c20;
-	transition: background 0.15s ease, transform 0.1s ease;
-}
-
-.cc-icon:hover {
-	background: #2a2a30;
-}
-
-.cc-icon:active {
-	transform: scale(0.94);
+	transition: background-color 0.2s ease, color 0.2s ease;
 }
 
 .cc-icon.on {
 	background: #fff;
 	color: #000;
+	transition: background-color 0.16s ease, color 0.12s ease;
+}
+
+.cc-icon:hover {
+	background: #26262b;
+}
+
+.cc-icon.on:hover {
+	background: #ededed;
+}
+
+.cc-icon-glyph {
+	display: grid;
+	place-items: center;
 }
 
 /* Sliders: volume over brightness */
@@ -163,6 +169,11 @@
 
 .cc-slider-label svg {
 	color: #a1a1aa;
+	transition: color 0.15s ease;
+}
+
+.cc-slider:hover .cc-slider-label svg {
+	color: #fff;
 }
 
 .cc-slider-label:hover svg {
@@ -175,6 +186,12 @@
 	height: 6px;
 	border-radius: 3px;
 	background: #26262b;
+	transition: transform 0.2s cubic-bezier(0.22, 1, 0.36, 1);
+}
+
+.cc-slider:hover .cc-slider-track,
+.cc-slider:active .cc-slider-track {
+	transform: scaleY(1.25);
 }
 
 .cc-slider-fill {
@@ -205,8 +222,11 @@
 }
 
 @media (prefers-reduced-motion: reduce) {
-	.cc-wide,
-	.cc-icon {
+	.cc-slider-track {
 		transition: none;
+	}
+	.cc-slider:hover .cc-slider-track,
+	.cc-slider:active .cc-slider-track {
+		transform: none;
 	}
 }

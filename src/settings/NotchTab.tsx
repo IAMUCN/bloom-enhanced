@@ -42,7 +42,7 @@ const NOTCH_MODES = [
 import { ScaleStepper } from "./ScaleStepper";
 import { Choice } from "./Choice";
 import { shortcutFrom } from "./ClipboardTab";
-import { EXTRA_TOOLS, TOOLS, parseEnabledTools, type ExtraToolId } from "../tools";
+import { EXTRA_TOOLS, MAX_TABS, TOOLS, builtInTabCount, parseEnabledTools, type ExtraToolId } from "../tools";
 import { CC_DEFAULT, CC_MAX_ICONS, CC_TILES, ccIsWide, parseCcTiles, type CcTileId } from "../components/CommandCenter";
 import { invoke } from "@tauri-apps/api/core";
 import { ask } from "@tauri-apps/plugin-dialog";
@@ -163,7 +163,10 @@ const PANEL_CHOICES: readonly (readonly [NotchPanelChoice, string])[] = [
  *  loaded. */
 function MoreTools({ saveSetting }: { saveSetting: (key: string, value: string | null) => Promise<boolean> }) {
 	const [enabled, setEnabled] = useState(() => parseEnabledTools(localStorage.getItem("bloom-tools-enabled")));
+	const tabs = builtInTabCount((k) => localStorage.getItem(k)) + enabled.length;
+	const full = tabs >= MAX_TABS;
 	const toggle = (id: ExtraToolId) => {
+		if (!enabled.includes(id) && full) return;
 		const next = enabled.includes(id) ? enabled.filter((t) => t !== id) : [...enabled, id];
 		setEnabled(next);
 		saveSetting("bloom-tools-enabled", JSON.stringify(next));
@@ -175,6 +178,9 @@ function MoreTools({ saveSetting }: { saveSetting: (key: string, value: string |
 	const releases = [...new Set(EXTRA_TOOLS.map((t) => t.release))];
 	return (
 		<>
+			<div className="cc-picker-count">
+				{tabs} of {MAX_TABS} tabs in the tab bar
+			</div>
 			{releases.map((release) => (
 				<div key={release}>
 					<div className="setting-group-label">More Tools · {release}</div>
@@ -186,8 +192,14 @@ function MoreTools({ saveSetting }: { saveSetting: (key: string, value: string |
 										<Trash2 size={13} />
 									</button>
 									<span className="tool-dot" style={{ background: color }} aria-hidden />
-									<label className="toggle-switch">
-										<input type="checkbox" checked={enabled.includes(id)} onChange={() => toggle(id)} aria-label={`${label} on`} />
+									<label className="toggle-switch" title={full && !enabled.includes(id) ? `The tab bar holds ${MAX_TABS} tools: turn one off first` : undefined}>
+										<input
+											type="checkbox"
+											checked={enabled.includes(id)}
+											disabled={full && !enabled.includes(id)}
+											onChange={() => toggle(id)}
+											aria-label={`${label} on`}
+										/>
 										<span className="slider"></span>
 									</label>
 								</div>

@@ -1,6 +1,6 @@
 import { useState } from "react";
 import { Check } from "lucide-react";
-import { EXTRA_TOOLS, TOOLS, parseEnabledTools, type ExtraToolId, type Tool, type ToolId } from "../tools";
+import { EXTRA_TOOLS, MAX_TABS, TOOLS, parseEnabledTools, type ExtraToolId, type Tool, type ToolId } from "../tools";
 
 /** Each built-in tool's switch in settings.json. */
 const TOOL_KEY: Record<ToolId, string> = {
@@ -20,7 +20,7 @@ export const PRESETS: [string, string[]][] = [
 	["Developer", ["command-center", "music", "calendar", "clipboard", "snippets", "monitor", "apps", "picker", "snip"]],
 	["Designer", ["command-center", "music", "clipboard", "picker", "snip", "note", "ocr"]],
 	["Minimal", ["command-center", "music"]],
-	["Everything", ALL.map((t) => t.id)]
+	["Everything", ALL.slice(0, MAX_TABS).map((t) => t.id)]
 ];
 
 const builtInOn = (id: ToolId) =>
@@ -79,8 +79,14 @@ export function PickTools({
 								type="button"
 								role="checkbox"
 								aria-checked={on}
-								disabled={locked}
-								title={locked ? "Always on, so the open notch is never empty" : undefined}
+								disabled={locked || (!on && picked.size >= MAX_TABS)}
+								title={
+									locked
+										? "Always on, so the open notch is never empty"
+										: !on && picked.size >= MAX_TABS
+											? `The tab bar holds ${MAX_TABS} tools: untick one first`
+											: undefined
+								}
 								className={`pick-tool${on ? " on" : ""}`}
 								onClick={() => {
 									setPreset(null);

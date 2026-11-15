@@ -36,10 +36,35 @@ import { useSettingsSync } from "./hooks/useSettingsSync";
 import { useTrailingThrottle } from "./hooks/useTrailingThrottle";
 import { useAnnouncement } from "./hooks/useAnnouncement";
 import { NotchTabBar } from "./components/NotchTabBar";
+import { BloomTip } from "./components/BloomTip";
 import { ProgressEffect, asProgressStyle } from "./components/ProgressEffect";
-import { EXTRA_BY_ID, GRID_H, OPEN_WIDTH, TAB_BAR_HEIGHT, TOOLS, parseEnabledTools, type ExtraToolId, type Tool } from "./tools";
+import { EXTRA_BY_ID, GRID_H, MAX_TABS, OPEN_WIDTH, TAB_BAR_HEIGHT, TOOLS, parseEnabledTools, type ExtraToolId, type Tool } from "./tools";
 import { ToolHost } from "./notchTools/ToolHost";
 import { CommandCenter, ccBodyHeight, parseCcTiles, type CcTileId, type CcTileState } from "./components/CommandCenter";
+
+// Tool switches (Fable's motion spec, 2026-11-15): the old body fades out
+// fast, the new one rises 6px into place while the notch's height springs.
+// Transform + opacity only; Battery saver's reduced motion drops the moves.
+const EASE_OUT = [0.22, 1, 0.36, 1] as const;
+const BODY_IN = { duration: 0.2, delay: 0.04, ease: EASE_OUT };
+const BODY_MOTION = {
+	initial: { opacity: 0, y: 6 },
+	animate: { opacity: 1, y: 0, transition: BODY_IN },
+	exit: { opacity: 0, transition: { duration: 0.09 } }
+};
+/** For bodies laid out in the flow, where a move would shift the layout. */
+const FADE_MOTION = {
+	initial: { opacity: 0 },
+	animate: { opacity: 1, transition: BODY_IN },
+	exit: { opacity: 0, transition: { duration: 0.09 } }
+};
+/** The Command Center steps aside as its Wi-Fi / Bluetooth list slides in. */
+const CC_MOTION = { ...BODY_MOTION, exit: { opacity: 0, scale: 0.97, x: -12, transition: { duration: 0.14 } } };
+const LIST_MOTION = {
+	initial: { opacity: 0, x: 16 },
+	animate: { opacity: 1, x: 0, transition: { type: "spring", stiffness: 380, damping: 32 } },
+	exit: { opacity: 0, x: 16, transition: { duration: 0.12 } }
+} as const;
 
 /** system_tools.rs CcStates; a missing key = not available on this PC. */
 type CcSystemStates = Partial<Record<"night-light" | "airplane" | "hotspot" | "nearby" | "captions", boolean | null>>;
@@ -3253,8 +3278,10 @@ function App() {
 	const sizedPanel: SizedPanel | null =
 		bloomMode === "calendar" || bloomMode === "devices" || bloomMode === "shelf" || bloomMode === "clipboard"
 			? bloomMode
-			: bloomMode === "command-center" || bloomMode === "wifi" || bloomMode === "bluetooth"
+			: bloomMode === "command-center"
 				? "command-center"
+				: bloomMode === "wifi" || bloomMode === "bluetooth"
+					? "quick-list"
 				: isMusicMode && isOpen
 					? "music"
 					: null;
@@ -3299,9 +3326,12 @@ function App() {
 		...panelOrder.filter(panelAvailable).map((p) => TOOLS[p]),
 		...enabledTools.map((id) => EXTRA_BY_ID[id]),
 		...(settingsMusicModeEnabled && mediaInfo.has_media ? [TOOLS.music] : [])
-	];
+	].slice(0, MAX_TABS);
 	const toolShowing = bloomMode === "tool" && activeTool !== null && enabledTools.includes(activeTool) ? activeTool : null;
-	const activeTabId: string | null = toolShowing ?? asNotchPanel(bloomMode);
+	// The Wi-Fi / Bluetooth lists belong to the Command Center: its tab stays
+	// active and the notch keeps its size.
+	const quickList = bloomMode === "wifi" || bloomMode === "bluetooth";
+	const activeTabId: string | null = toolShowing ?? (quickList ? "command-center" : asNotchPanel(bloomMode));
 	const showTabBar = isOpen && activeTabId !== null && tabTools.length > 1;
 	const selectTab = (id: string) => {
 		if (id === "music") openNotch("music");
@@ -3437,7 +3467,8 @@ function App() {
 		if (bloomMode === "devices") {
 			return devicesPanelHeight;
 		}
-		if (bloomMode === "wifi" || bloomMode === "bluetooth") return 300;
+		// The Command Center's height, in the lists' zoomed units.
+		if (quickList) return isOpen ? (36 + ccBodyHeight(ccTiles)) / panelZoomNow : 300;
 		// 300 × the clipboard's 1.3 base keeps it inside the notch window.
 		if (bloomMode === "clipboard") return 300;
 		if (bloomMode === "status") return 36;
@@ -3537,6 +3568,7 @@ function App() {
 				}}
 			>
 				<DeviceArtDefs />
+				{windowLabel === "main" && <BloomTip root={bloomRef} />}
 				<motion.div
 					ref={bloomRef}
 					className={`bloom ${isHovered ? "expanded" : ""} ${isImpacted ? "is-impacted" : ""} ${minimalIdle ? "minimal-idle" : ""} ${isDragHovering ? "drag-hover" : ""}`}
@@ -4272,10 +4304,8 @@ function App() {
 									{bloomMode === "wifi" && (
 										<motion.div
 											key="wifi-view"
-											initial={{ opacity: 0 }}
-											animate={{ opacity: 1 }}
-											exit={{ opacity: 0, filter: "blur(4px)", transition: { duration: 0.1 } }}
-											transition={{ type: "spring", stiffness: 400, damping: 30 }}
+											className="notch-body"
+											{...LIST_MOTION}
 										>
 											<WifiPanel
 												enabled={wifiEnabled}
@@ -4292,10 +4322,8 @@ function App() {
 									{bloomMode === "bluetooth" && (
 										<motion.div
 											key="bluetooth-view"
-											initial={{ opacity: 0 }}
-											animate={{ opacity: 1 }}
-											exit={{ opacity: 0, filter: "blur(4px)", transition: { duration: 0.1 } }}
-											transition={{ type: "spring", stiffness: 400, damping: 30 }}
+											className="notch-body"
+											{...LIST_MOTION}
 										>
 											<BluetoothPanel
 												enabled={bluetoothEnabled}
@@ -4312,10 +4340,7 @@ function App() {
 									{bloomMode === "devices" && (
 										<motion.div
 											key="devices-view"
-											initial={{ opacity: 0 }}
-											animate={{ opacity: 1 }}
-											exit={{ opacity: 0, filter: "blur(4px)", transition: { duration: 0.1 } }}
-											transition={{ type: "spring", stiffness: 400, damping: 30 }}
+											{...FADE_MOTION}
 										>
 											<ConnectedDevicesPanel
 												data={connectedDevices}
@@ -4333,10 +4358,7 @@ function App() {
 									{bloomMode === "clipboard" && (
 										<motion.div
 											key="clipboard-view"
-											initial={{ opacity: 0 }}
-											animate={{ opacity: 1 }}
-											exit={{ opacity: 0, filter: "blur(4px)", transition: { duration: 0.1 } }}
-											transition={{ type: "spring", stiffness: 400, damping: 30 }}
+											{...FADE_MOTION}
 										>
 											<ClipboardPanel
 												dragIcon={shelfDragIcon}
@@ -4362,10 +4384,8 @@ function App() {
 									{bloomMode === "command-center" && (
 										<motion.div
 											key="command-center"
-											initial={{ opacity: 0 }}
-											animate={{ opacity: 1 }}
-											exit={{ opacity: 0, filter: "blur(4px)", transition: { duration: 0.1 } }}
-											transition={{ type: "spring", stiffness: 400, damping: 30 }}
+											className="notch-body"
+											{...CC_MOTION}
 										>
 											<CommandCenter
 												tiles={ccTiles}
@@ -4491,10 +4511,7 @@ function App() {
 											onClick={(e) =>
 												e.stopPropagation()
 											} /* Block mode switches when clicking inside */
-											initial={{ opacity: 0 }}
-											animate={{ opacity: 1 }}
-											exit={{ opacity: 0, filter: "blur(4px)", transition: { duration: 0.1 } }}
-											transition={{ type: "spring", stiffness: 400, damping: 30 }}
+											{...BODY_MOTION}
 										>
 											<div className="calendar-column">
 												<Calendar />
@@ -4600,10 +4617,7 @@ function App() {
 											className="shelf-content"
 											onClick={(e) => e.stopPropagation()}
 											onWheel={handleShelfWheel}
-											initial={{ opacity: 0 }}
-											animate={{ opacity: 1 }}
-											exit={{ opacity: 0, filter: "blur(4px)", transition: { duration: 0.1 } }}
-											transition={{ type: "spring", stiffness: 400, damping: 30 }}
+											{...BODY_MOTION}
 										>
 											{shelfNotice && <div className="shelf-notice">{shelfNotice}</div>}
 											{shelfItems.length === 0 ? (

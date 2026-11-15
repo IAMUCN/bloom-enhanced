@@ -2181,3 +2181,16 @@ img {
 	backdrop-filter: none !important;
 	-webkit-backdrop-filter: none !important;
 }
+
+/* A tool body that animates as a whole: it covers the notch so the panel
+   inside keeps its own absolute place, and only the panel takes clicks. */
+.notch-body {
+	position: absolute;
+	inset: 0;
+	z-index: 2;
+	pointer-events: none;
+}
+
+.notch-body > * {
+	pointer-events: auto;
+}

@@ -49,6 +49,21 @@ export const TOOLS: Record<ToolId, Tool> = {
 	clipboard: { id: "clipboard", label: "Shelf", icon: ClipboardList, color: "#B98CFF" }
 };
 
+/** Most tabs the tab bar holds (user, 2026-11-15); any lower number is fine. */
+export const MAX_TABS = 20;
+
+/** How many built-in panels have a tab (Media counted: its tab shows while
+ *  something plays). */
+export function builtInTabCount(get: (key: string) => string | null): number {
+	return [
+		get("bloom-notch-command-center-enabled") !== "false",
+		get("bloom-music-mode-enabled") !== "false",
+		get("bloom-calendar-enabled") !== "false",
+		get("bloom-notch-devices-enabled") === "true",
+		get("bloom-clipboard-enabled") !== "false" && (get("bloom-clipboard-position") ?? "notch") === "notch"
+	].filter(Boolean).length;
+}
+
 /** Height the tab bar adds to the open notch, in notch pixels. */
 export const TAB_BAR_HEIGHT = 36;
 

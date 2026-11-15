@@ -1,4 +1,5 @@
 import type { MouseEvent, WheelEvent } from "react";
+import { motion } from "framer-motion";
 import {
 	Accessibility,
 	Activity,
@@ -102,11 +103,25 @@ export function parseCcTiles(raw: unknown): CcTileId[] {
 	return [...WIDE, ...icons.slice(0, CC_MAX_ICONS)];
 }
 
+/** Motion (Fable's spec): a firm press, one pop when a tile turns on. */
+const PRESS = { type: "spring", stiffness: 600, damping: 35 } as const;
+const POP = { scale: [1, 1.18, 1], transition: { duration: 0.26, ease: [0.22, 1, 0.36, 1] as [number, number, number, number] } };
+
+/** The icon inside a tile: pops once as it turns on (keyed by state, so
+ *  it never repeats while the tile stays on). */
+function TileIcon({ on, children }: { on?: boolean; children: React.ReactNode }) {
+	return (
+		<motion.span key={on ? "on" : "off"} className="cc-icon-glyph" initial={false} animate={on ? POP : undefined}>
+			{children}
+		</motion.span>
+	);
+}
+
 /** The Command Center body's height: padding, the pills, the tile rows
- *  (44 px, 10 px apart) and the two sliders. */
+ *  (48 px, 10 px apart) and the two sliders. */
 export function ccBodyHeight(tiles: CcTileId[]) {
 	const rows = Math.ceil(tiles.filter((t) => !ccIsWide(t)).length / COLUMNS);
-	const icons = rows ? rows * 54 - 10 + 12 : 0;
+	const icons = rows ? rows * 58 - 10 + 12 : 0;
 	return 4 + 52 + 12 + icons + 64 + 16;
 }
 
@@ -148,7 +163,7 @@ function Slider({
 			<button
 				type="button"
 				className="cc-slider-label"
-				title={label === "Volume" ? "Mute / unmute" : "Dim to 0 / back"}
+				aria-label={label === "Volume" ? "Mute or unmute" : "Dim to 0 or back"}
 				onClick={(e) => {
 					e.stopPropagation();
 					onIcon();
@@ -210,30 +225,37 @@ export function CommandCenter({
 						const ShownIcon = id === "wifi" && !on ? WifiOff : Icon;
 						return (
 							<div key={id} className={`cc-wide${on ? " on" : ""}`}>
-								<button
+								<motion.button
 									type="button"
 									className="cc-wide-toggle"
 									aria-pressed={on}
 									aria-label={`${label} ${on ? "on" : "off"}`}
-									title={`Turn ${label} ${on ? "off" : "on"}`}
+									data-tip={label}
+									data-tip-state={on ? "On" : "Off"}
+									whileTap={{ scale: 0.9 }}
+									transition={PRESS}
 									onClick={(e) => {
 										e.stopPropagation();
 										onClick(e);
 									}}
 								>
-									<ShownIcon size={18} />
-								</button>
+									<TileIcon on={on}>
+										<ShownIcon size={20} />
+									</TileIcon>
+								</motion.button>
 								<button
 									type="button"
 									className="cc-wide-more"
-									title={id === "wifi" ? "Wi-Fi networks" : "Bluetooth devices"}
+									data-tip={id === "wifi" ? "Wi-Fi networks" : "Bluetooth devices"}
 									aria-label={`${label}: ${status ?? ""}, show the list`}
 									onClick={(e) => {
 										e.stopPropagation();
 										onMore?.();
 									}}
 								>
-									<span className="cc-wide-status">{status}</span>
+									<motion.span key={status} className="cc-wide-status" initial={{ opacity: 0 }} animate={{ opacity: 1 }} transition={{ duration: 0.12 }}>
+										{status}
+									</motion.span>
 									<ChevronRight size={16} />
 								</button>
 							</div>
@@ -246,20 +268,25 @@ export function CommandCenter({
 					{icons.map(([id, label, Icon]) => {
 						const { on, status, hint, onClick } = state[id];
 						return (
-							<button
+							<motion.button
 								key={id}
 								type="button"
 								className={`cc-icon${on ? " on" : ""}`}
 								aria-pressed={on}
 								aria-label={label}
-								title={[label, status, hint].filter(Boolean).join(" · ")}
+								data-tip={label}
+								data-tip-state={on ? "On" : (status ?? hint)}
+								whileTap={{ scale: 0.9 }}
+								transition={PRESS}
 								onClick={(e) => {
 									e.stopPropagation();
 									onClick(e);
 								}}
 							>
-								<Icon size={18} />
-							</button>
+								<TileIcon on={on}>
+									<Icon size={20} />
+								</TileIcon>
+							</motion.button>
 						);
 					})}
 				</div>
