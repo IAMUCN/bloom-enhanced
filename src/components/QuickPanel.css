@@ -560,3 +560,9 @@
 	font-size: 9.5px;
 	color: var(--bloom-text-muted, rgba(255, 255, 255, 0.5));
 }
+
+/* The lists keep the size they had in Bloom Enhanced (drawn at 130%) while
+   the clock and the tab bar above them stay put. */
+.qp > * {
+	zoom: 1.3;
+}

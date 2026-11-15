@@ -49,8 +49,9 @@ export const TOOLS: Record<ToolId, Tool> = {
 	clipboard: { id: "clipboard", label: "Shelf", icon: ClipboardList, color: "#B98CFF" }
 };
 
-/** Most tabs the tab bar holds (user, 2026-11-15); any lower number is fine. */
-export const MAX_TABS = 20;
+/** Most tabs the tab bar holds (user, 2026-11-15: 16, all visible without
+ *  scrolling); any lower number is fine. */
+export const MAX_TABS = 16;
 
 /** How many built-in panels have a tab (Media counted: its tab shows while
  *  something plays). */

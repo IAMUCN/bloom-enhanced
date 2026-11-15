@@ -3278,10 +3278,8 @@ function App() {
 	const sizedPanel: SizedPanel | null =
 		bloomMode === "calendar" || bloomMode === "devices" || bloomMode === "shelf" || bloomMode === "clipboard"
 			? bloomMode
-			: bloomMode === "command-center"
+			: bloomMode === "command-center" || bloomMode === "wifi" || bloomMode === "bluetooth"
 				? "command-center"
-				: bloomMode === "wifi" || bloomMode === "bluetooth"
-					? "quick-list"
 				: isMusicMode && isOpen
 					? "music"
 					: null;
@@ -3467,8 +3465,8 @@ function App() {
 		if (bloomMode === "devices") {
 			return devicesPanelHeight;
 		}
-		// The Command Center's height, in the lists' zoomed units.
-		if (quickList) return isOpen ? (36 + ccBodyHeight(ccTiles)) / panelZoomNow : 300;
+		// The Command Center's height: opening a list moves nothing.
+		if (quickList) return isOpen ? 36 + ccBodyHeight(ccTiles) : 300;
 		// 300 × the clipboard's 1.3 base keeps it inside the notch window.
 		if (bloomMode === "clipboard") return 300;
 		if (bloomMode === "status") return 36;

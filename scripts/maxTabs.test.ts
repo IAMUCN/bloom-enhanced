@@ -2,8 +2,8 @@ import { expect, test } from "bun:test";
 import { MAX_TABS, builtInTabCount } from "../src/tools";
 import { PRESETS } from "../src/settings/PickTools";
 
-test("tab bar: at most 20 tools, presets included", () => {
-	expect(MAX_TABS).toBe(20);
+test("tab bar: at most 16 tools, presets included", () => {
+	expect(MAX_TABS).toBe(16);
 	for (const [, tools] of PRESETS) expect(tools.length).toBeLessThanOrEqual(MAX_TABS);
 });
 
