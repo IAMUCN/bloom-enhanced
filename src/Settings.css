@@ -2608,3 +2608,30 @@ button.shortcut-icon:hover {
 	outline: 2px solid var(--bloom-accent, #0a84ff);
 	outline-offset: 2px;
 }
+
+.tools-card-star {
+	flex: none;
+	display: grid;
+	place-items: center;
+	width: 28px;
+	height: 28px;
+	padding: 0;
+	border: none;
+	border-radius: 8px;
+	background: none;
+	color: var(--text-muted);
+	cursor: pointer;
+}
+
+.tools-card-star:hover {
+	color: var(--text-color);
+}
+
+.tools-card-star.on {
+	color: #ffd60a;
+}
+
+.tools-card-star:focus-visible {
+	outline: 2px solid var(--bloom-accent, #0a84ff);
+	outline-offset: 2px;
+}

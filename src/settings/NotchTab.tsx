@@ -12,7 +12,9 @@ import {
 	X,
 	Clock,
 	PanelLeft,
-	PanelRight
+	PanelRight,
+	Star,
+	History
 } from "lucide-react";
 import { useState } from "react";
 import { SettingRow } from "./SettingRow";
@@ -34,9 +36,9 @@ const NOTCH_MODES = [
 import { ScaleStepper } from "./ScaleStepper";
 import { Choice } from "./Choice";
 import { NOTCH_STYLES, type NotchStyle } from "../notchLayout";
+import { EXTRA_TOOLS, TOOLS } from "../tools";
 import { StatusWidgetConfig } from "../components/StatusWidgetConfig";
 import type { WidgetConfig } from "./types";
-import type { NotchPanelChoice } from "./useSettings";
 
 /** Sizes of the clock and the icons beside it, on top of the notch size. */
 const ROW_SIZES = [
@@ -68,12 +70,73 @@ function RowSizes({ saveSetting }: { saveSetting: (key: string, value: string | 
 	);
 }
 
-/** The notch's panels, in the order the notch cycles through them. */
-const PANEL_CHOICES: readonly (readonly [NotchPanelChoice, string])[] = [
-	["calendar", "Calendar"],
-	["command-center", "Command Center"],
-	["devices", "Devices"]
-];
+/** Which tool the notch opens on (Fable's rules, 2026-11-15): Quick return
+ *  first (the tool you left, within N minutes), then the Favourite, or with
+ *  Favourite off the last tool you used. The favourite itself is picked with
+ *  the star in Settings › Tools. */
+const QUICK_RETURN = [
+	["0", "Off"],
+	["2", "2 min"],
+	["5", "5 min"],
+	["15", "15 min"],
+	["30", "30 min"]
+] as const;
+
+function OpeningRows({ saveSetting }: { saveSetting: (key: string, value: string | null) => Promise<boolean> }) {
+	const [favOn, setFavOn] = useState(() => localStorage.getItem("bloom-notch-favourite-on") !== "false");
+	const favId = localStorage.getItem("bloom-notch-favourite") ?? localStorage.getItem("bloom-notch-default-panel") ?? "command-center";
+	const favName =
+		favId in TOOLS ? TOOLS[favId as keyof typeof TOOLS].label : EXTRA_TOOLS.find((t) => t.id === favId)?.label ?? "Command Center";
+	const [quick, setQuick] = useState(() => {
+		const v = localStorage.getItem("bloom-notch-quick-return");
+		return v ?? (localStorage.getItem("bloom-notch-remember-panel") === "false" ? "0" : "5");
+	});
+	return (
+		<>
+			<SettingRow
+				icon={Star}
+				label="Favourite"
+				desc={
+					favOn
+						? `Opens on ${favName}. Pick another with the star in Tools`
+						: "Off: the notch opens on the tool you used last"
+				}
+			>
+				<label className="toggle-switch">
+					<input
+						type="checkbox"
+						checked={favOn}
+						onChange={() => {
+							setFavOn(!favOn);
+							saveSetting("bloom-notch-favourite-on", String(!favOn));
+						}}
+					/>
+					<span className="slider"></span>
+				</label>
+			</SettingRow>
+			<SettingRow
+				icon={History}
+				label="Quick Return"
+				desc={
+					quick === "0"
+						? "Off: every open starts on your favourite"
+						: `Come back within ${quick} minutes and the notch reopens where you left off`
+				}
+				divider={false}
+			>
+				<Choice
+					value={quick}
+					options={QUICK_RETURN}
+					onChange={(v) => {
+						setQuick(v);
+						saveSetting("bloom-notch-quick-return", v);
+					}}
+					label="Quick return"
+				/>
+			</SettingRow>
+		</>
+	);
+}
 
 /** How the notch opens: Click (default) or Hover after a delay
  *  (`bloom-notch-open-on`, `bloom-notch-hover-delay`). */
@@ -128,13 +191,6 @@ interface NotchTabProps {
 	setNotchModeValue: (mode: string) => void;
 	notchEdgeDelay: number;
 	handleNotchEdgeDelayChange: (val: number) => void;
-	calendarEnabled: boolean;
-	controlsPanelEnabled: boolean;
-	devicesPanelEnabled: boolean;
-	notchRememberPanel: boolean;
-	toggleNotchRememberPanel: () => void;
-	notchDefaultPanel: NotchPanelChoice;
-	changeNotchDefaultPanel: (panel: NotchPanelChoice) => void;
 	musicModeEnabled: boolean;
 	toggleMusicMode: () => void;
 	musicCompactNotch: boolean;
@@ -178,13 +234,6 @@ export function NotchTab({
 	setNotchModeValue,
 	notchEdgeDelay,
 	handleNotchEdgeDelayChange,
-	calendarEnabled,
-	controlsPanelEnabled,
-	devicesPanelEnabled,
-	notchRememberPanel,
-	toggleNotchRememberPanel,
-	notchDefaultPanel,
-	changeNotchDefaultPanel,
 	musicModeEnabled,
 	toggleMusicMode,
 	musicCompactNotch,
@@ -216,13 +265,6 @@ export function NotchTab({
 	handleNotchStyleChange,
 	saveSetting
 }: NotchTabProps) {
-	const panelOn: Record<NotchPanelChoice, boolean> = {
-		calendar: calendarEnabled,
-		"command-center": controlsPanelEnabled,
-		devices: devicesPanelEnabled
-	};
-	const firstPanelOn = PANEL_CHOICES.find(([panel]) => panelOn[panel])?.[0] ?? "command-center";
-
 	return (
 		<>
 			{notchEnabled && (
@@ -300,30 +342,7 @@ export function NotchTab({
 					<div className="setting-group">
 						<OpenOnRows saveSetting={saveSetting} />
 
-						<SettingRow
-							icon={PanelTop}
-							label="Smart Start"
-							desc="Reopen the last tool if you come back within 5 minutes; otherwise open your favourite"
-						>
-							<label className="toggle-switch">
-								<input type="checkbox" checked={notchRememberPanel} onChange={toggleNotchRememberPanel} />
-								<span className="slider"></span>
-							</label>
-						</SettingRow>
-
-						<SettingRow
-							icon={PanelTop}
-							label="Favourite Panel"
-							desc={notchRememberPanel ? "Opens when Smart Start doesn't reopen the last tool" : "Always opens when you click the notch"}
-							divider={false}
-						>
-							<Choice
-								value={panelOn[notchDefaultPanel] ? notchDefaultPanel : firstPanelOn}
-								options={PANEL_CHOICES.filter(([panel]) => panelOn[panel])}
-								onChange={changeNotchDefaultPanel}
-								label="Default panel"
-							/>
-						</SettingRow>
+						<OpeningRows saveSetting={saveSetting} />
 					</div>
 
 					<div className="setting-group-label">Now Playing</div>

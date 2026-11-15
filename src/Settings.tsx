@@ -452,13 +452,6 @@ function SettingsApp() {
 								setNotchModeValue={settings.setNotchModeValue}
 								notchEdgeDelay={settings.notchEdgeDelay}
 								handleNotchEdgeDelayChange={settings.handleNotchEdgeDelayChange}
-								calendarEnabled={settings.calendarEnabled}
-								controlsPanelEnabled={settings.controlsPanelEnabled}
-								devicesPanelEnabled={settings.devicesPanelEnabled}
-								notchRememberPanel={settings.notchRememberPanel}
-								toggleNotchRememberPanel={settings.toggleNotchRememberPanel}
-								notchDefaultPanel={settings.notchDefaultPanel}
-								changeNotchDefaultPanel={settings.changeNotchDefaultPanel}
 								musicModeEnabled={settings.musicModeEnabled}
 								toggleMusicMode={settings.toggleMusicMode}
 								musicCompactNotch={settings.musicCompactNotch}

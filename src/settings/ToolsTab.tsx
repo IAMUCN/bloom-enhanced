@@ -1,6 +1,6 @@
 import { useRef, useState } from "react";
 import { Reorder } from "framer-motion";
-import { ArrowLeft, BellRing, ChevronRight, Gamepad2, GripVertical, Plus, Timer, Trash2, X } from "lucide-react";
+import { ArrowLeft, BellRing, ChevronRight, Gamepad2, GripVertical, Plus, Star, Timer, Trash2, X } from "lucide-react";
 import { Choice } from "./Choice";
 import { ask } from "@tauri-apps/plugin-dialog";
 import { invoke } from "@tauri-apps/api/core";
@@ -88,6 +88,15 @@ export function ToolsTab(props: ToolsTabProps) {
 		);
 		saveSetting("bloom-notch-panel-order", JSON.stringify([...panels, ...NOTCH_PANEL_ORDER.filter((p) => !panels.includes(p))]));
 	};
+	// The favourite: the tool the notch opens on (Settings › Notch › Favourite).
+	const [favourite, setFavourite] = useState(
+		() => localStorage.getItem("bloom-notch-favourite") ?? localStorage.getItem("bloom-notch-default-panel") ?? "command-center"
+	);
+	const makeFavourite = (id: string) => {
+		setFavourite(id);
+		saveSetting("bloom-notch-favourite", id);
+		saveSetting("bloom-notch-favourite-on", "true");
+	};
 	const lastPanel = (on: boolean) => on && props.enabledPanelCount <= 1;
 	const toggle = (id: string) => {
 		const on = isOn(id);
@@ -153,6 +162,19 @@ export function ToolsTab(props: ToolsTabProps) {
 					<span className="radial-row-label">{tool.label}</span>
 					<span className="tool-card-desc">{desc}</span>
 				</span>
+				{on && (
+					<button
+						type="button"
+						className={`tools-card-star${favourite === tool.id ? " on" : ""}`}
+						aria-pressed={favourite === tool.id}
+						aria-label={favourite === tool.id ? `${tool.label} is your favourite` : `Make ${tool.label} your favourite`}
+						title={favourite === tool.id ? "Your favourite: the notch opens here" : "Make it your favourite"}
+						onPointerDown={(e) => e.stopPropagation()}
+						onClick={() => makeFavourite(tool.id)}
+					>
+						<Star size={14} fill={favourite === tool.id ? "currentColor" : "none"} />
+					</button>
+				)}
 				{control}
 				{hasPage(tool.id) ? (
 					<button

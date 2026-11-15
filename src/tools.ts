@@ -229,3 +229,21 @@ export function orderTabs<T extends { id: string }>(tools: T[], raw: unknown): T
 	};
 	return tools.map((t, i) => [t, i] as const).sort((a, b) => rank(a[0]) - rank(b[0]) || a[1] - b[1]).map(([t]) => t);
 }
+
+/** Which tool the notch opens on (Fable's rules, 2026-11-15), first match:
+ *  the tool left within the Quick return window → the favourite (when on)
+ *  → with the favourite off, the last tool used → Command Center → the
+ *  first tab. Only tools that have a tab count. */
+export function openingTool(o: {
+	tabs: string[];
+	recent: boolean;
+	last: string | null;
+	favouriteOn: boolean;
+	favourite: string;
+}): string | undefined {
+	const has = (id: string | null): id is string => !!id && o.tabs.includes(id);
+	if (o.recent && has(o.last)) return o.last;
+	if (o.favouriteOn && has(o.favourite)) return o.favourite;
+	if (!o.favouriteOn && has(o.last)) return o.last;
+	return has("command-center") ? "command-center" : o.tabs[0];
+}

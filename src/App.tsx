@@ -39,7 +39,7 @@ import { NotchTabBar } from "./components/NotchTabBar";
 import { BloomTip } from "./components/BloomTip";
 import { BODY_VARIANTS, CC_EXIT, LIST_MOTION, LIVELY, bodyMotion } from "./motion";
 import { ProgressEffect, asProgressStyle } from "./components/ProgressEffect";
-import { EXTRA_BY_ID, GRID_H, MAX_TABS, OPEN_WIDTH, TAB_BAR_HEIGHT, orderTabs, TOOLS, parseEnabledTools, type ExtraToolId, type Tool } from "./tools";
+import { EXTRA_BY_ID, GRID_H, MAX_TABS, OPEN_WIDTH, TAB_BAR_HEIGHT, openingTool, orderTabs, TOOLS, parseEnabledTools, type ExtraToolId, type Tool } from "./tools";
 import { SEGMENT_BAR_HEIGHT, ToolHost, showPart } from "./notchTools/ToolHost";
 import { CommandCenter, ccBodyHeight, parseCcTiles, type CcTileId, type CcTileState } from "./components/CommandCenter";
 
@@ -1203,6 +1203,24 @@ function App() {
 	const tabMotion = useRef<{ id: string | null; idx: number; dir: number }>({ id: null, idx: -1, dir: 0 });
 	const stepTabRef = useRef<(direction: 1 | -1) => boolean>(() => false);
 	const runShortcutRef = useRef<(action: string) => void>(() => {});
+	// Which tool the notch opens on (Fable's rules, 2026-11-15): Quick return
+	// (the tool you left, within `bloom-notch-quick-return` minutes of
+	// closing) → Favourite (`bloom-notch-favourite`, any tool, when
+	// `bloom-notch-favourite-on`) → the last tool used → Command Center.
+	const openFromRestRef = useRef<() => void>(() => {});
+	const [favouriteOn, setFavouriteOn] = useState(() => localStorage.getItem("bloom-notch-favourite-on") !== "false");
+	const [favourite, setFavourite] = useState(
+		() => localStorage.getItem("bloom-notch-favourite") ?? localStorage.getItem("bloom-notch-default-panel") ?? "command-center"
+	);
+	const [quickReturnMin, setQuickReturnMin] = useState(() => {
+		const v = localStorage.getItem("bloom-notch-quick-return");
+		if (v !== null) return Number(v) || 0;
+		// Before: Smart Start on = 5 minutes, off = never.
+		return localStorage.getItem("bloom-notch-remember-panel") === "false" ? 0 : 5;
+	});
+	const lastToolRef = useRef<string | null>(localStorage.getItem("bloom-notch-last-tool"));
+	// A notch the Timer or a reminder opened doesn't count as "used".
+	const autoOpenedRef = useRef(false);
 	const [ccSystem, setCcSystem] = useState<CcSystemStates>({});
 	const [activeTool, setActiveTool] = useState<ExtraToolId | null>(null);
 	// Reminders and the Timer ring while their tool is on, even with the tab
@@ -1217,6 +1235,7 @@ function App() {
 			rungRef.current.add(key);
 			playTimerChime();
 			const open = () => {
+				autoOpenedRef.current = true;
 				setTimesUp(false);
 				setActiveTool(tool);
 				setIsOpen(true);
@@ -1488,6 +1507,9 @@ function App() {
 			"bloom-tools-enabled": (v: unknown) => setEnabledTools(parseEnabledTools(v)),
 			"bloom-cc-tiles": (v: unknown) => setCcTiles(parseCcTiles(v)),
 			"bloom-timer-display": (v: unknown) => setTimerDisplay(String(v)),
+			"bloom-notch-favourite-on": (v: unknown) => setFavouriteOn(v !== false && v !== "false"),
+			"bloom-notch-favourite": (v: unknown) => setFavourite(String(v)),
+			"bloom-notch-quick-return": (v: unknown) => setQuickReturnMin(Number(v) || 0),
 			"bloom-game-glance": (v: unknown) => setGameGlance(v === "on"),
 			"bloom-tab-order": setTabOrder,
 			"bloom-progress-effect": (v: unknown) => setProgressStyle(asProgressStyle(v)),
@@ -2478,7 +2500,7 @@ function App() {
 	};
 
 	const openFromShortcutRef = useRef(() => {});
-	openFromShortcutRef.current = () => openNotch(openingPanel());
+	openFromShortcutRef.current = () => openFromRestRef.current();
 
 	// A tool turned off while its tab shows: fall back to the opening panel.
 	useEffect(() => {
@@ -2490,7 +2512,7 @@ function App() {
 	// Hover opening: resting on the notch for the delay opens it like a click.
 	useEffect(() => {
 		if (notchOpenOn !== "hover" || !isHovered || isOpen || fileStatus || bloomMode === "announcement") return;
-		const timer = window.setTimeout(() => openNotch(openingPanel()), notchHoverDelay);
+		const timer = window.setTimeout(() => openFromRestRef.current(), notchHoverDelay);
 		return () => window.clearTimeout(timer);
 	}, [notchOpenOn, notchHoverDelay, isHovered, isOpen, fileStatus, bloomMode]);
 
@@ -3210,11 +3232,7 @@ function App() {
 		}
 		// The time is part of the notch: a click opens it like anywhere else.
 		// Once open, it is a shortcut to the calendar.
-		if (!isOpen) {
-			openNotch(openingPanel());
-		} else if (settingsCalendarEnabled) {
-			setBloomMode("calendar");
-		}
+		if (!isOpen) openFromRestRef.current();
 	};
 
 	// Where a status tooltip card sits and how it slides in, by placement.
@@ -3437,6 +3455,29 @@ function App() {
 		tabMotion.current = { id: activeTabId, idx: tabIdx, dir: prev < 0 || tabIdx < 0 ? 0 : Math.sign(tabIdx - prev) };
 	}
 	const tabDir = tabMotion.current.dir;
+	openFromRestRef.current = () => {
+		const id = openingTool({
+			tabs: tabTools.map((t) => t.id),
+			recent: quickReturnMin > 0 && Date.now() - lastClosedAtRef.current < quickReturnMin * 60_000,
+			last: lastToolRef.current,
+			favouriteOn,
+			favourite
+		});
+		autoOpenedRef.current = false;
+		if (!id) return openNotch(openingPanel());
+		setIsOpen(true);
+		selectTab(id);
+	};
+	// Every tool the user lands on while the notch is open is "last used".
+	useEffect(() => {
+		if (!isOpen) {
+			autoOpenedRef.current = false;
+			return;
+		}
+		if (!activeTabId || autoOpenedRef.current) return;
+		lastToolRef.current = activeTabId;
+		localStorage.setItem("bloom-notch-last-tool", activeTabId);
+	}, [activeTabId, isOpen]);
 	// One step along the tab bar (wheel and arrows); false when there's no bar.
 	stepTabRef.current = (direction: 1 | -1) => {
 		if (tabTools.length < 2) return false;
@@ -3455,6 +3496,7 @@ function App() {
 		wasOpen.current = isOpen;
 	});
 	const selectTab = (id: string) => {
+		autoOpenedRef.current = false;
 		if (id === "music") openNotch("music");
 		else if (id in EXTRA_BY_ID) {
 			setActiveTool(id as ExtraToolId);
@@ -4032,7 +4074,7 @@ function App() {
 					onClick={(e) => {
 						e.stopPropagation();
 						if (fileStatus) return;
-						if (!isOpen) openNotch(openingPanel());
+						if (!isOpen) openFromRestRef.current();
 					}}
 					onHoverStart={() => {
 						if (fileStatus) return;
