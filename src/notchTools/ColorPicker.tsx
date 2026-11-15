@@ -2,6 +2,7 @@ import { useState } from "react";
 import { invoke } from "@tauri-apps/api/core";
 import { Copy, Pipette } from "lucide-react";
 import { copyText, useToolData } from "./useToolData";
+import type { ToolProps } from "../tools";
 
 const rgb = (hex: string) => {
 	const n = parseInt(hex.slice(1), 16);
@@ -10,16 +11,21 @@ const rgb = (hex: string) => {
 
 /** Colour picker: click Pick, then click anywhere on screen (right-click
  *  cancels). Recent colours are kept. */
-export default function ColorPicker() {
+export default function ColorPicker({ setPinned }: ToolProps) {
 	const [data, setData] = useToolData<{ recent: string[] }>("picker", { recent: [] });
 	const [picking, setPicking] = useState(false);
 	const [copied, setCopied] = useState("");
 	const current = data.recent[0] ?? null;
 	const pick = async () => {
+		// Keep the notch open while the pointer leaves it to click the screen.
+		setPinned(true);
 		setPicking(true);
 		const hex = await invoke<string | null>("pick_screen_color").catch(() => null);
 		setPicking(false);
-		if (hex) setData((d) => ({ recent: [hex, ...d.recent.filter((c) => c !== hex)].slice(0, 10) }));
+		setPinned(false);
+		if (!hex) return;
+		setData((d) => ({ recent: [hex, ...d.recent.filter((c) => c !== hex)].slice(0, 10) }));
+		copy(hex);
 	};
 	const copy = (text: string) => copyText(text).then((ok) => ok && (setCopied(text), window.setTimeout(() => setCopied(""), 1200)));
 	return (

@@ -12,6 +12,7 @@ const CHOICES: [number, string][] = [
 /** Keep awake: stops the PC and the display sleeping for a while. */
 export default function KeepAwake() {
 	const [until, setUntil] = useState(0);
+	const [chosen, setChosen] = useState<number | null>(null);
 	useEffect(() => {
 		const read = () => invoke<number>("keep_awake_status").then(setUntil).catch(() => {});
 		read();
@@ -41,7 +42,15 @@ export default function KeepAwake() {
 				<div className="nt-muted">{label}</div>
 				<div className="nt-seg" style={{ marginTop: 6 }} role="group" aria-label="Keep awake for">
 					{CHOICES.map(([m, name]) => (
-						<button key={m} type="button" onClick={() => invoke<number>("keep_awake", { minutes: m }).then(setUntil)}>
+						<button
+							key={m}
+							type="button"
+							className={on && chosen === m ? "on" : ""}
+							onClick={() => {
+								setChosen(m);
+								invoke<number>("keep_awake", { minutes: m }).then(setUntil);
+							}}
+						>
 							{name}
 						</button>
 					))}

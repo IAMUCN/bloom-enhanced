@@ -27,8 +27,10 @@ const BREAK = 5 * MIN;
 const LONG = 15 * MIN;
 const PRESETS = [5, 15, 25, 50];
 
-const fmt = (ms: number) => {
-	const s = Math.max(0, Math.ceil(ms / 1000));
+/** Countdowns round up (5:00 stays 5:00 for its first second); the
+ *  stopwatch rounds down, so it starts at 0:00. */
+const fmt = (ms: number, up = true) => {
+	const s = Math.max(0, up ? Math.ceil(ms / 1000) : Math.floor(ms / 1000));
 	const h = Math.floor(s / 3600);
 	const m = Math.floor((s % 3600) / 60);
 	const r = s % 60;
@@ -87,7 +89,7 @@ export default function Stopwatch() {
 
 	const big =
 		s.mode === "stopwatch"
-			? fmt(s.banked + (s.startedAt ? now - s.startedAt : 0))
+			? fmt(s.banked + (s.startedAt ? now - s.startedAt : 0), false)
 			: s.mode === "pomodoro"
 				? fmt(length - elapsed)
 				: fmt(timerLeft);

@@ -1192,25 +1192,42 @@ function App() {
 	const runShortcutRef = useRef<(action: string) => void>(() => {});
 	const [ccSystem, setCcSystem] = useState<CcSystemStates>({});
 	const [activeTool, setActiveTool] = useState<ExtraToolId | null>(null);
-	// Reminders ring while that tool is on, even with its tab closed: a due
-	// reminder opens the notch on it, once per reminder time.
+	// Reminders and the Timer ring while their tool is on, even with the tab
+	// closed: when one is due the notch opens on it and chimes, once per due
+	// time. Checked every 2 s (ponytail: a poll, cheap: two small files).
 	const rungRef = useRef(new Set<string>());
 	useEffect(() => {
-		if (windowLabel !== "main" || !enabledTools.includes("reminders")) return;
-		const check = () =>
-			invoke<string | null>("tool_data_get", { tool: "reminders" })
-				.then((text) => {
-					const items: { id: string; at: number }[] = text ? JSON.parse(text).items ?? [] : [];
-					const due = items.find((r) => r.at <= Date.now() && !rungRef.current.has(`${r.id}@${r.at}`));
-					if (!due) return;
-					rungRef.current.add(`${due.id}@${due.at}`);
-					setActiveTool("reminders");
-					setIsOpen(true);
-					setBloomMode("tool");
-				})
-				.catch(() => {});
+		const watch = (["reminders", "stopwatch"] as const).filter((t) => enabledTools.includes(t));
+		if (windowLabel !== "main" || !watch.length) return;
+		const ring = (tool: ExtraToolId, key: string) => {
+			if (rungRef.current.has(key)) return;
+			rungRef.current.add(key);
+			setActiveTool(tool);
+			setIsOpen(true);
+			setBloomMode("tool");
+			playTimerChime();
+		};
+		const check = () => {
+			if (watch.includes("reminders"))
+				invoke<string | null>("tool_data_get", { tool: "reminders" })
+					.then((text) => {
+						const items: { id: string; at: number }[] = text ? JSON.parse(text).items ?? [] : [];
+						const due = items.find((r) => r.at <= Date.now() && !rungRef.current.has(`${r.id}@${r.at}`));
+						if (due) ring("reminders", `${due.id}@${due.at}`);
+					})
+					.catch(() => {});
+			if (watch.includes("stopwatch"))
+				invoke<string | null>("tool_data_get", { tool: "stopwatch" })
+					.then((text) => {
+						const t = text ? JSON.parse(text) : null;
+						if (!t?.timerAt) return;
+						const left = (t.timerLength ?? 300000) - (t.timerDone ?? 0) - (Date.now() - t.timerAt);
+						if (left <= 0) ring("stopwatch", `timer@${t.timerAt}`);
+					})
+					.catch(() => {});
+		};
 		check();
-		const timer = window.setInterval(check, 20000);
+		const timer = window.setInterval(check, 2000);
 		return () => window.clearInterval(timer);
 	}, [windowLabel, enabledTools]);
 	const visualizerWantedRef = useRef(true);

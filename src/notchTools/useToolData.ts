@@ -1,3 +1,4 @@
+import { writeText } from "@tauri-apps/plugin-clipboard-manager";
 import { useEffect, useRef, useState } from "react";
 import { invoke } from "@tauri-apps/api/core";
 
@@ -39,7 +40,9 @@ export function useToolData<T>(tool: string, initial: T): [T, (next: T | ((prev:
 /** Copies text; true when it worked. */
 export async function copyText(text: string) {
 	try {
-		await navigator.clipboard.writeText(text);
+		// Tauri's clipboard: the browser one refuses while the notch has no
+		// focus, which is most of the time (Fable's tool review, 2026-11-15).
+		await writeText(text);
 		return true;
 	} catch {
 		return false;

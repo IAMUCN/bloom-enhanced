@@ -10,7 +10,7 @@ function Spark({ values, color, max }: { values: number[]; color: string; max: n
 	const h = 30;
 	const pts = values.map((v, i) => `${(i / Math.max(1, values.length - 1)) * w},${h - (Math.min(v, max) / max) * h}`).join(" ");
 	return (
-		<svg width={w} height={h} aria-hidden style={{ overflow: "visible" }}>
+		<svg width="100%" height={h} viewBox={`0 0 ${w} ${h}`} preserveAspectRatio="none" aria-hidden style={{ overflow: "visible", display: "block" }}>
 			<polyline points={pts} fill="none" stroke={color} strokeWidth={2} strokeLinejoin="round" strokeLinecap="round" />
 		</svg>
 	);
@@ -39,7 +39,7 @@ export default function SystemMonitor() {
 	return (
 		<div className="nt-row" style={{ alignItems: "stretch" }}>
 			{cards.map(([name, value, color, values, max]) => (
-				<div key={name} className="nt-card" style={{ flex: 1, display: "flex", flexDirection: "column", gap: 6 }}>
+				<div key={name} className="nt-card" style={{ flex: 1, minWidth: 0, display: "flex", flexDirection: "column", gap: 6 }}>
 					<div className="nt-row" style={{ justifyContent: "space-between" }}>
 						<span className="nt-muted">{name}</span>
 						<span style={{ color, fontWeight: 600 }}>{value}</span>
