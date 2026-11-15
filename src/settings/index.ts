@@ -4,7 +4,6 @@ export { GeneralTab } from "./GeneralTab";
 export { AppearanceTab } from "./AppearanceTab";
 export { NotchTab } from "./NotchTab";
 export { DockTab } from "./DockTab";
-export { OverlaysTab } from "./OverlaysTab";
 export { ClipboardTab } from "./ClipboardTab";
 export { FilesTab } from "./FilesTab";
 export { AboutTab } from "./AboutTab";

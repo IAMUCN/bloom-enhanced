@@ -96,15 +96,6 @@ fn dock_win_number_enabled() -> bool {
         .unwrap_or(true)
 }
 
-/// Whether one of Bloom's HUD overlays is enabled (`bloom-volume-overlay-enabled`,
-/// `bloom-brightness-overlay-enabled`). With an overlay off, the matching keys
-/// and the native flyout are left to Windows instead of being taken over.
-fn overlay_enabled(app: &AppHandle, key: &str) -> bool {
-    crate::utils::get_setting_str(app, key)
-        .map(|v| v != "false")
-        .unwrap_or(true)
-}
-
 /// Physical Win state straight from the OS. The tracked flag can go stale when
 /// a keyup is never delivered (secure desktop, keyboard unplugged, hook
 /// timeout); without this check a stale flag would swallow digits forever.
@@ -1026,18 +1017,6 @@ pub fn setup_system_worker(app_handle: AppHandle) -> Sender<SystemCommand> {
             let mut last_volume: f32 = -1.0;
             let mut last_muted: bool = false;
 
-            // Only hide the native flyout when Bloom's matching overlay replaces it.
-            let hide_osd = |overlay_key: &str| {
-                if !overlay_enabled(&handle_system, overlay_key) {
-                    return;
-                }
-                use windows::Win32::UI::WindowsAndMessaging::{FindWindowA, ShowWindow, SW_HIDE};
-                let class1 = windows::core::PCSTR(c"NativeHWNDHost".as_ptr() as *const u8);
-                if let Ok(hwnd1) = FindWindowA(class1, windows::core::PCSTR::null()) {
-                    let _ = ShowWindow(hwnd1, SW_HIDE);
-                }
-            };
-
             loop {
                 // Check for device change
                 if last_device_check.elapsed().as_secs() >= 2 {
@@ -1081,7 +1060,6 @@ pub fn setup_system_worker(app_handle: AppHandle) -> Sender<SystemCommand> {
                             if volume > 0.0 {
                                 let _ = aev.SetMute(false, std::ptr::null());
                             }
-                            hide_osd("bloom-volume-overlay-enabled");
                         }
                         (SystemCommand::SetVolume(_), None) => {}
                         (SystemCommand::MediaPlayPause, _) => {
@@ -1141,7 +1119,6 @@ pub fn setup_system_worker(app_handle: AppHandle) -> Sender<SystemCommand> {
                                     is_muted,
                                 },
                             );
-                            hide_osd("bloom-volume-overlay-enabled");
                         }
                     }
                 }
@@ -1741,7 +1718,10 @@ pub fn setup_system_worker(app_handle: AppHandle) -> Sender<SystemCommand> {
                 osd_sync_ticks += 1;
                 if osd_sync_ticks >= 10 {
                     osd_sync_ticks = 0;
-                    sync_native_osd(&handle_visibility);
+                    // The volume/brightness overlay was removed (2026-11-15):
+                    // Windows' own flyout shows. This also undoes a flyout
+                    // left hidden by an older version or a crashed run.
+                    set_native_osd_suppressed(false);
                 }
 
                 // Enforce native taskbar hiding (periodic check)
@@ -1927,20 +1907,6 @@ pub fn set_native_osd_suppressed(suppress: bool) {
             }
         }
     }
-}
-
-/// The volume and brightness flyouts share one host window, so it is only
-/// suppressed while Bloom replaces both. With either overlay turned off, the
-/// user asked for the native flyout and it must stay visible.
-fn sync_native_osd(app_handle: &AppHandle) {
-    let enabled = |key: &str| {
-        get_setting_str(app_handle, key)
-            .map(|v| v != "false")
-            .unwrap_or(true)
-    };
-    set_native_osd_suppressed(
-        enabled("bloom-brightness-overlay-enabled") && enabled("bloom-volume-overlay-enabled"),
-    );
 }
 
 pub fn setup_brightness_worker() {

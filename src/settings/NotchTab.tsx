@@ -1,8 +1,6 @@
 import {
-	Trash2,
 	Keyboard,
 	PanelTop,
-	BellRing,
 	Music,
 	Minimize2,
 	LayoutList,
@@ -15,14 +13,9 @@ import {
 	X,
 	Clock,
 	PanelLeft,
-	PanelRight,
-	GripVertical,
-	ListOrdered,
-	LayoutGrid,
-	Plus
+	PanelRight
 } from "lucide-react";
-import { useRef, useState } from "react";
-import { Reorder } from "framer-motion";
+import { useState } from "react";
 import { SettingRow } from "./SettingRow";
 
 /** Notch behavior (`bloom-notch-mode`): name and what it does. */
@@ -42,16 +35,7 @@ const NOTCH_MODES = [
 import { ScaleStepper } from "./ScaleStepper";
 import { Choice } from "./Choice";
 import { shortcutFrom } from "./ClipboardTab";
-import { EXTRA_TOOLS, MAX_TABS, TOOLS, builtInTabCount, parseEnabledTools, type ExtraToolId } from "../tools";
-import { CC_BY_ID, CC_DEFAULT, CC_MAX_ICONS, CC_TILES, ccIsWide, parseCcTiles, type CcTileId } from "../components/CommandCenter";
-import { invoke } from "@tauri-apps/api/core";
-import { ask } from "@tauri-apps/plugin-dialog";
-import {
-	NOTCH_STYLES,
-	parsePanelOrder,
-	type OrderedPanel,
-	type NotchStyle
-} from "../notchLayout";
+import { NOTCH_STYLES, type NotchStyle } from "../notchLayout";
 import { StatusWidgetConfig } from "../components/StatusWidgetConfig";
 import type { WidgetConfig } from "./types";
 import type { NotchPanelChoice } from "./useSettings";
@@ -86,236 +70,12 @@ function RowSizes({ saveSetting }: { saveSetting: (key: string, value: string | 
 	);
 }
 
-const TOOL_DESC: Record<OrderedPanel, string> = {
-	"command-center": "Quick toggles, Wi-Fi, Bluetooth, volume and brightness",
-	calendar: "Month, today's events and the timer",
-	clipboard: "Clipboard history; a tab while the Shelf sits in the notch (Shelf › Position)",
-	devices: "Batteries and audio of your connected devices"
-};
-
-/** Settings › Notch › Tools: one card per tool in its colour, with its own
- *  switch; drag the cards into the tab bar's order. The Shelf's tab follows
- *  the Shelf's position, so its card has no switch here. */
-function ToolCards({
-	isOn,
-	toggles,
-	saveSetting
-}: {
-	isOn: (panel: OrderedPanel) => boolean;
-	toggles: Partial<Record<OrderedPanel, { onToggle: () => void; locked: boolean; title?: string }>>;
-	saveSetting: (key: string, value: string | null) => Promise<boolean>;
-}) {
-	const [order, setOrder] = useState(() => parsePanelOrder(localStorage.getItem("bloom-notch-panel-order")));
-	const latest = useRef(order);
-	latest.current = order;
-	return (
-		<Reorder.Group axis="y" values={order} onReorder={setOrder} className="radial-rows page-order tool-cards">
-			{order.map((panel) => {
-				const { label, icon: Icon, color } = TOOLS[panel];
-				const toggle = toggles[panel];
-				return (
-					<Reorder.Item
-						key={panel}
-						value={panel}
-						className={`radial-row tool-card${isOn(panel) ? "" : " off"}`}
-						whileDrag={{ scale: 1.03, zIndex: 2 }}
-						onDragEnd={() => saveSetting("bloom-notch-panel-order", JSON.stringify(latest.current))}
-					>
-						<GripVertical size={13} className="radial-grip" />
-						<span className="tool-card-icon" style={{ color }}>
-							<Icon size={16} />
-						</span>
-						<span className="tool-card-text">
-							<span className="radial-row-label">{label}</span>
-							<span className="tool-card-desc">{TOOL_DESC[panel]}</span>
-						</span>
-						{toggle ? (
-							<label className="toggle-switch" title={toggle.title} onPointerDown={(e) => e.stopPropagation()}>
-								<input
-									type="checkbox"
-									checked={isOn(panel)}
-									disabled={toggle.locked}
-									onChange={toggle.onToggle}
-									aria-label={`${label} on`}
-								/>
-								<span className="slider"></span>
-							</label>
-						) : (
-							!isOn(panel) && <span className="page-order-off">off</span>
-						)}
-					</Reorder.Item>
-				);
-			})}
-		</Reorder.Group>
-	);
-}
-
 /** The notch's panels, in the order the notch cycles through them. */
 const PANEL_CHOICES: readonly (readonly [NotchPanelChoice, string])[] = [
 	["calendar", "Calendar"],
 	["command-center", "Command Center"],
 	["devices", "Devices"]
 ];
-
-/** Settings › Notch › More Tools: every tool beyond the built-in panels,
- *  by release, each with its own switch (`bloom-tools-enabled`, in the order
- *  they were turned on = their tab order) and Erase data. Off = never
- *  loaded. */
-function MoreTools({ saveSetting }: { saveSetting: (key: string, value: string | null) => Promise<boolean> }) {
-	const [enabled, setEnabled] = useState(() => parseEnabledTools(localStorage.getItem("bloom-tools-enabled")));
-	const tabs = builtInTabCount((k) => localStorage.getItem(k)) + enabled.length;
-	const full = tabs >= MAX_TABS;
-	const toggle = (id: ExtraToolId) => {
-		if (!enabled.includes(id) && full) return;
-		const next = enabled.includes(id) ? enabled.filter((t) => t !== id) : [...enabled, id];
-		setEnabled(next);
-		saveSetting("bloom-tools-enabled", JSON.stringify(next));
-	};
-	const erase = async (id: ExtraToolId, label: string) => {
-		const ok = await ask(`Erase everything ${label} has saved? This can't be undone.`, { title: `Erase ${label} data`, kind: "warning" });
-		if (ok) invoke("tool_data_erase", { tool: id }).catch(() => {});
-	};
-	const releases = [...new Set(EXTRA_TOOLS.map((t) => t.release))];
-	return (
-		<>
-			<div className="cc-picker-count">
-				{tabs} of {MAX_TABS} tabs in the tab bar
-			</div>
-			{releases.map((release) => (
-				<div key={release}>
-					<div className="setting-group-label">More Tools · {release}</div>
-					<div className="setting-group">
-						{EXTRA_TOOLS.filter((t) => t.release === release).map(({ id, label, desc, icon: Icon, color }, i, list) => (
-							<SettingRow key={id} icon={Icon} label={label} desc={desc} divider={i < list.length - 1}>
-								<div className="tool-row-controls">
-									<button type="button" className="tool-erase" title={`Erase ${label} data`} aria-label={`Erase ${label} data`} onClick={() => erase(id, label)}>
-										<Trash2 size={13} />
-									</button>
-									<span className="tool-dot" style={{ background: color }} aria-hidden />
-									<label className="toggle-switch" title={full && !enabled.includes(id) ? `The tab bar holds ${MAX_TABS} tools: turn one off first` : undefined}>
-										<input
-											type="checkbox"
-											checked={enabled.includes(id)}
-											disabled={full && !enabled.includes(id)}
-											onChange={() => toggle(id)}
-											aria-label={`${label} on`}
-										/>
-										<span className="slider"></span>
-									</label>
-								</div>
-							</SettingRow>
-						))}
-					</div>
-				</div>
-			))}
-		</>
-	);
-}
-
-/** Settings › Notch › Command Center: which round tiles show and in what
- *  order (`bloom-cc-tiles`). Wi-Fi and Bluetooth are always first; up to 14
- *  round tiles, dragged into order; the rest wait below to be added. */
-function CcTilePicker({ saveSetting }: { saveSetting: (key: string, value: string | null) => Promise<boolean> }) {
-	const [tiles, setTiles] = useState(() => parseCcTiles(localStorage.getItem("bloom-cc-tiles")));
-	const latest = useRef(tiles);
-	latest.current = tiles;
-	const save = (next: CcTileId[]) => {
-		const clean = parseCcTiles(JSON.stringify(next));
-		setTiles(clean);
-		saveSetting("bloom-cc-tiles", JSON.stringify(clean));
-	};
-	const dockOff = localStorage.getItem("bloom-dock-enabled") === "false";
-	const round = tiles.filter((t) => !ccIsWide(t));
-	const full = round.length >= CC_MAX_ICONS;
-	const rest = CC_TILES.filter(([id]) => !ccIsWide(id) && !tiles.includes(id));
-	const color = TOOLS["command-center"].color;
-	return (
-		<>
-			<div className="cc-picker-count">
-				{round.length} of {CC_MAX_ICONS} tiles · drag to reorder · Wi-Fi and Bluetooth stay on top
-			</div>
-			<Reorder.Group
-				axis="y"
-				values={round}
-				onReorder={(next) => setTiles(["wifi", "bluetooth", ...next])}
-				className="radial-rows page-order tool-cards cc-order"
-			>
-				{round.map((id) => {
-					const [, label, Icon] = CC_BY_ID[id];
-					const off = id === "dock-mode" && dockOff;
-					return (
-						<Reorder.Item
-							key={id}
-							value={id}
-							className={`radial-row tool-card${off ? " off" : ""}`}
-							whileDrag={{ scale: 1.03, zIndex: 2 }}
-							onDragEnd={() => save(latest.current)}
-						>
-							<GripVertical size={13} className="radial-grip" />
-							<span className="tool-card-icon" style={{ color }}>
-								<Icon size={16} />
-							</span>
-							<span className="tool-card-text">
-								<span className="radial-row-label">{label}</span>
-								{off && <span className="tool-card-desc">Dock is off: hidden until you turn the dock on</span>}
-							</span>
-							<button
-								type="button"
-								className="tool-erase"
-								aria-label={`Remove ${label}`}
-								title={`Remove ${label}`}
-								onPointerDown={(e) => e.stopPropagation()}
-								onClick={() => save(tiles.filter((t) => t !== id))}
-							>
-								<X size={13} />
-							</button>
-						</Reorder.Item>
-					);
-				})}
-			</Reorder.Group>
-			{rest.length > 0 && (
-				<>
-					<div className="cc-picker-count">Add a tile</div>
-					<div className="pick-tools-grid cc-tile-picker">
-						{rest.map(([id, label, Icon]) => {
-							const blocked = id === "dock-mode" && dockOff;
-							return (
-								<button
-									key={id}
-									type="button"
-									disabled={blocked || full}
-									title={
-										blocked
-											? "The dock is off. Turn it on in Settings › Dock to use this tile"
-											: full
-												? "The Command Center holds 14 tiles: remove one first"
-												: `Add ${label}`
-									}
-									className="pick-tool"
-									onClick={() => save([...tiles, id])}
-								>
-									<span className="tool-card-icon" style={{ color }}>
-										<Icon size={16} />
-									</span>
-									<span className="pick-tool-label">
-										{label}
-										{blocked && <span className="pick-tool-note">Dock is off</span>}
-									</span>
-									<span className="pick-check">
-										<Plus size={12} strokeWidth={3} />
-									</span>
-								</button>
-							);
-						})}
-					</div>
-				</>
-			)}
-			<button type="button" className="cc-tiles-reset" onClick={() => save(CC_DEFAULT)}>
-				Reset to default
-			</button>
-		</>
-	);
-}
 
 /** How the notch opens: Click (default) or Hover after a delay
  *  (`bloom-notch-open-on`, `bloom-notch-hover-delay`). */
@@ -386,24 +146,17 @@ function OpenOnRows({ saveSetting }: { saveSetting: (key: string, value: string 
 
 interface NotchTabProps {
 	notchEnabled: boolean;
-	toggleNotch: () => void;
 	notchMode: string;
 	setNotchModeValue: (mode: string) => void;
 	notchEdgeDelay: number;
 	handleNotchEdgeDelayChange: (val: number) => void;
 	calendarEnabled: boolean;
-	toggleCalendar: () => void;
 	controlsPanelEnabled: boolean;
-	toggleControlsPanel: () => void;
 	devicesPanelEnabled: boolean;
-	toggleDevicesPanel: () => void;
-	enabledPanelCount: number;
 	notchRememberPanel: boolean;
 	toggleNotchRememberPanel: () => void;
 	notchDefaultPanel: NotchPanelChoice;
 	changeNotchDefaultPanel: (panel: NotchPanelChoice) => void;
-	timerSoundEnabled: boolean;
-	toggleTimerSound: () => void;
 	musicModeEnabled: boolean;
 	toggleMusicMode: () => void;
 	musicCompactNotch: boolean;
@@ -443,24 +196,17 @@ interface NotchTabProps {
 
 export function NotchTab({
 	notchEnabled,
-	toggleNotch,
 	notchMode,
 	setNotchModeValue,
 	notchEdgeDelay,
 	handleNotchEdgeDelayChange,
 	calendarEnabled,
-	toggleCalendar,
 	controlsPanelEnabled,
-	toggleControlsPanel,
 	devicesPanelEnabled,
-	toggleDevicesPanel,
-	enabledPanelCount,
 	notchRememberPanel,
 	toggleNotchRememberPanel,
 	notchDefaultPanel,
 	changeNotchDefaultPanel,
-	timerSoundEnabled,
-	toggleTimerSound,
 	musicModeEnabled,
 	toggleMusicMode,
 	musicCompactNotch,
@@ -498,30 +244,12 @@ export function NotchTab({
 		devices: devicesPanelEnabled
 	};
 	const firstPanelOn = PANEL_CHOICES.find(([panel]) => panelOn[panel])?.[0] ?? "command-center";
-	// The notch needs at least one panel, so the last one on stays on.
-	const isLastPanel = (on: boolean) => on && enabledPanelCount <= 1;
-	const lastPanelTitle = (on: boolean) =>
-		isLastPanel(on) ? "The notch needs at least one panel" : undefined;
 
 	return (
 		<>
-			<div className="setting-group-label">Notch</div>
-			<div className="setting-group">
-				<SettingRow
-					icon={PanelTop}
-					label="Notch"
-					desc="Turn off to remove the notch; Settings stay in the tray menu"
-					divider={notchEnabled}
-				>
-					<label className="toggle-switch">
-						<input type="checkbox" checked={notchEnabled} onChange={toggleNotch} />
-						<span className="slider"></span>
-					</label>
-				</SettingRow>
-			</div>
-
 			{notchEnabled && (
 				<>
+					<div className="setting-group-label">Shape</div>
 					<div className="setting-group">
 						<SettingRow
 							icon={PanelTop}
@@ -535,8 +263,6 @@ export function NotchTab({
 								label="When the notch shows"
 							/>
 						</SettingRow>
-
-						<OpenOnRows saveSetting={saveSetting} />
 
 						{notchMode !== "fixed" && (
 							<SettingRow
@@ -592,61 +318,17 @@ export function NotchTab({
 						</SettingRow>
 					</div>
 
-					<div className="setting-group-label">Tools</div>
+					<div className="setting-group-label">Opening</div>
 					<div className="setting-group">
-						<SettingRow
-							icon={ListOrdered}
-							label="Tools"
-							desc="Drag to set the tab bar's order; each switch turns a tool fully off (0 MB)"
-							divider={false}
-						/>
-						<div className="page-order-wrap">
-							<ToolCards
-								isOn={(panel) =>
-									panel === "clipboard"
-										? // The Shelf is a notch page while the clipboard sits in the notch.
-											localStorage.getItem("bloom-clipboard-enabled") !== "false" &&
-											(localStorage.getItem("bloom-clipboard-position") ?? "notch") === "notch"
-										: panelOn[panel]
-								}
-								toggles={{
-									calendar: { onToggle: toggleCalendar, locked: isLastPanel(calendarEnabled), title: lastPanelTitle(calendarEnabled) },
-									"command-center": {
-										onToggle: toggleControlsPanel,
-										locked: isLastPanel(controlsPanelEnabled),
-										title: lastPanelTitle(controlsPanelEnabled)
-									},
-									devices: { onToggle: toggleDevicesPanel, locked: isLastPanel(devicesPanelEnabled), title: lastPanelTitle(devicesPanelEnabled) }
-								}}
-								saveSetting={saveSetting}
-							/>
-						</div>
-
-						{calendarEnabled && (
-							<SettingRow
-								icon={BellRing}
-								label="Timer Sound"
-								desc="Play a chime when the timer finishes"
-							>
-								<label className="toggle-switch">
-									<input type="checkbox" checked={timerSoundEnabled} onChange={toggleTimerSound} />
-									<span className="slider"></span>
-								</label>
-							</SettingRow>
-						)}
-						<div className="setting-divider" />
+						<OpenOnRows saveSetting={saveSetting} />
 
 						<SettingRow
 							icon={PanelTop}
 							label="Smart Start"
-							desc="Reopen the last panel if you come back within 5 minutes; otherwise open your favourite"
+							desc="Reopen the last tool if you come back within 5 minutes; otherwise open your favourite"
 						>
 							<label className="toggle-switch">
-								<input
-									type="checkbox"
-									checked={notchRememberPanel}
-									onChange={toggleNotchRememberPanel}
-								/>
+								<input type="checkbox" checked={notchRememberPanel} onChange={toggleNotchRememberPanel} />
 								<span className="slider"></span>
 							</label>
 						</SettingRow>
@@ -654,7 +336,8 @@ export function NotchTab({
 						<SettingRow
 							icon={PanelTop}
 							label="Favourite Panel"
-							desc={notchRememberPanel ? "Opens when Smart Start doesn't reopen the last panel" : "Always opens when you click the notch"}
+							desc={notchRememberPanel ? "Opens when Smart Start doesn't reopen the last tool" : "Always opens when you click the notch"}
+							divider={false}
 						>
 							<Choice
 								value={panelOn[notchDefaultPanel] ? notchDefaultPanel : firstPanelOn}
@@ -665,26 +348,7 @@ export function NotchTab({
 						</SettingRow>
 					</div>
 
-					{controlsPanelEnabled && (
-						<>
-							<div className="setting-group-label">Command Center</div>
-							<div className="setting-group">
-								<SettingRow
-									icon={LayoutGrid}
-									label="Tiles"
-									desc="Pick up to 14 quick settings and drag them into order: two rows of seven"
-									divider={false}
-								/>
-								<div className="page-order-wrap">
-									<CcTilePicker saveSetting={saveSetting} />
-								</div>
-							</div>
-						</>
-					)}
-
-					<MoreTools saveSetting={saveSetting} />
-
-					<div className="setting-group-label">Music</div>
+					<div className="setting-group-label">Now Playing</div>
 					<div className="setting-group">
 						<SettingRow icon={Music} label="Music Mode" desc="Interactive live music widget">
 							<label className="toggle-switch">
@@ -768,7 +432,7 @@ export function NotchTab({
 						)}
 					</div>
 
-					<div className="setting-group-label">Shelf</div>
+					<div className="setting-group-label">Drop Shelf</div>
 					<div className="setting-group">
 						<SettingRow
 							icon={Archive}
@@ -856,7 +520,7 @@ export function NotchTab({
 						)}
 					</div>
 
-					<div className="setting-group-label">Widgets</div>
+					<div className="setting-group-label">Clock Bar</div>
 					<div className="setting-group">
 						<details className="settings-disclosure settings-disclosure-standalone">
 							<summary>

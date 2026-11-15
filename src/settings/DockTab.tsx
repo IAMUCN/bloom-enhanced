@@ -2,7 +2,6 @@ import { useEffect, useState, type ChangeEvent, type CSSProperties } from "react
 import { invoke } from "@tauri-apps/api/core";
 import { Choice } from "./Choice";
 import {
-	Monitor,
 	Eye,
 	EyeOff,
 	Circle,
@@ -105,7 +104,6 @@ const startIconTileStyle = (active: boolean): CSSProperties => ({
 
 interface DockTabProps {
 	dockEnabled: boolean;
-	toggleDock: () => void;
 	dockMode: string;
 	setDockModeValue: (mode: string) => void;
 	dockEdgeDelay: number;
@@ -143,7 +141,6 @@ interface DockTabProps {
 
 export function DockTab({
 	dockEnabled,
-	toggleDock,
 	dockMode,
 	setDockModeValue,
 	dockEdgeDelay,
@@ -193,13 +190,6 @@ export function DockTab({
 		<>
 			<div className="setting-group-label">Dock</div>
 			<div className="setting-group">
-				<SettingRow icon={Monitor} label="Dock" desc="Replace Windows taskbar">
-					<label className="toggle-switch">
-						<input type="checkbox" checked={dockEnabled} onChange={toggleDock} />
-						<span className="slider"></span>
-					</label>
-				</SettingRow>
-
 				{dockEnabled && (
 					<>
 						<SettingRow

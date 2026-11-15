@@ -1508,27 +1508,14 @@ input:checked + .slider:before {
 }
 
 .about-title {
-	font-family: "Syne", "Segoe UI", system-ui, sans-serif;
-	font-size: 40px;
-	font-weight: 800;
+	font-size: 34px;
+	font-weight: 700;
 	line-height: 1;
 	color: var(--bloom-text, #ffffff);
 	margin: 0;
 	letter-spacing: -0.035em;
 }
 
-@supports ((-webkit-background-clip: text) or (background-clip: text)) {
-	.about-title {
-		background: linear-gradient(
-			180deg,
-			var(--bloom-text, #ffffff) 45%,
-			color-mix(in srgb, var(--bloom-text, #ffffff) 55%, transparent) 100%
-		);
-		-webkit-background-clip: text;
-		background-clip: text;
-		color: transparent;
-	}
-}
 
 .about-version {
 	margin: 12px 0 0;
@@ -2194,4 +2181,303 @@ input:checked + .slider:before {
 	font-size: 10px;
 	font-weight: 400;
 	color: var(--bloom-text-secondary, #a1a1aa);
+}
+
+/* ===== Settings shell, 2026-11-15 (parts sidebar, page header, Tools) =====
+   Spec by Fable; selection is a fill, not a coloured edge. */
+
+.settings-sidebar {
+	width: 232px;
+	padding: 12px;
+	gap: 0;
+}
+
+.settings-search {
+	margin: 0 0 14px;
+	height: 32px;
+	box-sizing: border-box;
+}
+
+.settings-nav {
+	flex: 1;
+	min-height: 0;
+	overflow-y: auto;
+	display: flex;
+	flex-direction: column;
+}
+
+/* Each part of the app sits apart from the next. */
+.settings-nav-part {
+	display: flex;
+	flex-direction: column;
+	gap: 2px;
+	padding: 6px 0;
+}
+
+.settings-nav-part + .settings-nav-part {
+	border-top: 1px solid var(--bloom-border, rgba(255, 255, 255, 0.06));
+}
+
+.sidebar-tab {
+	height: 34px;
+	padding: 0 10px;
+	gap: 10px;
+	opacity: 1;
+	color: var(--text-muted);
+}
+
+.sidebar-tab.active,
+.sidebar-tab:hover {
+	color: var(--text-color);
+}
+
+/* Tools belongs to the notch: one step in. */
+.sidebar-tab.sub {
+	padding-left: 26px;
+}
+
+.sidebar-tab-label {
+	flex: 1;
+	min-width: 0;
+	overflow: hidden;
+	white-space: nowrap;
+	text-overflow: ellipsis;
+}
+
+.sidebar-module-dot {
+	flex: none;
+	width: 6px;
+	height: 6px;
+	border-radius: 50%;
+	background: currentColor;
+	opacity: 0.3;
+}
+
+.sidebar-module-dot.on {
+	background: var(--bloom-accent, #0a84ff);
+	opacity: 1;
+}
+
+.sidebar-about {
+	margin-top: 8px;
+	border-top: 1px solid var(--bloom-border, rgba(255, 255, 255, 0.06));
+	border-radius: 0 0 8px 8px;
+}
+
+.sidebar-version {
+	flex: none;
+	font-size: 11px;
+	font-variant-numeric: tabular-nums;
+	color: var(--text-muted);
+}
+
+/* Content: one readable column, centred. */
+.settings-content {
+	padding: 28px 40px 40px;
+}
+
+.settings-content > * {
+	max-width: 720px;
+	margin-left: auto;
+	margin-right: auto;
+}
+
+.settings-page-heading {
+	display: flex;
+	align-items: flex-start;
+	justify-content: space-between;
+	gap: 16px;
+	margin: 0 auto 20px;
+}
+
+.settings-page-heading h1 {
+	font-size: 24px;
+	font-weight: 650;
+	letter-spacing: -0.6px;
+}
+
+.settings-page-heading p {
+	font-size: 13px;
+}
+
+.settings-master {
+	flex: none;
+	margin-top: 4px;
+}
+
+.settings-count {
+	flex: none;
+	margin-top: 4px;
+	padding: 3px 10px;
+	border-radius: 999px;
+	background: var(--group-bg, rgba(255, 255, 255, 0.06));
+	border: 1px solid var(--bloom-border, rgba(255, 255, 255, 0.08));
+	font-size: 12px;
+	font-weight: 600;
+	font-variant-numeric: tabular-nums;
+}
+
+.settings-count.full {
+	color: #ff9f0a;
+}
+
+.settings-module-off {
+	margin: 0 auto 16px;
+	font-size: 12px;
+	color: var(--text-muted);
+}
+
+/* A group whose rows are all hidden takes its label with it. */
+.setting-group:empty,
+.setting-group-label:has(+ .setting-group:empty) {
+	display: none;
+}
+
+/* Tools page */
+.tools-list {
+	display: flex;
+	flex-direction: column;
+	gap: 6px;
+	margin: 0;
+	padding: 0;
+	list-style: none;
+}
+
+.tools-card {
+	display: flex;
+	align-items: center;
+	gap: 12px;
+	min-height: 56px;
+	padding: 8px 8px 8px 10px;
+	box-sizing: border-box;
+	border-radius: 10px;
+	background: var(--group-bg, rgba(255, 255, 255, 0.05));
+	border: 1px solid var(--bloom-border, rgba(255, 255, 255, 0.08));
+	list-style: none;
+	user-select: none;
+}
+
+.tools-card:not(.on) .radial-row-label {
+	opacity: 0.6;
+}
+
+.tools-card.on {
+	cursor: grab;
+}
+
+.tools-card.on:active {
+	cursor: grabbing;
+}
+
+.tools-card-grip-space {
+	flex: none;
+	width: 14px;
+}
+
+.tools-card-icon {
+	flex: none;
+	display: grid;
+	place-items: center;
+	width: 32px;
+	height: 32px;
+	border-radius: 8px;
+	background: rgba(255, 255, 255, 0.06);
+}
+
+.light-mode .tools-card-icon {
+	background: rgba(0, 0, 0, 0.05);
+}
+
+.tools-card-note {
+	flex: none;
+	font-size: 12px;
+	color: var(--text-muted);
+}
+
+.tools-card-open {
+	flex: none;
+	display: grid;
+	place-items: center;
+	width: 28px;
+	height: 28px;
+	padding: 0;
+	border: none;
+	border-radius: 8px;
+	background: none;
+	color: var(--text-muted);
+	cursor: pointer;
+}
+
+button.tools-card-open:hover {
+	background: rgba(255, 255, 255, 0.08);
+	color: var(--text-color);
+}
+
+.light-mode button.tools-card-open:hover {
+	background: rgba(0, 0, 0, 0.06);
+}
+
+.tools-back {
+	display: inline-flex;
+	align-items: center;
+	gap: 6px;
+	margin: 0 0 16px;
+	padding: 4px 8px 4px 4px;
+	border: none;
+	border-radius: 8px;
+	background: none;
+	color: var(--text-muted);
+	font: inherit;
+	font-size: 13px;
+	cursor: pointer;
+}
+
+.tools-back:hover {
+	color: var(--text-color);
+	background: rgba(255, 255, 255, 0.06);
+}
+
+.tools-page-title {
+	display: flex;
+	align-items: center;
+	gap: 12px;
+	margin-bottom: 20px;
+}
+
+.tools-page-title h2 {
+	margin: 0 0 2px;
+	font-size: 22px;
+	font-weight: 650;
+	letter-spacing: -0.5px;
+}
+
+.tools-page-title p {
+	margin: 0;
+	font-size: 13px;
+	color: var(--text-muted);
+}
+
+.tools-erase {
+	padding: 5px 12px;
+	border: none;
+	border-radius: 7px;
+	background: none;
+	color: #ff453a;
+	font: inherit;
+	font-size: 13px;
+	font-weight: 600;
+	cursor: pointer;
+}
+
+.tools-erase:hover {
+	background: rgba(255, 69, 58, 0.12);
+}
+
+.tools-card:focus-visible,
+.tools-card-open:focus-visible,
+.tools-back:focus-visible,
+.tools-erase:focus-visible,
+.sidebar-tab:focus-visible {
+	outline: 2px solid var(--bloom-accent, #0a84ff);
+	outline-offset: 2px;
 }

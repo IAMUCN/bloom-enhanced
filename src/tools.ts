@@ -144,3 +144,21 @@ export function parseEnabledTools(raw: unknown): ExtraToolId[] {
 	if (!Array.isArray(list)) return [];
 	return list.filter((id, i): id is ExtraToolId => id in EXTRA_BY_ID && list.indexOf(id) === i);
 }
+
+/** Tools in the user's tab order (`bloom-tab-order`, a JSON list of ids,
+ *  set by dragging in Settings › Tools); tools not in it keep their place
+ *  after the ordered ones. */
+export function orderTabs<T extends { id: string }>(tools: T[], raw: unknown): T[] {
+	let list: unknown;
+	try {
+		list = JSON.parse(String(raw ?? "[]"));
+	} catch {
+		list = [];
+	}
+	const order = Array.isArray(list) ? list : [];
+	const rank = (t: T) => {
+		const i = order.indexOf(t.id);
+		return i < 0 ? order.length : i;
+	};
+	return tools.map((t, i) => [t, i] as const).sort((a, b) => rank(a[0]) - rank(b[0]) || a[1] - b[1]).map(([t]) => t);
+}

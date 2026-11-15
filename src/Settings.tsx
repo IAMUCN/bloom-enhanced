@@ -6,11 +6,11 @@ import { invoke } from "@tauri-apps/api/core";
 import { openUrl } from "@tauri-apps/plugin-opener";
 import {
 	X,
-	Settings,
+	Settings2,
 	Palette,
 	PanelTop,
-	Monitor,
-	Layers,
+	PanelBottom,
+	LayoutGrid,
 	Info,
 	Megaphone,
 	ClipboardList,
@@ -24,7 +24,6 @@ import {
 	AppearanceTab,
 	NotchTab,
 	DockTab,
-	OverlaysTab,
 	ClipboardTab,
 	FilesTab,
 	AboutTab
@@ -32,6 +31,9 @@ import {
 import type { SettingsTab } from "./settings/index";
 import { useAnnouncement } from "./hooks/useAnnouncement";
 import { PickTools } from "./settings/PickTools";
+import { ToolsTab } from "./settings/ToolsTab";
+import { useSettingsSync } from "./hooks/useSettingsSync";
+import { MAX_TABS, builtInTabCount, parseEnabledTools } from "./tools";
 import { initTheme } from "./theme";
 import { FeaturePreview } from "./settings/FeaturePreview";
 import { searchSettings, type SettingEntry } from "./settings/searchIndex";
@@ -39,25 +41,33 @@ import "./Settings.css";
 
 const appWindow = getCurrentWebviewWindow();
 
-const TABS: { id: SettingsTab; label: string; icon: typeof Settings }[] = [
-	{ id: "general", label: "General", icon: Settings },
-	{ id: "appearance", label: "Appearance", icon: Palette },
-	{ id: "notch", label: "Notch", icon: PanelTop },
-	{ id: "dock", label: "Dock", icon: Monitor },
-	{ id: "clipboard", label: "Shelf", icon: ClipboardList },
-	{ id: "files", label: "Radial Menu", icon: Orbit },
-	{ id: "overlays", label: "Overlays", icon: Layers },
-	{ id: "about", label: "About", icon: Info }
+type NavItem = { id: SettingsTab; label: string; icon: typeof Settings2; sub?: boolean };
+
+/** The sidebar, in parts (user, 2026-11-15): the notch and its tools, then
+ *  each module on its own, then the app-wide pages. About sits at the foot. */
+const NAV: NavItem[][] = [
+	[
+		{ id: "notch", label: "Notch", icon: PanelTop },
+		{ id: "tools", label: "Tools", icon: LayoutGrid, sub: true }
+	],
+	[{ id: "dock", label: "Dock", icon: PanelBottom }],
+	[{ id: "clipboard", label: "Shelf", icon: ClipboardList }],
+	[{ id: "files", label: "Radial Menu", icon: Orbit }],
+	[
+		{ id: "general", label: "General", icon: Settings2 },
+		{ id: "appearance", label: "Appearance", icon: Palette }
+	]
 ];
+const TABS: NavItem[] = [...NAV.flat(), { id: "about", label: "About", icon: Info }];
 
 const TAB_COPY: Record<SettingsTab, string> = {
-	general: "The essentials for how LotusNotch starts and runs.",
-	appearance: "Make every surface feel at home on your desktop.",
-	notch: "Choose what appears at the top of your screen.",
-	dock: "Shape the taskbar replacement around your workflow.",
-	clipboard: "Everything you copy, kept on this PC and opened from the notch.",
-	files: "Convert and act on files from a ring around the pointer, without opening an app.",
-	overlays: "Keep quick controls visible only when you need them.",
+	general: "How LotusNotch starts, runs and saves battery.",
+	appearance: "Theme, size and motion for every part of LotusNotch.",
+	notch: "How the notch looks, opens and what its clock bar shows.",
+	tools: "The tools in the notch's tab bar, in their order.",
+	dock: "The taskbar replacement at the bottom of the screen.",
+	clipboard: "Everything you copy, kept on this PC.",
+	files: "Convert and act on files from a ring around the pointer.",
 	about: "Version, updates and your settings data."
 };
 
@@ -83,8 +93,7 @@ const PAGE_KEYS: Partial<Record<SettingsTab, string[]>> = {
 	],
 	dock: ["bloom-dock-", "bloom-start-icon"],
 	clipboard: ["bloom-clipboard-"],
-	files: ["bloom-files-"],
-	overlays: ["bloom-volume-", "bloom-brightness-"]
+	files: ["bloom-files-"]
 };
 
 /** A search result's row on its page: the row (or folded section, or group
@@ -156,6 +165,25 @@ function SettingsApp() {
 		return () => window.removeEventListener("keydown", onKey);
 	}, []);
 	const settings = useSettings();
+	// Each module's master switch sits in its page header.
+	const [filesOn, setFilesOn] = useState(() => localStorage.getItem("bloom-files-enabled") !== "false");
+	useSettingsSync({ "bloom-files-enabled": setFilesOn });
+	const modules: Partial<Record<SettingsTab, { on: boolean; toggle: () => void }>> = {
+		notch: { on: settings.notchEnabled, toggle: settings.toggleNotch },
+		dock: { on: settings.dockEnabled, toggle: settings.toggleDock },
+		clipboard: { on: settings.clipboardEnabled, toggle: settings.toggleClipboard },
+		files: {
+			on: filesOn,
+			toggle: () => {
+				setFilesOn(!filesOn);
+				settings.saveSetting("bloom-files-enabled", String(!filesOn));
+			}
+		}
+	};
+	// The tool page open inside Tools (null = the list).
+	const [toolPage, setToolPage] = useState<string | null>(null);
+	const tabCount =
+		builtInTabCount((k) => localStorage.getItem(k)) + parseEnabledTools(localStorage.getItem("bloom-tools-enabled")).length;
 	// First run: "Pick your tools", once (bloom-tools-picked).
 	const [pickTools, setPickTools] = useState(() => localStorage.getItem("bloom-tools-picked") !== "true");
 	const { announcement, dismissed, dismiss } = useAnnouncement();
@@ -179,13 +207,6 @@ function SettingsApp() {
 			document.removeEventListener("contextmenu", preventContext as any);
 		};
 	}, []);
-
-	useEffect(() => {
-		invoke("resize_settings_window", {
-			width: 740 * settings.scale,
-			height: 560 * settings.scale
-		}).catch(console.error);
-	}, [settings.scale]);
 
 	useEffect(() => {
 		if (contentRef.current) contentRef.current.scrollTop = 0;
@@ -213,9 +234,8 @@ function SettingsApp() {
 
 			<div className="settings-body">
 				<div className="settings-sidebar">
-					<div className="settings-sidebar-intro"><strong>LotusNotch</strong><span>Make it yours</span></div>
 					<label className="settings-search">
-						<Search size={13} strokeWidth={1.75} />
+						<Search size={14} strokeWidth={1.75} />
 						<input
 							ref={searchRef}
 							value={query}
@@ -228,22 +248,52 @@ function SettingsApp() {
 							}}
 						/>
 					</label>
-					{TABS.map(({ id, label, icon: Icon }) => (
-						<button
-							key={id}
-							className={`sidebar-tab ${shown === id ? "active" : ""}`}
-							aria-current={shown === id ? "page" : undefined}
-							onClick={() => {
-								setQuery("");
-								setActiveTab(id);
-							}}
-						>
-							<div className="sidebar-tab-icon">
-								<Icon size={14} strokeWidth={1.5} />
+					<nav className="settings-nav" aria-label="Settings pages">
+						{NAV.map((part, i) => (
+							<div key={i} className="settings-nav-part">
+								{part.map(({ id, label, icon: Icon, sub }) => {
+									const module = modules[id];
+									return (
+										<button
+											key={id}
+											className={`sidebar-tab${sub ? " sub" : ""}${shown === id ? " active" : ""}`}
+											aria-current={shown === id ? "page" : undefined}
+											onClick={() => {
+												setQuery("");
+												setActiveTab(id);
+												setToolPage(null);
+											}}
+										>
+											<span className="sidebar-tab-icon">
+												<Icon size={16} strokeWidth={1.75} />
+											</span>
+											<span className="sidebar-tab-label">{label}</span>
+											{module && (
+												<span
+													className={`sidebar-module-dot${module.on ? " on" : ""}`}
+													title={module.on ? `${label} is on` : `${label} is off`}
+												/>
+											)}
+										</button>
+									);
+								})}
 							</div>
-							<span>{label}</span>
-						</button>
-					))}
+						))}
+					</nav>
+					<button
+						className={`sidebar-tab sidebar-about${shown === "about" ? " active" : ""}`}
+						aria-current={shown === "about" ? "page" : undefined}
+						onClick={() => {
+							setQuery("");
+							setActiveTab("about");
+						}}
+					>
+						<span className="sidebar-tab-icon">
+							<Info size={16} strokeWidth={1.75} />
+						</span>
+						<span className="sidebar-tab-label">About</span>
+						<span className="sidebar-version">{settings.appVersion ? `v${settings.appVersion}` : ""}</span>
+					</button>
 				</div>
 
 				<div className="settings-content" ref={contentRef} onChangeCapture={(event) => {
@@ -251,12 +301,6 @@ function SettingsApp() {
 					const row = target.closest(".setting-item");
 					let label = row?.querySelector(".setting-label")?.textContent;
 					if (!label && target.closest(".settings-disclosure-standalone")) label = "Status Widgets";
-					if (activeTab === "overlays" && label === "Show on Edge Hover") {
-						const edgeRows = Array.from(contentRef.current?.querySelectorAll(".setting-item") ?? []).filter(
-							(item) => item.querySelector(".setting-label")?.textContent === label
-						);
-						label = row === edgeRows[edgeRows.length - 1] && edgeRows.length > 1 ? "Brightness Edge Hover" : "Volume Edge Hover";
-					}
 					if (label) setPreviewFocus(activeTab + ":" + label + ":" + Date.now());
 				}} onClickCapture={(event) => {
 					const label = (event.target as HTMLElement).closest(".setting-item")?.querySelector(".setting-label")?.textContent;
@@ -300,13 +344,40 @@ function SettingsApp() {
 						</div>
 					)}
 					{shown ? (
-						<>
-							<div className="settings-page-heading">
-								<h1>{TABS.find((tab) => tab.id === shown)?.label}</h1>
-								<p>{TAB_COPY[shown]}</p>
-							</div>
-							<FeaturePreview tab={shown} settings={settings} focus={previewFocus} />
-						</>
+						!(shown === "tools" && toolPage) && (
+							<>
+								<header className="settings-page-heading">
+									<div>
+										<h1>{TABS.find((tab) => tab.id === shown)?.label}</h1>
+										<p>{TAB_COPY[shown]}</p>
+									</div>
+									{modules[shown] && (
+										<label className="toggle-switch settings-master" title={`Turn ${TABS.find((t) => t.id === shown)?.label} on or off`}>
+											<input
+												type="checkbox"
+												checked={modules[shown]!.on}
+												onChange={modules[shown]!.toggle}
+												aria-label={`${TABS.find((t) => t.id === shown)?.label} on`}
+											/>
+											<span className="slider"></span>
+										</label>
+									)}
+									{shown === "tools" && (
+										<span className={`settings-count${tabCount >= MAX_TABS ? " full" : ""}`} title="Tools in the tab bar">
+											{tabCount} / {MAX_TABS}
+										</span>
+									)}
+								</header>
+								{modules[shown] && !modules[shown]!.on && (
+									<p className="settings-module-off">
+										{TABS.find((t) => t.id === shown)?.label} is off. Turn it on above to change its settings.
+									</p>
+								)}
+								{(!modules[shown] || modules[shown]!.on) && (
+									<FeaturePreview tab={shown} settings={settings} focus={previewFocus} />
+								)}
+							</>
+						)
 					) : (
 						<div className="settings-search-results" role="list">
 							<div className="settings-page-heading">
@@ -367,24 +438,17 @@ function SettingsApp() {
 							<NotchTab
 								saveSetting={settings.saveSetting}
 								notchEnabled={settings.notchEnabled}
-								toggleNotch={settings.toggleNotch}
 								notchMode={settings.notchMode}
 								setNotchModeValue={settings.setNotchModeValue}
 								notchEdgeDelay={settings.notchEdgeDelay}
 								handleNotchEdgeDelayChange={settings.handleNotchEdgeDelayChange}
 								calendarEnabled={settings.calendarEnabled}
-								toggleCalendar={settings.toggleCalendar}
 								controlsPanelEnabled={settings.controlsPanelEnabled}
-								toggleControlsPanel={settings.toggleControlsPanel}
 								devicesPanelEnabled={settings.devicesPanelEnabled}
-								toggleDevicesPanel={settings.toggleDevicesPanel}
-								enabledPanelCount={settings.enabledPanelCount}
 								notchRememberPanel={settings.notchRememberPanel}
 								toggleNotchRememberPanel={settings.toggleNotchRememberPanel}
 								notchDefaultPanel={settings.notchDefaultPanel}
 								changeNotchDefaultPanel={settings.changeNotchDefaultPanel}
-								timerSoundEnabled={settings.timerSoundEnabled}
-								toggleTimerSound={settings.toggleTimerSound}
 								musicModeEnabled={settings.musicModeEnabled}
 								toggleMusicMode={settings.toggleMusicMode}
 								musicCompactNotch={settings.musicCompactNotch}
@@ -421,7 +485,6 @@ function SettingsApp() {
 						<section data-tab="dock">
 							<DockTab
 								dockEnabled={settings.dockEnabled}
-								toggleDock={settings.toggleDock}
 								dockMode={settings.dockMode}
 								setDockModeValue={settings.setDockModeValue}
 								dockEdgeDelay={settings.dockEdgeDelay}
@@ -462,7 +525,6 @@ function SettingsApp() {
 						<section data-tab="clipboard">
 							<ClipboardTab
 								enabled={settings.clipboardEnabled}
-								toggleEnabled={settings.toggleClipboard}
 								incognito={settings.clipboardIncognito}
 								toggleIncognito={settings.toggleClipboardIncognito}
 								limit={settings.clipboardLimit}
@@ -488,17 +550,24 @@ function SettingsApp() {
 							<FilesTab saveSetting={settings.saveSetting} />
 						</section>
 					)}
-					{shown === "overlays" && (
-						<section data-tab="overlays">
-							<OverlaysTab
-								volumeOverlayEnabled={settings.volumeOverlayEnabled}
-								toggleVolumeOverlay={settings.toggleVolumeOverlay}
-								volumeEdgeEnabled={settings.volumeEdgeEnabled}
-								toggleVolumeEdge={settings.toggleVolumeEdge}
-								brightnessOverlayEnabled={settings.brightnessOverlayEnabled}
-								toggleBrightnessOverlay={settings.toggleBrightnessOverlay}
-								brightnessEdgeEnabled={settings.brightnessEdgeEnabled}
-								toggleBrightnessEdge={settings.toggleBrightnessEdge}
+					{shown === "tools" && (
+						<section data-tab="tools">
+							<ToolsTab
+								saveSetting={settings.saveSetting}
+								calendarEnabled={settings.calendarEnabled}
+								toggleCalendar={settings.toggleCalendar}
+								controlsPanelEnabled={settings.controlsPanelEnabled}
+								toggleControlsPanel={settings.toggleControlsPanel}
+								devicesPanelEnabled={settings.devicesPanelEnabled}
+								toggleDevicesPanel={settings.toggleDevicesPanel}
+								musicModeEnabled={settings.musicModeEnabled}
+								toggleMusicMode={settings.toggleMusicMode}
+								enabledPanelCount={settings.enabledPanelCount}
+								timerSoundEnabled={settings.timerSoundEnabled}
+								toggleTimerSound={settings.toggleTimerSound}
+								openShelf={() => setActiveTab("clipboard")}
+								page={toolPage}
+								setPage={setToolPage}
 							/>
 						</section>
 					)}

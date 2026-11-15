@@ -38,7 +38,7 @@ import { useAnnouncement } from "./hooks/useAnnouncement";
 import { NotchTabBar } from "./components/NotchTabBar";
 import { BloomTip } from "./components/BloomTip";
 import { ProgressEffect, asProgressStyle } from "./components/ProgressEffect";
-import { EXTRA_BY_ID, GRID_H, MAX_TABS, OPEN_WIDTH, TAB_BAR_HEIGHT, TOOLS, parseEnabledTools, type ExtraToolId, type Tool } from "./tools";
+import { EXTRA_BY_ID, GRID_H, MAX_TABS, OPEN_WIDTH, TAB_BAR_HEIGHT, orderTabs, TOOLS, parseEnabledTools, type ExtraToolId, type Tool } from "./tools";
 import { ToolHost } from "./notchTools/ToolHost";
 import { CommandCenter, ccBodyHeight, parseCcTiles, type CcTileId, type CcTileState } from "./components/CommandCenter";
 
@@ -1198,6 +1198,7 @@ function App() {
 	// the one showing while bloomMode is "tool".
 	const [enabledTools, setEnabledTools] = useState(() => parseEnabledTools(localStorage.getItem("bloom-tools-enabled")));
 	const [ccTiles, setCcTiles] = useState(() => parseCcTiles(localStorage.getItem("bloom-cc-tiles")));
+	const [tabOrder, setTabOrder] = useState<unknown>(() => localStorage.getItem("bloom-tab-order"));
 	const [ccSystem, setCcSystem] = useState<CcSystemStates>({});
 	const [activeTool, setActiveTool] = useState<ExtraToolId | null>(null);
 	// Reminders ring while that tool is on, even with its tab closed: a due
@@ -1453,6 +1454,7 @@ function App() {
 			"bloom-low-battery-threshold": setLowBatteryThreshold,
 			"bloom-tools-enabled": (v: unknown) => setEnabledTools(parseEnabledTools(v)),
 			"bloom-cc-tiles": (v: unknown) => setCcTiles(parseCcTiles(v)),
+			"bloom-tab-order": setTabOrder,
 			"bloom-progress-effect": (v: unknown) => setProgressStyle(asProgressStyle(v)),
 			"bloom-battery-saver": (v: unknown) => setSaverMode(String(v ?? "below")),
 			"bloom-battery-saver-threshold": (v: unknown) => setSaverThreshold(parseInt(String(v ?? ""), 10) || 30),
@@ -3335,11 +3337,14 @@ function App() {
 	// The open notch's tab bar: every enabled panel in the user's order, then
 	// Media while something is playing. Shown on the panels (the music view
 	// keeps its own layout).
-	const tabTools: Tool[] = [
-		...panelOrder.filter(panelAvailable).map((p) => TOOLS[p]),
-		...enabledTools.map((id) => EXTRA_BY_ID[id]),
-		...(settingsMusicModeEnabled && mediaInfo.has_media ? [TOOLS.music] : [])
-	].slice(0, MAX_TABS);
+	const tabTools: Tool[] = orderTabs(
+		[
+			...panelOrder.filter(panelAvailable).map((p) => TOOLS[p]),
+			...enabledTools.map((id) => EXTRA_BY_ID[id]),
+			...(settingsMusicModeEnabled && mediaInfo.has_media ? [TOOLS.music] : [])
+		],
+		tabOrder
+	).slice(0, MAX_TABS);
 	const toolShowing = bloomMode === "tool" && activeTool !== null && enabledTools.includes(activeTool) ? activeTool : null;
 	// The Wi-Fi / Bluetooth lists belong to the Command Center: its tab stays
 	// active and the notch keeps its size.

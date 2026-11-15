@@ -43,7 +43,6 @@ export const SETTINGS_INDEX: SettingEntry[] = [
 		["UI & Font Scale", "Settings and overlays; also the dock and notch until they get their own size"]
 	]),
 	...page("notch", [
-		["Notch", "Turn off to remove the notch; Settings stay in the tray menu"],
 		["When It Shows", "Fixed, Smart or Peek: when the notch is on screen"],
 		["Open On", "Click or hover opens the notch"],
 		["Notch Shortcut", "Keys that open and close the notch"],
@@ -51,11 +50,8 @@ export const SETTINGS_INDEX: SettingEntry[] = [
 		["Peek Delay", "How long to rest on the top edge before it shows"],
 		["Style", "Notch, floating pill or minimal bar"],
 		["Notch Size", "Size of the notch only; the dock keeps its own"],
-		["Timer Sound", "Play a chime when the timer finishes"],
-		["Tools", "Turn Command Center, Calendar & Timer, Devices and the Shelf on or off, and drag them into the tab bar's order"],
-		["Smart Start", "Reopen the last panel if you come back within 5 minutes; otherwise open your favourite"],
-		["Favourite Panel", "The panel the notch opens on when Smart Start doesn't reopen the last one"],
-		["Tiles", "Command Center quick settings: Wi-Fi, Bluetooth, Do not disturb, Night light, Energy saver, Airplane mode, Mobile hotspot, Live captions, Studio effects, Cast, Project"],
+		["Smart Start", "Reopen the last tool if you come back within 5 minutes; otherwise open your favourite"],
+		["Favourite Panel", "The tool the notch opens on when Smart Start doesn't reopen the last one"],
 		["Music Mode", "Interactive live music widget"],
 		["Compact Mode", "Show visualizer & artwork when collapsed"],
 		["Media Layout", "Choose expanded player style"],
@@ -68,13 +64,18 @@ export const SETTINGS_INDEX: SettingEntry[] = [
 		["Left Icons", "Widgets left of the clock"],
 		["Right Icons", "Widgets right of the clock"]
 	]),
-	// Every tool beyond the built-in panels (Settings › Notch › More Tools).
+	// Settings › Tools: the list, each tool (its own page) and its options.
+	...page("tools", [
+		["In your notch", "Turn tools on or off and drag them into the tab bar's order, up to 15", "In your notch"],
+		["Tiles", "Command Center quick settings: Wi-Fi, Bluetooth, Do not disturb, Night light, Energy saver, Airplane mode, Mobile hotspot, Live captions, Studio effects, Cast, Project"],
+		["Timer Sound", "Play a chime when the timer finishes"],
+		["Erase Data", "Delete what a tool has saved on this PC"]
+	]),
 	...page(
-		"notch",
-		EXTRA_TOOLS.map((t) => [t.label, `${t.desc} (More Tools, ${t.release})`])
+		"tools",
+		EXTRA_TOOLS.map((t) => [t.label, `${t.desc} (Tools)`])
 	),
 	...page("dock", [
-		["Dock", "Replace Windows taskbar"],
 		["When It Shows", "Fixed, Smart or Peek: when the dock is on screen"],
 		["Peek Delay", "How long to rest on the bottom edge before it shows"],
 		["Dock Size", "Size of the dock only; the notch keeps its own"],
@@ -90,7 +91,6 @@ export const SETTINGS_INDEX: SettingEntry[] = [
 		["Start Menu Icon", "The picture on the dock's Start button"]
 	]),
 	...page("clipboard", [
-		["Clipboard History", "Record what you copy and show it in the shelf"],
 		["Incognito", "Pause recording; nothing copied meanwhile is kept"],
 		["Position", "In the notch, or a shelf on the left, right or top screen edge"],
 		["Wide in the Notch", "A wider Clipboard panel, so more and larger tiles fit"],
@@ -109,7 +109,6 @@ export const SETTINGS_INDEX: SettingEntry[] = [
 		["Clear History", "Delete every unpinned item now"]
 	]),
 	...page("files", [
-		["Radial Menu", "Convert, edit and act on files from a ring around the pointer"],
 		["Trigger Key", "Shift, Ctrl or Alt opens the menu and switches its modes"],
 		["Drag, Then Tap", "While dragging files or text, tap the trigger key to open the menu", "Drag, Then Tap"],
 		["Double Press on Selected Files", "With files selected in File Explorer, press the trigger key twice", "Double "],
@@ -118,12 +117,6 @@ export const SETTINGS_INDEX: SettingEntry[] = [
 		["Progress Effect", "Edge light, center out, bar, glow only or off: how a job's progress shows on the notch"],
 		["Result Stays For", "How long the result shows (errors a bit longer, Canceled briefly)"],
 		["Your Menu", "Reorder, hide and preview the menu's options and modes"]
-	]),
-	...page("overlays", [
-		["Volume HUD", "LotusNotch volume overlay"],
-		["Show on Edge Hover", "Volume: slide in from left edge"],
-		["Brightness HUD", "LotusNotch brightness overlay"],
-		["Show on Edge Hover", "Brightness: slide in from right edge"]
 	]),
 	...page("about", [
 		["Auto Update", "Update automatically on startup"],

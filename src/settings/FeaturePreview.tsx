@@ -10,9 +10,7 @@ import {
 	HardDrive,
 	MemoryStick,
 	Music2,
-	RotateCcw,
-	Sun,
-	Volume2
+	RotateCcw
 } from "lucide-react";
 import { EdgeSurface } from "../components/EdgeSurface";
 import { DeviceArt, DeviceArtDefs } from "../devices/DeviceArt";
@@ -23,7 +21,6 @@ import { PreviewDock } from "./PreviewDock";
 import { ClipboardPreview, type ClipScene } from "./ClipboardPreview";
 import "../App.css";
 import "../Dock.css";
-import "../Overlay.css";
 
 type Settings = ReturnType<typeof useSettings>;
 type Feature =
@@ -34,8 +31,6 @@ type Feature =
 	| "device"
 	| "music"
 	| "dock"
-	| "volume"
-	| "brightness"
 	| ClipScene;
 
 const FEATURES: Partial<Record<SettingsTab, { id: Feature; label: string; description: string }[]>> = {
@@ -60,10 +55,6 @@ const FEATURES: Partial<Record<SettingsTab, { id: Feature; label: string; descri
 		{ id: "music", label: "Music", description: "Music controls appear when a player is active." }
 	],
 	dock: [{ id: "dock", label: "Dock", description: "The dock rises from the bottom edge." }],
-	overlays: [
-		{ id: "volume", label: "Volume", description: "The volume HUD slides in from the left edge." },
-		{ id: "brightness", label: "Brightness", description: "The brightness HUD appears on the right edge." }
-	],
 	clipboard: [
 		{ id: "clip-shelf", label: "Shelf", description: "Copied items as tiles; several files copied together fan out as one stack." },
 		{ id: "clip-rich", label: "Rich text", description: "Formatted copies carry a Rich tag and paste back with their formatting." },
@@ -298,119 +289,6 @@ function NotchPreview({
 	);
 }
 
-function OverlayPreview({ feature, settings }: { feature: Feature; settings: Settings }) {
-	const [value, setValue] = useState(feature === "volume" ? 64 : 78);
-	const [mixerOpen, setMixerOpen] = useState(false);
-	const [appVolume, setAppVolume] = useState(52);
-	const [appMuted, setAppMuted] = useState(false);
-	const volume = feature === "volume";
-	const enabled = volume ? settings.volumeOverlayEnabled : settings.brightnessOverlayEnabled;
-	const edgeEnabled = volume ? settings.volumeEdgeEnabled : settings.brightnessEdgeEnabled;
-	const changeBar = (event: React.PointerEvent<HTMLDivElement>) => {
-		const rect = event.currentTarget.getBoundingClientRect();
-		setValue(Math.max(0, Math.min(100, Math.round((1 - (event.clientY - rect.top) / rect.height) * 100))));
-	};
-	if (!enabled) return <div className="settings-preview-empty">{volume ? "Volume" : "Brightness"} HUD is off</div>;
-	return (
-		<div className={"settings-preview-overlay-frame " + (volume ? "left" : "right") + (edgeEnabled ? " edge-on" : "")}>
-			<motion.div
-				className={`settings-preview-overlay ${volume ? "volume-notch-wrapper" : "brightness-notch-wrapper"}`}
-				initial={{ x: volume ? -55 : 55, opacity: 0 }}
-				animate={{ x: 0, opacity: 1 }}
-				transition={{ type: "spring", stiffness: 430, damping: 30 }}
-			>
-				<EdgeSurface edge={volume ? "left" : "right"} />
-				<div
-					className={volume ? "volume-notch" : "brightness-notch"}
-					style={volume && mixerOpen ? { width: 102 } : undefined}
-				>
-					<div className={volume ? "volume-notch-content-group" : "brightness-notch-content-group"}>
-						<div
-							className={`${volume ? "volume-notch-bar" : "brightness-notch-bar"} settings-preview-hud-bar`}
-							role="slider"
-							aria-label={`Sample ${volume ? "volume" : "brightness"}`}
-							aria-valuemin={0}
-							aria-valuemax={100}
-							aria-valuenow={value}
-							tabIndex={0}
-							onPointerDown={changeBar}
-							onPointerMove={(event) => {
-								if (event.buttons) changeBar(event);
-							}}
-							onKeyDown={(event) => {
-								if (event.key === "ArrowUp" || event.key === "ArrowRight") setValue((v) => Math.min(100, v + 5));
-								if (event.key === "ArrowDown" || event.key === "ArrowLeft") setValue((v) => Math.max(0, v - 5));
-							}}
-						>
-							<div className={volume ? "volume-notch-fill" : "brightness-notch-fill"} style={{ height: `${value}%` }} />
-						</div>
-						{volume ? (
-							<button
-								type="button"
-								className="volume-notch-action"
-								aria-label="Sample volume mixer"
-								onClick={() => setMixerOpen((open) => !open)}
-							>
-								<Volume2 size={16} />
-							</button>
-						) : (
-							<div className="brightness-notch-icon">
-								<Sun size={18} />
-							</div>
-						)}
-					</div>
-					{volume && mixerOpen && (
-						<div className="volume-mixer-panel" style={{ width: 60 }}>
-							<div className="volume-mixer-list" style={{ gridTemplateColumns: "1fr" }}>
-								<div className="volume-mixer-tile">
-									<div
-										className="volume-mixer-bar settings-preview-hud-bar"
-										role="slider"
-										tabIndex={0}
-										aria-label="Sample app volume"
-										aria-valuemin={0}
-										aria-valuemax={100}
-										aria-valuenow={appMuted ? 0 : appVolume}
-										onPointerDown={(event) => {
-											const rect = event.currentTarget.getBoundingClientRect();
-											setAppVolume(
-												Math.max(0, Math.min(100, Math.round((1 - (event.clientY - rect.top) / rect.height) * 100)))
-											);
-											setAppMuted(false);
-										}}
-										onPointerMove={(event) => {
-											if (event.buttons) {
-												const rect = event.currentTarget.getBoundingClientRect();
-												setAppVolume(
-													Math.max(0, Math.min(100, Math.round((1 - (event.clientY - rect.top) / rect.height) * 100)))
-												);
-											}
-										}}
-										onKeyDown={(event) => {
-											if (event.key === "ArrowUp") setAppVolume((v) => Math.min(100, v + 5));
-											if (event.key === "ArrowDown") setAppVolume((v) => Math.max(0, v - 5));
-										}}
-									>
-										<div className="volume-mixer-fill" style={{ height: `${appMuted ? 0 : appVolume}%` }} />
-									</div>
-									<button
-										type="button"
-										className={`volume-mixer-action${appMuted ? " muted" : ""}`}
-										aria-label={appMuted ? "Unmute sample app" : "Mute sample app"}
-										onClick={() => setAppMuted((muted) => !muted)}
-									>
-										<span className="volume-mixer-action-fallback">M</span>
-									</button>
-								</div>
-							</div>
-						</div>
-					)}
-				</div>
-			</motion.div>
-		</div>
-	);
-}
-
 function previewDescription(feature: Feature, settings: Settings, fallback: string) {
 	switch (feature) {
 		case "clock":
@@ -462,20 +340,6 @@ function previewDescription(feature: Feature, settings: Settings, fallback: stri
 				settings.dockExtrasPosition +
 				" · Previews " +
 				(settings.dockPreviewEnabled ? "on" : "off")
-			);
-		case "volume":
-			return (
-				"Volume HUD " +
-				(settings.volumeOverlayEnabled ? "on" : "off") +
-				" · Edge hover " +
-				(settings.volumeEdgeEnabled ? "on" : "off")
-			);
-		case "brightness":
-			return (
-				"Brightness HUD " +
-				(settings.brightnessOverlayEnabled ? "on" : "off") +
-				" · Edge hover " +
-				(settings.brightnessEdgeEnabled ? "on" : "off")
 			);
 		default:
 			return fallback;
@@ -557,12 +421,6 @@ export function FeaturePreview({ tab, settings, focus }: FeaturePreviewProps) {
 				"Multi-Select": "clip-select",
 				"Sound Effects": "clip-sounds",
 				"Copy Indicator": "clip-indicator"
-			},
-			overlays: {
-				"Volume HUD": "volume",
-				"Brightness HUD": "brightness",
-				"Volume Edge Hover": "volume",
-				"Brightness Edge Hover": "brightness"
 			}
 		};
 		const scene = next[tab]?.[label];
@@ -646,7 +504,6 @@ export function FeaturePreview({ tab, settings, focus }: FeaturePreviewProps) {
 						)}
 						{tab === "appearance" && <PreviewDock settings={settings} revealed={revealed} />}
 						{tab === "dock" && <PreviewDock settings={settings} revealed={revealed} />}
-						{tab === "overlays" && <OverlayPreview feature={selected.id} settings={settings} />}
 						{tab === "clipboard" && <ClipboardPreview scene={selected.id as ClipScene} />}
 					</div>
 					<p className="feature-preview-description">

@@ -168,13 +168,6 @@ pub fn set_window_height(window: Window, height: f64) {
 }
 
 #[tauri::command]
-pub fn resize_settings_window(app: AppHandle, width: f64, height: f64) {
-    if let Some(win) = app.get_webview_window("settings") {
-        let _ = win.set_size(tauri::LogicalSize::new(width, height));
-    }
-}
-
-#[tauri::command]
 pub fn set_ignore_cursor_events(window: Window, ignore: bool) {
     let _ = window.set_ignore_cursor_events(ignore);
 }
@@ -2244,6 +2237,16 @@ pub fn open_settings_window(app: AppHandle) {
         };
         if created {
             let _ = window_vibrancy::apply_mica(&win, None);
+            // Open large: 80 % of the screen, kept between the minimum
+            // (880×600) and 1400×920, centred.
+            if let Ok(Some(monitor)) = win.current_monitor() {
+                let scale = monitor.scale_factor();
+                let size = monitor.size().to_logical::<f64>(scale);
+                let w = (size.width * 0.8).clamp(880.0, 1400.0);
+                let h = (size.height * 0.8).clamp(600.0, 920.0);
+                let _ = win.set_size(tauri::LogicalSize::new(w, h));
+                let _ = win.center();
+            }
             let closing = win.clone();
             win.on_window_event(move |event| {
                 if let tauri::WindowEvent::CloseRequested { api, .. } = event {

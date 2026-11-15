@@ -3,7 +3,6 @@ import { availableMonitors } from "@tauri-apps/api/window";
 import {
 	BellRing,
 	ClipboardCheck,
-	ClipboardList,
 	EyeOff,
 	Globe,
 	History,
@@ -26,7 +25,6 @@ import { ScaleStepper } from "./ScaleStepper";
 
 interface ClipboardTabProps {
 	enabled: boolean;
-	toggleEnabled: () => void;
 	incognito: boolean;
 	toggleIncognito: () => void;
 	limit: number;
@@ -88,7 +86,6 @@ const RETENTION: [number, string][] = [
 
 export function ClipboardTab({
 	enabled,
-	toggleEnabled,
 	incognito,
 	toggleIncognito,
 	limit,
@@ -118,17 +115,6 @@ export function ClipboardTab({
 		<>
 			<div className="setting-group-label">Clipboard</div>
 			<div className="setting-group">
-				<SettingRow
-					icon={ClipboardList}
-					label="Clipboard History"
-					desc="Record what you copy and show it in the notch's Clipboard panel"
-				>
-					<label className="toggle-switch">
-						<input type="checkbox" checked={enabled} onChange={toggleEnabled} />
-						<span className="slider"></span>
-					</label>
-				</SettingRow>
-
 				{enabled && (
 					<SettingRow
 						icon={EyeOff}

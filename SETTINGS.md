@@ -77,6 +77,7 @@ Edit `settings.json` with any text editor while Bloom is running. Changes are ap
 | `bloom-music-compact-notch` | `"true"` / `"false"`              | `"true"` | Show compact music display (visualizer + artwork) in collapsed notch.                                    |
 | `bloom-motion` | `windows` \| `on` \| `off` | `windows` | Animations (Settings › Appearance). `windows` follows Windows' "Animation effects" (reduced motion); `on` keeps LotusNotch's own animations anyway; `off` turns them off. Battery saver can still pause them. |
 | `bloom-cc-tiles` | JSON list of tile ids | `["wifi","bluetooth","dnd","night-light","energy","airplane","hotspot","cast","project","captions","nearby","notch-mode","task-manager"]` | The Command Center tiles (Settings › Notch › Command Center › Tiles). 16 at most: Wi-Fi and Bluetooth always on top, then up to 14 round tiles in two rows of seven, in the order the user drags them into. Round tile ids: `dnd`, `captions`, `nearby`, `night-light`, `energy`, `airplane`, `hotspot`, `cast`, `project`, `dock-mode` (hidden while the dock is off), `notch-mode`, `studio`, `accessibility`, `task-manager`, `tray`, `notifications`, `windows-settings`, `lotus-settings`, `restart`. Real switches: Wi-Fi, Bluetooth, Night light, Energy saver, Airplane mode, Mobile hotspot, Live captions, Nearby sharing, Dock/Notch mode (their mode shows under the icon); Do not disturb and Studio effects open their Windows page; Cast and Project open their pickers. |
+| `bloom-tab-order` | JSON list of tool ids | `[]` | The tab bar's order, set by dragging in Settings › Tools (built-in and extra tools mixed). Tools not in it follow in their default place. `bloom-notch-panel-order` is kept in step for the mouse-wheel cycle. |
 | `bloom-tools-enabled` | JSON list of tool ids | `[]` | The notch tools beyond the built-in panels that are on, in tab order (Settings › Notch › More Tools). Off tools are never loaded; each tool's data lives in `<app config>/tools/<id>.json` until "Erase data". |
 | `bloom-tools-picked` | `"true"` / absent | absent | Set once the first-run "Pick your tools" welcome in Settings was finished or skipped. |
 | `bloom-battery-saver` | `"off"` / `"battery"` / `"below"` | `"below"` | When Battery saver turns on: never, on battery, or on battery at or below `bloom-battery-saver-threshold`. A leaf shows on the notch while it's on. |
@@ -144,14 +145,9 @@ Edit `settings.json` with any text editor while Bloom is running. Changes are ap
 | `bloom-media-visualizer-enabled`   | `"true"` / `"false"`      | `"true"`    | Audio visualizer bars in music mode. Also accepts `bloom-visualizer-enabled` (legacy alias).    |
 | `bloom-media-album-art-enabled`    | `"true"` / `"false"`      | `"true"`    | Show album artwork in the notch music display.                                                  |
 
-### Overlays
+### Overlays (removed)
 
-| Key                                | Type                 | Default  | Description                                                              |
-| ---------------------------------- | -------------------- | -------- | ------------------------------------------------------------------------ |
-| `bloom-volume-overlay-enabled`     | `"true"` / `"false"` | `"true"` | Show Bloom volume HUD when volume changes (replaces native Windows OSD). |
-| `bloom-volume-edge-enabled`        | `"true"` / `"false"` | `"true"` | Trigger volume HUD by hovering the left screen edge.                     |
-| `bloom-brightness-overlay-enabled` | `"true"` / `"false"` | `"true"` | Show Bloom brightness HUD when brightness changes.                       |
-| `bloom-brightness-edge-enabled`    | `"true"` / `"false"` | `"true"` | Trigger brightness HUD by hovering the right screen edge.                |
+The volume and brightness HUDs were removed on 2026-11-15: the Command Center has both sliders, and Windows shows its own flyout for the keys. `bloom-volume-overlay-enabled`, `bloom-volume-edge-enabled`, `bloom-brightness-overlay-enabled` and `bloom-brightness-edge-enabled` are ignored; old files may still carry them (export keeps them in an `overlays` group).
 
 ### Appearance
 

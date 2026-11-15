@@ -69,16 +69,6 @@ export function useSettings() {
 	const [shelfPersist, setShelfPersist] = useState(
 		() => localStorage.getItem("bloom-shelf-persist") === "true"
 	);
-	const [volumeOverlayEnabled, setVolumeOverlayEnabled] = useState(true);
-	const [volumeEdgeEnabled, setVolumeEdgeEnabled] = useState(
-		() => localStorage.getItem("bloom-volume-edge-enabled") !== "false"
-	);
-	const [brightnessOverlayEnabled, setBrightnessOverlayEnabled] = useState(
-		() => localStorage.getItem("bloom-brightness-overlay-enabled") !== "false"
-	);
-	const [brightnessEdgeEnabled, setBrightnessEdgeEnabled] = useState(
-		() => localStorage.getItem("bloom-brightness-edge-enabled") !== "false"
-	);
 	const [mediaAmbienceEnabled, setMediaAmbienceEnabled] = useState(true);
 	const [mediaCompactGlowEnabled, setMediaCompactGlowEnabled] = useState(true);
 	const [mediaLayout, setMediaLayout] = useState<"classic" | "compact">(
@@ -242,15 +232,11 @@ export function useSettings() {
 			apply(getVal("bloom-notch-default-panel"), setNotchDefaultPanel, asPanelChoice);
 			apply(getVal("bloom-music-compact-notch"), setMusicCompactNotch, readBool);
 			apply(getVal("bloom-shelf-persist"), setShelfPersist, readBool);
-			apply(getVal("bloom-volume-overlay-enabled"), setVolumeOverlayEnabled, readBool);
-			apply(getVal("bloom-brightness-overlay-enabled"), setBrightnessOverlayEnabled, readBool);
 			apply(getVal("bloom-media-ambience-enabled"), setMediaAmbienceEnabled, readBool);
 			apply(getVal("bloom-media-compact-glow-enabled"), setMediaCompactGlowEnabled, readBool);
 			apply(getVal("bloom-time-format-24h"), setTimeFormat24h, readBool);
 			apply(getVal("bloom-show-update-indicator"), setShowUpdateIndicator, readBool);
 			apply(getVal("bloom-auto-update"), setAutoUpdate, readBool);
-			apply(getVal("bloom-volume-edge-enabled"), setVolumeEdgeEnabled, readBool);
-			apply(getVal("bloom-brightness-edge-enabled"), setBrightnessEdgeEnabled, readBool);
 			apply(getVal("bloom-dock-enabled"), setDockEnabled, readBool);
 			apply(getVal("bloom-dock-preview-enabled"), setDockPreviewEnabled, readBool);
 			apply(getVal("bloom-dock-icon-only"), setDockIconOnly, readBool);
@@ -440,10 +426,6 @@ export function useSettings() {
 		"bloom-notch-style": (v) => setNotchStyle(asNotchStyle(v)),
 		"bloom-temp-unit": (v) => setTempUnitFahrenheit(v === "fahrenheit"),
 		"bloom-auto-update": setAutoUpdate,
-		"bloom-volume-overlay-enabled": setVolumeOverlayEnabled,
-		"bloom-volume-edge-enabled": setVolumeEdgeEnabled,
-		"bloom-brightness-overlay-enabled": setBrightnessOverlayEnabled,
-		"bloom-brightness-edge-enabled": setBrightnessEdgeEnabled,
 		"bloom-theme-mode": setThemeMode,
 		"bloom-theme-color": setThemeColor,
 		"bloom-theme-opacity": setThemeOpacity,
@@ -703,30 +685,6 @@ export function useSettings() {
 	const toggleMediaLayout = (layout: "classic" | "compact") => {
 		setMediaLayout(layout);
 		saveSetting("bloom-media-layout", layout);
-	};
-
-	const toggleVolumeOverlay = () => {
-		const next = !volumeOverlayEnabled;
-		setVolumeOverlayEnabled(next);
-		saveSetting("bloom-volume-overlay-enabled", String(next));
-	};
-
-	const toggleVolumeEdge = () => {
-		const next = !volumeEdgeEnabled;
-		setVolumeEdgeEnabled(next);
-		saveSetting("bloom-volume-edge-enabled", String(next));
-	};
-
-	const toggleBrightnessOverlay = () => {
-		const next = !brightnessOverlayEnabled;
-		setBrightnessOverlayEnabled(next);
-		saveSetting("bloom-brightness-overlay-enabled", String(next));
-	};
-
-	const toggleBrightnessEdge = () => {
-		const next = !brightnessEdgeEnabled;
-		setBrightnessEdgeEnabled(next);
-		saveSetting("bloom-brightness-edge-enabled", String(next));
 	};
 
 	const toggleAmbience = () => {
@@ -1226,14 +1184,6 @@ export function useSettings() {
 		handleRemoveDockExtraFolder,
 
 		// Overlays
-		volumeOverlayEnabled,
-		toggleVolumeOverlay,
-		volumeEdgeEnabled,
-		toggleVolumeEdge,
-		brightnessOverlayEnabled,
-		toggleBrightnessOverlay,
-		brightnessEdgeEnabled,
-		toggleBrightnessEdge,
 
 		// Updates
 		updateStatus,

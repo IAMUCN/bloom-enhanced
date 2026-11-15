@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState } from "react";
 import { AnimatePresence, Reorder, motion } from "framer-motion";
 import { invoke } from "@tauri-apps/api/core";
-import { ArrowBigUp, ChevronRight, EyeOff, GripVertical, Hand, Keyboard, MapPin, Orbit, Sparkles, Timer, Zap } from "lucide-react";
+import { ArrowBigUp, ChevronRight, EyeOff, GripVertical, Hand, Keyboard, MapPin, Sparkles, Timer, Zap } from "lucide-react";
 import { useSettingsSync } from "../hooks/useSettingsSync";
 import { MODE_LABEL, ordered, parseLayout, type OrbitLayout, type OrbitMode, type OrbitOp } from "../orbitOps";
 import { ORBIT_ICONS } from "../orbitIcons";
@@ -146,18 +146,6 @@ export function FilesTab({ saveSetting }: { saveSetting: (key: string, value: st
 		<>
 			<div className="setting-group-label">Radial Menu</div>
 			<div className="setting-group">
-				<SettingRow
-					icon={Orbit}
-					label="Radial Menu"
-					desc="Convert, edit and act on files from a ring around the pointer; results are saved next to the original, which is never changed"
-					divider={enabled}
-				>
-					<label className="toggle-switch">
-						<input type="checkbox" checked={enabled} onChange={() => save("bloom-files-enabled", String(!enabled))} />
-						<span className="slider"></span>
-					</label>
-				</SettingRow>
-
 				{enabled && (
 					<>
 						<SettingRow icon={Keyboard} label="Trigger Key" desc={`Tap it while dragging, or press it twice with files selected; it also switches menus`}>
