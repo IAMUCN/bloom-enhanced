@@ -136,7 +136,7 @@ export default function Stopwatch() {
 					</button>
 				)}
 			</div>
-			<div className="nt-muted">{label}</div>
+			<div className={label === "Time's up" ? "nt-times-up" : "nt-muted"}>{label === "Time's up" ? "TIME'S UP" : label}</div>
 			<div className="nt-timer-actions">
 				{editable &&
 					PRESETS.map((m) => (

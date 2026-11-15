@@ -84,7 +84,6 @@ export default function Calc({ setPinned }: ToolProps) {
 				className="nt-input"
 				style={{ textAlign: "right", fontSize: 13 }}
 				value={expr}
-				placeholder="128 × 3.5"
 				aria-label="Calculation"
 				onFocus={() => setPinned(true)}
 				onBlur={() => setPinned(false)}

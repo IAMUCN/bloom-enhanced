@@ -242,3 +242,10 @@ textarea.nt-input {
 	outline: 2px solid var(--bloom-accent, #0a84ff);
 	outline-offset: 1px;
 }
+
+.nt-times-up {
+	font-weight: 800;
+	font-size: 14px;
+	letter-spacing: 0.06em;
+	color: #ffc94d;
+}

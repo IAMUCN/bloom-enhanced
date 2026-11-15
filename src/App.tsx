@@ -639,6 +639,7 @@ function App() {
 	// `bloom-timer-display` says: the time, an edge light, both, or off.
 	const [toolTimer, setToolTimer] = useState<{ left: number; total: number } | null>(null);
 	const [timerDisplay, setTimerDisplay] = useState(() => localStorage.getItem("bloom-timer-display") ?? "both");
+	const [timesUp, setTimesUp] = useState(false);
 	const isOpenRef = useRef(false);
 	isOpenRef.current = isOpen;
 	const [isReady, setIsReady] = useState(false);
@@ -935,7 +936,7 @@ function App() {
 	// An open notch never hides (Peek / Smart): the shortcut opens it without
 	// the pointer touching the edge.
 	// A running Timer shown on the notch keeps it on screen (Peek / Smart).
-	const timerShowing = !!toolTimer && timerDisplay !== "off";
+	const timerShowing = (!!toolTimer && timerDisplay !== "off") || timesUp;
 	const isHidden =
 		!isOpen &&
 		!timerShowing &&
@@ -1210,10 +1211,18 @@ function App() {
 		const ring = (tool: ExtraToolId, key: string) => {
 			if (rungRef.current.has(key)) return;
 			rungRef.current.add(key);
-			setActiveTool(tool);
-			setIsOpen(true);
-			setBloomMode("tool");
 			playTimerChime();
+			const open = () => {
+				setTimesUp(false);
+				setActiveTool(tool);
+				setIsOpen(true);
+				setBloomMode("tool");
+			};
+			// The Timer says so first: a bold TIME'S UP on the notch, then it opens.
+			if (tool === "stopwatch" && !isOpenRef.current) {
+				setTimesUp(true);
+				window.setTimeout(open, 1800);
+			} else open();
 		};
 		const check = () => {
 			if (watch.includes("reminders"))
@@ -4288,7 +4297,18 @@ function App() {
 																</AnimatePresence>
 																<div className="time-flip-container" style={{ zoom: timeSize }} onClick={toggleCalendarMode}>
 																	<AnimatePresence initial={false}>
-																		{showToolTimer ? (
+																		{timesUp ? (
+																			<motion.span
+																				key="times-up"
+																				className="time times-up"
+																				initial={{ scale: 0.6, opacity: 0 }}
+																				animate={{ scale: 1, opacity: 1 }}
+																				exit={{ opacity: 0 }}
+																				transition={{ type: "spring", visualDuration: 0.4, bounce: 0.5 }}
+																			>
+																				TIME'S UP
+																			</motion.span>
+																		) : showToolTimer ? (
 																			<motion.span
 																				key="tool-timer"
 																				className="time compact-timer"
@@ -4487,7 +4507,7 @@ function App() {
 									{bloomMode === "wifi" && (
 										<motion.div
 											key="wifi-view"
-											className="notch-body"
+											className="notch-body qp-zoom"
 											{...LIST_MOTION}
 										>
 											<WifiPanel
@@ -4505,7 +4525,7 @@ function App() {
 									{bloomMode === "bluetooth" && (
 										<motion.div
 											key="bluetooth-view"
-											className="notch-body"
+											className="notch-body qp-zoom"
 											{...LIST_MOTION}
 										>
 											<BluetoothPanel
@@ -4523,6 +4543,7 @@ function App() {
 									{bloomMode === "devices" && (
 										<motion.div
 											key="devices-view"
+											className="notch-body"
 											{...bodyMotion(tabDir)}
 										>
 											<ConnectedDevicesPanel
@@ -4541,6 +4562,7 @@ function App() {
 									{bloomMode === "clipboard" && (
 										<motion.div
 											key="clipboard-view"
+											className="notch-body"
 											{...bodyMotion(tabDir)}
 										>
 											<ClipboardPanel

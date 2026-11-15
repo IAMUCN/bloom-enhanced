@@ -2247,3 +2247,10 @@ img {
 	font-size: 12px;
 	color: var(--bloom-text-secondary, #a1a1aa);
 }
+
+/* The Timer's end, on the closed notch, before it opens. */
+.time.times-up {
+	font-weight: 800;
+	letter-spacing: 0.04em;
+	color: #ffc94d;
+}
