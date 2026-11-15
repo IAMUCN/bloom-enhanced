@@ -211,7 +211,8 @@ function ToolPage({ tool, setPage, saveSetting, timerSoundEnabled, toggleTimerSo
 			title: `Erase ${tool.label} data`,
 			kind: "warning"
 		});
-		if (ok) invoke("tool_data_erase", { tool: tool.id }).catch(() => {});
+		// A merged tool keeps each part's data in its own file.
+		if (ok) for (const part of extra?.parts ?? []) invoke("tool_data_erase", { tool: part }).catch(() => {});
 	};
 	return (
 		<>

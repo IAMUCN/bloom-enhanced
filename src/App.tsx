@@ -40,7 +40,7 @@ import { BloomTip } from "./components/BloomTip";
 import { BODY_VARIANTS, CC_EXIT, LIST_MOTION, LIVELY, bodyMotion } from "./motion";
 import { ProgressEffect, asProgressStyle } from "./components/ProgressEffect";
 import { EXTRA_BY_ID, GRID_H, MAX_TABS, OPEN_WIDTH, TAB_BAR_HEIGHT, orderTabs, TOOLS, parseEnabledTools, type ExtraToolId, type Tool } from "./tools";
-import { ToolHost } from "./notchTools/ToolHost";
+import { SEGMENT_BAR_HEIGHT, ToolHost, showPart } from "./notchTools/ToolHost";
 import { CommandCenter, ccBodyHeight, parseCcTiles, type CcTileId, type CcTileState } from "./components/CommandCenter";
 
 // Tool switches: bodies slide toward the picked tab with a lively spring
@@ -3475,8 +3475,11 @@ function App() {
 		} else if (action === "snip") {
 			invoke("screen_clip", { mode: "region" }).catch(console.error);
 		} else if (action === "ocr") {
-			if (tabTools.some((t) => t.id === "ocr")) openTab("ocr");
-			else invoke("screen_clip", { mode: "region" }).catch(console.error);
+			// OCR is a part of Capture: open it there, else just snip.
+			if (tabTools.some((t) => t.id === "capture")) {
+				showPart("capture", "ocr");
+				openTab("capture");
+			} else invoke("screen_clip", { mode: "region" }).catch(console.error);
 		} else if (action === "picker") {
 			invoke<string | null>("pick_screen_color")
 				.then((hex) => {
@@ -3533,7 +3536,8 @@ function App() {
 			return isImpacted ? 28.9 : 44.2;
 		}
 		// An extra tool: the clock row plus the tool's height from the grid.
-		if (toolShowing && isOpen) return 36 + GRID_H[EXTRA_BY_ID[toolShowing].size[1]];
+		if (toolShowing && isOpen)
+			return 36 + GRID_H[EXTRA_BY_ID[toolShowing].size[1]] + (EXTRA_BY_ID[toolShowing].parts.length > 1 ? SEGMENT_BAR_HEIGHT : 0);
 		if (mediaTab) return 36 + (mediaInfo.has_media ? playerHeight : 110);
 		if (minimalIdle) return 8;
 		// Announcement card: body is line-clamped, so a fixed size fits both cases.

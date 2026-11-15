@@ -143,3 +143,50 @@ textarea.nt-input {
 	background: var(--bloom-scrollbar-thumb, rgba(255, 255, 255, 0.15));
 	border-radius: 999px;
 }
+
+/* A merged tool's parts (ToolHost): a row of segments under the tab bar. */
+.tool-segments {
+	display: flex;
+	justify-content: center;
+	gap: 4px;
+	height: 34px;
+	flex: none;
+	align-items: center;
+	pointer-events: auto;
+}
+
+.tool-segment {
+	position: relative;
+	display: flex;
+	align-items: center;
+	gap: 6px;
+	height: 26px;
+	padding: 0 10px;
+	border: none;
+	border-radius: 999px;
+	background: none;
+	color: var(--bloom-text-secondary, #a1a1aa);
+	font: 500 12px/1 "Inter", "Segoe UI", sans-serif;
+	cursor: pointer;
+}
+
+.tool-segment.on {
+	color: var(--bloom-text, #fff);
+}
+
+.tool-segment > svg,
+.tool-segment > span:not(.tool-segment-chip) {
+	position: relative;
+}
+
+.tool-segment-chip {
+	position: absolute;
+	inset: 0;
+	border-radius: 999px;
+	background: rgba(255, 255, 255, 0.1);
+}
+
+.tool-segment:focus-visible {
+	outline: 2px solid var(--bloom-accent, #0a84ff);
+	outline-offset: 1px;
+}
