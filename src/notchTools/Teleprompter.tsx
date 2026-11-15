@@ -40,8 +40,14 @@ export default function Teleprompter({ setPinned }: ToolProps) {
 				if (text.current) text.current.style.transform = "translateY(0)";
 			})
 			.catch(() => {});
+	// While playing, the notch stays open (the pointer can leave it) and
+	// Ctrl+V in other apps is left alone.
 	useEffect(() => {
-		invoke("set_notch_paste_capture", { on: true }).catch(() => {});
+		setPinned(playing);
+		invoke("set_notch_paste_capture", { on: !playing }).catch(() => {});
+		return () => setPinned(false);
+	}, [playing]);
+	useEffect(() => {
 		const off = listen("notch-paste", () => loadRef.current());
 		const onKey = (e: KeyboardEvent) => {
 			if (!(e.ctrlKey && !e.altKey && e.key.toLowerCase() === "v")) return;

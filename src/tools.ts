@@ -55,6 +55,10 @@ export const TOOLS: Record<ToolId, Tool> = {
  *  Center's width); any lower number is fine. */
 export const MAX_TABS = 15;
 
+/** Pomodoro phase length: even phases focus 25 min, every 8th a 15 min long
+ *  break, else a 5 min break. Shared by the Timer tab and the notch's ring. */
+export const pomodoroLength = (phase: number) => (phase % 2 === 0 ? 25 : phase % 8 === 7 ? 15 : 5) * 60_000;
+
 /** How many built-in panels have a tab (Media counted: its tab shows while
  *  something plays). */
 export function builtInTabCount(get: (key: string) => string | null): number {

@@ -39,7 +39,7 @@ import { NotchTabBar } from "./components/NotchTabBar";
 import { BloomTip } from "./components/BloomTip";
 import { BODY_VARIANTS, CC_EXIT, LIST_MOTION, LIVELY, bodyMotion } from "./motion";
 import { ProgressEffect, asProgressStyle } from "./components/ProgressEffect";
-import { EXTRA_BY_ID, GRID_H, MAX_TABS, OPEN_WIDTH, TAB_BAR_HEIGHT, openingTool, orderTabs, TOOLS, parseEnabledTools, type ExtraToolId, type Tool } from "./tools";
+import { EXTRA_BY_ID, GRID_H, MAX_TABS, OPEN_WIDTH, TAB_BAR_HEIGHT, openingTool, pomodoroLength, orderTabs, TOOLS, parseEnabledTools, type ExtraToolId, type Tool } from "./tools";
 import { SEGMENT_BAR_HEIGHT, ToolHost, showPart } from "./notchTools/ToolHost";
 import { CommandCenter, ccBodyHeight, parseCcTiles, type CcTileId, type CcTileState } from "./components/CommandCenter";
 
@@ -1260,8 +1260,17 @@ function App() {
 				invoke<string | null>("tool_data_get", { tool: "stopwatch" })
 					.then((text) => {
 						const t = text ? JSON.parse(text) : null;
-						// The tab may have seen the end first and stopped it.
-						if (t?.finishedFor && !t.timerAt) ring("stopwatch", `timer@${t.finishedFor}`);
+						// The tab may have seen the end first and stopped it; only a
+						// recent end rings (finishedFor outlives a restart).
+						if (t?.finishedFor && !t.timerAt && t.finishedAt && Date.now() - t.finishedAt < 15000) ring("stopwatch", `timer@${t.finishedFor}`);
+						// Pomodoro: a phase that ended rings and shows its countdown.
+						if (t?.mode === "pomodoro" && t.phaseAt) {
+							const total = pomodoroLength(t.phase ?? 0);
+							const left = total - (t.phaseDone ?? 0) - (Date.now() - t.phaseAt);
+							setToolTimer(left > 0 ? { left, total } : null);
+							if (left <= 0) ring("stopwatch", `pomo@${t.phaseAt}`);
+							if (!t.timerAt) return;
+						}
 						if (!t?.timerAt) return setToolTimer(null);
 						const total = t.timerLength ?? 300000;
 						const left = total - (t.timerDone ?? 0) - (Date.now() - t.timerAt);
@@ -3479,6 +3488,14 @@ function App() {
 		lastToolRef.current = activeTabId;
 		localStorage.setItem("bloom-notch-last-tool", activeTabId);
 	}, [activeTabId, isOpen]);
+	// A notch the Timer or a reminder opened closes itself after 15 s unless
+	// the pointer comes to it, so it doesn't keep taking the number keys
+	// (tab jumps, Calculator) from the app being typed in.
+	useEffect(() => {
+		if (!isOpen || isHovered || !autoOpenedRef.current) return;
+		const t = window.setTimeout(() => autoOpenedRef.current && releaseNotchHover(), 15_000);
+		return () => window.clearTimeout(t);
+	}, [isOpen, isHovered]);
 	// One step along the tab bar (wheel and arrows); false when there's no bar.
 	stepTabRef.current = (direction: 1 | -1) => {
 		if (tabTools.length < 2) return false;

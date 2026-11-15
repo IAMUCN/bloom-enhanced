@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
 import { Minus, Pause, Play, Plus, RotateCcw } from "lucide-react";
 import { useToolData } from "./useToolData";
+import { pomodoroLength } from "../tools";
 
 type Mode = "timer" | "stopwatch" | "pomodoro";
 
@@ -30,8 +31,6 @@ type State = {
 /** How long TIME'S UP stays before the timer resets itself. */
 const TIMES_UP_MS = 12_000;
 const MIN = 60_000;
-const FOCUS = 25 * MIN;
-const BREAK = 5 * MIN;
 const LONG = 15 * MIN;
 const PRESETS = [5, 15, 25, 50];
 
@@ -63,7 +62,7 @@ export default function Stopwatch() {
 	const now = Date.now();
 	const timerLength = s.timerLength ?? 5 * MIN;
 	const timerLeft = timerLength - (s.timerDone ?? 0) - (s.timerAt ? now - s.timerAt : 0);
-	const length = s.phase % 2 === 0 ? FOCUS : s.phase % 8 === 7 ? LONG : BREAK;
+	const length = pomodoroLength(s.phase);
 	const elapsed = s.phaseDone + (s.phaseAt ? now - s.phaseAt : 0);
 	// A finished Pomodoro phase moves on to the next one, paused; a finished
 	// timer stops at zero.
@@ -72,7 +71,7 @@ export default function Stopwatch() {
 		if (s.timerAt && timerLeft <= 0)
 			set((p) => ({ ...p, timerAt: null, timerDone: p.timerLength ?? 5 * MIN, finishedFor: p.timerAt, finishedAt: Date.now() }));
 		// After TIME'S UP has shown for a while, back to a fresh timer.
-		if (!s.timerAt && s.finishedAt && now - s.finishedAt > TIMES_UP_MS) set((p) => ({ ...p, timerDone: 0, finishedAt: null }));
+		if (!s.timerAt && s.finishedAt && now - s.finishedAt > TIMES_UP_MS) set((p) => ({ ...p, timerDone: 0, finishedAt: null, finishedFor: null }));
 		// A run that ended before finishedAt existed: reset it the same way.
 		if (!s.timerAt && !s.finishedAt && (s.timerDone ?? 0) >= timerLength) set((p) => ({ ...p, timerDone: 0 }));
 	});
@@ -95,10 +94,10 @@ export default function Stopwatch() {
 				? { ...p, startedAt: null, banked: 0 }
 				: p.mode === "pomodoro"
 					? { ...p, phaseAt: null, phaseDone: 0, phase: 0 }
-					: { ...p, timerAt: null, timerDone: 0, finishedAt: null }
+					: { ...p, timerAt: null, timerDone: 0, finishedAt: null, finishedFor: null }
 		);
 	const setLength = (minutes: number) =>
-		set((p) => ({ ...p, timerLength: Math.max(1, Math.min(180, minutes)) * MIN, timerAt: null, timerDone: 0, finishedAt: null }));
+		set((p) => ({ ...p, timerLength: Math.max(1, Math.min(180, minutes)) * MIN, timerAt: null, timerDone: 0, finishedAt: null, finishedFor: null }));
 
 	const big =
 		s.mode === "stopwatch"

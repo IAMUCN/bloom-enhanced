@@ -36,17 +36,19 @@ pub fn keep_awake(minutes: Option<u64>) -> u64 {
             unsafe {
                 SetThreadExecutionState(ES_CONTINUOUS | ES_SYSTEM_REQUIRED | ES_DISPLAY_REQUIRED);
             }
-            loop {
+            let seen = loop {
                 let until = AWAKE_UNTIL.load(Ordering::Relaxed);
                 if until == 0
                     || now_ms() >= until
                     || crate::state::SHUTTING_DOWN.load(Ordering::Relaxed)
                 {
-                    break;
+                    break until;
                 }
                 std::thread::sleep(std::time::Duration::from_secs(1));
-            }
-            AWAKE_UNTIL.store(0, Ordering::Relaxed);
+            };
+            // Only clear the request this thread saw: a quick off-then-on
+            // must not be cancelled by the old thread.
+            let _ = AWAKE_UNTIL.compare_exchange(seen, 0, Ordering::Relaxed, Ordering::Relaxed);
             unsafe {
                 SetThreadExecutionState(ES_CONTINUOUS);
             }
@@ -66,14 +68,14 @@ pub fn keep_awake_status() -> u64 {
 unsafe fn mic_volume(
 ) -> windows::core::Result<windows::Win32::Media::Audio::Endpoints::IAudioEndpointVolume> {
     use windows::Win32::Media::Audio::{
-        eCapture, eCommunications, IMMDeviceEnumerator, MMDeviceEnumerator,
+        eCapture, eConsole, IMMDeviceEnumerator, MMDeviceEnumerator,
     };
     use windows::Win32::System::Com::{
         CoCreateInstance, CoInitializeEx, CLSCTX_ALL, COINIT_MULTITHREADED,
     };
     let _ = CoInitializeEx(None, COINIT_MULTITHREADED);
     let enumerator: IMMDeviceEnumerator = CoCreateInstance(&MMDeviceEnumerator, None, CLSCTX_ALL)?;
-    let device = enumerator.GetDefaultAudioEndpoint(eCapture, eCommunications)?;
+    let device = enumerator.GetDefaultAudioEndpoint(eCapture, eConsole)?;
     device.Activate(CLSCTX_ALL, None)
 }
 
@@ -183,8 +185,8 @@ fn net_bytes() -> (u64, u64) {
 /// capped at 100. None when the counter isn't available.
 fn cpu_utility() -> Option<f64> {
     use windows::Win32::System::Performance::{
-        PdhAddEnglishCounterW, PdhCollectQueryData, PdhGetFormattedCounterValue, PdhOpenQueryW,
-        PDH_FMT_COUNTERVALUE, PDH_FMT_DOUBLE, PDH_HCOUNTER, PDH_HQUERY,
+        PdhAddEnglishCounterW, PdhCloseQuery, PdhCollectQueryData, PdhGetFormattedCounterValue,
+        PdhOpenQueryW, PDH_FMT_COUNTERVALUE, PDH_FMT_DOUBLE, PDH_HCOUNTER, PDH_HQUERY,
     };
     // (query, counter), opened once; each call reads the change since the last.
     static PDH: Mutex<Option<(usize, usize)>> = Mutex::new(None);
@@ -203,6 +205,8 @@ fn cpu_utility() -> Option<f64> {
                 &mut counter,
             ) != 0
             {
+                // Don't leak a query per call when the counter is missing.
+                PdhCloseQuery(query);
                 return None;
             }
             PdhCollectQueryData(query);
@@ -753,7 +757,8 @@ fn toggle_captions() -> Result<bool, String> {
             .creation_flags(0x0800_0000)
             .status()
             .map_err(|e| e.to_string())?;
-        return Ok(false);
+        // Report what really happened: the window may refuse to close.
+        return Ok(!wait_for(|| !captions_on()));
     }
     let system = std::env::var("SystemRoot").unwrap_or_else(|_| r"C:\Windows".into());
     std::process::Command::new(format!(r"{system}\System32\LiveCaptions.exe"))
@@ -829,9 +834,11 @@ fn toggle_energy_saver() -> Result<bool, String> {
         })
     };
     if energy_saver_on() {
-        // Windows' defaults when nothing was saved: off plugged in, 30 % on battery.
-        let ac = dword("EnergySaverPrevAC").unwrap_or(0);
-        let dc = dword("EnergySaverPrevDC").unwrap_or(30);
+        // Only undo our own switch: with nothing saved, Windows turned it on
+        // (low battery), and the user's own levels must stay as they are.
+        let (Some(ac), Some(dc)) = (dword("EnergySaverPrevAC"), dword("EnergySaverPrevDC")) else {
+            return Err("Energy saver was turned on by Windows".into());
+        };
         set_es_threshold(ac.min(99), dc.min(99))?;
     } else {
         let (ac, dc) = parse_es_threshold(&powercfg(&[
@@ -846,9 +853,27 @@ fn toggle_energy_saver() -> Result<bool, String> {
             reg_write(LOTUS_KEY, "EnergySaverPrevDC", 4, &dc.to_le_bytes())?;
         }
         set_es_threshold(100, 100)?;
+        if !wait_for(energy_saver_on) {
+            // Windows didn't turn it on (e.g. plugged in before 24H2): put the
+            // user's levels back so it doesn't come on later by surprise.
+            set_es_threshold(ac.min(100), dc.min(100))?;
+            return Err("Energy saver can't be turned on here".into());
+        }
+        return Ok(true);
     }
-    std::thread::sleep(std::time::Duration::from_millis(300));
-    Ok(energy_saver_on())
+    Ok(!wait_for(|| !energy_saver_on()))
+}
+
+/// Polls `check` for up to 1.5 s until it is `true`; Windows applies these
+/// switches a little after the call returns.
+fn wait_for(check: impl Fn() -> bool) -> bool {
+    for _ in 0..15 {
+        if check() {
+            return true;
+        }
+        std::thread::sleep(std::time::Duration::from_millis(100));
+    }
+    false
 }
 
 /// The Command Center's switch states; a missing one = not available here.
@@ -1119,8 +1144,9 @@ pub fn set_capture_excluded(window: tauri::WebviewWindow, excluded: bool) -> Res
 #[tauri::command]
 pub fn gpu_usage() -> Option<f64> {
     use windows::Win32::System::Performance::{
-        PdhAddEnglishCounterW, PdhCollectQueryData, PdhGetFormattedCounterArrayW, PdhOpenQueryW,
-        PDH_FMT_COUNTERVALUE_ITEM_W, PDH_FMT_DOUBLE, PDH_HCOUNTER, PDH_HQUERY, PDH_MORE_DATA,
+        PdhAddEnglishCounterW, PdhCloseQuery, PdhCollectQueryData, PdhGetFormattedCounterArrayW,
+        PdhOpenQueryW, PDH_FMT_COUNTERVALUE_ITEM_W, PDH_FMT_DOUBLE, PDH_HCOUNTER, PDH_HQUERY,
+        PDH_MORE_DATA,
     };
     static PDH: Mutex<Option<(usize, usize)>> = Mutex::new(None);
     let mut pdh = PDH.lock().ok()?;
@@ -1138,6 +1164,8 @@ pub fn gpu_usage() -> Option<f64> {
                 &mut counter,
             ) != 0
             {
+                // Don't leak a query per call when the counter is missing.
+                PdhCloseQuery(query);
                 return None;
             }
             PdhCollectQueryData(query);
