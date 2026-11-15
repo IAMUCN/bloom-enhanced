@@ -30,9 +30,9 @@ export default function ColorPicker({ setPinned }: ToolProps) {
 	const copy = (text: string) => copyText(text).then((ok) => ok && (setCopied(text), window.setTimeout(() => setCopied(""), 1200)));
 	return (
 		<div style={{ ["--tool-color" as string]: "#F27BFF", display: "contents" }}>
-			<div className="nt-row">
+			<div className="nt-row" style={{ justifyContent: "center" }}>
 				<div style={{ width: 64, height: 64, borderRadius: 14, flex: "none", background: current ?? "transparent", border: "1px dashed var(--bloom-border, #333)" }} aria-hidden />
-				<div className="nt-grow" style={{ display: "flex", flexDirection: "column", gap: 6 }}>
+				<div style={{ display: "flex", flexDirection: "column", gap: 6, minWidth: 160 }}>
 					{current ? (
 						[current, rgb(current)].map((v) => (
 							<button key={v} type="button" className="nt-btn" style={{ justifyContent: "space-between" }} onClick={() => copy(v)}>
@@ -44,12 +44,11 @@ export default function ColorPicker({ setPinned }: ToolProps) {
 					)}
 				</div>
 			</div>
-			<div className="nt-row">
+			<div className="nt-row" style={{ justifyContent: "center", flexWrap: "wrap" }}>
 				{data.recent.slice(1).map((c) => (
 					<button key={c} type="button" title={c} aria-label={`Use ${c}`} onClick={() => setData((d) => ({ recent: [c, ...d.recent.filter((x) => x !== c)] }))}
 						style={{ width: 20, height: 20, borderRadius: 6, border: "none", background: c, cursor: "pointer", padding: 0 }} />
 				))}
-				<span className="nt-grow" />
 				<button type="button" className="nt-btn primary" onClick={pick} disabled={picking}>
 					<Pipette size={13} /> {picking ? "Click a colour…" : "Pick"}
 				</button>

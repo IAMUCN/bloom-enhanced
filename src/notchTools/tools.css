@@ -727,3 +727,8 @@ textarea.nt-input {
 	height: 32px;
 	justify-content: center;
 }
+
+/* Capture's parts sit in the middle of the tab, like their segment bar. */
+.notch-tool:is([data-tool="snip"], [data-tool="ocr"], [data-tool="picker"]) {
+	justify-content: center;
+}
