@@ -131,6 +131,21 @@
 	background: #ededed;
 }
 
+.cc-icon.captioned {
+	display: flex;
+	flex-direction: column;
+	align-items: center;
+	justify-content: center;
+	gap: 1px;
+}
+
+.cc-icon-caption {
+	font-size: 8.5px;
+	font-weight: 600;
+	line-height: 1;
+	letter-spacing: 0.01em;
+}
+
 .cc-icon-glyph {
 	display: grid;
 	place-items: center;

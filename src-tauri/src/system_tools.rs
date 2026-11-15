@@ -676,6 +676,93 @@ fn toggle_captions() -> Result<bool, String> {
 
 use std::os::windows::process::CommandExt;
 
+/// Energy saver (Windows 11 24H2+): it turns on at a battery level, the
+/// "Charge level" setting (ESBATTTHRESHOLD). Turning it on here sets that
+/// level to 100 % on battery and plugged in, which Windows applies at once
+/// (like Settings' "Always use energy saver"); turning it off puts the
+/// user's own levels back, kept under HKCU\Software\LotusNotch.
+const LOTUS_KEY: &str = r"Software\LotusNotch";
+
+fn powercfg(args: &[&str]) -> Result<String, String> {
+    let out = std::process::Command::new("powercfg")
+        .args(args)
+        .creation_flags(0x0800_0000)
+        .output()
+        .map_err(|e| e.to_string())?;
+    if !out.status.success() {
+        return Err("Energy saver isn't available on this PC".into());
+    }
+    Ok(String::from_utf8_lossy(&out.stdout).into_owned())
+}
+
+/// (plugged in, on battery) from `powercfg /q` output.
+fn parse_es_threshold(text: &str) -> Option<(u32, u32)> {
+    let read = |tag: &str| {
+        text.lines()
+            .find(|l| l.contains(tag))
+            .and_then(|l| l.rsplit("0x").next())
+            .and_then(|h| u32::from_str_radix(h.trim(), 16).ok())
+    };
+    Some((
+        read("Current AC Power Setting Index")?,
+        read("Current DC Power Setting Index")?,
+    ))
+}
+
+fn energy_saver_on() -> bool {
+    use windows::System::Power::{EnergySaverStatus, PowerManager};
+    PowerManager::EnergySaverStatus().is_ok_and(|s| s == EnergySaverStatus::On)
+}
+
+fn set_es_threshold(ac: u32, dc: u32) -> Result<(), String> {
+    let (ac, dc) = (ac.to_string(), dc.to_string());
+    powercfg(&[
+        "/setacvalueindex",
+        "scheme_current",
+        "sub_energysaver",
+        "esbattthreshold",
+        &ac,
+    ])?;
+    powercfg(&[
+        "/setdcvalueindex",
+        "scheme_current",
+        "sub_energysaver",
+        "esbattthreshold",
+        &dc,
+    ])?;
+    powercfg(&["/setactive", "scheme_current"]).map(|_| ())
+}
+
+fn toggle_energy_saver() -> Result<bool, String> {
+    let dword = |name: &str| {
+        reg_read(LOTUS_KEY, name, RRF_RT_REG_DWORD).and_then(|d| {
+            d.get(..4)
+                .map(|b| u32::from_le_bytes([b[0], b[1], b[2], b[3]]))
+        })
+    };
+    if energy_saver_on() {
+        // Windows' defaults when nothing was saved: off plugged in, 30 % on battery.
+        let ac = dword("EnergySaverPrevAC").unwrap_or(0);
+        let dc = dword("EnergySaverPrevDC").unwrap_or(30);
+        set_es_threshold(ac.min(99), dc.min(99))?;
+    } else {
+        let (ac, dc) = parse_es_threshold(&powercfg(&[
+            "/q",
+            "scheme_current",
+            "sub_energysaver",
+            "esbattthreshold",
+        ])?)
+        .ok_or("Energy saver isn't available on this PC")?;
+        if ac < 100 && dc < 100 {
+            reg_write(LOTUS_KEY, "EnergySaverPrevAC", 4, &ac.to_le_bytes())?;
+            reg_write(LOTUS_KEY, "EnergySaverPrevDC", 4, &dc.to_le_bytes())?;
+        }
+        set_es_threshold(100, 100)?;
+    }
+    std::thread::sleep(std::time::Duration::from_millis(300));
+    Ok(energy_saver_on())
+}
+
 /// The Command Center's switch states; a missing one = not available here.
 #[derive(serde::Serialize, Default)]
 #[serde(rename_all = "kebab-case")]
@@ -709,6 +796,7 @@ pub async fn cc_toggle(tile: String) -> Result<bool, String> {
         "hotspot" => toggle_hotspot(),
         "nearby" => toggle_nearby(),
         "captions" => toggle_captions(),
+        "energy" => toggle_energy_saver(),
         _ => Err(format!("{tile} has no switch")),
     })
     .await
@@ -725,6 +813,15 @@ mod cc_tests {
         0x2a, 0x2b, 0x0e, 0x13, 0x43, 0x42, 0x01, 0x00, 0xd0, 0x0a, 0x02, 0xc6, 0x14, 0xb0, 0xd9,
         0xc7, 0xef, 0xc7, 0x8f, 0xdc, 0xee, 0x01, 0x00, 0x00, 0x00, 0x00,
     ];
+
+    #[test]
+    fn energy_saver_threshold_parse() {
+        let q = "    Current AC Power Setting Index: 0x00000000
+    Current DC Power Setting Index: 0x0000001e
+";
+        assert_eq!(super::parse_es_threshold(q), Some((0, 30)));
+        assert_eq!(super::parse_es_threshold("nothing"), None);
+    }
 
     #[test]
     fn night_light_round_trip() {

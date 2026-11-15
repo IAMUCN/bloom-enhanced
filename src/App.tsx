@@ -1990,7 +1990,12 @@ function App() {
 	}, [isOpen, windowLabel]);
 	useEffect(() => {
 		if (windowLabel !== "main") return;
-		const unlisten = listen("notch-escape", () => releaseNotchHoverRef.current());
+		// Esc steps back one level: a Wi-Fi / Bluetooth list returns to the
+		// Command Center, the next Esc closes the notch.
+		const unlisten = listen("notch-escape", () => {
+			if (bloomModeRef.current === "wifi" || bloomModeRef.current === "bluetooth") setBloomMode("command-center");
+			else releaseNotchHoverRef.current();
+		});
 		// The notch shortcut (Ctrl+Alt+N by default) opens or closes the notch.
 		const unlistenShortcut = listen("notch-shortcut", () => {
 			if (isOpenRef.current) releaseNotchHoverRef.current();
@@ -3381,16 +3386,25 @@ function App() {
 		},
 		dnd: { hint: "opens Notifications", onClick: openSystem("notification-settings") },
 		"night-light": ccSwitch("night-light", "night-light"),
-		energy: { on: batterySaverEnabled, hint: "opens Energy saver", onClick: () => openBatterySaverSettings() },
+		energy: {
+			on: batterySaverEnabled,
+			onClick: () => {
+				invoke<boolean>("cc_toggle", { tile: "energy" })
+					.then(setBatterySaverEnabled)
+					.catch((e) => {
+						console.error("energy:", e);
+						openBatterySaverSettings();
+					});
+			}
+		},
 		airplane: ccSwitch("airplane", "airplane"),
 		hotspot: ccSwitch("hotspot", "hotspot"),
 		captions: ccSwitch("captions", "live-captions"),
 		nearby: ccSwitch("nearby", "nearby-sharing"),
 		cast: { hint: "pick a screen", onClick: openSystem("cast") },
 		project: { hint: "pick a display mode", onClick: openSystem("project") },
-		battery: { status: `${batteryLevel}%${isCharging ? " charging" : ""}`, onClick: openSystem("battery") },
-		"dock-mode": { status: modeName(dockMode), onClick: toggleDockModeSetting },
-		"notch-mode": { status: modeName(notchMode), onClick: toggleNotchModeSetting },
+		"dock-mode": { caption: modeName(dockMode), hidden: !dockEnabled, onClick: toggleDockModeSetting },
+		"notch-mode": { caption: modeName(notchMode), onClick: toggleNotchModeSetting },
 		studio: { hint: "opens camera settings", onClick: openSystem("studio-effects") },
 		accessibility: { onClick: openSystem("accessibility") },
 		"task-manager": { onClick: openSystem("task-manager") },

@@ -15,7 +15,7 @@ test("Command Center holds 16 tiles: Wi-Fi, Bluetooth and 14 round ones", () => 
 });
 
 test("Command Center height: 48px tile rows, 10px apart", () => {
-	expect(ccBodyHeight(CC_DEFAULT)).toBe(266);
+	expect(ccBodyHeight(CC_DEFAULT)).toBe(266); // 9 round tiles: two rows
 	expect(ccBodyHeight(["wifi", "bluetooth", "dnd"])).toBe(266 - 58);
 	expect(ccBodyHeight(["wifi", "bluetooth"])).toBe(148);
 });

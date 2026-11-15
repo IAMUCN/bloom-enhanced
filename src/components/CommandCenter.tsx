@@ -3,7 +3,6 @@ import { motion } from "framer-motion";
 import {
 	Accessibility,
 	Activity,
-	BatteryMedium,
 	Bell,
 	Bluetooth,
 	Camera,
@@ -51,7 +50,6 @@ export const CC_TILES = [
 	["hotspot", "Mobile hotspot", RadioTower],
 	["cast", "Cast", Cast],
 	["project", "Project", MonitorUp],
-	["battery", "Battery", BatteryMedium],
 	["dock-mode", "Dock mode", PanelBottom],
 	["notch-mode", "Notch mode", PanelTop],
 	["studio", "Studio effects", Camera],
@@ -84,8 +82,7 @@ export const CC_DEFAULT: CcTileId[] = [
 	"airplane",
 	"hotspot",
 	"cast",
-	"project",
-	"battery"
+	"project"
 ];
 
 /** The shown tiles (`bloom-cc-tiles`, a JSON list), in catalogue order:
@@ -131,6 +128,10 @@ export interface CcTileState {
 	status?: string;
 	/** What a click does, for the hover name ("opens Settings"). */
 	hint?: string;
+	/** A word under the icon, for tiles whose state isn't on/off (a mode). */
+	caption?: string;
+	/** Hidden while its feature is off (Dock mode without the dock). */
+	hidden?: boolean;
 	onClick: (e: MouseEvent) => void;
 	/** Wide tiles: the text half opens the list (networks, devices). */
 	onMore?: () => void;
@@ -215,7 +216,7 @@ export function CommandCenter({
 }) {
 	const shown = CC_TILES.filter(([id]) => tiles.includes(id));
 	const wide = shown.filter(([id]) => WIDE.includes(id));
-	const icons = shown.filter(([id]) => !WIDE.includes(id));
+	const icons = shown.filter(([id]) => !WIDE.includes(id) && !state[id].hidden);
 	return (
 		<div className="cc" onClick={(e) => e.stopPropagation()}>
 			{wide.length > 0 && (
@@ -266,12 +267,12 @@ export function CommandCenter({
 			{icons.length > 0 && (
 				<div className="cc-icons">
 					{icons.map(([id, label, Icon]) => {
-						const { on, status, hint, onClick } = state[id];
+						const { on, status, hint, caption, onClick } = state[id];
 						return (
 							<motion.button
 								key={id}
 								type="button"
-								className={`cc-icon${on ? " on" : ""}`}
+								className={`cc-icon${on ? " on" : ""}${caption ? " captioned" : ""}`}
 								aria-pressed={on}
 								aria-label={label}
 								data-tip={label}
@@ -284,8 +285,9 @@ export function CommandCenter({
 								}}
 							>
 								<TileIcon on={on}>
-									<Icon size={20} />
+									<Icon size={caption ? 16 : 20} />
 								</TileIcon>
+								{caption && <span className="cc-icon-caption">{caption}</span>}
 							</motion.button>
 						);
 					})}

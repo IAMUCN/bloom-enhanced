@@ -4896,7 +4896,6 @@ pub enum SystemAction {
     NearbySharing,
     Cast,
     Project,
-    Battery,
 }
 
 #[tauri::command]
@@ -4945,7 +4944,6 @@ pub async fn open_system_action(action: SystemAction) -> Result<(), String> {
                 String::new(),
             ),
             SystemAction::Project => (format!("{system}\\DisplaySwitch.exe"), String::new()),
-            SystemAction::Battery => ("ms-settings:batterysaver".into(), String::new()),
             // Task View's shell folder opens Task View like the taskbar's
             // button, without sending Win+Tab, which a held Ctrl or Shift
             // would turn into a different shortcut.
