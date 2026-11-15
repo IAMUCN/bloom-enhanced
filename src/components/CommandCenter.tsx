@@ -2,10 +2,8 @@ import type { MouseEvent, WheelEvent } from "react";
 import {
 	Accessibility,
 	Activity,
-	ArrowUpRight,
 	BatteryMedium,
 	Bell,
-	BellOff,
 	Bluetooth,
 	Camera,
 	Captions,
@@ -15,6 +13,7 @@ import {
 	Flower2,
 	Leaf,
 	MonitorUp,
+	Moon,
 	PanelBottom,
 	PanelTop,
 	Plane,
@@ -32,30 +31,31 @@ import {
 } from "lucide-react";
 import "./CommandCenter.css";
 
-/** Every tile the Command Center can show, in the order it shows them
- *  (Settings › Notch › Command Center turns each on or off, `bloom-cc-tiles`):
- *  Wi-Fi and Bluetooth as wide tiles, then real switches, then tiles that
- *  show a state, then tiles that open a Windows page or flyout (Windows has
- *  no public switch for those). */
+// The reference is the design file's page "3a Command Center (edit me)"
+// (designs/scripts/p_command_center.py): round tiles, white = on, wide
+// Wi-Fi / Bluetooth, rows of five, volume over brightness.
+
+/** Every tile, in the order it shows (Settings › Notch › Command Center
+ *  turns each on or off, `bloom-cc-tiles`). */
 export const CC_TILES = [
 	["wifi", "Wi-Fi", Wifi],
 	["bluetooth", "Bluetooth", Bluetooth],
-	["dock-mode", "Dock mode", PanelBottom],
-	["notch-mode", "Notch mode", PanelTop],
-	["energy", "Energy saver", Leaf],
-	["battery", "Battery", BatteryMedium],
-	["dnd", "Do not disturb", BellOff],
+	["dnd", "Do not disturb", Moon],
 	["night-light", "Night light", SunDim],
+	["energy", "Energy saver", Leaf],
 	["airplane", "Airplane mode", Plane],
 	["hotspot", "Mobile hotspot", RadioTower],
 	["captions", "Live captions", Captions],
-	["studio", "Studio effects", Camera],
-	["accessibility", "Accessibility", Accessibility],
 	["nearby", "Nearby sharing", Share2],
 	["cast", "Cast", Cast],
 	["project", "Project", MonitorUp],
-	["tray", "System tray", ChevronUp],
+	["battery", "Battery", BatteryMedium],
+	["dock-mode", "Dock mode", PanelBottom],
+	["notch-mode", "Notch mode", PanelTop],
+	["studio", "Studio effects", Camera],
+	["accessibility", "Accessibility", Accessibility],
 	["task-manager", "Task Manager", Activity],
+	["tray", "System tray", ChevronUp],
 	["notifications", "Notifications", Bell],
 	["windows-settings", "Windows Settings", Settings],
 	["lotus-settings", "LotusNotch settings", Flower2],
@@ -66,20 +66,20 @@ export type CcTileId = (typeof CC_TILES)[number][0];
 
 const WIDE: CcTileId[] = ["wifi", "bluetooth"];
 
-/** Two rows of icons under Wi-Fi and Bluetooth. */
+/** Wi-Fi and Bluetooth, then two rows of five. */
 export const CC_DEFAULT: CcTileId[] = [
 	"wifi",
 	"bluetooth",
-	"energy",
-	"battery",
 	"dnd",
 	"night-light",
+	"energy",
 	"airplane",
 	"hotspot",
 	"captions",
+	"nearby",
 	"cast",
 	"project",
-	"task-manager"
+	"battery"
 ];
 
 /** The shown tiles (`bloom-cc-tiles`, a JSON list), in catalogue order;
@@ -96,28 +96,29 @@ export function parseCcTiles(raw: unknown): CcTileId[] {
 }
 
 const COLUMNS = 5;
-const ICON_H = 44;
-const GAP = 8;
-/** Three rows show; a fourth peeks 14px to say the tiles scroll. */
-const ICONS_MAX_H = 3 * ICON_H + 2 * GAP + 14;
+const TILE = 44;
+const ROW_GAP = 10;
+/** Two rows show; the rest scroll inside. */
+const ICONS_MAX_H = 2 * TILE + ROW_GAP;
+const GAP = 12;
 
 /** The Command Center body's height: padding, the wide row, the icon rows
- *  (scrolling past three) and the sliders. */
+ *  (scrolling past two) and the two sliders. */
 export function ccBodyHeight(tiles: CcTileId[]) {
 	const wide = tiles.some((t) => WIDE.includes(t)) ? 52 + GAP : 0;
 	const rows = Math.ceil(tiles.filter((t) => !WIDE.includes(t)).length / COLUMNS);
-	const icons = rows ? Math.min(rows * (ICON_H + GAP) - GAP, ICONS_MAX_H) + GAP : 0;
-	return 12 + wide + icons + 36 + 12;
+	const icons = rows ? Math.min(rows * (TILE + ROW_GAP) - ROW_GAP, ICONS_MAX_H) + GAP : 0;
+	return 4 + wide + icons + 64 + 16;
 }
 
 export interface CcTileState {
 	on?: boolean;
 	/** Short state text: the SSID on a wide tile, the % on Battery. */
 	status?: string;
-	/** Opens a Windows page or flyout rather than switching something. */
-	opens?: boolean;
+	/** What a click does, for the hover name ("opens Settings"). */
+	hint?: string;
 	onClick: (e: MouseEvent) => void;
-	/** Wide tiles: the right half opens the list (networks, devices). */
+	/** Wide tiles: the text half opens the list (networks, devices). */
 	onMore?: () => void;
 }
 
@@ -144,17 +145,18 @@ function Slider({
 		onChange(Math.max(0, Math.min(100, value + (e.deltaY < 0 ? step : -step))));
 	};
 	return (
-		<div className="cc-slider" onWheel={wheel} title={`${label}: scroll to change`}>
+		<div className="cc-slider" onWheel={wheel}>
 			<button
 				type="button"
-				className="cc-slider-icon"
-				aria-label={label === "Volume" ? "Mute" : "Brightness off or back"}
+				className="cc-slider-label"
+				title={label === "Volume" ? "Mute / unmute" : "Dim to 0 / back"}
 				onClick={(e) => {
 					e.stopPropagation();
 					onIcon();
 				}}
 			>
 				<Icon size={16} />
+				<span>{label}</span>
 			</button>
 			<div className="cc-slider-track">
 				<div className="cc-slider-fill" style={{ width: `${value}%` }} />
@@ -214,7 +216,7 @@ export function CommandCenter({
 									className="cc-wide-toggle"
 									aria-pressed={on}
 									aria-label={`${label} ${on ? "on" : "off"}`}
-									title={`${label}: click to turn ${on ? "off" : "on"}`}
+									title={`Turn ${label} ${on ? "off" : "on"}`}
 									onClick={(e) => {
 										e.stopPropagation();
 										onClick(e);
@@ -235,7 +237,7 @@ export function CommandCenter({
 										<span className="cc-wide-label">{label}</span>
 										<span className="cc-wide-status">{status}</span>
 									</span>
-									<ChevronRight size={14} />
+									<ChevronRight size={16} />
 								</button>
 							</div>
 						);
@@ -245,23 +247,21 @@ export function CommandCenter({
 			{icons.length > 0 && (
 				<div className="cc-icons" style={{ maxHeight: ICONS_MAX_H }} onWheel={(e) => e.stopPropagation()}>
 					{icons.map(([id, label, Icon]) => {
-						const { on, status, opens, onClick } = state[id];
+						const { on, status, hint, onClick } = state[id];
 						return (
 							<button
 								key={id}
 								type="button"
-								className={`cc-icon${on && !opens ? " on" : ""}${id === "energy" && on ? " saver" : ""}`}
-								aria-pressed={opens ? undefined : on}
+								className={`cc-icon${on ? " on" : ""}`}
+								aria-pressed={on}
 								aria-label={label}
-								title={`${label}${status ? ` · ${status}` : ""}${opens ? " · opens Windows" : ""}`}
+								title={[label, status, hint].filter(Boolean).join(" · ")}
 								onClick={(e) => {
 									e.stopPropagation();
 									onClick(e);
 								}}
 							>
-								<Icon size={20} />
-								{id === "battery" && status && <span className="cc-icon-text">{status}</span>}
-								{opens && <ArrowUpRight size={9} className="cc-icon-badge" aria-hidden />}
+								<Icon size={18} />
 							</button>
 						);
 					})}

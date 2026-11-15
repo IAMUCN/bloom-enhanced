@@ -40,6 +40,9 @@ import { ProgressEffect, asProgressStyle } from "./components/ProgressEffect";
 import { EXTRA_BY_ID, GRID_H, OPEN_WIDTH, TAB_BAR_HEIGHT, TOOLS, parseEnabledTools, type ExtraToolId, type Tool } from "./tools";
 import { ToolHost } from "./notchTools/ToolHost";
 import { CommandCenter, ccBodyHeight, parseCcTiles, type CcTileId, type CcTileState } from "./components/CommandCenter";
+
+/** system_tools.rs CcStates; a missing key = not available on this PC. */
+type CcSystemStates = Partial<Record<"night-light" | "airplane" | "hotspot" | "nearby" | "captions", boolean | null>>;
 import { reloadIfMirrorWasStale } from "./hooks/settingsMirror";
 import { openUrl } from "@tauri-apps/plugin-opener";
 import { writeText } from "@tauri-apps/plugin-clipboard-manager";
@@ -1161,6 +1164,7 @@ function App() {
 	// the one showing while bloomMode is "tool".
 	const [enabledTools, setEnabledTools] = useState(() => parseEnabledTools(localStorage.getItem("bloom-tools-enabled")));
 	const [ccTiles, setCcTiles] = useState(() => parseCcTiles(localStorage.getItem("bloom-cc-tiles")));
+	const [ccSystem, setCcSystem] = useState<CcSystemStates>({});
 	const [activeTool, setActiveTool] = useState<ExtraToolId | null>(null);
 	// Reminders ring while that tool is on, even with its tab closed: a due
 	// reminder opens the notch on it, once per reminder time.
@@ -3308,11 +3312,25 @@ function App() {
 	};
 	const tabBarSpace = showTabBar ? TAB_BAR_HEIGHT / panelZoomNow : 0;
 
-	// Command Center tiles. Most Windows quick settings have no public
-	// switch, so their tiles open Windows' own page or flyout.
+	// Command Center tiles. Night light, Airplane mode, Mobile hotspot,
+	// Nearby sharing and Live captions switch for real (system_tools.rs
+	// cc_toggle); a switch that fails on this PC opens its Windows page
+	// instead. Cast and Project open their pickers; Do not disturb, Energy
+	// saver and Studio effects have no switch Windows lets an app use.
 	const openSystem = (action: string) => () => {
 		invoke("open_system_action", { action }).catch(console.error);
 	};
+	const ccSwitch = (tile: keyof CcSystemStates, fallback: string) => ({
+		on: ccSystem[tile] === true,
+		onClick: () => {
+			invoke<boolean>("cc_toggle", { tile })
+				.then((on) => setCcSystem((s) => ({ ...s, [tile]: on })))
+				.catch((e) => {
+					console.error(`${tile}:`, e);
+					openSystem(fallback)();
+				});
+		}
+	});
 	const modeName = (m: string) => (m === "fixed" ? "Fixed" : m === "smart" ? "Smart" : "Peek");
 	const ccState: Record<CcTileId, CcTileState> = {
 		wifi: {
@@ -3333,24 +3351,24 @@ function App() {
 			onClick: () => toggleBluetooth(),
 			onMore: () => setBloomMode("bluetooth")
 		},
-		dnd: { opens: true, onClick: openSystem("notification-settings") },
-		"night-light": { opens: true, onClick: openSystem("night-light") },
-		energy: { on: batterySaverEnabled, status: batterySaverEnabled ? "On" : "Off", opens: true, onClick: () => openBatterySaverSettings() },
-		airplane: { opens: true, onClick: openSystem("airplane") },
-		hotspot: { opens: true, onClick: openSystem("hotspot") },
-		captions: { opens: true, onClick: openSystem("live-captions") },
-		studio: { opens: true, onClick: openSystem("studio-effects") },
-		accessibility: { opens: true, onClick: openSystem("accessibility") },
-		nearby: { opens: true, onClick: openSystem("nearby-sharing") },
-		cast: { opens: true, onClick: openSystem("cast") },
-		project: { opens: true, onClick: openSystem("project") },
-		battery: { status: `${batteryLevel}%`, opens: true, onClick: openSystem("battery") },
+		dnd: { hint: "opens Notifications", onClick: openSystem("notification-settings") },
+		"night-light": ccSwitch("night-light", "night-light"),
+		energy: { on: batterySaverEnabled, hint: "opens Energy saver", onClick: () => openBatterySaverSettings() },
+		airplane: ccSwitch("airplane", "airplane"),
+		hotspot: ccSwitch("hotspot", "hotspot"),
+		captions: ccSwitch("captions", "live-captions"),
+		nearby: ccSwitch("nearby", "nearby-sharing"),
+		cast: { hint: "pick a screen", onClick: openSystem("cast") },
+		project: { hint: "pick a display mode", onClick: openSystem("project") },
+		battery: { status: `${batteryLevel}%${isCharging ? " charging" : ""}`, onClick: openSystem("battery") },
 		"dock-mode": { status: modeName(dockMode), onClick: toggleDockModeSetting },
 		"notch-mode": { status: modeName(notchMode), onClick: toggleNotchModeSetting },
-		tray: { opens: true, onClick: openSystemTray },
-		"task-manager": { opens: true, onClick: openSystem("task-manager") },
-		notifications: { opens: true, onClick: () => invoke("open_notification_center").catch(console.error) },
-		"windows-settings": { opens: true, onClick: openSystem("settings") },
+		studio: { hint: "opens camera settings", onClick: openSystem("studio-effects") },
+		accessibility: { onClick: openSystem("accessibility") },
+		"task-manager": { onClick: openSystem("task-manager") },
+		tray: { onClick: openSystemTray },
+		notifications: { onClick: () => invoke("open_notification_center").catch(console.error) },
+		"windows-settings": { onClick: openSystem("settings") },
 		"lotus-settings": { onClick: () => openSettingsWindow() },
 		restart: { onClick: () => invoke("restart_bloom").catch(console.error) }
 	};
@@ -3491,6 +3509,13 @@ function App() {
 		pillTargetHeight,
 		24
 	);
+
+	// The Command Center's Windows switches, read each time it opens (they
+	// can change in Windows Settings meanwhile).
+	useEffect(() => {
+		if (windowLabel !== "main" || !isOpen || bloomMode !== "command-center") return;
+		invoke<CcSystemStates>("cc_states").then(setCcSystem).catch(() => {});
+	}, [isOpen, bloomMode]);
 
 	// Clip the notch window to what it draws (see window_region.rs): outside
 	// these rectangles the window takes no clicks, whatever its click-through

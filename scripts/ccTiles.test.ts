@@ -8,10 +8,11 @@ test("Command Center tiles: defaults, catalogue order, unknown ids dropped", () 
 	expect(parseCcTiles("[]")).toEqual([]);
 });
 
-test("Command Center height: sliders always fit, icons stop growing after 3 rows", () => {
-	expect(ccBodyHeight([])).toBe(60); // padding + sliders only
-	expect(ccBodyHeight(["wifi"])).toBe(120); // + wide row
-	expect(ccBodyHeight(["wifi", "cast"])).toBe(172); // + one icon row
-	const all = parseCcTiles(JSON.stringify(["wifi", "bluetooth", "dock-mode", "notch-mode", "energy", "battery", "dnd", "night-light", "airplane", "hotspot", "captions", "studio", "accessibility", "nearby", "cast", "project", "tray", "task-manager", "notifications", "windows-settings", "lotus-settings", "restart"]));
-	expect(ccBodyHeight(all)).toBe(120 + 162 + 8); // capped: 3 rows + 14px peek
+test("Command Center height: sliders always fit, icons stop growing after 2 rows", () => {
+	expect(ccBodyHeight([])).toBe(84); // padding + two sliders
+	expect(ccBodyHeight(["wifi"])).toBe(84 + 64); // + wide row
+	expect(ccBodyHeight(["wifi", "cast"])).toBe(84 + 64 + 56); // + one icon row
+	expect(ccBodyHeight(CC_DEFAULT)).toBe(84 + 64 + 110); // two rows
+	const all = parseCcTiles(JSON.stringify(["wifi", "dnd", "night-light", "energy", "airplane", "hotspot", "captions", "nearby", "cast", "project", "battery", "dock-mode", "notch-mode"]));
+	expect(ccBodyHeight(all)).toBe(84 + 64 + 110); // capped: the rest scroll
 });

@@ -430,3 +430,314 @@ fn ocr_rgba(rgba: &[u8], width: u32, height: u32) -> Result<String, String> {
         Ok(text)
     }
 }
+
+// ------------------------------------------------- Command Center switches
+//
+// Windows has no public API for most quick settings; these use what the
+// Settings app itself writes. Each returns the new state, or Err when this
+// PC can't do it (no hotspot adapter, an old build).
+
+const NIGHT_LIGHT_KEY: &str = r"Software\Microsoft\Windows\CurrentVersion\CloudStore\Store\DefaultAccount\Current\default$windows.data.bluelightreduction.bluelightreductionstate\windows.data.bluelightreduction.bluelightreductionstate";
+const CDP_KEY: &str = r"Software\Microsoft\Windows\CurrentVersion\CDP";
+
+fn wide(s: &str) -> Vec<u16> {
+    s.encode_utf16().chain(Some(0)).collect()
+}
+
+fn reg_read(key: &str, value: &str, flags: u32) -> Option<Vec<u8>> {
+    use windows::Win32::System::Registry::{RegGetValueW, HKEY_CURRENT_USER, REG_ROUTINE_FLAGS};
+    let (k, v) = (wide(key), wide(value));
+    let mut len = 0u32;
+    unsafe {
+        let pk = windows::core::PCWSTR(k.as_ptr());
+        let pv = windows::core::PCWSTR(v.as_ptr());
+        let flags = REG_ROUTINE_FLAGS(flags);
+        RegGetValueW(HKEY_CURRENT_USER, pk, pv, flags, None, None, Some(&mut len))
+            .ok()
+            .ok()?;
+        let mut buf = vec![0u8; len as usize];
+        RegGetValueW(
+            HKEY_CURRENT_USER,
+            pk,
+            pv,
+            flags,
+            None,
+            Some(buf.as_mut_ptr().cast()),
+            Some(&mut len),
+        )
+        .ok()
+        .ok()?;
+        buf.truncate(len as usize);
+        Some(buf)
+    }
+}
+
+fn reg_write(key: &str, value: &str, kind: u32, data: &[u8]) -> Result<(), String> {
+    use windows::Win32::System::Registry::{RegSetKeyValueW, HKEY_CURRENT_USER};
+    let (k, v) = (wide(key), wide(value));
+    unsafe {
+        RegSetKeyValueW(
+            HKEY_CURRENT_USER,
+            windows::core::PCWSTR(k.as_ptr()),
+            windows::core::PCWSTR(v.as_ptr()),
+            kind,
+            Some(data.as_ptr().cast()),
+            data.len() as u32,
+        )
+        .ok()
+        .map_err(|e| e.to_string())
+    }
+}
+
+const RRF_RT_REG_BINARY: u32 = 0x08;
+const RRF_RT_REG_DWORD: u32 = 0x10;
+
+/// Night light's state blob: byte 18 is 0x15 when on, 0x13 when off; "on"
+/// also carries two extra bytes (0x10 0x00) after byte 22. Bytes 10–14 are
+/// a counter Windows watches, so it is bumped on every change.
+fn night_light_flip(data: &[u8]) -> Option<Vec<u8>> {
+    if data.len() < 25 {
+        return None;
+    }
+    let mut out = match data[18] {
+        0x15 => {
+            let mut v = data[..23].to_vec();
+            v.extend_from_slice(&data[25..]);
+            v[18] = 0x13;
+            v
+        }
+        0x13 => {
+            let mut v = data[..23].to_vec();
+            v.extend_from_slice(&[0x10, 0x00]);
+            v.extend_from_slice(&data[23..]);
+            v[18] = 0x15;
+            v
+        }
+        _ => return None,
+    };
+    if let Some(b) = out[10..15].iter_mut().find(|b| **b != 0xff) {
+        *b += 1;
+    }
+    Some(out)
+}
+
+fn night_light_on() -> Option<bool> {
+    reg_read(NIGHT_LIGHT_KEY, "Data", RRF_RT_REG_BINARY).and_then(|d| d.get(18).map(|b| *b == 0x15))
+}
+
+fn toggle_night_light() -> Result<bool, String> {
+    let data = reg_read(NIGHT_LIGHT_KEY, "Data", RRF_RT_REG_BINARY)
+        .ok_or("Turn Night light on once in Windows Settings first")?;
+    let next = night_light_flip(&data).ok_or("Unknown Night light format")?;
+    reg_write(NIGHT_LIGHT_KEY, "Data", 3 /* REG_BINARY */, &next)?;
+    Ok(next[18] == 0x15)
+}
+
+/// Nearby sharing: 0 = off, 1 = my devices only (what turning it on picks,
+/// the private choice), 2 = everyone nearby.
+fn nearby_on() -> Option<bool> {
+    reg_read(CDP_KEY, "NearShareChannelUserAuthzPolicy", RRF_RT_REG_DWORD)
+        .and_then(|d| d.first().map(|b| *b != 0))
+}
+
+fn toggle_nearby() -> Result<bool, String> {
+    let on = !nearby_on().unwrap_or(false);
+    let v: u32 = if on { 1 } else { 0 };
+    reg_write(
+        CDP_KEY,
+        "NearShareChannelUserAuthzPolicy",
+        4, /* REG_DWORD */
+        &v.to_le_bytes(),
+    )?;
+    if on {
+        // Sharing needs "Share across devices" on as well.
+        reg_write(CDP_KEY, "CdpSessionUserAuthzPolicy", 4, &1u32.to_le_bytes())?;
+    }
+    Ok(on)
+}
+
+/// Airplane mode through Windows' radio manager (the COM server the quick
+/// settings use): "system radio state" on = airplane mode off.
+#[windows::core::interface("db3afbfb-08e6-46c6-aa70-bf9a34c30ab7")]
+unsafe trait IRadioManager: windows::core::IUnknown {
+    fn is_rm_supported(&self, state: *mut u32) -> windows::core::HRESULT;
+    fn get_ui_radio_instances(&self, list: *mut *mut core::ffi::c_void) -> windows::core::HRESULT;
+    fn get_system_radio_state(
+        &self,
+        enabled: *mut i32,
+        a: *mut i32,
+        reason: *mut i32,
+    ) -> windows::core::HRESULT;
+    fn set_system_radio_state(&self, enabled: i32) -> windows::core::HRESULT;
+    fn refresh(&self) -> windows::core::HRESULT;
+    fn on_hardware_slider_change(&self, a: i32, b: i32) -> windows::core::HRESULT;
+}
+
+fn radio_manager() -> Result<IRadioManager, String> {
+    use windows::Win32::System::Com::{
+        CoCreateInstance, CoInitializeEx, CLSCTX_LOCAL_SERVER, COINIT_MULTITHREADED,
+    };
+    const CLSID: windows::core::GUID =
+        windows::core::GUID::from_u128(0x581333f6_28db_41be_bc7a_ff201f12f3f6);
+    unsafe {
+        let _ = CoInitializeEx(None, COINIT_MULTITHREADED);
+        CoCreateInstance(&CLSID, None, CLSCTX_LOCAL_SERVER).map_err(|e| e.to_string())
+    }
+}
+
+fn airplane_on() -> Option<bool> {
+    let rm = radio_manager().ok()?;
+    let (mut enabled, mut a, mut reason) = (0i32, 0i32, 0i32);
+    unsafe {
+        rm.get_system_radio_state(&mut enabled, &mut a, &mut reason)
+            .ok()
+            .ok()?
+    };
+    Some(enabled == 0)
+}
+
+fn toggle_airplane() -> Result<bool, String> {
+    let on = !airplane_on().ok_or("Airplane mode isn't available on this PC")?;
+    let rm = radio_manager()?;
+    unsafe {
+        rm.set_system_radio_state(if on { 0 } else { 1 })
+            .ok()
+            .map_err(|e| e.to_string())?
+    };
+    Ok(on)
+}
+
+/// Mobile hotspot: shares the current internet connection (public API).
+fn tethering(
+) -> Result<windows::Networking::NetworkOperators::NetworkOperatorTetheringManager, String> {
+    use windows::Networking::Connectivity::NetworkInformation;
+    use windows::Networking::NetworkOperators::NetworkOperatorTetheringManager;
+    let profile = NetworkInformation::GetInternetConnectionProfile()
+        .map_err(|_| "No internet connection to share")?;
+    NetworkOperatorTetheringManager::CreateFromConnectionProfile(&profile)
+        .map_err(|e| e.to_string())
+}
+
+fn hotspot_on() -> Option<bool> {
+    use windows::Networking::NetworkOperators::TetheringOperationalState;
+    Some(tethering().ok()?.TetheringOperationalState().ok()? == TetheringOperationalState::On)
+}
+
+fn toggle_hotspot() -> Result<bool, String> {
+    use windows::Networking::NetworkOperators::TetheringOperationStatus;
+    let manager = tethering()?;
+    let on = !hotspot_on().unwrap_or(false);
+    let op = if on {
+        manager.StartTetheringAsync()
+    } else {
+        manager.StopTetheringAsync()
+    };
+    let result = op.and_then(|op| op.get()).map_err(|e| e.to_string())?;
+    if result.Status().map_err(|e| e.to_string())? != TetheringOperationStatus::Success {
+        let msg = result
+            .AdditionalErrorMessage()
+            .map(|s| s.to_string())
+            .unwrap_or_default();
+        return Err(if msg.is_empty() {
+            "Windows couldn't change the hotspot".into()
+        } else {
+            msg
+        });
+    }
+    Ok(on)
+}
+
+/// Live captions is its own app: running = on.
+fn captions_on() -> bool {
+    std::process::Command::new("tasklist")
+        .args(["/FI", "IMAGENAME eq LiveCaptions.exe", "/NH"])
+        .creation_flags(0x0800_0000)
+        .output()
+        .map(|o| String::from_utf8_lossy(&o.stdout).contains("LiveCaptions.exe"))
+        .unwrap_or(false)
+}
+
+fn toggle_captions() -> Result<bool, String> {
+    if captions_on() {
+        // Without /F: asks the window to close, like its own ✕.
+        std::process::Command::new("taskkill")
+            .args(["/IM", "LiveCaptions.exe"])
+            .creation_flags(0x0800_0000)
+            .status()
+            .map_err(|e| e.to_string())?;
+        return Ok(false);
+    }
+    let system = std::env::var("SystemRoot").unwrap_or_else(|_| r"C:\Windows".into());
+    std::process::Command::new(format!(r"{system}\System32\LiveCaptions.exe"))
+        .spawn()
+        .map_err(|_| "Live captions needs Windows 11 22H2 or later")?;
+    Ok(true)
+}
+
+use std::os::windows::process::CommandExt;
+
+/// The Command Center's switch states; a missing one = not available here.
+#[derive(serde::Serialize, Default)]
+#[serde(rename_all = "kebab-case")]
+pub struct CcStates {
+    night_light: Option<bool>,
+    airplane: Option<bool>,
+    hotspot: Option<bool>,
+    nearby: Option<bool>,
+    captions: bool,
+}
+
+#[tauri::command]
+pub async fn cc_states() -> CcStates {
+    tauri::async_runtime::spawn_blocking(|| CcStates {
+        night_light: night_light_on(),
+        airplane: airplane_on(),
+        hotspot: hotspot_on(),
+        nearby: nearby_on(),
+        captions: captions_on(),
+    })
+    .await
+    .unwrap_or_default()
+}
+
+/// Flips one Command Center switch; returns its new state.
+#[tauri::command]
+pub async fn cc_toggle(tile: String) -> Result<bool, String> {
+    tauri::async_runtime::spawn_blocking(move || match tile.as_str() {
+        "night-light" => toggle_night_light(),
+        "airplane" => toggle_airplane(),
+        "hotspot" => toggle_hotspot(),
+        "nearby" => toggle_nearby(),
+        "captions" => toggle_captions(),
+        _ => Err(format!("{tile} has no switch")),
+    })
+    .await
+    .map_err(|e| e.to_string())?
+}
+
+#[cfg(test)]
+mod cc_tests {
+    use super::night_light_flip;
+
+    /// This PC's real "off" blob (2026-11-15).
+    const OFF: [u8; 41] = [
+        0x43, 0x42, 0x01, 0x00, 0x0a, 0x02, 0x01, 0x00, 0x2a, 0x06, 0xa4, 0xb0, 0xc8, 0xd7, 0x06,
+        0x2a, 0x2b, 0x0e, 0x13, 0x43, 0x42, 0x01, 0x00, 0xd0, 0x0a, 0x02, 0xc6, 0x14, 0xb0, 0xd9,
+        0xc7, 0xef, 0xc7, 0x8f, 0xdc, 0xee, 0x01, 0x00, 0x00, 0x00, 0x00,
+    ];
+
+    #[test]
+    fn night_light_round_trip() {
+        let on = night_light_flip(&OFF).unwrap();
+        assert_eq!(
+            (on.len(), on[18], &on[23..25]),
+            (43, 0x15, &[0x10u8, 0x00][..])
+        );
+        assert_eq!(on[10], OFF[10] + 1); // counter bumped
+        let off = night_light_flip(&on).unwrap();
+        assert_eq!(off.len(), 41);
+        assert_eq!(off[18], 0x13);
+        assert_eq!(&off[19..], &OFF[19..]);
+        assert!(night_light_flip(&[0u8; 10]).is_none());
+    }
+}

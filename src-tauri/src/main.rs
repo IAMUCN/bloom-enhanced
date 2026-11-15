@@ -220,6 +220,8 @@ fn main() {
             system_tools::pick_screen_color,
             system_tools::screen_clip,
             system_tools::ocr_clipboard,
+            system_tools::cc_states,
+            system_tools::cc_toggle,
             focus_window,
             focus_app_windows,
             close_window,
