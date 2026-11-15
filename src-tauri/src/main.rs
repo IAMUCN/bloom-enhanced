@@ -219,6 +219,8 @@ fn main() {
             system_tools::set_power_mode,
             system_tools::pick_screen_color,
             system_tools::screen_clip,
+            system_tools::ocr_snip,
+            system_tools::color_at_cursor,
             system_tools::ocr_clipboard,
             system_tools::cc_states,
             system_tools::cc_toggle,

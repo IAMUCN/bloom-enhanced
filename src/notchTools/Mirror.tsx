@@ -140,7 +140,7 @@ export default function Mirror() {
 					{cameraOn && <video ref={video} autoPlay muted playsInline className="mirror-video" />}
 					{!cameraOn && (
 						<button type="button" className="mirror-camera-off" onClick={() => setCameraOn(true)}>
-							<Camera size={22} />
+							<Camera size={26} />
 							<span>{cameraError || "Turn on camera"}</span>
 						</button>
 					)}
@@ -154,7 +154,7 @@ export default function Mirror() {
 					<div className="mirror-cameras" role="radiogroup" aria-label="Cameras">
 						{cameras.map((c, i) => (
 							<button key={c.deviceId} type="button" role="radio" aria-checked={c.deviceId === cameraId} className={`mirror-output${c.deviceId === cameraId ? " on" : ""}`} onClick={() => pickCamera(c.deviceId)}>
-								<Camera size={12} />
+								<Camera size={14} />
 								<span>{c.label || `Camera ${i + 1}`}</span>
 							</button>
 						))}
@@ -166,13 +166,13 @@ export default function Mirror() {
 					<button
 						type="button"
 						className="nt-btn nt-icon-btn"
-						style={{ width: 32, height: 32, background: muted ? "#FF453A" : undefined, color: muted ? "#fff" : undefined }}
+						style={{ width: 40, height: 40, background: muted ? "#FF453A" : undefined, color: muted ? "#fff" : undefined }}
 						aria-pressed={!!muted}
 						aria-label={muted ? "Unmute microphone" : "Mute microphone"}
 						disabled={muted === null}
 						onClick={toggleMute}
 					>
-						{muted ? <MicOff size={15} /> : <Mic size={15} />}
+						{muted ? <MicOff size={18} /> : <Mic size={18} />}
 					</button>
 					<div className="nt-grow">
 						<div className="mirror-title">{muted === null ? "No microphone" : muted ? "Mic muted for every app" : "Mic on"}</div>
@@ -185,7 +185,7 @@ export default function Mirror() {
 				<div className="mirror-heading">
 					<span>Speakers</span>
 					<button type="button" className="mirror-test" onClick={testSpeaker}>
-						<Volume2 size={12} /> Test
+						<Volume2 size={13} /> Test
 					</button>
 				</div>
 				{list(speakers, Speaker, "Speakers")}

@@ -1283,6 +1283,23 @@ function App() {
 		const timer = window.setInterval(check, 1000);
 		return () => window.clearInterval(timer);
 	}, [windowLabel, enabledTools]);
+	// OCR's one-step snip ends here (the notch may have closed meanwhile):
+	// keep the text for the OCR page and open it, like a ring does.
+	useEffect(() => {
+		if (windowLabel !== "main") return;
+		const off = listen<{ text?: string; error?: string }>("ocr-result", (e) => {
+			const result = { text: e.payload.text ?? "", error: e.payload.error ?? "" };
+			invoke("tool_data_set", { tool: "ocr", json: JSON.stringify(result) }).catch(() => {});
+			if (!enabledTools.includes("capture")) return;
+			showPart("capture", "ocr");
+			if (isOpenRef.current) return;
+			autoOpenedRef.current = true;
+			setActiveTool("capture");
+			setIsOpen(true);
+			setBloomMode("tool");
+		});
+		return () => void off.then((f) => f());
+	}, [windowLabel, enabledTools]);
 	const visualizerWantedRef = useRef(true);
 	const visualizerSentRef = useRef<boolean | null>(null);
 	// Open on click (default) or on hover after a delay.
@@ -3612,13 +3629,10 @@ function App() {
 			const tile = ccState[action.slice(5) as CcTileId];
 			tile?.onClick({ stopPropagation() {}, preventDefault() {} } as React.MouseEvent);
 		} else if (action === "snip") {
-			invoke("screen_clip", { mode: "region" }).catch(console.error);
+			invoke("screen_clip", { mode: "snip" }).catch(console.error);
 		} else if (action === "ocr") {
-			// OCR is a part of Capture: open it there, else just snip.
-			if (tabTools.some((t) => t.id === "capture")) {
-				showPart("capture", "ocr");
-				openTab("capture");
-			} else invoke("screen_clip", { mode: "region" }).catch(console.error);
+			// One step: snip, read, copy; the result opens Capture › OCR.
+			invoke("ocr_snip").catch(console.error);
 		} else if (action === "picker") {
 			invoke<string | null>("pick_screen_color")
 				.then((hex) => {

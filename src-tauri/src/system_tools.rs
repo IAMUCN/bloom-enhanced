@@ -390,6 +390,9 @@ pub async fn pick_screen_color() -> Option<String> {
             *p = None;
         }
         let hook = SetWindowsHookExW(WH_MOUSE_LL, Some(pick_hook), None, 0).ok()?;
+        // A crosshair while picking, so it's clear the next click picks.
+        // ponytail: a crash mid-pick leaves the crosshair until sign-out.
+        crosshair_cursor(true);
         let timer = SetTimer(None, 0, 20_000, None);
         let mut msg = MSG::default();
         while GetMessageW(&mut msg, None, 0, 0).0 > 0 {
@@ -400,6 +403,7 @@ pub async fn pick_screen_color() -> Option<String> {
         }
         let _ = KillTimer(None, timer);
         let _ = UnhookWindowsHookEx(hook);
+        crosshair_cursor(false);
         let point = PICK_POINT.lock().ok()?.take()?;
         let dc = GetDC(None);
         let pixel = GetPixel(dc, point.x, point.y).0;
@@ -418,21 +422,59 @@ pub async fn pick_screen_color() -> Option<String> {
     .flatten()
 }
 
+/// Swaps the arrow cursor for a crosshair, or puts the user's cursors back.
+fn crosshair_cursor(on: bool) {
+    use windows::Win32::UI::WindowsAndMessaging::{
+        CopyIcon, LoadCursorW, SetSystemCursor, SystemParametersInfoW, HCURSOR, HICON, IDC_CROSS,
+        OCR_NORMAL, SPI_SETCURSORS, SYSTEM_PARAMETERS_INFO_UPDATE_FLAGS,
+    };
+    unsafe {
+        if on {
+            if let Ok(cross) = LoadCursorW(None, IDC_CROSS) {
+                if let Ok(copy) = CopyIcon(HICON(cross.0)) {
+                    let _ = SetSystemCursor(HCURSOR(copy.0), OCR_NORMAL);
+                }
+            }
+        } else {
+            let _ = SystemParametersInfoW(
+                SPI_SETCURSORS,
+                0,
+                None,
+                SYSTEM_PARAMETERS_INFO_UPDATE_FLAGS(0),
+            );
+        }
+    }
+}
+
+/// The colour under the pointer as "#RRGGBB", for the picker's live preview.
+#[tauri::command]
+pub fn color_at_cursor() -> Option<String> {
+    use windows::Win32::Graphics::Gdi::{GetDC, GetPixel, ReleaseDC};
+    use windows::Win32::UI::WindowsAndMessaging::GetCursorPos;
+    unsafe {
+        let mut pt = windows::Win32::Foundation::POINT::default();
+        GetCursorPos(&mut pt).ok()?;
+        let dc = GetDC(None);
+        let pixel = GetPixel(dc, pt.x, pt.y).0;
+        ReleaseDC(None, dc);
+        (pixel != u32::MAX).then(|| {
+            format!(
+                "#{:02X}{:02X}{:02X}",
+                pixel & 0xFF,
+                (pixel >> 8) & 0xFF,
+                (pixel >> 16) & 0xFF
+            )
+        })
+    }
+}
+
 // ---------------------------------------------------------------------- Snip
 
-/// Opens Windows' own screen capture (Snipping Tool): a region, window or
-/// full-screen snip, or a recording. Results go to the clipboard, so the
-/// Shelf records them.
-#[tauri::command]
-pub fn screen_clip(mode: String) -> Result<(), String> {
-    let uri = match mode.as_str() {
-        "region" => "ms-screenclip:?clippingMode=Rectangle",
-        "window" => "ms-screenclip:?clippingMode=Window",
-        "full" => "ms-screenclip:?clippingMode=Fullscreen",
-        "free" => "ms-screenclip:?clippingMode=Freeform",
-        "record" => "ms-screenclip:?type=recording",
-        _ => return Err("Unknown snip mode".into()),
-    };
+/// Windows' snip overlay. Its mode parameters were retired in 2025, so it
+/// opens in the mode last used; the overlay's own bar switches it.
+const SNIP_URI: &str = "ms-screenclip:";
+
+fn open_uri(uri: &str) -> Result<(), String> {
     use windows::Win32::UI::Shell::ShellExecuteW;
     use windows::Win32::UI::WindowsAndMessaging::SW_SHOWNORMAL;
     let wide: Vec<u16> = uri.encode_utf16().chain(std::iter::once(0)).collect();
@@ -451,6 +493,134 @@ pub fn screen_clip(mode: String) -> Result<(), String> {
     } else {
         Err("Couldn't open Snipping Tool".into())
     }
+}
+
+/// Taps a key chord (all down, then all up), e.g. Win+Shift+R.
+fn send_chord(keys: &[u16]) {
+    use windows::Win32::UI::Input::KeyboardAndMouse::{
+        SendInput, INPUT, INPUT_0, INPUT_KEYBOARD, KEYBDINPUT, KEYBD_EVENT_FLAGS, KEYEVENTF_KEYUP,
+        VIRTUAL_KEY,
+    };
+    let key = |vk: u16, flags: KEYBD_EVENT_FLAGS| INPUT {
+        r#type: INPUT_KEYBOARD,
+        Anonymous: INPUT_0 {
+            ki: KEYBDINPUT {
+                wVk: VIRTUAL_KEY(vk),
+                wScan: 0,
+                dwFlags: flags,
+                time: 0,
+                dwExtraInfo: 0,
+            },
+        },
+    };
+    let inputs: Vec<INPUT> = keys
+        .iter()
+        .map(|&k| key(k, KEYBD_EVENT_FLAGS(0)))
+        .chain(keys.iter().rev().map(|&k| key(k, KEYEVENTF_KEYUP)))
+        .collect();
+    unsafe { SendInput(&inputs, std::mem::size_of::<INPUT>() as i32) };
+}
+
+/// Keeps the notch out of screen captures (snips, recordings, shares).
+fn notch_capture_excluded(app: &tauri::AppHandle, excluded: bool) {
+    use tauri::Manager;
+    if let Some(w) = app.get_webview_window("main") {
+        let _ = set_capture_excluded(w, excluded);
+    }
+}
+
+fn clipboard_seq() -> u32 {
+    unsafe { windows::Win32::System::DataExchange::GetClipboardSequenceNumber() }
+}
+
+/// Waits until the clipboard changes (a snip landed) or `secs` pass; true
+/// when it changed.
+fn wait_clipboard_change(start: u32, secs: u64) -> bool {
+    let end = std::time::Instant::now() + std::time::Duration::from_secs(secs);
+    while std::time::Instant::now() < end {
+        if clipboard_seq() != start {
+            return true;
+        }
+        std::thread::sleep(std::time::Duration::from_millis(200));
+    }
+    false
+}
+
+/// Opens Windows' own snip ("snip") or screen recording ("record", via its
+/// Win+Shift+R). The notch is hidden from the capture meanwhile, so it is
+/// never in the shot: until the snip lands on the clipboard (the Shelf keeps
+/// it), or 60 s if cancelled.
+/// ponytail: a recording keeps the notch hidden for a fixed 10 min, as
+/// Windows says nothing when a recording ends.
+#[tauri::command]
+pub fn screen_clip(app: tauri::AppHandle, mode: String) -> Result<(), String> {
+    notch_capture_excluded(&app, true);
+    let start = clipboard_seq();
+    let record = mode == "record";
+    if record {
+        send_chord(&[0x5B, 0x10, 0x52]); // Win+Shift+R
+    } else if let Err(e) = open_uri(SNIP_URI) {
+        notch_capture_excluded(&app, false);
+        return Err(e);
+    }
+    std::thread::spawn(move || {
+        if record {
+            std::thread::sleep(std::time::Duration::from_secs(600));
+        } else {
+            wait_clipboard_change(start, 60);
+        }
+        notch_capture_excluded(&app, false);
+    });
+    Ok(())
+}
+
+/// OCR in one step: opens the snip (the notch hidden from it), waits for it,
+/// reads its text, copies the text and sends it to the notch as
+/// `ocr-result` ({ text } or { error }). A cancelled snip sends nothing.
+#[tauri::command]
+pub async fn ocr_snip(app: tauri::AppHandle) -> Result<(), String> {
+    use tauri::Emitter;
+    use tauri_plugin_clipboard_manager::ClipboardExt;
+    let start = clipboard_seq();
+    notch_capture_excluded(&app, true);
+    if let Err(e) = open_uri(SNIP_URI) {
+        notch_capture_excluded(&app, false);
+        return Err(e);
+    }
+    let changed = tauri::async_runtime::spawn_blocking(move || wait_clipboard_change(start, 60))
+        .await
+        .unwrap_or(false);
+    notch_capture_excluded(&app, false);
+    if !changed {
+        return Ok(());
+    }
+    // The image can land a moment after the clipboard changes.
+    let mut result = Err(String::new());
+    for _ in 0..5 {
+        result = ocr_clipboard(app.clone()).await;
+        if result.is_ok() {
+            break;
+        }
+        tokio_sleep(200).await;
+    }
+    let payload = match result {
+        Ok(text) => {
+            if !text.trim().is_empty() {
+                let _ = app.clipboard().write_text(text.clone());
+            }
+            serde_json::json!({ "text": text })
+        }
+        Err(e) => serde_json::json!({ "error": e }),
+    };
+    let _ = app.emit_to("main", "ocr-result", payload);
+    Ok(())
+}
+
+async fn tokio_sleep(ms: u64) {
+    let _ = tauri::async_runtime::spawn_blocking(move || {
+        std::thread::sleep(std::time::Duration::from_millis(ms))
+    })
+    .await;
 }
 
 #[cfg(test)]
