@@ -1,6 +1,7 @@
 import type { MouseEvent, WheelEvent } from "react";
 import { motion } from "framer-motion";
 import { BOUNCY, SNAP } from "../motion";
+import { shortcutHint } from "../shortcutKeys";
 import {
 	Accessibility,
 	Activity,
@@ -292,6 +293,7 @@ export function CommandCenter({
 								aria-label={label}
 								data-tip={label}
 								data-tip-state={on ? "On" : (status ?? hint)}
+								data-tip-keys={shortcutHint(`tile:${id}`) || undefined}
 								whileTap={{ scale: 0.88, transition: SNAP }}
 								transition={RELEASE}
 								onClick={(e) => {

@@ -1189,6 +1189,7 @@ function App() {
 	const [tabOrder, setTabOrder] = useState<unknown>(() => localStorage.getItem("bloom-tab-order"));
 	const tabMotion = useRef<{ id: string | null; idx: number; dir: number }>({ id: null, idx: -1, dir: 0 });
 	const stepTabRef = useRef<(direction: 1 | -1) => boolean>(() => false);
+	const runShortcutRef = useRef<(action: string) => void>(() => {});
 	const [ccSystem, setCcSystem] = useState<CcSystemStates>({});
 	const [activeTool, setActiveTool] = useState<ExtraToolId | null>(null);
 	// Reminders ring while that tool is on, even with its tab closed: a due
@@ -1998,11 +1999,8 @@ function App() {
 			if (bloomModeRef.current === "wifi" || bloomModeRef.current === "bluetooth") setBloomMode("command-center");
 			else releaseNotchHoverRef.current();
 		});
-		// The notch shortcut (Ctrl+Alt+N by default) opens or closes the notch.
-		const unlistenShortcut = listen("notch-shortcut", () => {
-			if (isOpenRef.current) releaseNotchHoverRef.current();
-			else openFromShortcutRef.current();
-		});
+		// Global shortcuts (shortcuts.rs): the notch runs the action.
+		const unlistenShortcut = listen<string>("shortcut", (e) => runShortcutRef.current(e.payload));
 		return () => {
 			unlisten.then((f) => f());
 			unlistenShortcut.then((f) => f());
@@ -3454,6 +3452,42 @@ function App() {
 		"windows-settings": { onClick: openSystem("settings") },
 		"lotus-settings": { onClick: () => openSettingsWindow() },
 		restart: { onClick: () => invoke("restart_bloom").catch(console.error) }
+	};
+
+	// What each global shortcut does (src/shortcuts.ts lists them).
+	runShortcutRef.current = (action: string) => {
+		const openTab = (id: string | undefined) => {
+			if (!id) return;
+			setIsOpen(true);
+			selectTab(id);
+		};
+		if (action === "notch") {
+			if (isOpen) releaseNotchHover();
+			else openFromShortcutRef.current();
+		} else if (action.startsWith("tool-")) {
+			openTab(tabTools[Number(action.slice(5)) - 1]?.id);
+		} else if (action.startsWith("tool:")) {
+			const id = action.slice(5);
+			if (tabTools.some((t) => t.id === id)) openTab(id);
+		} else if (action.startsWith("tile:")) {
+			const tile = ccState[action.slice(5) as CcTileId];
+			tile?.onClick({ stopPropagation() {}, preventDefault() {} } as React.MouseEvent);
+		} else if (action === "snip") {
+			invoke("screen_clip", { mode: "region" }).catch(console.error);
+		} else if (action === "ocr") {
+			if (tabTools.some((t) => t.id === "ocr")) openTab("ocr");
+			else invoke("screen_clip", { mode: "region" }).catch(console.error);
+		} else if (action === "picker") {
+			invoke<string | null>("pick_screen_color")
+				.then((hex) => {
+					if (hex) writeText(hex).catch(() => {});
+				})
+				.catch(console.error);
+		} else if (action === "mic") {
+			invoke<boolean | null>("mic_muted")
+				.then((muted) => invoke("set_mic_muted", { muted: !muted }))
+				.catch(console.error);
+		}
 	};
 
 	// The 24-hour clock is ~16px narrower than the 12-hour one.

@@ -1108,56 +1108,43 @@ pub fn parse_shortcut(text: &str) -> Option<(u32, u32)> {
     (mods != 0 || (0x70..=0x87).contains(&key)).then_some((mods, key))
 }
 
-/// Registers the global shortcuts with RegisterHotKey and re-registers them
-/// when they change: `bloom-clipboard-shortcut` (default Alt+C) and
-/// `bloom-notch-shortcut` (default Ctrl+Alt+N, opens or closes the notch).
-/// An empty value means none.
+/// Registers the clipboard shortcut with RegisterHotKey and re-registers it
+/// when it changes: `bloom-clipboard-shortcut` (default Alt+C); empty = none.
+/// Every other shortcut (the notch, tools, tiles) goes through shortcuts.rs.
 pub fn start_shortcut(app: AppHandle) {
     use windows::Win32::UI::Input::KeyboardAndMouse::{
         RegisterHotKey, UnregisterHotKey, HOT_KEY_MODIFIERS, MOD_NOREPEAT,
     };
     use windows::Win32::UI::WindowsAndMessaging::{PeekMessageW, MSG, PM_REMOVE, WM_HOTKEY};
     const CLIP_ID: i32 = 0xC11;
-    const NOTCH_ID: i32 = 0xC12;
     std::thread::spawn(move || {
-        let mut current: [Option<String>; 2] = [None, None];
+        let mut current: Option<String> = None;
         loop {
             // ponytail: polls the settings every 100ms instead of being woken on
             // change; cheap, and the hotkey thread needs a message pump anyway.
-            let wanted = [
-                if crate::utils::clipboard_enabled() {
-                    setting("bloom-clipboard-shortcut").unwrap_or_else(|| "Alt+C".into())
-                } else {
-                    String::new()
-                },
-                if crate::utils::notch_enabled() {
-                    setting("bloom-notch-shortcut").unwrap_or_else(|| "Ctrl+Alt+N".into())
-                } else {
-                    String::new()
-                },
-            ];
-            for (slot, id) in [(0, CLIP_ID), (1, NOTCH_ID)] {
-                if current[slot].as_deref() != Some(wanted[slot].as_str()) {
-                    unsafe {
-                        let _ = UnregisterHotKey(None, id);
-                        if let Some((mods, vk)) = parse_shortcut(&wanted[slot]) {
-                            let _ = RegisterHotKey(
-                                None,
-                                id,
-                                HOT_KEY_MODIFIERS(mods) | MOD_NOREPEAT,
-                                vk,
-                            );
-                        }
+            let wanted = if crate::utils::clipboard_enabled() {
+                setting("bloom-clipboard-shortcut").unwrap_or_else(|| "Alt+C".into())
+            } else {
+                String::new()
+            };
+            if current.as_deref() != Some(wanted.as_str()) {
+                unsafe {
+                    let _ = UnregisterHotKey(None, CLIP_ID);
+                    if let Some((mods, vk)) = parse_shortcut(&wanted) {
+                        let _ = RegisterHotKey(
+                            None,
+                            CLIP_ID,
+                            HOT_KEY_MODIFIERS(mods) | MOD_NOREPEAT,
+                            vk,
+                        );
                     }
-                    current[slot] = Some(wanted[slot].clone());
                 }
+                current = Some(wanted);
             }
             let mut msg = MSG::default();
             while unsafe { PeekMessageW(&mut msg, None, 0, 0, PM_REMOVE) }.as_bool() {
                 if msg.message == WM_HOTKEY && msg.wParam.0 == CLIP_ID as usize {
                     toggle_from_shortcut(&app);
-                } else if msg.message == WM_HOTKEY && msg.wParam.0 == NOTCH_ID as usize {
-                    let _ = app.emit_to("main", "notch-shortcut", ());
                 }
             }
             std::thread::sleep(Duration::from_millis(100));

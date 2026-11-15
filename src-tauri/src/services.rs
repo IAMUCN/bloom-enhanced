@@ -50,7 +50,8 @@ pub fn setup_keyboard_hook(app_handle: AppHandle) {
             // and costs nothing while the notch is closed).
             let wanted = (NATIVE_TASKBAR_HIDDEN.load(Ordering::Relaxed)
                 && dock_win_number_enabled())
-                || crate::state::NOTCH_OPEN.load(Ordering::Relaxed);
+                || crate::state::NOTCH_OPEN.load(Ordering::Relaxed)
+                || crate::shortcuts::any();
             if wanted != (KEYBOARD_HOOK.load(Ordering::Relaxed) != 0) {
                 // A low-level hook runs on the thread that installed it, which
                 // needs a message loop, so install and remove it on the main thread.
@@ -173,6 +174,15 @@ unsafe extern "system" fn keyboard_hook_proc(
         let vk_code = VIRTUAL_KEY(kb.vkCode as u16);
         let is_down = wparam.0 == WM_KEYDOWN as usize || wparam.0 == WM_SYSKEYDOWN as usize;
         let is_up = wparam.0 == WM_KEYUP as usize || wparam.0 == WM_SYSKEYUP as usize;
+
+        // Global shortcuts (Ctrl + left Alt + key, shortcuts.rs): a match is
+        // swallowed so the focused app doesn't also act on it.
+        if is_down
+            && (kb.flags.0 & LLKHF_INJECTED.0) == 0
+            && crate::shortcuts::on_key_down(kb.vkCode as u16)
+        {
+            return windows::Win32::Foundation::LRESULT(1);
+        }
 
         // Esc steps the open notch back (a list → the Command Center → closed).
         // The key still reaches the focused app. Only read the flag: the

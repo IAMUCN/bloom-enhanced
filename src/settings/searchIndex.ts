@@ -3,6 +3,7 @@
 // row's label starts with when the label itself changes (it holds the trigger
 // key, for example); scripts/searchIndex.test.ts checks every label still
 // exists on its page.
+import { SHORTCUT_ACTIONS } from "../shortcuts";
 import type { SettingsTab } from "./types";
 import { EXTRA_TOOLS } from "../tools";
 
@@ -45,7 +46,6 @@ export const SETTINGS_INDEX: SettingEntry[] = [
 	...page("notch", [
 		["When It Shows", "Fixed, Smart or Peek: when the notch is on screen"],
 		["Open On", "Click or hover opens the notch"],
-		["Notch Shortcut", "Keys that open and close the notch"],
 		["Hover Delay", "How long to rest on the notch before it opens"],
 		["Peek Delay", "How long to rest on the top edge before it shows"],
 		["Style", "Notch, floating pill or minimal bar"],
@@ -118,6 +118,11 @@ export const SETTINGS_INDEX: SettingEntry[] = [
 		["Result Stays For", "How long the result shows (errors a bit longer, Canceled briefly)"],
 		["Your Menu", "Reorder, hide and preview the menu's options and modes"]
 	]),
+	// Settings › Shortcuts: every action (labels from src/shortcuts.ts).
+	...page(
+		"shortcuts",
+		SHORTCUT_ACTIONS.map((a) => [a.label, `Keyboard shortcut · ${a.group}`])
+	),
 	...page("about", [
 		["Auto Update", "Update automatically on startup"],
 		["Check for Updates", "See if a newer LotusNotch is available"],

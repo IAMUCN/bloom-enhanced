@@ -2481,3 +2481,130 @@ button.tools-card-open:hover {
 	outline: 2px solid var(--bloom-accent, #0a84ff);
 	outline-offset: 2px;
 }
+
+/* Settings › Shortcuts */
+.shortcuts-intro {
+	margin: 0 auto 4px;
+	font-size: 12px;
+	line-height: 1.6;
+	color: var(--text-muted);
+}
+
+.shortcuts-intro kbd,
+.shortcut-keys kbd {
+	display: inline-grid;
+	place-items: center;
+	min-width: 18px;
+	height: 20px;
+	padding: 0 6px;
+	box-sizing: border-box;
+	border-radius: 5px;
+	border: 1px solid var(--bloom-border, rgba(255, 255, 255, 0.12));
+	border-bottom-width: 2px;
+	background: rgba(255, 255, 255, 0.06);
+	font: 600 11px/1 "Inter", "Segoe UI", sans-serif;
+	font-variant-numeric: tabular-nums;
+	color: var(--text-color);
+}
+
+.light-mode .shortcuts-intro kbd,
+.light-mode .shortcut-keys kbd {
+	background: rgba(0, 0, 0, 0.04);
+}
+
+.shortcut-row {
+	min-height: 44px;
+	border-bottom: 1px solid var(--bloom-border, rgba(255, 255, 255, 0.06));
+}
+
+.shortcut-row.last {
+	border-bottom: none;
+}
+
+.shortcut-keys {
+	display: inline-flex;
+	gap: 4px;
+}
+
+.shortcut-none {
+	font-size: 12px;
+	color: var(--text-muted);
+}
+
+.shortcut-controls {
+	display: flex;
+	align-items: center;
+	gap: 4px;
+	flex: none;
+}
+
+.shortcut-record {
+	display: flex;
+	align-items: center;
+	justify-content: flex-end;
+	min-width: 132px;
+	height: 30px;
+	padding: 0 8px;
+	border: 1px solid transparent;
+	border-radius: 8px;
+	background: none;
+	color: inherit;
+	font: inherit;
+	cursor: pointer;
+}
+
+.shortcut-record:hover {
+	background: rgba(255, 255, 255, 0.05);
+}
+
+.shortcut-record.recording {
+	border-color: var(--bloom-accent, #0a84ff);
+	background: rgba(10, 132, 255, 0.1);
+}
+
+.shortcut-listening {
+	font-size: 12px;
+	color: var(--bloom-accent, #0a84ff);
+}
+
+.shortcut-icon {
+	display: grid;
+	place-items: center;
+	width: 26px;
+	height: 26px;
+	padding: 0;
+	border: none;
+	border-radius: 7px;
+	background: none;
+	color: var(--text-muted);
+	cursor: pointer;
+}
+
+button.shortcut-icon:hover {
+	background: rgba(255, 255, 255, 0.08);
+	color: var(--text-color);
+}
+
+.shortcut-conflict,
+.shortcut-hint {
+	font-size: 12px;
+	color: #ff9f0a;
+}
+
+.shortcut-conflict button {
+	margin-left: 6px;
+	padding: 0;
+	border: none;
+	background: none;
+	color: var(--bloom-accent, #0a84ff);
+	font: inherit;
+	font-weight: 600;
+	cursor: pointer;
+}
+
+.shortcut-record:focus-visible,
+.shortcut-icon:focus-visible,
+.shortcut-conflict button:focus-visible {
+	outline: 2px solid var(--bloom-accent, #0a84ff);
+	outline-offset: 2px;
+}

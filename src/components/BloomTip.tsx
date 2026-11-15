@@ -18,6 +18,8 @@ const GAP = 6;
 interface Tip {
 	name: string;
 	state?: string;
+	/** The action's keyboard shortcut ("Ctrl+Alt+L"), shown as keycaps. */
+	keys?: string;
 	below: boolean;
 	x: number;
 	y: number;
@@ -37,6 +39,7 @@ export function BloomTip({ root }: { root: React.RefObject<HTMLElement | null> }
 			return {
 				name: el.dataset.tip ?? "",
 				state: el.dataset.tipState || undefined,
+				keys: el.dataset.tipKeys || undefined,
 				below,
 				x: r.left + r.width / 2,
 				y: below ? r.bottom + GAP : r.top - GAP
@@ -143,6 +146,7 @@ export function BloomTip({ root }: { root: React.RefObject<HTMLElement | null> }
 							{tip.state && (
 								<span className={`bloom-tip-state${tip.state === "On" ? " on" : ""}`}> · {tip.state}</span>
 							)}
+							{tip.keys && <span className="bloom-tip-keys">{tip.keys.replace(/\+/g, " ")}</span>}
 						</motion.span>
 					</AnimatePresence>
 				</motion.div>

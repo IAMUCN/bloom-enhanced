@@ -16,7 +16,8 @@ import {
 	ClipboardList,
 	Orbit,
 	Search,
-	RotateCcw
+	RotateCcw,
+	Keyboard
 } from "lucide-react";
 import {
 	useSettings,
@@ -32,6 +33,7 @@ import type { SettingsTab } from "./settings/index";
 import { useAnnouncement } from "./hooks/useAnnouncement";
 import { PickTools } from "./settings/PickTools";
 import { ToolsTab } from "./settings/ToolsTab";
+import { ShortcutsTab } from "./settings/ShortcutsTab";
 import { useSettingsSync } from "./hooks/useSettingsSync";
 import { MAX_TABS, builtInTabCount, parseEnabledTools } from "./tools";
 import { initTheme } from "./theme";
@@ -55,6 +57,7 @@ const NAV: NavItem[][] = [
 	[{ id: "files", label: "Radial Menu", icon: Orbit }],
 	[
 		{ id: "general", label: "General", icon: Settings2 },
+		{ id: "shortcuts", label: "Shortcuts", icon: Keyboard },
 		{ id: "appearance", label: "Appearance", icon: Palette }
 	]
 ];
@@ -65,6 +68,7 @@ const TAB_COPY: Record<SettingsTab, string> = {
 	appearance: "Theme, size and motion for every part of LotusNotch.",
 	notch: "How the notch looks, opens and what its clock bar shows.",
 	tools: "The tools in the notch's tab bar, in their order.",
+	shortcuts: "Keys for the notch, every tool and every quick setting.",
 	dock: "The taskbar replacement at the bottom of the screen.",
 	clipboard: "Everything you copy, kept on this PC.",
 	files: "Convert and act on files from a ring around the pointer.",
@@ -577,6 +581,11 @@ function SettingsApp() {
 								page={toolPage}
 								setPage={setToolPage}
 							/>
+						</section>
+					)}
+					{shown === "shortcuts" && (
+						<section data-tab="shortcuts">
+							<ShortcutsTab saveSetting={settings.saveSetting} />
 						</section>
 					)}
 					{shown === "about" && (

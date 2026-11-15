@@ -33,3 +33,14 @@
 .bloom-tip-state.on {
 	color: #5b9bff;
 }
+
+.bloom-tip-keys {
+	margin-left: 8px;
+	padding: 1px 5px;
+	border-radius: 4px;
+	background: rgba(255, 255, 255, 0.08);
+	font-size: 10px;
+	font-weight: 600;
+	color: rgba(255, 255, 255, 0.7);
+	font-variant-numeric: tabular-nums;
+}

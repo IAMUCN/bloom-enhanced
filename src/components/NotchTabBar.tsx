@@ -1,6 +1,7 @@
 import { motion } from "framer-motion";
 import { useEffect, useRef } from "react";
 import { BOUNCY, SNAP } from "../motion";
+import { shortcutHint } from "../shortcutKeys";
 import type { Tool } from "../tools";
 import "./NotchTabBar.css";
 
@@ -57,6 +58,7 @@ export function NotchTabBar({
 						aria-label={label}
 						data-tip={label}
 						data-tip-place="below"
+						data-tip-keys={shortcutHint(`tool:${id}`) || undefined}
 						whileTap={{ scale: 0.9, transition: SNAP }}
 						transition={BOUNCY}
 						tabIndex={on ? 0 : -1}

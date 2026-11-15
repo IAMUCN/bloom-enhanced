@@ -13,6 +13,7 @@ mod perf;
 mod services;
 mod shelf;
 mod shelf_preview;
+mod shortcuts;
 mod state;
 mod system_tools;
 mod tool_data;
@@ -221,6 +222,7 @@ fn main() {
             system_tools::ocr_clipboard,
             system_tools::cc_states,
             system_tools::cc_toggle,
+            shortcuts::set_shortcuts_paused,
             focus_window,
             focus_app_windows,
             close_window,
@@ -292,6 +294,7 @@ fn main() {
             crate::utils::init_settings_cache(app.handle());
             clipboard::start(app.handle().clone());
             clipboard::start_shortcut(app.handle().clone());
+            shortcuts::start(app.handle().clone());
             orbit::start(app.handle().clone());
             // Crash-recovery: if a previous session was force-killed while the native
             // taskbar was hidden, restore it now. Runs before the frontend re-hides it
