@@ -114,6 +114,41 @@ pub struct SystemStats {
     /// Bytes per second received and sent since the previous call.
     net_down: f64,
     net_up: f64,
+    /// The Windows drive: free and total bytes.
+    disk_free: u64,
+    disk_total: u64,
+    /// Battery percent (None on a desktop) and whether it's charging.
+    battery: Option<u8>,
+    charging: bool,
+}
+
+/// Free and total bytes on the drive Windows is on.
+fn disk_space() -> (u64, u64) {
+    use windows::Win32::Storage::FileSystem::GetDiskFreeSpaceExW;
+    let root = std::env::var("SystemDrive").unwrap_or_else(|_| "C:".into()) + "\\";
+    let wide: Vec<u16> = root.encode_utf16().chain(Some(0)).collect();
+    let (mut free, mut total) = (0u64, 0u64);
+    unsafe {
+        let _ = GetDiskFreeSpaceExW(
+            windows::core::PCWSTR(wide.as_ptr()),
+            Some(&mut free),
+            Some(&mut total),
+            None,
+        );
+    }
+    (free, total)
+}
+
+fn battery_state() -> (Option<u8>, bool) {
+    use windows::Win32::System::Power::{GetSystemPowerStatus, SYSTEM_POWER_STATUS};
+    let mut st = SYSTEM_POWER_STATUS::default();
+    if unsafe { GetSystemPowerStatus(&mut st) }.is_err()
+        || st.BatteryFlag == 128
+        || st.BatteryLifePercent > 100
+    {
+        return (None, false);
+    }
+    (Some(st.BatteryLifePercent), st.ACLineStatus == 1)
 }
 
 /// Previous (idle, kernel, user, net in, net out, time ms) for the deltas.
@@ -228,12 +263,18 @@ pub fn system_stats() -> SystemStats {
         None => (0.0, 0.0, 0.0),
     };
     *prev = Some((idle, kernel, user, down, up, now));
+    let (disk_free, disk_total) = disk_space();
+    let (battery, charging) = battery_state();
     SystemStats {
         cpu: cpu_utility().unwrap_or(cpu),
         mem_used: mem.ullTotalPhys - mem.ullAvailPhys,
         mem_total: mem.ullTotalPhys,
         net_down,
         net_up,
+        disk_free,
+        disk_total,
+        battery,
+        charging,
     }
 }
 
@@ -883,5 +924,242 @@ mod cc_tests {
         assert_eq!(off[18], 0x13);
         assert_eq!(&off[19..], &OFF[19..]);
         assert!(night_light_flip(&[0u8; 10]).is_none());
+    }
+}
+
+// ------------------------------------------------------------ Output switch
+//
+// Mirror's speaker list. Windows has no public API to change the default
+// output; the Settings app uses the PolicyConfig COM object, as every output
+// switcher does.
+
+#[windows::core::interface("f8679f50-850a-41cf-9c72-430f290290c8")]
+unsafe trait IPolicyConfig: windows::core::IUnknown {
+    fn get_mix_format(
+        &self,
+        id: windows::core::PCWSTR,
+        f: *mut *mut core::ffi::c_void,
+    ) -> windows::core::HRESULT;
+    fn get_device_format(
+        &self,
+        id: windows::core::PCWSTR,
+        d: i32,
+        f: *mut *mut core::ffi::c_void,
+    ) -> windows::core::HRESULT;
+    fn reset_device_format(&self, id: windows::core::PCWSTR) -> windows::core::HRESULT;
+    fn set_device_format(
+        &self,
+        id: windows::core::PCWSTR,
+        a: *mut core::ffi::c_void,
+        b: *mut core::ffi::c_void,
+    ) -> windows::core::HRESULT;
+    fn get_processing_period(
+        &self,
+        id: windows::core::PCWSTR,
+        d: i32,
+        a: *mut i64,
+        b: *mut i64,
+    ) -> windows::core::HRESULT;
+    fn set_processing_period(
+        &self,
+        id: windows::core::PCWSTR,
+        a: *mut i64,
+    ) -> windows::core::HRESULT;
+    fn get_share_mode(
+        &self,
+        id: windows::core::PCWSTR,
+        m: *mut core::ffi::c_void,
+    ) -> windows::core::HRESULT;
+    fn set_share_mode(
+        &self,
+        id: windows::core::PCWSTR,
+        m: *mut core::ffi::c_void,
+    ) -> windows::core::HRESULT;
+    fn get_property_value(
+        &self,
+        id: windows::core::PCWSTR,
+        k: *const core::ffi::c_void,
+        v: *mut core::ffi::c_void,
+    ) -> windows::core::HRESULT;
+    fn set_property_value(
+        &self,
+        id: windows::core::PCWSTR,
+        k: *const core::ffi::c_void,
+        v: *mut core::ffi::c_void,
+    ) -> windows::core::HRESULT;
+    fn set_default_endpoint(&self, id: windows::core::PCWSTR, role: i32) -> windows::core::HRESULT;
+    fn set_endpoint_visibility(
+        &self,
+        id: windows::core::PCWSTR,
+        visible: i32,
+    ) -> windows::core::HRESULT;
+}
+
+#[derive(serde::Serialize)]
+pub struct AudioOutput {
+    id: String,
+    name: String,
+    default: bool,
+}
+
+fn device_enumerator() -> Result<windows::Win32::Media::Audio::IMMDeviceEnumerator, String> {
+    use windows::Win32::System::Com::{
+        CoCreateInstance, CoInitializeEx, CLSCTX_ALL, COINIT_MULTITHREADED,
+    };
+    unsafe {
+        let _ = CoInitializeEx(None, COINIT_MULTITHREADED);
+        CoCreateInstance(
+            &windows::Win32::Media::Audio::MMDeviceEnumerator,
+            None,
+            CLSCTX_ALL,
+        )
+        .map_err(|e| e.to_string())
+    }
+}
+
+fn device_id(device: &windows::Win32::Media::Audio::IMMDevice) -> Option<String> {
+    unsafe {
+        let id = device.GetId().ok()?;
+        let s = id.to_string().ok();
+        windows::Win32::System::Com::CoTaskMemFree(Some(id.0 as *const _));
+        s
+    }
+}
+
+/// The active speakers / headphones, the default one marked.
+#[tauri::command]
+pub async fn audio_outputs() -> Result<Vec<AudioOutput>, String> {
+    tauri::async_runtime::spawn_blocking(|| {
+        use windows::Win32::Devices::FunctionDiscovery::PKEY_Device_FriendlyName;
+        use windows::Win32::Media::Audio::{eConsole, eRender, DEVICE_STATE_ACTIVE};
+        let en = device_enumerator()?;
+        unsafe {
+            let default = en
+                .GetDefaultAudioEndpoint(eRender, eConsole)
+                .ok()
+                .and_then(|d| device_id(&d));
+            let list = en
+                .EnumAudioEndpoints(eRender, DEVICE_STATE_ACTIVE)
+                .map_err(|e| e.to_string())?;
+            let mut out = Vec::new();
+            for i in 0..list.GetCount().map_err(|e| e.to_string())? {
+                let Ok(device) = list.Item(i) else { continue };
+                let Some(id) = device_id(&device) else {
+                    continue;
+                };
+                let name = crate::jack::string_prop(&device, &PKEY_Device_FriendlyName)
+                    .unwrap_or_else(|| "Speakers".into());
+                out.push(AudioOutput {
+                    default: default.as_deref() == Some(id.as_str()),
+                    id,
+                    name,
+                });
+            }
+            Ok(out)
+        }
+    })
+    .await
+    .map_err(|e| e.to_string())?
+}
+
+/// Makes `id` the default output for everything (console, media, calls).
+#[tauri::command]
+pub async fn set_audio_output(id: String) -> Result<(), String> {
+    tauri::async_runtime::spawn_blocking(move || {
+        use windows::Win32::System::Com::{
+            CoCreateInstance, CoInitializeEx, CLSCTX_ALL, COINIT_MULTITHREADED,
+        };
+        const CLSID: windows::core::GUID =
+            windows::core::GUID::from_u128(0x870af99c_171d_4f9e_af0d_e63df40c2bc9);
+        let wide: Vec<u16> = id.encode_utf16().chain(Some(0)).collect();
+        unsafe {
+            let _ = CoInitializeEx(None, COINIT_MULTITHREADED);
+            let policy: IPolicyConfig =
+                CoCreateInstance(&CLSID, None, CLSCTX_ALL).map_err(|e| e.to_string())?;
+            for role in 0..3 {
+                policy
+                    .set_default_endpoint(windows::core::PCWSTR(wide.as_ptr()), role)
+                    .ok()
+                    .map_err(|e| e.to_string())?;
+            }
+        }
+        Ok(())
+    })
+    .await
+    .map_err(|e| e.to_string())?
+}
+
+/// Teleprompter: hides the notch from screen shares and recordings while it
+/// shows (the window stays visible to you), and gives it back after.
+#[tauri::command]
+pub fn set_capture_excluded(window: tauri::WebviewWindow, excluded: bool) -> Result<(), String> {
+    use windows::Win32::UI::WindowsAndMessaging::{
+        SetWindowDisplayAffinity, WDA_EXCLUDEFROMCAPTURE, WDA_NONE,
+    };
+    let hwnd = window.hwnd().map_err(|e| e.to_string())?;
+    unsafe {
+        SetWindowDisplayAffinity(
+            hwnd,
+            if excluded {
+                WDA_EXCLUDEFROMCAPTURE
+            } else {
+                WDA_NONE
+            },
+        )
+    }
+    .map_err(|e| e.to_string())
+}
+
+/// GPU 3D load like Task Manager: the 3D engines' "Utilization Percentage",
+/// summed over their per-process instances. None until a second sample, or
+/// when the counter isn't available.
+#[tauri::command]
+pub fn gpu_usage() -> Option<f64> {
+    use windows::Win32::System::Performance::{
+        PdhAddEnglishCounterW, PdhCollectQueryData, PdhGetFormattedCounterArrayW, PdhOpenQueryW,
+        PDH_FMT_COUNTERVALUE_ITEM_W, PDH_FMT_DOUBLE, PDH_HCOUNTER, PDH_HQUERY, PDH_MORE_DATA,
+    };
+    static PDH: Mutex<Option<(usize, usize)>> = Mutex::new(None);
+    let mut pdh = PDH.lock().ok()?;
+    unsafe {
+        if pdh.is_none() {
+            let mut query = PDH_HQUERY::default();
+            if PdhOpenQueryW(None, 0, &mut query) != 0 {
+                return None;
+            }
+            let mut counter = PDH_HCOUNTER::default();
+            if PdhAddEnglishCounterW(
+                query,
+                windows::core::w!(r"\GPU Engine(*engtype_3D)\Utilization Percentage"),
+                0,
+                &mut counter,
+            ) != 0
+            {
+                return None;
+            }
+            PdhCollectQueryData(query);
+            *pdh = Some((query.0 as usize, counter.0 as usize));
+            return None;
+        }
+        let (query, counter) = (*pdh)?;
+        PdhCollectQueryData(PDH_HQUERY(query as *mut _));
+        let counter = PDH_HCOUNTER(counter as *mut _);
+        let (mut size, mut count) = (0u32, 0u32);
+        if PdhGetFormattedCounterArrayW(counter, PDH_FMT_DOUBLE, &mut size, &mut count, None)
+            != PDH_MORE_DATA
+        {
+            return None;
+        }
+        // u64s: the items hold f64s, so the buffer must be 8-byte aligned.
+        let mut buf = vec![0u64; (size as usize).div_ceil(8)];
+        let items = buf.as_mut_ptr() as *mut PDH_FMT_COUNTERVALUE_ITEM_W;
+        if PdhGetFormattedCounterArrayW(counter, PDH_FMT_DOUBLE, &mut size, &mut count, Some(items))
+            != 0
+        {
+            return None;
+        }
+        let items = std::slice::from_raw_parts(items, count as usize);
+        let total: f64 = items.iter().map(|i| i.FmtValue.Anonymous.doubleValue).sum();
+        Some(total.clamp(0.0, 100.0))
     }
 }

@@ -249,3 +249,338 @@ textarea.nt-input {
 	letter-spacing: 0.06em;
 	color: #ffc94d;
 }
+
+/* System monitor (user's reference): one card, a row per reading. */
+.sm-card {
+	display: flex;
+	flex-direction: column;
+	padding: 2px 14px;
+	border-radius: 14px;
+	background: color-mix(in srgb, var(--bloom-text, #fff) 4%, transparent);
+	border: 1px solid color-mix(in srgb, var(--bloom-text, #fff) 8%, transparent);
+}
+
+.sm-row {
+	display: grid;
+	grid-template-columns: 16px 76px 1fr auto;
+	align-items: center;
+	gap: 12px;
+	height: 34px;
+}
+
+.sm-row + .sm-row {
+	border-top: 1px solid color-mix(in srgb, var(--bloom-text, #fff) 7%, transparent);
+}
+
+.sm-icon {
+	color: var(--bloom-text-secondary, #a1a1aa);
+}
+
+.sm-label {
+	font-size: 13px;
+	font-weight: 500;
+	color: var(--bloom-text-secondary, #c7c7cc);
+}
+
+.sm-mid {
+	display: flex;
+	align-items: center;
+	gap: 18px;
+	min-width: 0;
+}
+
+.sm-track {
+	position: relative;
+	flex: 1;
+	height: 5px;
+	border-radius: 3px;
+	background: color-mix(in srgb, var(--bloom-text, #fff) 12%, transparent);
+	overflow: hidden;
+}
+
+.sm-fill {
+	position: absolute;
+	inset: 0;
+	border-radius: 3px;
+	background: color-mix(in srgb, var(--bloom-text, #fff) 85%, transparent);
+	transform-origin: left center;
+	transition: transform 0.4s ease;
+}
+
+.sm-value {
+	min-width: 64px;
+	text-align: right;
+	font-size: 12px;
+	font-weight: 600;
+	font-variant-numeric: tabular-nums;
+}
+
+.sm-value.faint {
+	min-width: 0;
+}
+
+.sm-net {
+	display: flex;
+	align-items: center;
+	gap: 6px;
+	white-space: nowrap;
+	font-size: 12px;
+	font-variant-numeric: tabular-nums;
+}
+
+.sm-net strong {
+	font-weight: 600;
+}
+
+.sm-arrow,
+.sm-spark {
+	flex: none;
+	color: var(--bloom-text-secondary, #a1a1aa);
+}
+
+/* Mirror: the camera on the left, mic and speakers on the right. */
+.mirror {
+	display: grid;
+	grid-template-columns: 1.15fr 1fr;
+	gap: 14px;
+	flex: 1;
+	min-height: 0;
+}
+
+.mirror-camera {
+	position: relative;
+	border-radius: 14px;
+	overflow: hidden;
+	background: #111;
+	min-height: 0;
+}
+
+.mirror-video {
+	width: 100%;
+	height: 100%;
+	object-fit: cover;
+	transform: scaleX(-1); /* a mirror */
+	display: block;
+}
+
+.mirror-camera-off {
+	position: absolute;
+	inset: 0;
+	display: flex;
+	flex-direction: column;
+	align-items: center;
+	justify-content: center;
+	gap: 6px;
+	color: var(--bloom-text-secondary, #a1a1aa);
+	font-size: 11px;
+	text-align: center;
+	padding: 8px;
+}
+
+.mirror-camera-name {
+	position: absolute;
+	left: 8px;
+	bottom: 8px;
+	max-width: calc(100% - 16px);
+	display: flex;
+	align-items: center;
+	gap: 5px;
+	padding: 3px 8px;
+	border: none;
+	border-radius: 999px;
+	background: rgba(0, 0, 0, 0.6);
+	color: #fff;
+	font: 500 10px/1.2 "Inter", "Segoe UI", sans-serif;
+	cursor: pointer;
+}
+
+.mirror-camera-name span {
+	overflow: hidden;
+	white-space: nowrap;
+	text-overflow: ellipsis;
+}
+
+.mirror-side {
+	display: flex;
+	flex-direction: column;
+	gap: 8px;
+	min-width: 0;
+}
+
+.mirror-title {
+	font-size: 12px;
+	font-weight: 600;
+	margin-bottom: 5px;
+}
+
+.mirror-meter {
+	position: relative;
+	height: 5px;
+	border-radius: 3px;
+	background: color-mix(in srgb, var(--bloom-text, #fff) 12%, transparent);
+	overflow: hidden;
+}
+
+.mirror-meter-fill {
+	position: absolute;
+	inset: 0;
+	background: #30d158;
+	transform-origin: left center;
+}
+
+.mirror-outputs {
+	display: flex;
+	flex-direction: column;
+	gap: 3px;
+	overflow-y: auto;
+	min-height: 0;
+	flex: 1;
+	scrollbar-width: none;
+}
+
+.mirror-output {
+	display: flex;
+	align-items: center;
+	gap: 7px;
+	padding: 5px 8px;
+	border: none;
+	border-radius: 8px;
+	background: none;
+	color: var(--bloom-text-secondary, #a1a1aa);
+	font: 500 11px/1.2 "Inter", "Segoe UI", sans-serif;
+	text-align: left;
+	cursor: pointer;
+}
+
+.mirror-output span {
+	overflow: hidden;
+	white-space: nowrap;
+	text-overflow: ellipsis;
+}
+
+.mirror-output.on {
+	background: color-mix(in srgb, var(--bloom-text, #fff) 9%, transparent);
+	color: var(--bloom-text, #fff);
+}
+
+.mirror-camera-name:focus-visible,
+.mirror-output:focus-visible {
+	outline: 2px solid var(--bloom-accent, #0a84ff);
+	outline-offset: 1px;
+}
+
+/* Teleprompter */
+.tp {
+	display: flex;
+	flex-direction: column;
+	gap: 10px;
+	flex: 1;
+	min-height: 0;
+}
+
+.tp-view {
+	position: relative;
+	flex: 1;
+	min-height: 0;
+	overflow: hidden;
+	-webkit-mask-image: linear-gradient(transparent, #000 18%, #000 82%, transparent);
+	mask-image: linear-gradient(transparent, #000 18%, #000 82%, transparent);
+	cursor: text;
+}
+
+.tp-text {
+	padding: 24px 12px 0;
+	text-align: center;
+	font-weight: 600;
+	line-height: 1.35;
+	white-space: pre-wrap;
+	will-change: transform;
+}
+
+.tp-empty {
+	color: var(--bloom-text-secondary, #a1a1aa);
+}
+
+.tp-edit {
+	flex: 1;
+	min-height: 0;
+	resize: none;
+	font-size: 13px;
+	line-height: 1.5;
+}
+
+.tp-controls {
+	display: flex;
+	align-items: center;
+	justify-content: center;
+	gap: 10px;
+	flex: none;
+}
+
+.tp-round {
+	width: 32px;
+	height: 32px;
+	border-radius: 50% !important;
+	justify-content: center;
+}
+
+.tp-play {
+	width: 38px;
+	height: 38px;
+	background: #fff !important;
+	color: #000 !important;
+}
+
+.tp-slider {
+	display: flex;
+	align-items: center;
+	gap: 6px;
+	color: var(--bloom-text-secondary, #a1a1aa);
+}
+
+.tp-slider input {
+	width: 110px;
+	accent-color: #fff;
+}
+
+/* Game strip: one row of big readings. */
+.gs {
+	display: flex;
+	align-items: center;
+	justify-content: center;
+	gap: 10px;
+	flex: 1;
+}
+
+.gs-cell {
+	display: grid;
+	grid-template-columns: auto auto;
+	grid-template-rows: auto auto;
+	column-gap: 6px;
+	align-items: center;
+	padding: 8px 12px;
+	border-radius: 12px;
+	background: color-mix(in srgb, var(--bloom-text, #fff) 5%, transparent);
+	min-width: 74px;
+}
+
+.gs-icon {
+	grid-row: span 2;
+	color: #b6f36b;
+}
+
+.gs-value {
+	font-size: 17px;
+	font-weight: 700;
+	font-variant-numeric: tabular-nums;
+}
+
+.gs-label {
+	font-size: 10px;
+	color: var(--bloom-text-secondary, #a1a1aa);
+}
+
+.gs-bar {
+	height: 44px;
+	border-radius: 12px !important;
+}

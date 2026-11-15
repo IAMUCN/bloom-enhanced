@@ -4,6 +4,7 @@ import { EXTRA_TOOLS, PARTS, orderTabs, parseEnabledTools } from "../src/tools";
 test("old tool ids move to the tool that holds them now", () => {
 	expect(parseEnabledTools('["ocr","snip","note","calc","todo","nope"]')).toEqual(["capture", "notes", "calculator", "todo"]);
 	expect(parseEnabledTools('["capture","ocr"]')).toEqual(["capture"]);
+	expect(parseEnabledTools('["meeting"]')).toEqual(["mirror"]); // Meeting became Mirror
 });
 
 test("every part belongs to exactly one tool", () => {

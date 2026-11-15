@@ -25,7 +25,9 @@ import {
 	StickyNote,
 	TextQuote,
 	Activity,
-	MicOff,
+	ScanFace,
+	AlignCenter,
+	Gamepad2,
 	Bell,
 	Timer,
 	type LucideIcon
@@ -102,7 +104,9 @@ export type PartId =
 	| "units"
 	| "monitor"
 	| "power"
-	| "meeting"
+	| "mirror"
+	| "teleprompter"
+	| "game"
 	| "awake"
 	| "emoji"
 	| "launch"
@@ -119,9 +123,11 @@ export const PARTS: Record<PartId, PartTool> = {
 	stopwatch: { id: "stopwatch", label: "Timer", icon: Timer, color: "#FFC94D", size: ["M", "M"], desc: "Timer, stopwatch and Pomodoro focus/break cycles", load: () => import("./notchTools/Stopwatch") },
 	calc: { id: "calc", label: "Calculator", icon: Calculator, color: "#9DB4FF", size: ["S", "L"], desc: "Type or tap; click the result to copy", load: () => import("./notchTools/Calc") },
 	units: { id: "units", label: "Units", icon: Ruler, color: "#8BE3F5", size: ["M", "S"], desc: "Length, weight, temperature, data", load: () => import("./notchTools/Units") },
-	monitor: { id: "monitor", label: "Monitor", icon: Activity, color: "#57D9A3", size: ["L", "S"], desc: "CPU, memory and network", load: () => import("./notchTools/SystemMonitor") },
+	monitor: { id: "monitor", label: "Monitor", icon: Activity, color: "#57D9A3", size: ["M", "M"], desc: "CPU, memory, disk, network and battery", load: () => import("./notchTools/SystemMonitor") },
 	power: { id: "power", label: "Power", icon: Gauge, color: "#FFD25A", size: ["M", "S"], desc: "Windows power modes in one tap", load: () => import("./notchTools/PowerModes") },
-	meeting: { id: "meeting", label: "Meeting", icon: MicOff, color: "#FF7A70", size: ["M", "S"], desc: "Mute the microphone everywhere", load: () => import("./notchTools/Meeting") },
+	teleprompter: { id: "teleprompter", label: "Teleprompter", icon: AlignCenter, color: "#E6E6E6", size: ["M", "L"], desc: "Your script scrolls under the camera; hidden from screen shares and recordings", load: () => import("./notchTools/Teleprompter") },
+	game: { id: "game", label: "Game strip", icon: Gamepad2, color: "#B6F36B", size: ["M", "S"], desc: "CPU, GPU, memory and the time at a glance; opens the Game Bar", load: () => import("./notchTools/GameStrip") },
+	mirror: { id: "mirror", label: "Mirror", icon: ScanFace, color: "#FF7A70", size: ["M", "L"], desc: "See your camera, check the mic, mute it for every app, pick and test speakers", load: () => import("./notchTools/Mirror") },
 	awake: { id: "awake", label: "Keep awake", icon: Coffee, color: "#FFB347", size: ["S", "S"], desc: "Stop the PC sleeping for a while", load: () => import("./notchTools/KeepAwake") },
 	emoji: { id: "emoji", label: "Emoji", icon: Smile, color: "#FFD166", size: ["M", "M"], desc: "Click an emoji to copy it", load: () => import("./notchTools/Emoji") },
 	launch: { id: "launch", label: "Sets", icon: Rocket, color: "#C3A6FF", size: ["M", "S"], desc: "Open a set of apps together", load: () => import("./notchTools/MultiLaunch") },
@@ -148,7 +154,9 @@ export type ExtraToolId =
 	| "todo"
 	| "reminders"
 	| "stopwatch"
-	| "meeting";
+	| "mirror"
+	| "teleprompter"
+	| "game";
 
 const ORDER = ["S", "M", "L"] as const;
 const largest = <T extends "S" | "M" | "L">(xs: T[]) => xs.reduce((a, b) => (ORDER.indexOf(b) > ORDER.indexOf(a) ? b : a));
@@ -162,25 +170,29 @@ const tool = (id: ExtraToolId, label: string, icon: LucideIcon, color: string, d
 	size: [largest(parts.map((p) => PARTS[p].size[0])), largest(parts.map((p) => PARTS[p].size[1]))]
 });
 
-/** The tabs. To-dos, Reminders, Stopwatch and Meeting join Day later. */
+/** The tabs. To-dos, Reminders and Timer join Day later. */
 export const EXTRA_TOOLS: ExtraTool[] = [
 	tool("capture", "Capture", Scissors, "#FF7AB8", "Snip, record, read text (OCR) and pick colours from the screen", ["snip", "ocr", "picker"]),
 	tool("notes", "Notes", StickyNote, "#FFE066", "A quick note and your saved snippets", ["note", "snippets"]),
 	tool("launcher", "Launcher", Search, "#C3A6FF", "Search apps, open app sets, copy emoji", ["apps", "launch", "emoji"]),
 	tool("calculator", "Calculator", Calculator, "#9DB4FF", "Calculator and unit converter", ["calc", "units"]),
-	tool("system", "System", Activity, "#57D9A3", "CPU, memory and network; power modes; keep awake", ["monitor", "power", "awake"]),
+	tool("system", "System", Activity, "#57D9A3", "CPU, memory, disk, network and battery; power modes; keep awake", ["monitor", "power", "awake"]),
 	tool("todo", "To-dos", ListChecks, "#7EE081", PARTS.todo.desc, ["todo"]),
 	tool("reminders", "Reminders", Bell, "#FF8F8F", PARTS.reminders.desc, ["reminders"]),
 	tool("stopwatch", "Timer", Timer, "#FFC94D", PARTS.stopwatch.desc, ["stopwatch"]),
-	tool("meeting", "Meeting", MicOff, "#FF7A70", PARTS.meeting.desc, ["meeting"])
+	tool("mirror", "Mirror", ScanFace, "#FF7A70", PARTS.mirror.desc, ["mirror"]),
+	tool("teleprompter", "Teleprompter", AlignCenter, "#E6E6E6", PARTS.teleprompter.desc, ["teleprompter"]),
+	tool("game", "Game strip", Gamepad2, "#B6F36B", PARTS.game.desc, ["game"])
 ];
 
 export const EXTRA_BY_ID = Object.fromEntries(EXTRA_TOOLS.map((t) => [t.id, t])) as Record<ExtraToolId, ExtraTool>;
 
 /** Old tool ids → the tool they're part of now (users who had them on). */
-export const MERGED_INTO: Record<string, ExtraToolId> = Object.fromEntries(
-	EXTRA_TOOLS.flatMap((t) => t.parts.map((p) => [p, t.id]))
-);
+export const MERGED_INTO: Record<string, ExtraToolId> = {
+	...Object.fromEntries(EXTRA_TOOLS.flatMap((t) => t.parts.map((p) => [p, t.id]))),
+	// Meeting (mic mute) became part of Mirror.
+	meeting: "mirror"
+};
 
 /** The tool that holds a part (for shortcuts like OCR). */
 export const toolOfPart = (part: PartId): ExtraToolId => MERGED_INTO[part];
