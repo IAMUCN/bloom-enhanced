@@ -23,7 +23,12 @@ type State = {
 	/** The start time of the run that just finished, so the notch rings for
 	 *  it even if this tab saw the end first. */
 	finishedFor?: number | null;
+	/** When the last run ended: TIME'S UP shows for a while, then the timer
+	 *  is back to its full length. */
+	finishedAt?: number | null;
 };
+/** How long TIME'S UP stays before the timer resets itself. */
+const TIMES_UP_MS = 12_000;
 const MIN = 60_000;
 const FOCUS = 25 * MIN;
 const BREAK = 5 * MIN;
@@ -64,7 +69,12 @@ export default function Stopwatch() {
 	// timer stops at zero.
 	useEffect(() => {
 		if (s.mode === "pomodoro" && s.phaseAt && elapsed >= length) set((p) => ({ ...p, phase: p.phase + 1, phaseAt: null, phaseDone: 0 }));
-		if (s.timerAt && timerLeft <= 0) set((p) => ({ ...p, timerAt: null, timerDone: p.timerLength ?? 5 * MIN, finishedFor: p.timerAt }));
+		if (s.timerAt && timerLeft <= 0)
+			set((p) => ({ ...p, timerAt: null, timerDone: p.timerLength ?? 5 * MIN, finishedFor: p.timerAt, finishedAt: Date.now() }));
+		// After TIME'S UP has shown for a while, back to a fresh timer.
+		if (!s.timerAt && s.finishedAt && now - s.finishedAt > TIMES_UP_MS) set((p) => ({ ...p, timerDone: 0, finishedAt: null }));
+		// A run that ended before finishedAt existed: reset it the same way.
+		if (!s.timerAt && !s.finishedAt && (s.timerDone ?? 0) >= timerLength) set((p) => ({ ...p, timerDone: 0 }));
 	});
 
 	const running = s.mode === "stopwatch" ? s.startedAt !== null : s.mode === "pomodoro" ? s.phaseAt !== null : !!s.timerAt;
@@ -77,7 +87,7 @@ export default function Stopwatch() {
 			// Timer: a finished one starts over.
 			const len = p.timerLength ?? 5 * MIN;
 			if (p.timerAt) return { ...p, timerAt: null, timerDone: (p.timerDone ?? 0) + Date.now() - p.timerAt };
-			return { ...p, timerAt: Date.now(), timerDone: (p.timerDone ?? 0) >= len ? 0 : (p.timerDone ?? 0) };
+			return { ...p, timerAt: Date.now(), timerDone: (p.timerDone ?? 0) >= len ? 0 : (p.timerDone ?? 0), finishedAt: null };
 		});
 	const reset = () =>
 		set((p) =>
@@ -85,10 +95,10 @@ export default function Stopwatch() {
 				? { ...p, startedAt: null, banked: 0 }
 				: p.mode === "pomodoro"
 					? { ...p, phaseAt: null, phaseDone: 0, phase: 0 }
-					: { ...p, timerAt: null, timerDone: 0 }
+					: { ...p, timerAt: null, timerDone: 0, finishedAt: null }
 		);
 	const setLength = (minutes: number) =>
-		set((p) => ({ ...p, timerLength: Math.max(1, Math.min(180, minutes)) * MIN, timerAt: null, timerDone: 0 }));
+		set((p) => ({ ...p, timerLength: Math.max(1, Math.min(180, minutes)) * MIN, timerAt: null, timerDone: 0, finishedAt: null }));
 
 	const big =
 		s.mode === "stopwatch"
@@ -104,7 +114,7 @@ export default function Stopwatch() {
 					? "Long break"
 					: "Break"
 			: s.mode === "timer"
-				? timerLeft <= 0
+				? s.finishedAt && now - s.finishedAt <= TIMES_UP_MS
 					? "Time's up"
 					: running
 						? "Running"

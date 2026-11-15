@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
 import { invoke } from "@tauri-apps/api/core";
-import { Clock, Cpu, Eye, EyeOff, Gamepad2, MemoryStick, MonitorPlay } from "lucide-react";
+import { Clock, Cpu, Gamepad2, MemoryStick, MonitorPlay } from "lucide-react";
 
 type Stats = { cpu: number; mem_used: number; mem_total: number };
 
@@ -38,25 +38,30 @@ export default function GameStrip() {
 	];
 	return (
 		<div className="gs">
-			{cells.map(([Icon, label, value]) => (
-				<div key={label} className="gs-cell">
-					<Icon size={14} className="gs-icon" />
-					<span className="gs-value">{value}</span>
-					<span className="gs-label">{label}</span>
-				</div>
-			))}
-			<button
-				type="button"
-				className={`nt-btn gs-bar gs-glance${glance ? " on" : ""}`}
-				aria-pressed={glance}
-				title={glance ? "On: time, CPU, GPU and RAM stay on the closed notch" : "Off: readings show only here"}
-				onClick={toggleGlance}
-			>
-				{glance ? <Eye size={14} /> : <EyeOff size={14} />} {glance ? "On notch" : "Off"}
-			</button>
-			<button type="button" className="nt-btn gs-bar" onClick={() => invoke("open_app", { appName: "ms-gamebar:" }).catch(() => {})}>
-				<Gamepad2 size={14} /> Game Bar
-			</button>
+			<div className="gs-cells">
+				{cells.map(([Icon, label, value]) => (
+					<div key={label} className="gs-cell">
+						<Icon size={14} className="gs-icon" />
+						<span className="gs-value">{value}</span>
+						<span className="gs-label">{label}</span>
+					</div>
+				))}
+			</div>
+			<div className="gs-actions">
+				<label className="gs-switch">
+					<input type="checkbox" role="switch" checked={glance} onChange={toggleGlance} />
+					<span className="gs-switch-track" aria-hidden />
+					<span>Show on the closed notch</span>
+				</label>
+				<button
+					type="button"
+					className="gs-link"
+					title="Windows' Game Bar: capture, performance and FPS"
+					onClick={() => invoke("open_app", { appName: "ms-gamebar:" }).catch(() => {})}
+				>
+					<Gamepad2 size={13} /> Open Xbox Game Bar <kbd>Win+G</kbd>
+				</button>
+			</div>
 		</div>
 	);
 }

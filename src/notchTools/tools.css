@@ -574,25 +574,32 @@ textarea.nt-input {
 	accent-color: #fff;
 }
 
-/* Game strip: one row of big readings. */
+/* Game strip: four readings in one even row, the options below. */
 .gs {
 	display: flex;
-	align-items: center;
+	flex-direction: column;
 	justify-content: center;
 	gap: 10px;
 	flex: 1;
+	min-height: 0;
+}
+
+.gs-cells {
+	display: grid;
+	grid-template-columns: repeat(4, minmax(0, 1fr));
+	gap: 8px;
 }
 
 .gs-cell {
 	display: grid;
-	grid-template-columns: auto auto;
+	grid-template-columns: auto 1fr;
 	grid-template-rows: auto auto;
-	column-gap: 6px;
+	column-gap: 8px;
 	align-items: center;
-	padding: 8px 12px;
+	padding: 8px 10px;
 	border-radius: 12px;
 	background: color-mix(in srgb, var(--bloom-text, #fff) 5%, transparent);
-	min-width: 74px;
+	min-width: 0;
 }
 
 .gs-icon {
@@ -601,9 +608,12 @@ textarea.nt-input {
 }
 
 .gs-value {
-	font-size: 17px;
+	font-size: 16px;
 	font-weight: 700;
 	font-variant-numeric: tabular-nums;
+	white-space: nowrap;
+	overflow: hidden;
+	text-overflow: ellipsis;
 }
 
 .gs-label {
@@ -611,11 +621,86 @@ textarea.nt-input {
 	color: var(--bloom-text-secondary, #a1a1aa);
 }
 
-.gs-bar {
-	height: 44px;
-	border-radius: 12px !important;
+.gs-actions {
+	display: flex;
+	align-items: center;
+	justify-content: space-between;
+	gap: 12px;
+	padding: 0 2px;
 }
 
-.gs-glance.on {
-	color: #b6f36b;
+.gs-switch {
+	display: flex;
+	align-items: center;
+	gap: 8px;
+	font-size: 11px;
+	color: var(--bloom-text-secondary, #c7c7cc);
+	cursor: pointer;
+}
+
+.gs-switch input {
+	position: absolute;
+	opacity: 0;
+	pointer-events: none;
+}
+
+.gs-switch-track {
+	position: relative;
+	width: 28px;
+	height: 16px;
+	border-radius: 999px;
+	background: color-mix(in srgb, var(--bloom-text, #fff) 18%, transparent);
+	transition: background 0.15s ease;
+}
+
+.gs-switch-track::after {
+	content: "";
+	position: absolute;
+	top: 2px;
+	left: 2px;
+	width: 12px;
+	height: 12px;
+	border-radius: 50%;
+	background: #fff;
+	transition: transform 0.15s ease;
+}
+
+.gs-switch input:checked + .gs-switch-track {
+	background: #b6f36b;
+}
+
+.gs-switch input:checked + .gs-switch-track::after {
+	transform: translateX(12px);
+	background: #000;
+}
+
+.gs-switch input:focus-visible + .gs-switch-track {
+	outline: 2px solid var(--bloom-accent, #0a84ff);
+	outline-offset: 2px;
+}
+
+.gs-link {
+	display: flex;
+	align-items: center;
+	gap: 6px;
+	padding: 5px 10px;
+	border: none;
+	border-radius: 999px;
+	background: color-mix(in srgb, var(--bloom-text, #fff) 7%, transparent);
+	color: var(--bloom-text, #fff);
+	font: 500 11px/1 "Inter", "Segoe UI", sans-serif;
+	cursor: pointer;
+}
+
+.gs-link kbd {
+	padding: 2px 5px;
+	border-radius: 4px;
+	background: color-mix(in srgb, var(--bloom-text, #fff) 10%, transparent);
+	font: 600 9px/1 "Inter", "Segoe UI", sans-serif;
+	color: var(--bloom-text-secondary, #a1a1aa);
+}
+
+.gs-link:focus-visible {
+	outline: 2px solid var(--bloom-accent, #0a84ff);
+	outline-offset: 1px;
 }

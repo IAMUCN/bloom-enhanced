@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from "react";
 import { invoke } from "@tauri-apps/api/core";
-import { Check, Pause, Pencil, Play, RotateCcw, Type, Gauge } from "lucide-react";
+import { Check, Pause, Pencil, Play, RotateCcw, Trash2, Type, Gauge } from "lucide-react";
 import { listen } from "@tauri-apps/api/event";
 import { readText } from "@tauri-apps/plugin-clipboard-manager";
 import type { ToolProps } from "../tools";
@@ -125,6 +125,21 @@ export default function Teleprompter({ setPinned }: ToolProps) {
 				</button>
 				<button type="button" className="nt-btn nt-icon-btn tp-round" aria-label="Back to the start" onClick={restart}>
 					<RotateCcw size={14} />
+				</button>
+				<button
+					type="button"
+					className="nt-btn nt-icon-btn tp-round"
+					aria-label="Clear the script"
+					title="Clear the script"
+					disabled={!data.script}
+					onClick={() => {
+						setPlaying(false);
+						setEditing(false);
+						restart();
+						setData((d) => ({ ...d, script: "" }));
+					}}
+				>
+					<Trash2 size={14} />
 				</button>
 				<label className="tp-slider" title="Speed">
 					<Gauge size={13} />
