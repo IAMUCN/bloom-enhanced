@@ -1026,20 +1026,22 @@ fn device_id(device: &windows::Win32::Media::Audio::IMMDevice) -> Option<String>
     }
 }
 
-/// The active speakers / headphones, the default one marked.
+/// The active speakers / headphones (or, with `input`, the microphones),
+/// the default one marked.
 #[tauri::command]
-pub async fn audio_outputs() -> Result<Vec<AudioOutput>, String> {
-    tauri::async_runtime::spawn_blocking(|| {
+pub async fn audio_devices(input: bool) -> Result<Vec<AudioOutput>, String> {
+    tauri::async_runtime::spawn_blocking(move || {
         use windows::Win32::Devices::FunctionDiscovery::PKEY_Device_FriendlyName;
-        use windows::Win32::Media::Audio::{eConsole, eRender, DEVICE_STATE_ACTIVE};
+        use windows::Win32::Media::Audio::{eCapture, eConsole, eRender, DEVICE_STATE_ACTIVE};
+        let flow = if input { eCapture } else { eRender };
         let en = device_enumerator()?;
         unsafe {
             let default = en
-                .GetDefaultAudioEndpoint(eRender, eConsole)
+                .GetDefaultAudioEndpoint(flow, eConsole)
                 .ok()
                 .and_then(|d| device_id(&d));
             let list = en
-                .EnumAudioEndpoints(eRender, DEVICE_STATE_ACTIVE)
+                .EnumAudioEndpoints(flow, DEVICE_STATE_ACTIVE)
                 .map_err(|e| e.to_string())?;
             let mut out = Vec::new();
             for i in 0..list.GetCount().map_err(|e| e.to_string())? {
@@ -1048,7 +1050,7 @@ pub async fn audio_outputs() -> Result<Vec<AudioOutput>, String> {
                     continue;
                 };
                 let name = crate::jack::string_prop(&device, &PKEY_Device_FriendlyName)
-                    .unwrap_or_else(|| "Speakers".into());
+                    .unwrap_or_else(|| if input { "Microphone" } else { "Speakers" }.into());
                 out.push(AudioOutput {
                     default: default.as_deref() == Some(id.as_str()),
                     id,
@@ -1062,9 +1064,10 @@ pub async fn audio_outputs() -> Result<Vec<AudioOutput>, String> {
     .map_err(|e| e.to_string())?
 }
 
-/// Makes `id` the default output for everything (console, media, calls).
+/// Makes `id` (a speaker or a microphone) the Windows default for
+/// everything: console, media and calls.
 #[tauri::command]
-pub async fn set_audio_output(id: String) -> Result<(), String> {
+pub async fn set_default_audio(id: String) -> Result<(), String> {
     tauri::async_runtime::spawn_blocking(move || {
         use windows::Win32::System::Com::{
             CoCreateInstance, CoInitializeEx, CLSCTX_ALL, COINIT_MULTITHREADED,

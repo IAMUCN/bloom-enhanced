@@ -2254,3 +2254,14 @@ img {
 	letter-spacing: 0.04em;
 	color: #ffc94d;
 }
+
+/* Game strip glance on the closed notch. */
+.time.game-glance {
+	display: inline-flex;
+	gap: 10px;
+	font-size: 12px;
+	font-weight: 600;
+	font-variant-numeric: tabular-nums;
+	white-space: nowrap;
+	color: #b6f36b;
+}

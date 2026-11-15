@@ -338,29 +338,41 @@ textarea.nt-input {
 	color: var(--bloom-text-secondary, #a1a1aa);
 }
 
-/* Mirror: the camera on the left, mic and speakers on the right. */
+/* Mirror: the camera (its real aspect ratio) on the left, mic and speakers
+   on the right. */
 .mirror {
 	display: grid;
-	grid-template-columns: 1.15fr 1fr;
+	grid-template-columns: 1.2fr 1fr;
 	gap: 14px;
 	flex: 1;
 	min-height: 0;
 }
 
+.mirror-left,
+.mirror-side {
+	display: flex;
+	flex-direction: column;
+	gap: 6px;
+	min-width: 0;
+	min-height: 0;
+}
+
 .mirror-camera {
 	position: relative;
-	border-radius: 14px;
+	width: 100%;
+	border-radius: 12px;
 	overflow: hidden;
 	background: #111;
-	min-height: 0;
+	flex: none;
 }
 
 .mirror-video {
 	width: 100%;
 	height: 100%;
-	object-fit: cover;
+	object-fit: contain; /* the whole frame the camera captures */
 	transform: scaleX(-1); /* a mirror */
 	display: block;
+	background: #000;
 }
 
 .mirror-camera-off {
@@ -371,40 +383,40 @@ textarea.nt-input {
 	align-items: center;
 	justify-content: center;
 	gap: 6px;
-	color: var(--bloom-text-secondary, #a1a1aa);
-	font-size: 11px;
-	text-align: center;
-	padding: 8px;
-}
-
-.mirror-camera-name {
-	position: absolute;
-	left: 8px;
-	bottom: 8px;
-	max-width: calc(100% - 16px);
-	display: flex;
-	align-items: center;
-	gap: 5px;
-	padding: 3px 8px;
 	border: none;
-	border-radius: 999px;
-	background: rgba(0, 0, 0, 0.6);
-	color: #fff;
-	font: 500 10px/1.2 "Inter", "Segoe UI", sans-serif;
+	background: none;
+	color: var(--bloom-text-secondary, #a1a1aa);
+	font: 500 11px/1.3 "Inter", "Segoe UI", sans-serif;
 	cursor: pointer;
 }
 
-.mirror-camera-name span {
-	overflow: hidden;
-	white-space: nowrap;
-	text-overflow: ellipsis;
+.mirror-camera-off:hover {
+	color: var(--bloom-text, #fff);
 }
 
-.mirror-side {
+.mirror-camera-stop {
+	position: absolute;
+	right: 6px;
+	top: 6px;
+	display: grid;
+	place-items: center;
+	width: 24px;
+	height: 24px;
+	border: none;
+	border-radius: 50%;
+	background: rgba(0, 0, 0, 0.6);
+	color: #fff;
+	cursor: pointer;
+}
+
+.mirror-cameras,
+.mirror-list {
 	display: flex;
 	flex-direction: column;
-	gap: 8px;
-	min-width: 0;
+	gap: 2px;
+	overflow-y: auto;
+	min-height: 0;
+	scrollbar-width: none;
 }
 
 .mirror-title {
@@ -428,21 +440,38 @@ textarea.nt-input {
 	transform-origin: left center;
 }
 
-.mirror-outputs {
+.mirror-heading {
 	display: flex;
-	flex-direction: column;
-	gap: 3px;
-	overflow-y: auto;
-	min-height: 0;
-	flex: 1;
-	scrollbar-width: none;
+	align-items: center;
+	justify-content: space-between;
+	margin-top: 2px;
+	font-size: 10px;
+	font-weight: 600;
+	text-transform: uppercase;
+	letter-spacing: 0.06em;
+	color: var(--bloom-text-secondary, #a1a1aa);
+}
+
+.mirror-test {
+	display: flex;
+	align-items: center;
+	gap: 4px;
+	padding: 2px 8px;
+	border: none;
+	border-radius: 999px;
+	background: color-mix(in srgb, var(--bloom-text, #fff) 8%, transparent);
+	color: var(--bloom-text, #fff);
+	font: 500 10px/1.4 "Inter", "Segoe UI", sans-serif;
+	text-transform: none;
+	letter-spacing: 0;
+	cursor: pointer;
 }
 
 .mirror-output {
 	display: flex;
 	align-items: center;
 	gap: 7px;
-	padding: 5px 8px;
+	padding: 4px 8px;
 	border: none;
 	border-radius: 8px;
 	background: none;
@@ -463,7 +492,9 @@ textarea.nt-input {
 	color: var(--bloom-text, #fff);
 }
 
-.mirror-camera-name:focus-visible,
+.mirror-camera-off:focus-visible,
+.mirror-camera-stop:focus-visible,
+.mirror-test:focus-visible,
 .mirror-output:focus-visible {
 	outline: 2px solid var(--bloom-accent, #0a84ff);
 	outline-offset: 1px;

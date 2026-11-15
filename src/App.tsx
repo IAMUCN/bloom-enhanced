@@ -640,6 +640,10 @@ function App() {
 	const [toolTimer, setToolTimer] = useState<{ left: number; total: number } | null>(null);
 	const [timerDisplay, setTimerDisplay] = useState(() => localStorage.getItem("bloom-timer-display") ?? "both");
 	const [timesUp, setTimesUp] = useState(false);
+	const [enabledTools, setEnabledTools] = useState(() => parseEnabledTools(localStorage.getItem("bloom-tools-enabled")));
+	// Game strip glance (`bloom-game-glance`): its readings on the closed notch.
+	const [gameGlance, setGameGlance] = useState(() => localStorage.getItem("bloom-game-glance") === "on");
+	const [glance, setGlance] = useState<{ cpu: number; gpu: number | null; ram: number } | null>(null);
 	const isOpenRef = useRef(false);
 	isOpenRef.current = isOpen;
 	const [isReady, setIsReady] = useState(false);
@@ -936,7 +940,8 @@ function App() {
 	// An open notch never hides (Peek / Smart): the shortcut opens it without
 	// the pointer touching the edge.
 	// A running Timer shown on the notch keeps it on screen (Peek / Smart).
-	const timerShowing = (!!toolTimer && timerDisplay !== "off") || timesUp;
+	const glanceOn = gameGlance && enabledTools.includes("game");
+	const timerShowing = (!!toolTimer && timerDisplay !== "off") || timesUp || (glanceOn && !isOpen);
 	const isHidden =
 		!isOpen &&
 		!timerShowing &&
@@ -1193,7 +1198,6 @@ function App() {
 	const lastClosedAtRef = useRef(0);
 	// The extra tools turned on (Settings › Notch › Tools), in tab order, and
 	// the one showing while bloomMode is "tool".
-	const [enabledTools, setEnabledTools] = useState(() => parseEnabledTools(localStorage.getItem("bloom-tools-enabled")));
 	const [ccTiles, setCcTiles] = useState(() => parseCcTiles(localStorage.getItem("bloom-cc-tiles")));
 	const [tabOrder, setTabOrder] = useState<unknown>(() => localStorage.getItem("bloom-tab-order"));
 	const tabMotion = useRef<{ id: string | null; idx: number; dir: number }>({ id: null, idx: -1, dir: 0 });
@@ -1484,6 +1488,7 @@ function App() {
 			"bloom-tools-enabled": (v: unknown) => setEnabledTools(parseEnabledTools(v)),
 			"bloom-cc-tiles": (v: unknown) => setCcTiles(parseCcTiles(v)),
 			"bloom-timer-display": (v: unknown) => setTimerDisplay(String(v)),
+			"bloom-game-glance": (v: unknown) => setGameGlance(v === "on"),
 			"bloom-tab-order": setTabOrder,
 			"bloom-progress-effect": (v: unknown) => setProgressStyle(asProgressStyle(v)),
 			"bloom-battery-saver": (v: unknown) => setSaverMode(String(v ?? "below")),
@@ -2259,6 +2264,22 @@ function App() {
 	const timerIntervalRef = useRef<any>(null);
 	const prevTimerFinishedRef = useRef(false);
 
+	// The Game strip glance: CPU · GPU · RAM in the clock's place, read every
+	// 2 s only while it shows.
+	const showGlance = glanceOn && !isOpen && !timesUp && !toolTimer && timerSeconds === 0 && !isTimerFinished;
+	useEffect(() => {
+		if (windowLabel !== "main" || !showGlance) return setGlance(null);
+		const read = () =>
+			Promise.all([
+				invoke<{ cpu: number; mem_used: number; mem_total: number }>("system_stats"),
+				invoke<number | null>("gpu_usage").catch(() => null)
+			])
+				.then(([s, gpu]) => setGlance({ cpu: s.cpu, gpu, ram: (s.mem_used / s.mem_total) * 100 }))
+				.catch(() => {});
+		read();
+		const t = window.setInterval(read, 2000);
+		return () => window.clearInterval(t);
+	}, [showGlance, windowLabel]);
 	// The Timer tool's countdown takes the clock's place on the closed notch.
 	const showToolTimer =
 		!!toolTimer && !isOpen && timerSeconds === 0 && !isTimerFinished && (timerDisplay === "pill" || timerDisplay === "both");
@@ -3562,6 +3583,7 @@ function App() {
 		if (toolShowing && isOpen) return OPEN_WIDTH;
 		if (minimalIdle) return 72;
 		if (fileStatus && !isOpen) return 300;
+		if (showGlance && glance) return 250;
 		if (bloomMode === "announcement" && announcement && !announcementDismissed) return 380;
 		if (bloomMode === "device" && deviceAlert) return 330;
 		if (isCalendarMode) return 480;
@@ -4297,7 +4319,20 @@ function App() {
 																</AnimatePresence>
 																<div className="time-flip-container" style={{ zoom: timeSize }} onClick={toggleCalendarMode}>
 																	<AnimatePresence initial={false}>
-																		{timesUp ? (
+																		{showGlance && glance ? (
+																			<motion.span
+																				key="game-glance"
+																				className="time game-glance"
+																				initial={{ rotateX: -90, opacity: 0 }}
+																				animate={{ rotateX: 0, opacity: 1 }}
+																				exit={{ rotateX: 90, opacity: 0 }}
+																				transition={{ type: "spring", stiffness: 600, damping: 30 }}
+																			>
+																				<span>CPU {Math.round(glance.cpu)}%</span>
+																				<span>GPU {glance.gpu === null ? "–" : Math.round(glance.gpu)}%</span>
+																				<span>RAM {Math.round(glance.ram)}%</span>
+																			</motion.span>
+																		) : timesUp ? (
 																			<motion.span
 																				key="times-up"
 																				className="time times-up"

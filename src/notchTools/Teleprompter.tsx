@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from "react";
 import { invoke } from "@tauri-apps/api/core";
-import { Pause, Pencil, Play, RotateCcw, Type, Gauge } from "lucide-react";
+import { Check, ClipboardPaste, Pause, Pencil, Play, RotateCcw, Type, Gauge } from "lucide-react";
+import { readText } from "@tauri-apps/plugin-clipboard-manager";
 import type { ToolProps } from "../tools";
 import { useToolData } from "./useToolData";
 
@@ -55,11 +56,10 @@ export default function Teleprompter({ setPinned }: ToolProps) {
 					autoFocus
 					placeholder="Paste your script here."
 					aria-label="Script"
+					// Stays open on blur: taking the keyboard briefly blurs it, which
+					// used to close the editor before anything could be pasted.
 					onFocus={() => setPinned(true)}
-					onBlur={() => {
-						setPinned(false);
-						setEditing(false);
-					}}
+					onBlur={() => setPinned(false)}
 					onChange={(e) => setData((d) => ({ ...d, script: e.target.value }))}
 				/>
 			) : (
@@ -70,8 +70,34 @@ export default function Teleprompter({ setPinned }: ToolProps) {
 				</div>
 			)}
 			<div className="tp-controls">
-				<button type="button" className="nt-btn nt-icon-btn tp-round" aria-label="Edit script" onClick={() => (setPlaying(false), setEditing(true))}>
-					<Pencil size={14} />
+				<button
+					type="button"
+					className="nt-btn nt-icon-btn tp-round"
+					aria-label={editing ? "Done editing" : "Edit script"}
+					onClick={() => {
+						setPlaying(false);
+						setEditing((e) => !e);
+					}}
+				>
+					{editing ? <Check size={14} /> : <Pencil size={14} />}
+				</button>
+				<button
+					type="button"
+					className="nt-btn nt-icon-btn tp-round"
+					aria-label="Paste script from the clipboard"
+					title="Paste script"
+					onClick={() =>
+						readText()
+							.then((t) => {
+								if (!t) return;
+								setData((d) => ({ ...d, script: t }));
+								setEditing(false);
+								restart();
+							})
+							.catch(() => {})
+					}
+				>
+					<ClipboardPaste size={14} />
 				</button>
 				<button
 					type="button"
