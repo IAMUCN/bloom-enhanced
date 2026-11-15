@@ -2194,3 +2194,54 @@ img {
 .notch-body > * {
 	pointer-events: auto;
 }
+
+/* An extra tool's body, animated as a whole (motion.ts bodyMotion). */
+.tool-host-motion {
+	flex: 1;
+	min-height: 0;
+	width: 100%;
+	display: flex;
+	flex-direction: column;
+}
+
+/* Media as a tab: the player, or "Nothing's playing", below the tab bar. */
+.media-body {
+	position: absolute;
+	top: calc(36px + var(--tab-bar-space, 0px));
+	left: 0;
+	right: 0;
+	padding: 0 16px;
+	box-sizing: border-box;
+	display: flex;
+	justify-content: center;
+}
+
+.media-body .expanded-music-container {
+	max-width: 520px;
+}
+
+.media-empty {
+	display: flex;
+	flex-direction: column;
+	align-items: center;
+	justify-content: center;
+	gap: 4px;
+	width: 100%;
+	color: var(--bloom-text, #fff);
+	text-align: center;
+}
+
+.media-empty-icon {
+	opacity: 0.5;
+	margin-bottom: 4px;
+}
+
+.media-empty strong {
+	font-size: 14px;
+	font-weight: 600;
+}
+
+.media-empty span {
+	font-size: 12px;
+	color: var(--bloom-text-secondary, #a1a1aa);
+}

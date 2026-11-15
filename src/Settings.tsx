@@ -183,7 +183,13 @@ function SettingsApp() {
 	// The tool page open inside Tools (null = the list).
 	const [toolPage, setToolPage] = useState<string | null>(null);
 	const tabCount =
-		builtInTabCount((k) => localStorage.getItem(k)) + parseEnabledTools(localStorage.getItem("bloom-tools-enabled")).length;
+		builtInTabCount((k) =>
+			k === "bloom-clipboard-position"
+				? settings.clipboardPosition
+				: k === "bloom-clipboard-enabled"
+					? String(settings.clipboardEnabled)
+					: localStorage.getItem(k)
+		) + parseEnabledTools(localStorage.getItem("bloom-tools-enabled")).length;
 	// First run: "Pick your tools", once (bloom-tools-picked).
 	const [pickTools, setPickTools] = useState(() => localStorage.getItem("bloom-tools-picked") !== "true");
 	const { announcement, dismissed, dismiss } = useAnnouncement();
@@ -566,6 +572,8 @@ function SettingsApp() {
 								timerSoundEnabled={settings.timerSoundEnabled}
 								toggleTimerSound={settings.toggleTimerSound}
 								openShelf={() => setActiveTab("clipboard")}
+								clipboardEnabled={settings.clipboardEnabled}
+								clipboardPosition={settings.clipboardPosition}
 								page={toolPage}
 								setPage={setToolPage}
 							/>

@@ -1,5 +1,6 @@
 import { motion } from "framer-motion";
 import { useEffect, useRef } from "react";
+import { BOUNCY, SNAP } from "../motion";
 import type { Tool } from "../tools";
 import "./NotchTabBar.css";
 
@@ -56,8 +57,8 @@ export function NotchTabBar({
 						aria-label={label}
 						data-tip={label}
 						data-tip-place="below"
-						whileTap={{ scale: 0.92 }}
-						transition={{ type: "spring", stiffness: 600, damping: 35 }}
+						whileTap={{ scale: 0.9, transition: SNAP }}
+						transition={BOUNCY}
 						tabIndex={on ? 0 : -1}
 						className={`notch-tab${on ? " active" : ""}`}
 						onClick={(e) => {
@@ -69,7 +70,7 @@ export function NotchTabBar({
 							<motion.span
 								layoutId="notch-tab-chip"
 								className="notch-tab-chip"
-								transition={{ type: "spring", stiffness: 500, damping: 38 }}
+								transition={{ type: "spring", visualDuration: 0.3, bounce: 0.25 }}
 							/>
 						)}
 						<Icon size={16} strokeWidth={2} color={on ? color : undefined} />

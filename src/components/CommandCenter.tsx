@@ -1,5 +1,6 @@
 import type { MouseEvent, WheelEvent } from "react";
 import { motion } from "framer-motion";
+import { BOUNCY, SNAP } from "../motion";
 import {
 	Accessibility,
 	Activity,
@@ -108,15 +109,21 @@ export function parseCcTiles(raw: unknown): CcTileId[] {
 	return [...WIDE, ...icons.slice(0, CC_MAX_ICONS)];
 }
 
-/** Motion (Fable's spec): a firm press, one pop when a tile turns on. */
-const PRESS = { type: "spring", stiffness: 600, damping: 35 } as const;
-const POP = { scale: [1, 1.18, 1], transition: { duration: 0.26, ease: [0.22, 1, 0.36, 1] as [number, number, number, number] } };
+/** Motion (motion.ts): a tile squeezes on press and springs back with a
+ *  bounce on release; turning on, its icon springs up from 80 %. Turning
+ *  off is quieter: just the colour. */
+const RELEASE = BOUNCY;
+const ICON_ON = { type: "spring", visualDuration: 0.35, bounce: 0.55 } as const;
 
-/** The icon inside a tile: pops once as it turns on (keyed by state, so
- *  it never repeats while the tile stays on). */
 function TileIcon({ on, children }: { on?: boolean; children: React.ReactNode }) {
 	return (
-		<motion.span key={on ? "on" : "off"} className="cc-icon-glyph" initial={false} animate={on ? POP : undefined}>
+		<motion.span
+			key={on ? "on" : "off"}
+			className="cc-icon-glyph"
+			initial={on ? { scale: 0.8 } : false}
+			animate={{ scale: 1 }}
+			transition={ICON_ON}
+		>
 			{children}
 		</motion.span>
 	);
@@ -181,7 +188,7 @@ function Slider({
 				<Icon size={16} />
 				<span>{label}</span>
 			</button>
-			<div className="cc-slider-track">
+			<motion.div className="cc-slider-track" whileTap={{ scaleY: 1.25 }} transition={BOUNCY}>
 				<div className="cc-slider-fill" style={{ transform: `scaleX(${value / 100})` }} />
 				<input
 					type="range"
@@ -194,7 +201,7 @@ function Slider({
 					onPointerDown={(e) => e.stopPropagation()}
 					onClick={(e) => e.stopPropagation()}
 				/>
-			</div>
+			</motion.div>
 			<span className="cc-slider-value">{value}%</span>
 		</div>
 	);
@@ -241,8 +248,8 @@ export function CommandCenter({
 									aria-label={`${label} ${on ? "on" : "off"}`}
 									data-tip={label}
 									data-tip-state={on ? "On" : "Off"}
-									whileTap={{ scale: 0.9 }}
-									transition={PRESS}
+									whileTap={{ scale: 0.88, transition: SNAP }}
+									transition={RELEASE}
 									onClick={(e) => {
 										e.stopPropagation();
 										onClick(e);
@@ -262,7 +269,7 @@ export function CommandCenter({
 										onMore?.();
 									}}
 								>
-									<motion.span key={status} className="cc-wide-status" initial={{ opacity: 0 }} animate={{ opacity: 1 }} transition={{ duration: 0.12 }}>
+									<motion.span key={status} className="cc-wide-status" initial={{ opacity: 0, y: 6 }} animate={{ opacity: 1, y: 0 }} transition={SNAP}>
 										{status}
 									</motion.span>
 									<ChevronRight size={16} />
@@ -285,8 +292,8 @@ export function CommandCenter({
 								aria-label={label}
 								data-tip={label}
 								data-tip-state={on ? "On" : (status ?? hint)}
-								whileTap={{ scale: 0.9 }}
-								transition={PRESS}
+								whileTap={{ scale: 0.88, transition: SNAP }}
+								transition={RELEASE}
 								onClick={(e) => {
 									e.stopPropagation();
 									onClick(e);

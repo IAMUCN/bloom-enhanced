@@ -13,16 +13,15 @@ const THEME_MODES = [
 	["adaptive", "Adaptive", "Follows your Windows accent colour"]
 ] as const;
 
-/** Animations (`bloom-motion`): Windows' "Animation effects" switch turns
- *  motion off for every app; "On" keeps LotusNotch's own animations. */
+/** Animations (`bloom-motion`): on by default, whatever Windows' own
+ *  "Animation effects" says (user, 2026-11-15). */
 const MOTION = [
-	["windows", "Follow Windows", "Uses Windows' Animation effects setting"],
-	["on", "On", "Always animate, whatever Windows says"],
+	["on", "On", "Springy, lively motion in the notch, dock and menus"],
 	["off", "Off", "No movement; changes just appear"]
 ] as const;
 
 function AnimationsRow() {
-	const [value, setValue] = useState(() => localStorage.getItem("bloom-motion") ?? "windows");
+	const [value, setValue] = useState(() => (localStorage.getItem("bloom-motion") === "off" ? "off" : "on"));
 	return (
 		<SettingRow icon={Sparkles} label="Animations" desc={MOTION.find(([v]) => v === value)?.[2] ?? MOTION[0][2]}>
 			<Choice

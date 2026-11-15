@@ -10,7 +10,7 @@ import "./BloomTip.css";
  *  (a circular reveal from the edge facing it), slides between neighbours
  *  while warm, and stays inside the notch, which the window clips to. */
 
-const SHOW_DELAY = 450;
+const SHOW_DELAY = 400;
 /** After a tip hides, the next one shows at once for this long. */
 const WARM_MS = 300;
 const GAP = 6;
@@ -111,7 +111,7 @@ export function BloomTip({ root }: { root: React.RefObject<HTMLElement | null> }
 					className="bloom-tip"
 					role="tooltip"
 					style={{ transformOrigin: origin, translateX: "-50%", translateY: tip.below ? 0 : "-100%" }}
-					initial={{ opacity: 0, scale: 0.6, y: tip.below ? -4 : 4, clipPath: `circle(0% at ${origin})`, left: tip.x + shift, top: tip.y }}
+					initial={{ opacity: 0, scale: 0.85, y: tip.below ? -4 : 4, clipPath: `circle(0% at ${origin})`, left: tip.x + shift, top: tip.y }}
 					animate={{
 						opacity: 1,
 						scale: 1,
@@ -121,9 +121,8 @@ export function BloomTip({ root }: { root: React.RefObject<HTMLElement | null> }
 						top: tip.y,
 						transition: {
 							type: "spring",
-							stiffness: 520,
-							damping: 30,
-							mass: 0.7,
+							visualDuration: 0.25,
+							bounce: 0.35,
 							opacity: { duration: 0.1 },
 							clipPath: { duration: 0.24, ease: [0.22, 1, 0.36, 1] },
 							left: { type: "spring", stiffness: 520, damping: 40 },

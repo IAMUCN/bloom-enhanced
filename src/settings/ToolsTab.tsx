@@ -23,7 +23,7 @@ type Save = (key: string, value: string | null) => Promise<boolean>;
 /** One line per built-in tool. */
 const BUILT_IN_DESC: Record<ToolId, string> = {
 	"command-center": "Quick settings, volume and brightness",
-	music: "What's playing; its tab shows while something plays",
+	music: "What's playing, or \"Nothing's playing\" while idle",
 	calendar: "Month, today's events and the timer",
 	devices: "Batteries of your connected devices",
 	clipboard: "Clipboard history, while the Shelf sits in the notch"
@@ -45,6 +45,8 @@ interface ToolsTabProps {
 	toggleTimerSound: () => void;
 	/** The Shelf's tab follows the Shelf's position: its card opens that page. */
 	openShelf: () => void;
+	clipboardEnabled: boolean;
+	clipboardPosition: string;
 	/** The open tool page, if any (kept by Settings so search and Esc can reach it). */
 	page: string | null;
 	setPage: (page: string | null) => void;
@@ -57,9 +59,8 @@ interface ToolsTabProps {
 export function ToolsTab(props: ToolsTabProps) {
 	const { saveSetting, page, setPage } = props;
 	const [extras, setExtras] = useState(() => parseEnabledTools(localStorage.getItem("bloom-tools-enabled")));
-	const shelfInNotch =
-		localStorage.getItem("bloom-clipboard-enabled") !== "false" &&
-		(localStorage.getItem("bloom-clipboard-position") ?? "notch") === "notch";
+	// From the live settings: the Shelf's position isn't always mirrored here.
+	const shelfInNotch = props.clipboardEnabled && props.clipboardPosition === "notch";
 	const builtInOn: Record<ToolId, boolean> = {
 		"command-center": props.controlsPanelEnabled,
 		music: props.musicModeEnabled,
@@ -115,7 +116,9 @@ export function ToolsTab(props: ToolsTabProps) {
 		const desc = tool.id in EXTRA_BY_ID ? EXTRA_BY_ID[tool.id as ExtraToolId].desc : BUILT_IN_DESC[tool.id as ToolId];
 		const isShelf = tool.id === "clipboard";
 		const control = isShelf ? (
-			<span className="tools-card-note">{on ? "In the notch" : "Shelf on the edge"}</span>
+			<span className="tools-card-note">
+				{!props.clipboardEnabled ? "Shelf is off" : on ? "In the notch" : `On the ${props.clipboardPosition} edge`}
+			</span>
 		) : (
 			<label
 				className="toggle-switch"

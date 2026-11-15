@@ -37,37 +37,22 @@ import { useTrailingThrottle } from "./hooks/useTrailingThrottle";
 import { useAnnouncement } from "./hooks/useAnnouncement";
 import { NotchTabBar } from "./components/NotchTabBar";
 import { BloomTip } from "./components/BloomTip";
+import { BODY_VARIANTS, CC_EXIT, LIST_MOTION, LIVELY, bodyMotion } from "./motion";
 import { ProgressEffect, asProgressStyle } from "./components/ProgressEffect";
 import { EXTRA_BY_ID, GRID_H, MAX_TABS, OPEN_WIDTH, TAB_BAR_HEIGHT, orderTabs, TOOLS, parseEnabledTools, type ExtraToolId, type Tool } from "./tools";
 import { ToolHost } from "./notchTools/ToolHost";
 import { CommandCenter, ccBodyHeight, parseCcTiles, type CcTileId, type CcTileState } from "./components/CommandCenter";
 
-// Tool switches (Fable's motion spec, 2026-11-15): the old body fades out
-// fast, the new one rises 6px into place while the notch's height springs.
-// Transform + opacity only; Battery saver's reduced motion drops the moves.
-const EASE_OUT = [0.22, 1, 0.36, 1] as const;
-const BODY_IN = { duration: 0.2, delay: 0.04, ease: EASE_OUT };
-const BODY_MOTION = {
-	initial: { opacity: 0, y: 6 },
-	animate: { opacity: 1, y: 0, transition: BODY_IN },
-	exit: { opacity: 0, transition: { duration: 0.09 } }
+// Tool switches: bodies slide toward the picked tab with a lively spring
+// (motion.ts). The Command Center steps aside for its Wi-Fi / Bluetooth list.
+const CC_VARIANTS = {
+	enter: (c: number | "list") => BODY_VARIANTS.enter(typeof c === "number" ? c : 0),
+	center: BODY_VARIANTS.center,
+	exit: (c: number | "list") => (c === "list" ? CC_EXIT : BODY_VARIANTS.exit(c))
 };
-/** For bodies laid out in the flow, where a move would shift the layout. */
-const FADE_MOTION = {
-	initial: { opacity: 0 },
-	animate: { opacity: 1, transition: BODY_IN },
-	exit: { opacity: 0, transition: { duration: 0.09 } }
-};
-/** The Command Center steps aside as its Wi-Fi / Bluetooth list slides in. */
-const CC_MOTION = { ...BODY_MOTION, exit: { opacity: 0, scale: 0.97, x: -12, transition: { duration: 0.14 } } };
-const LIST_MOTION = {
-	initial: { opacity: 0, x: 16 },
-	animate: { opacity: 1, x: 0, transition: { type: "spring", stiffness: 380, damping: 32 } },
-	exit: { opacity: 0, x: 16, transition: { duration: 0.12 } }
-} as const;
 
-type MotionPref = "windows" | "on" | "off";
-const asMotionPref = (v: unknown): MotionPref => (v === "on" || v === "off" ? v : "windows");
+type MotionPref = "on" | "off";
+const asMotionPref = (v: unknown): MotionPref => (v === "off" ? "off" : "on");
 
 /** system_tools.rs CcStates; a missing key = not available on this PC. */
 type CcSystemStates = Partial<Record<"night-light" | "airplane" | "hotspot" | "nearby" | "captions", boolean | null>>;
@@ -683,11 +668,11 @@ function App() {
 		() => parseInt(localStorage.getItem("bloom-battery-saver-threshold") ?? "", 10) || 30
 	);
 	const [saverPauses, setSaverPauses] = useState(() => parseSaverPauses(localStorage.getItem("bloom-battery-saver-pauses")));
-	// Animations (`bloom-motion`): follow Windows' "Animation effects"
-	// (default), always on, or off. Battery saver can still pause them.
+	// Animations (`bloom-motion`): on by default, whatever Windows' "Animation
+	// effects" says; Off turns them off. Battery saver can still pause them.
 	const [motionPref, setMotionPref] = useState(() => asMotionPref(localStorage.getItem("bloom-motion")));
 	useEffect(() => {
-		document.documentElement.classList.toggle("motion-on", motionPref === "on");
+		document.documentElement.classList.toggle("motion-on", motionPref !== "off");
 	}, [motionPref]);
 	// Fetched when the pointer reaches the battery widget, for its tooltip.
 	const [batteryDetails, setBatteryDetails] = useState<BatteryDetails | null>(null);
@@ -942,7 +927,10 @@ function App() {
 	const appliedNotchMode = useRef<string | null>(null);
 
 	const isAnyInteraction = isHovered || isNotchHovered || isEdgeHovered;
+	// An open notch never hides (Peek / Smart): the shortcut opens it without
+	// the pointer touching the edge.
 	const isHidden =
+		!isOpen &&
 		!startupAnimating &&
 		!deviceAlertOnScreen &&
 		((notchMode === "smart" && isOverlapped && interactionState === "none" && !eventPeek) ||
@@ -1199,6 +1187,8 @@ function App() {
 	const [enabledTools, setEnabledTools] = useState(() => parseEnabledTools(localStorage.getItem("bloom-tools-enabled")));
 	const [ccTiles, setCcTiles] = useState(() => parseCcTiles(localStorage.getItem("bloom-cc-tiles")));
 	const [tabOrder, setTabOrder] = useState<unknown>(() => localStorage.getItem("bloom-tab-order"));
+	const tabMotion = useRef<{ id: string | null; idx: number; dir: number }>({ id: null, idx: -1, dir: 0 });
+	const stepTabRef = useRef<(direction: 1 | -1) => boolean>(() => false);
 	const [ccSystem, setCcSystem] = useState<CcSystemStates>({});
 	const [activeTool, setActiveTool] = useState<ExtraToolId | null>(null);
 	// Reminders ring while that tool is on, even with its tab closed: a due
@@ -2180,6 +2170,8 @@ function App() {
 	// Music and shelf remain entry points through their activity affordances.
 	const cycleBloomMode = (direction: 1 | -1) => {
 		if (bloomMode === "announcement") return false;
+		// Open: the wheel walks every tab in the tab bar, in its order.
+		if (isOpen && stepTabRef.current(direction)) return true;
 		const panels = panelOrder.filter(panelAvailable);
 		const currentIndex = panels.indexOf(bloomMode as NotchPanel);
 		const nextMode = currentIndex === -1
@@ -2192,6 +2184,7 @@ function App() {
 
 	// Arrows and wheel both stay within panels once one is open.
 	const cyclePanel = (direction: 1 | -1) => {
+		if (stepTabRef.current(direction)) return;
 		const panels = panelOrder.filter(panelAvailable);
 		const index = panels.indexOf(bloomMode as NotchPanel);
 		if (index === -1 || panels.length < 2) return;
@@ -2477,7 +2470,7 @@ function App() {
 	// Leave the music view when music is turned off or the player ends its media
 	// session: an open notch falls back to the remembered panel.
 	useEffect(() => {
-		if (bloomMode === "music" && !(settingsMusicModeEnabled && mediaInfo.has_media)) {
+		if (bloomMode === "music" && !(settingsMusicModeEnabled && (mediaInfo.has_media || isOpen))) {
 			setBloomMode(isOpen ? openingPanel() : collapsedMode);
 		}
 	}, [settingsMusicModeEnabled, mediaInfo.has_media, bloomMode, isOpen]);
@@ -3341,7 +3334,8 @@ function App() {
 		[
 			...panelOrder.filter(panelAvailable).map((p) => TOOLS[p]),
 			...enabledTools.map((id) => EXTRA_BY_ID[id]),
-			...(settingsMusicModeEnabled && mediaInfo.has_media ? [TOOLS.music] : [])
+			// Media keeps its tab while nothing plays ("Nothing's playing").
+			...(settingsMusicModeEnabled ? [TOOLS.music] : [])
 		],
 		tabOrder
 	).slice(0, MAX_TABS);
@@ -3349,8 +3343,40 @@ function App() {
 	// The Wi-Fi / Bluetooth lists belong to the Command Center: its tab stays
 	// active and the notch keeps its size.
 	const quickList = bloomMode === "wifi" || bloomMode === "bluetooth";
-	const activeTabId: string | null = toolShowing ?? (quickList ? "command-center" : asNotchPanel(bloomMode));
+	const activeTabId: string | null =
+		toolShowing ??
+		(quickList ? "command-center" : bloomMode === "music" && isOpen && settingsMusicModeEnabled ? "music" : asNotchPanel(bloomMode));
 	const showTabBar = isOpen && activeTabId !== null && tabTools.length > 1;
+	// Media as a tab: the player (or "Nothing's playing") sits under the tab bar.
+	const mediaTab = showTabBar && activeTabId === "music";
+	const playerHeight =
+		mediaLayout === "compact"
+			? ((mediaInfo.duration_ms ?? 0) > 0 ? 132 : 116) + (compactVolumeExpanded ? 36 : 0)
+			: 120;
+	// Which way the body slides: toward the picked tab (motion.ts).
+	const tabIdx = activeTabId ? tabTools.findIndex((t) => t.id === activeTabId) : -1;
+	if (activeTabId !== tabMotion.current.id) {
+		const prev = tabMotion.current.idx;
+		tabMotion.current = { id: activeTabId, idx: tabIdx, dir: prev < 0 || tabIdx < 0 ? 0 : Math.sign(tabIdx - prev) };
+	}
+	const tabDir = tabMotion.current.dir;
+	// One step along the tab bar (wheel and arrows); false when there's no bar.
+	stepTabRef.current = (direction: 1 | -1) => {
+		if (tabTools.length < 2) return false;
+		const i = Math.max(0, tabIdx);
+		selectTab(tabTools[(i + direction + tabTools.length) % tabTools.length].id);
+		return true;
+	};
+	const wasOpen = useRef(isOpen);
+	const shellSpring =
+		isOpen && !wasOpen.current
+			? { type: "spring" as const, visualDuration: 0.45, bounce: 0.4 }
+			: !isOpen
+				? { type: "spring" as const, visualDuration: 0.3, bounce: 0.15 }
+				: LIVELY;
+	useEffect(() => {
+		wasOpen.current = isOpen;
+	});
 	const selectTab = (id: string) => {
 		if (id === "music") openNotch("music");
 		else if (id in EXTRA_BY_ID) {
@@ -3474,6 +3500,7 @@ function App() {
 		}
 		// An extra tool: the clock row plus the tool's height from the grid.
 		if (toolShowing && isOpen) return 36 + GRID_H[EXTRA_BY_ID[toolShowing].size[1]];
+		if (mediaTab) return 36 + (mediaInfo.has_media ? playerHeight : 110);
 		if (minimalIdle) return 8;
 		// Announcement card: body is line-clamped, so a fixed size fits both cases.
 		if (bloomMode === "announcement" && announcement && !announcementDismissed) {
@@ -3582,139 +3609,10 @@ function App() {
 		if (windowLabel === "main") updateNotchRegion();
 	});
 
-	return (
-		<MotionConfig
-			reducedMotion={saverOn && saverPauses.motion ? "always" : motionPref === "on" ? "never" : motionPref === "off" ? "always" : "user"}
-		>
-		<div className={`screen${saverOn && saverPauses.glass ? " battery-saver" : ""}`} style={{ overflow: "hidden" }}>
-			<div
-				style={{
-					zoom: pillZoom,
-					width: "100%",
-					display: "flex",
-					justifyContent: "center",
-					position: "relative"
-				}}
-			>
-				<DeviceArtDefs />
-				{windowLabel === "main" && <BloomTip root={bloomRef} />}
-				<motion.div
-					ref={bloomRef}
-					className={`bloom ${isHovered ? "expanded" : ""} ${isImpacted ? "is-impacted" : ""} ${minimalIdle ? "minimal-idle" : ""} ${isDragHovering ? "drag-hover" : ""}`}
-					onMouseEnter={() => setIsNotchHovered(true)}
-					onMouseLeave={() => setIsNotchHovered(false)}
-					onWheel={handleWheel}
-					initial={{
-						y: 250,
-						width: 30.6,
-						height: 44.2,
-						borderTopLeftRadius: 18,
-						borderTopRightRadius: 18,
-						borderBottomLeftRadius: 18,
-						borderBottomRightRadius: 18,
-						scaleX: 1,
-						scaleY: 1,
-						opacity: 0
-					}}
-					animate={{
-						y: pillTargetY,
-						width: pillTargetWidth,
-						height: pillTargetHeight,
-						opacity: isVisible ? 1 : 0,
-						scaleX: 1,
-						scaleY: 1,
-						borderTopLeftRadius: attachedToEdge ? 0 : 18,
-						borderTopRightRadius: attachedToEdge ? 0 : 18,
-						borderBottomLeftRadius: minimalIdle ? 4 : isCalendarMode ? 28 : 18,
-						borderBottomRightRadius: minimalIdle ? 4 : isCalendarMode ? 28 : 18,
-						filter: isVisible ? "blur(0px)" : "blur(8px)",
-						pointerEvents: isVisible ? "auto" : "none"
-					}}
-					onClick={(e) => {
-						e.stopPropagation();
-						if (fileStatus) return;
-						if (!isOpen) openNotch(openingPanel());
-					}}
-					onHoverStart={() => {
-						if (fileStatus) return;
-						releaseDeferredRef.current = false;
-						setIsHovered(true);
-						// Hovering the shelf cancels its post-drop auto-close.
-						if (bloomMode === "shelf") clearShelfCollapse();
-					}}
-					onHoverEnd={releaseNotchHover}
-					// Panels placed below the clock row move down by the tab bar.
-					style={{ originY: 0, "--tab-bar-space": `${tabBarSpace}px` } as React.CSSProperties}
-					transition={{
-						width: { type: "spring", stiffness: 400, damping: 31 },
-						height: { type: "spring", stiffness: 450, damping: 29 },
-						y: { type: "spring", stiffness: 550, damping: 45, mass: 0.8, restDelta: 0.001 },
-						opacity: { duration: 0.2 },
-						borderTopLeftRadius: { type: "spring", stiffness: 1000, damping: 40 },
-						borderTopRightRadius: { type: "spring", stiffness: 1000, damping: 40 },
-						borderBottomLeftRadius: { type: "spring", stiffness: 1000, damping: 40 },
-						borderBottomRightRadius: { type: "spring", stiffness: 1000, damping: 40 },
-						default: { type: "spring", stiffness: 500, damping: 30, mass: 1 }
-					}}
-				>
-					<EdgeSurface edge="top" flares={attachedToEdge} />
-					{fileStatus && !isOpen && (
-						<ProgressEffect style={progressStyle} percent={fileStatus.percent} result={fileStatus.result} />
-					)}
-					<AnimatePresence>
-						{isMusicMode && settingsAmbienceEnabled && albumArtUrl && isOpen && !isCalendarMode && (
-							<motion.div
-								className="notch-ambient-glow"
-								initial={{ opacity: 0 }}
-								animate={{ opacity: 1 }}
-								exit={{ opacity: 0 }}
-								transition={{ duration: 0.15 }}
-							>
-								<AnimatePresence mode="wait">
-									<motion.img
-										key={albumArtUrl}
-										src={albumArtUrl}
-										alt=""
-										draggable={false}
-										initial={{ opacity: 0, scale: 1.1 }}
-										animate={{ opacity: 1, scale: 1.8 }}
-										exit={{ opacity: 0 }}
-										transition={{ duration: 0.3 }}
-									/>
-								</AnimatePresence>
-							</motion.div>
-						)}
-					</AnimatePresence>
-					<AnimatePresence mode="wait">
-						{isExpanded && (
-							<motion.div
-								key="bloom-content"
-								initial={{ opacity: 0 }}
-								animate={{ opacity: 1 }}
-								exit={{ opacity: 0 }}
-								transition={{ duration: 0.1 }}
-								style={{
-									width: "100%",
-									height: "100%",
-									display: "flex",
-									flexDirection: "column",
-									alignItems: "center",
-									position: "relative",
-									borderRadius: "inherit"
-								}}
-							>
-								{/* Faster Waiting Transition Area */}
-								<AnimatePresence mode="wait">
-									{isOpen && isMusicMode && !isCalendarMode ? (
-										<motion.div
-											key="expanded-music"
-											className="expanded-music-container"
-											initial={{ opacity: 0, scale: 0.98 }}
-											animate={{ opacity: 1, scale: 1 }}
-											exit={{ opacity: 0, scale: 0.98, transition: { duration: 0.1 } }}
-											transition={{ type: "spring", stiffness: 500, damping: 30 }}
-										>
-											{mediaLayout === "compact" ? (
+	// The music player (compact or classic): the whole notch while the tab
+	// bar is hidden, otherwise the Media tab's body.
+	const musicPlayer =
+											mediaLayout === "compact" ? (
 												<CompactMediaPlayer
 													mediaInfo={mediaInfo}
 													albumArtUrl={albumArtUrl}
@@ -3963,7 +3861,143 @@ function App() {
 														</div>
 													</div>
 												</div>
-											)}
+											);
+
+	return (
+		<MotionConfig
+			reducedMotion={(saverOn && saverPauses.motion) || motionPref === "off" ? "always" : "never"}
+		>
+		<div className={`screen${saverOn && saverPauses.glass ? " battery-saver" : ""}`} style={{ overflow: "hidden" }}>
+			<div
+				style={{
+					zoom: pillZoom,
+					width: "100%",
+					display: "flex",
+					justifyContent: "center",
+					position: "relative"
+				}}
+			>
+				<DeviceArtDefs />
+				{windowLabel === "main" && <BloomTip root={bloomRef} />}
+				<motion.div
+					ref={bloomRef}
+					className={`bloom ${isHovered ? "expanded" : ""} ${isImpacted ? "is-impacted" : ""} ${minimalIdle ? "minimal-idle" : ""} ${isDragHovering ? "drag-hover" : ""}`}
+					onMouseEnter={() => setIsNotchHovered(true)}
+					onMouseLeave={() => setIsNotchHovered(false)}
+					onWheel={handleWheel}
+					initial={{
+						y: 250,
+						width: 30.6,
+						height: 44.2,
+						borderTopLeftRadius: 18,
+						borderTopRightRadius: 18,
+						borderBottomLeftRadius: 18,
+						borderBottomRightRadius: 18,
+						scaleX: 1,
+						scaleY: 1,
+						opacity: 0
+					}}
+					animate={{
+						y: pillTargetY,
+						width: pillTargetWidth,
+						height: pillTargetHeight,
+						opacity: isVisible ? 1 : 0,
+						scaleX: 1,
+						scaleY: 1,
+						borderTopLeftRadius: attachedToEdge ? 0 : 18,
+						borderTopRightRadius: attachedToEdge ? 0 : 18,
+						borderBottomLeftRadius: minimalIdle ? 4 : isCalendarMode ? 28 : 18,
+						borderBottomRightRadius: minimalIdle ? 4 : isCalendarMode ? 28 : 18,
+						filter: isVisible ? "blur(0px)" : "blur(8px)",
+						pointerEvents: isVisible ? "auto" : "none"
+					}}
+					onClick={(e) => {
+						e.stopPropagation();
+						if (fileStatus) return;
+						if (!isOpen) openNotch(openingPanel());
+					}}
+					onHoverStart={() => {
+						if (fileStatus) return;
+						releaseDeferredRef.current = false;
+						setIsHovered(true);
+						// Hovering the shelf cancels its post-drop auto-close.
+						if (bloomMode === "shelf") clearShelfCollapse();
+					}}
+					onHoverEnd={releaseNotchHover}
+					// Panels placed below the clock row move down by the tab bar.
+					style={{ originY: 0, "--tab-bar-space": `${tabBarSpace}px` } as React.CSSProperties}
+					transition={{
+						// Opening bounces like the Dynamic Island; closing settles
+						// softly; changing tools resizes with a lively spring.
+						width: shellSpring,
+						height: shellSpring,
+						y: { type: "spring", stiffness: 550, damping: 45, mass: 0.8, restDelta: 0.001 },
+						opacity: { duration: 0.2 },
+						borderTopLeftRadius: { type: "spring", stiffness: 1000, damping: 40 },
+						borderTopRightRadius: { type: "spring", stiffness: 1000, damping: 40 },
+						borderBottomLeftRadius: { type: "spring", stiffness: 1000, damping: 40 },
+						borderBottomRightRadius: { type: "spring", stiffness: 1000, damping: 40 },
+						default: { type: "spring", stiffness: 500, damping: 30, mass: 1 }
+					}}
+				>
+					<EdgeSurface edge="top" flares={attachedToEdge} />
+					{fileStatus && !isOpen && (
+						<ProgressEffect style={progressStyle} percent={fileStatus.percent} result={fileStatus.result} />
+					)}
+					<AnimatePresence>
+						{isMusicMode && settingsAmbienceEnabled && albumArtUrl && isOpen && !isCalendarMode && (
+							<motion.div
+								className="notch-ambient-glow"
+								initial={{ opacity: 0 }}
+								animate={{ opacity: 1 }}
+								exit={{ opacity: 0 }}
+								transition={{ duration: 0.15 }}
+							>
+								<AnimatePresence mode="wait">
+									<motion.img
+										key={albumArtUrl}
+										src={albumArtUrl}
+										alt=""
+										draggable={false}
+										initial={{ opacity: 0, scale: 1.1 }}
+										animate={{ opacity: 1, scale: 1.8 }}
+										exit={{ opacity: 0 }}
+										transition={{ duration: 0.3 }}
+									/>
+								</AnimatePresence>
+							</motion.div>
+						)}
+					</AnimatePresence>
+					<AnimatePresence mode="wait">
+						{isExpanded && (
+							<motion.div
+								key="bloom-content"
+								initial={{ opacity: 0 }}
+								animate={{ opacity: 1 }}
+								exit={{ opacity: 0 }}
+								transition={{ duration: 0.1 }}
+								style={{
+									width: "100%",
+									height: "100%",
+									display: "flex",
+									flexDirection: "column",
+									alignItems: "center",
+									position: "relative",
+									borderRadius: "inherit"
+								}}
+							>
+								{/* Faster Waiting Transition Area */}
+								<AnimatePresence mode="wait">
+									{isOpen && isMusicMode && !isCalendarMode && !mediaTab ? (
+										<motion.div
+											key="expanded-music"
+											className="expanded-music-container"
+											initial={{ opacity: 0, scale: 0.98 }}
+											animate={{ opacity: 1, scale: 1 }}
+											exit={{ opacity: 0, scale: 0.98, transition: { duration: 0.1 } }}
+											transition={{ type: "spring", stiffness: 500, damping: 30 }}
+										>
+											{musicPlayer}
 										</motion.div>
 									) : (
 										<motion.div
@@ -4320,13 +4354,30 @@ function App() {
 										onSelect={selectTab}
 									/>
 								)}
-								{toolShowing && isOpen && (
-									<ToolHost
-										key={toolShowing}
-										id={toolShowing}
-										setPinned={setNotchPinned}
-									/>
-								)}
+								<AnimatePresence custom={tabDir}>
+									{mediaTab && (
+										<motion.div key="media-body" className="notch-body" {...bodyMotion(tabDir)}>
+											<div className="media-body" style={{ height: mediaInfo.has_media ? playerHeight : 110 }}>
+												{mediaInfo.has_media ? (
+													<div className="expanded-music-container">{musicPlayer}</div>
+												) : (
+													<div className="media-empty">
+														<MusicNoteIcon size={26} className="media-empty-icon" />
+														<strong>Nothing's playing</strong>
+														<span>Play something in any app and it shows up here</span>
+													</div>
+												)}
+											</div>
+										</motion.div>
+									)}
+								</AnimatePresence>
+								<AnimatePresence mode="popLayout" custom={tabDir}>
+									{toolShowing && isOpen && (
+										<motion.div key={toolShowing} className="tool-host-motion" {...bodyMotion(tabDir)}>
+											<ToolHost id={toolShowing} setPinned={setNotchPinned} />
+										</motion.div>
+									)}
+								</AnimatePresence>
 
 								{/* Wi-Fi networks, opened from the controls panel's Wi-Fi tile */}
 								<AnimatePresence>
@@ -4365,11 +4416,11 @@ function App() {
 								</AnimatePresence>
 
 								{/* Connected devices: everything connected, with its battery, by priority */}
-								<AnimatePresence>
+								<AnimatePresence custom={tabDir}>
 									{bloomMode === "devices" && (
 										<motion.div
 											key="devices-view"
-											{...FADE_MOTION}
+											{...bodyMotion(tabDir)}
 										>
 											<ConnectedDevicesPanel
 												data={connectedDevices}
@@ -4383,11 +4434,11 @@ function App() {
 								</AnimatePresence>
 
 								{/* Clipboard history */}
-								<AnimatePresence>
+								<AnimatePresence custom={tabDir}>
 									{bloomMode === "clipboard" && (
 										<motion.div
 											key="clipboard-view"
-											{...FADE_MOTION}
+											{...bodyMotion(tabDir)}
 										>
 											<ClipboardPanel
 												dragIcon={shelfDragIcon}
@@ -4409,12 +4460,12 @@ function App() {
 								</AnimatePresence>
 
 								{/* Command Center */}
-								<AnimatePresence>
+								<AnimatePresence custom={quickList ? "list" : tabDir}>
 									{bloomMode === "command-center" && (
 										<motion.div
 											key="command-center"
 											className="notch-body"
-											{...CC_MOTION}
+											variants={CC_VARIANTS} custom={tabDir} initial="enter" animate="center" exit="exit"
 										>
 											<CommandCenter
 												tiles={ccTiles}
@@ -4533,14 +4584,14 @@ function App() {
 								</AnimatePresence>
 
 								{/* Calendar & Timer Split View */}
-								<AnimatePresence>
+								<AnimatePresence custom={tabDir}>
 									{settingsCalendarEnabled && isCalendarMode && (
 										<motion.div
 											className="calendar-timer-content split-view"
 											onClick={(e) =>
 												e.stopPropagation()
 											} /* Block mode switches when clicking inside */
-											{...BODY_MOTION}
+											{...bodyMotion(tabDir)}
 										>
 											<div className="calendar-column">
 												<Calendar />
@@ -4640,13 +4691,13 @@ function App() {
 								</AnimatePresence>
 
 								{/* Shelf Panel */}
-								<AnimatePresence>
+								<AnimatePresence custom={tabDir}>
 									{bloomMode === "shelf" && (
 										<motion.div
 											className="shelf-content"
 											onClick={(e) => e.stopPropagation()}
 											onWheel={handleShelfWheel}
-											{...BODY_MOTION}
+											{...bodyMotion(tabDir)}
 										>
 											{shelfNotice && <div className="shelf-notice">{shelfNotice}</div>}
 											{shelfItems.length === 0 ? (
