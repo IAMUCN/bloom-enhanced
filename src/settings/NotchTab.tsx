@@ -43,7 +43,7 @@ import { ScaleStepper } from "./ScaleStepper";
 import { Choice } from "./Choice";
 import { shortcutFrom } from "./ClipboardTab";
 import { EXTRA_TOOLS, TOOLS, parseEnabledTools, type ExtraToolId } from "../tools";
-import { CC_DEFAULT, CC_TILES, parseCcTiles, type CcTileId } from "../components/CommandCenter";
+import { CC_DEFAULT, CC_MAX_ICONS, CC_TILES, ccIsWide, parseCcTiles, type CcTileId } from "../components/CommandCenter";
 import { invoke } from "@tauri-apps/api/core";
 import { ask } from "@tauri-apps/plugin-dialog";
 import {
@@ -200,18 +200,25 @@ function MoreTools({ saveSetting }: { saveSetting: (key: string, value: string |
 	);
 }
 
-/** Settings › Notch › Command Center: which tiles show (`bloom-cc-tiles`).
- *  Tiles keep one fixed order, so the grid never reshuffles. */
+/** Settings › Notch › Command Center: which round tiles show
+ *  (`bloom-cc-tiles`). Wi-Fi and Bluetooth are always there; the round
+ *  tiles are capped at 14 (two rows of seven) and keep one fixed order. */
 function CcTilePicker({ saveSetting }: { saveSetting: (key: string, value: string | null) => Promise<boolean> }) {
 	const [tiles, setTiles] = useState(() => parseCcTiles(localStorage.getItem("bloom-cc-tiles")));
 	const save = (next: CcTileId[]) => {
-		setTiles(next);
-		saveSetting("bloom-cc-tiles", JSON.stringify(next));
+		const clean = parseCcTiles(JSON.stringify(next));
+		setTiles(clean);
+		saveSetting("bloom-cc-tiles", JSON.stringify(clean));
 	};
+	const count = tiles.filter((t) => !ccIsWide(t)).length;
+	const full = count >= CC_MAX_ICONS;
 	return (
 		<>
+			<div className="cc-picker-count">
+				{count} of {CC_MAX_ICONS} tiles · Wi-Fi and Bluetooth are always on top
+			</div>
 			<div className="pick-tools-grid cc-tile-picker">
-				{CC_TILES.map(([id, label, Icon]) => {
+				{CC_TILES.filter(([id]) => !ccIsWide(id)).map(([id, label, Icon]) => {
 					const on = tiles.includes(id);
 					return (
 						<button
@@ -219,6 +226,8 @@ function CcTilePicker({ saveSetting }: { saveSetting: (key: string, value: strin
 							type="button"
 							role="checkbox"
 							aria-checked={on}
+							disabled={!on && full}
+							title={!on && full ? "The Command Center holds 14 tiles: turn one off first" : undefined}
 							className={`pick-tool${on ? " on" : ""}`}
 							onClick={() => save(on ? tiles.filter((t) => t !== id) : [...tiles, id])}
 						>
@@ -593,7 +602,7 @@ export function NotchTab({
 								<SettingRow
 									icon={LayoutGrid}
 									label="Tiles"
-									desc="Pick the quick settings you use. Tiles without a Windows switch open Windows' own page for it"
+									desc="Pick up to 14 quick settings, two rows of seven"
 									divider={false}
 								/>
 								<div className="page-order-wrap">

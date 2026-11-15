@@ -1,18 +1,21 @@
 import { expect, test } from "bun:test";
-import { CC_DEFAULT, ccBodyHeight, parseCcTiles } from "../src/components/CommandCenter";
+import { CC_DEFAULT, CC_MAX_ICONS, CC_TILES, ccBodyHeight, parseCcTiles } from "../src/components/CommandCenter";
 
-test("Command Center tiles: defaults, catalogue order, unknown ids dropped", () => {
+test("Command Center tiles: Wi-Fi + Bluetooth always, catalogue order, defaults", () => {
 	expect(parseCcTiles(null)).toEqual(CC_DEFAULT);
 	expect(parseCcTiles("not json")).toEqual(CC_DEFAULT);
-	expect(parseCcTiles('["cast","wifi","nope"]')).toEqual(["wifi", "cast"]);
-	expect(parseCcTiles("[]")).toEqual([]);
+	expect(parseCcTiles('["cast","nope","dnd"]')).toEqual(["wifi", "bluetooth", "dnd", "cast"]);
+	expect(parseCcTiles("[]")).toEqual(["wifi", "bluetooth"]);
 });
 
-test("Command Center height: sliders always fit, icons stop growing after 2 rows", () => {
-	expect(ccBodyHeight([])).toBe(84); // padding + two sliders
-	expect(ccBodyHeight(["wifi"])).toBe(84 + 64); // + wide row
-	expect(ccBodyHeight(["wifi", "cast"])).toBe(84 + 64 + 56); // + one icon row
-	expect(ccBodyHeight(CC_DEFAULT)).toBe(84 + 64 + 110); // two rows
-	const all = parseCcTiles(JSON.stringify(["wifi", "dnd", "night-light", "energy", "airplane", "hotspot", "captions", "nearby", "cast", "project", "battery", "dock-mode", "notch-mode"]));
-	expect(ccBodyHeight(all)).toBe(84 + 64 + 110); // capped: the rest scroll
+test("Command Center holds 16 tiles: Wi-Fi, Bluetooth and 14 round ones", () => {
+	const everything = parseCcTiles(JSON.stringify(CC_TILES.map(([id]) => id)));
+	expect(everything.length).toBe(2 + CC_MAX_ICONS);
+	expect(CC_MAX_ICONS).toBe(14);
+});
+
+test("Command Center height matches the design frame (body 258 with two rows)", () => {
+	expect(ccBodyHeight(CC_DEFAULT)).toBe(258);
+	expect(ccBodyHeight(["wifi", "bluetooth", "dnd"])).toBe(258 - 54);
+	expect(ccBodyHeight(["wifi", "bluetooth"])).toBe(148);
 });

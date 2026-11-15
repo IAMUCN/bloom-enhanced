@@ -1,6 +1,6 @@
-/* Command Center: design file › 3a Command Center (edit me). Round tiles,
-   white = on, wide Wi-Fi / Bluetooth pills, rows of five that scroll past
-   two, volume over brightness. */
+/* Command Center: design file › 3a Command Center (edit me), default frame
+   as the user edited it. Round tiles, white = on, Wi-Fi / Bluetooth pills
+   showing only their status, rows of seven, volume over brightness. */
 .cc {
 	position: absolute;
 	top: calc(36px + var(--tab-bar-space, 0px));
@@ -34,6 +34,7 @@
 	grid-template-columns: 1fr 1fr;
 	gap: 10px;
 	flex: none;
+	padding: 0 18px;
 }
 
 .cc-wide {
@@ -80,46 +81,30 @@
 	text-align: left;
 }
 
-.cc-wide-text {
+.cc-wide-status {
 	flex: 1;
 	min-width: 0;
-	display: flex;
-	flex-direction: column;
-	gap: 1px;
-}
-
-.cc-wide-label,
-.cc-wide-status {
 	overflow: hidden;
 	white-space: nowrap;
 	text-overflow: ellipsis;
-}
-
-.cc-wide-label {
 	font-size: 13px;
 	font-weight: 500;
+	color: #a1a1aa;
 }
 
-.cc-wide-status {
-	font-size: 10px;
-	opacity: 0.6;
+.cc-wide.on .cc-wide-status {
+	color: #3a3a40;
 }
 
-/* Round tiles, five to a row */
+/* Round tiles: seven columns lined up across both rows */
 .cc-icons {
 	display: grid;
-	grid-template-columns: repeat(5, 1fr);
+	grid-template-columns: repeat(7, 44px);
 	grid-auto-rows: 44px;
+	justify-content: space-between;
 	row-gap: 10px;
-	justify-items: center;
 	flex: none;
-	padding: 0 6px;
-	overflow-y: auto;
-	scrollbar-width: none;
-}
-
-.cc-icons::-webkit-scrollbar {
-	display: none;
+	padding: 0 18px;
 }
 
 .cc-icon {
@@ -152,6 +137,7 @@
 	gap: 8px;
 	flex: none;
 	margin-top: auto;
+	padding: 0 12px;
 }
 
 .cc-slider {

@@ -31,9 +31,10 @@ import {
 } from "lucide-react";
 import "./CommandCenter.css";
 
-// The reference is the design file's page "3a Command Center (edit me)"
-// (designs/scripts/p_command_center.py): round tiles, white = on, wide
-// Wi-Fi / Bluetooth, rows of five, volume over brightness.
+// The reference is the design file's page "3a Command Center (edit me)",
+// default frame, as the user edited it (2026-11-15): Wi-Fi and Bluetooth
+// pills with no names, then up to two rows of seven round tiles (16 tiles
+// in all, fixed), then volume over brightness. Nothing scrolls.
 
 /** Every tile, in the order it shows (Settings › Notch › Command Center
  *  turns each on or off, `bloom-cc-tiles`). */
@@ -41,12 +42,12 @@ export const CC_TILES = [
 	["wifi", "Wi-Fi", Wifi],
 	["bluetooth", "Bluetooth", Bluetooth],
 	["dnd", "Do not disturb", Moon],
+	["captions", "Live captions", Captions],
+	["nearby", "Nearby sharing", Share2],
 	["night-light", "Night light", SunDim],
 	["energy", "Energy saver", Leaf],
 	["airplane", "Airplane mode", Plane],
 	["hotspot", "Mobile hotspot", RadioTower],
-	["captions", "Live captions", Captions],
-	["nearby", "Nearby sharing", Share2],
 	["cast", "Cast", Cast],
 	["project", "Project", MonitorUp],
 	["battery", "Battery", BatteryMedium],
@@ -65,25 +66,30 @@ export const CC_TILES = [
 export type CcTileId = (typeof CC_TILES)[number][0];
 
 const WIDE: CcTileId[] = ["wifi", "bluetooth"];
+const COLUMNS = 7;
+/** Round tiles the Command Center holds: two rows of seven. */
+export const CC_MAX_ICONS = 2 * COLUMNS;
+export const ccIsWide = (id: CcTileId) => WIDE.includes(id);
 
-/** Wi-Fi and Bluetooth, then two rows of five. */
+/** The user's design: row one full, row two Cast, Project, Battery. */
 export const CC_DEFAULT: CcTileId[] = [
 	"wifi",
 	"bluetooth",
 	"dnd",
+	"captions",
+	"nearby",
 	"night-light",
 	"energy",
 	"airplane",
 	"hotspot",
-	"captions",
-	"nearby",
 	"cast",
 	"project",
 	"battery"
 ];
 
-/** The shown tiles (`bloom-cc-tiles`, a JSON list), in catalogue order;
- *  missing or broken → the defaults. */
+/** The shown tiles (`bloom-cc-tiles`, a JSON list), in catalogue order:
+ *  Wi-Fi and Bluetooth always, then at most 14 round tiles; missing or
+ *  broken → the defaults. */
 export function parseCcTiles(raw: unknown): CcTileId[] {
 	let list: unknown;
 	try {
@@ -92,23 +98,16 @@ export function parseCcTiles(raw: unknown): CcTileId[] {
 		return CC_DEFAULT;
 	}
 	if (!Array.isArray(list)) return CC_DEFAULT;
-	return CC_TILES.map(([id]) => id).filter((id) => list.includes(id));
+	const icons = CC_TILES.map(([id]) => id).filter((id) => !ccIsWide(id) && list.includes(id));
+	return [...WIDE, ...icons.slice(0, CC_MAX_ICONS)];
 }
 
-const COLUMNS = 5;
-const TILE = 44;
-const ROW_GAP = 10;
-/** Two rows show; the rest scroll inside. */
-const ICONS_MAX_H = 2 * TILE + ROW_GAP;
-const GAP = 12;
-
-/** The Command Center body's height: padding, the wide row, the icon rows
- *  (scrolling past two) and the two sliders. */
+/** The Command Center body's height: padding, the pills, the tile rows
+ *  (44 px, 10 px apart) and the two sliders. */
 export function ccBodyHeight(tiles: CcTileId[]) {
-	const wide = tiles.some((t) => WIDE.includes(t)) ? 52 + GAP : 0;
-	const rows = Math.ceil(tiles.filter((t) => !WIDE.includes(t)).length / COLUMNS);
-	const icons = rows ? Math.min(rows * (TILE + ROW_GAP) - ROW_GAP, ICONS_MAX_H) + GAP : 0;
-	return 4 + wide + icons + 64 + 16;
+	const rows = Math.ceil(tiles.filter((t) => !ccIsWide(t)).length / COLUMNS);
+	const icons = rows ? rows * 54 - 10 + 12 : 0;
+	return 4 + 52 + 12 + icons + 64 + 16;
 }
 
 export interface CcTileState {
@@ -228,15 +227,13 @@ export function CommandCenter({
 									type="button"
 									className="cc-wide-more"
 									title={id === "wifi" ? "Wi-Fi networks" : "Bluetooth devices"}
+									aria-label={`${label}: ${status ?? ""}, show the list`}
 									onClick={(e) => {
 										e.stopPropagation();
 										onMore?.();
 									}}
 								>
-									<span className="cc-wide-text">
-										<span className="cc-wide-label">{label}</span>
-										<span className="cc-wide-status">{status}</span>
-									</span>
+									<span className="cc-wide-status">{status}</span>
 									<ChevronRight size={16} />
 								</button>
 							</div>
@@ -245,7 +242,7 @@ export function CommandCenter({
 				</div>
 			)}
 			{icons.length > 0 && (
-				<div className="cc-icons" style={{ maxHeight: ICONS_MAX_H }} onWheel={(e) => e.stopPropagation()}>
+				<div className="cc-icons">
 					{icons.map(([id, label, Icon]) => {
 						const { on, status, hint, onClick } = state[id];
 						return (
