@@ -143,6 +143,53 @@ fn net_bytes() -> (u64, u64) {
     }
 }
 
+/// CPU the way Task Manager shows it: the "% Processor Utility" counter
+/// (it counts boost clocks, so it reads higher than plain busy time),
+/// capped at 100. None when the counter isn't available.
+fn cpu_utility() -> Option<f64> {
+    use windows::Win32::System::Performance::{
+        PdhAddEnglishCounterW, PdhCollectQueryData, PdhGetFormattedCounterValue, PdhOpenQueryW,
+        PDH_FMT_COUNTERVALUE, PDH_FMT_DOUBLE, PDH_HCOUNTER, PDH_HQUERY,
+    };
+    // (query, counter), opened once; each call reads the change since the last.
+    static PDH: Mutex<Option<(usize, usize)>> = Mutex::new(None);
+    let mut pdh = PDH.lock().ok()?;
+    unsafe {
+        if pdh.is_none() {
+            let mut query = PDH_HQUERY::default();
+            if PdhOpenQueryW(None, 0, &mut query) != 0 {
+                return None;
+            }
+            let mut counter = PDH_HCOUNTER::default();
+            if PdhAddEnglishCounterW(
+                query,
+                windows::core::w!(r"\Processor Information(_Total)\% Processor Utility"),
+                0,
+                &mut counter,
+            ) != 0
+            {
+                return None;
+            }
+            PdhCollectQueryData(query);
+            *pdh = Some((query.0 as usize, counter.0 as usize));
+            return None; // the first sample has nothing to compare with
+        }
+        let (query, counter) = (*pdh)?;
+        PdhCollectQueryData(PDH_HQUERY(query as *mut _));
+        let mut value = PDH_FMT_COUNTERVALUE::default();
+        if PdhGetFormattedCounterValue(
+            PDH_HCOUNTER(counter as *mut _),
+            PDH_FMT_DOUBLE,
+            None,
+            &mut value,
+        ) != 0
+        {
+            return None;
+        }
+        Some(value.Anonymous.doubleValue.clamp(0.0, 100.0))
+    }
+}
+
 #[tauri::command]
 pub fn system_stats() -> SystemStats {
     use windows::Win32::System::SystemInformation::{GlobalMemoryStatusEx, MEMORYSTATUSEX};
@@ -182,7 +229,7 @@ pub fn system_stats() -> SystemStats {
     };
     *prev = Some((idle, kernel, user, down, up, now));
     SystemStats {
-        cpu,
+        cpu: cpu_utility().unwrap_or(cpu),
         mem_used: mem.ullTotalPhys - mem.ullAvailPhys,
         mem_total: mem.ullTotalPhys,
         net_down,

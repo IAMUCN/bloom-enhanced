@@ -223,6 +223,7 @@ fn main() {
             system_tools::cc_states,
             system_tools::cc_toggle,
             shortcuts::set_shortcuts_paused,
+            shortcuts::set_notch_key_capture,
             focus_window,
             focus_app_windows,
             close_window,

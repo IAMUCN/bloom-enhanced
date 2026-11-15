@@ -3,7 +3,11 @@ import { invoke } from "@tauri-apps/api/core";
 
 type Stats = { cpu: number; mem_used: number; mem_total: number; net_down: number; net_up: number };
 const GB = 1024 ** 3;
-const rate = (b: number) => (b > 1024 ** 2 ? `${(b / 1024 ** 2).toFixed(1)} MB/s` : `${Math.round(b / 1024)} KB/s`);
+/** Bytes/s → bits/s in Task Manager's units (Kbps / Mbps, decimal). */
+const rate = (bytes: number) => {
+	const bits = bytes * 8;
+	return bits >= 1e6 ? `${(bits / 1e6).toFixed(1)} Mbps` : `${Math.round(bits / 1e3)} Kbps`;
+};
 
 function Spark({ values, color, max }: { values: number[]; color: string; max: number }) {
 	const w = 150;

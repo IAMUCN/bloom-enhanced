@@ -83,6 +83,7 @@ import {
 	HardDrive,
 	ArrowUpDown,
 	BellRing,
+	Timer,
 	Play,
 	Pause,
 	RotateCcw,
@@ -634,6 +635,10 @@ function App() {
 	const [isHovered, setIsHovered] = useState(false);
 	// Expanded into a panel by a click. Hover alone only peeks.
 	const [isOpen, setIsOpen] = useState(false);
+	// The Timer tool's running countdown, shown on the closed notch as
+	// `bloom-timer-display` says: the time, an edge light, both, or off.
+	const [toolTimer, setToolTimer] = useState<{ left: number; total: number } | null>(null);
+	const [timerDisplay, setTimerDisplay] = useState(() => localStorage.getItem("bloom-timer-display") ?? "both");
 	const isOpenRef = useRef(false);
 	isOpenRef.current = isOpen;
 	const [isReady, setIsReady] = useState(false);
@@ -929,8 +934,11 @@ function App() {
 	const isAnyInteraction = isHovered || isNotchHovered || isEdgeHovered;
 	// An open notch never hides (Peek / Smart): the shortcut opens it without
 	// the pointer touching the edge.
+	// A running Timer shown on the notch keeps it on screen (Peek / Smart).
+	const timerShowing = !!toolTimer && timerDisplay !== "off";
 	const isHidden =
 		!isOpen &&
+		!timerShowing &&
 		!startupAnimating &&
 		!deviceAlertOnScreen &&
 		((notchMode === "smart" && isOverlapped && interactionState === "none" && !eventPeek) ||
@@ -1220,14 +1228,18 @@ function App() {
 				invoke<string | null>("tool_data_get", { tool: "stopwatch" })
 					.then((text) => {
 						const t = text ? JSON.parse(text) : null;
-						if (!t?.timerAt) return;
-						const left = (t.timerLength ?? 300000) - (t.timerDone ?? 0) - (Date.now() - t.timerAt);
+						// The tab may have seen the end first and stopped it.
+						if (t?.finishedFor && !t.timerAt) ring("stopwatch", `timer@${t.finishedFor}`);
+						if (!t?.timerAt) return setToolTimer(null);
+						const total = t.timerLength ?? 300000;
+						const left = total - (t.timerDone ?? 0) - (Date.now() - t.timerAt);
+						setToolTimer(left > 0 ? { left, total } : null);
 						if (left <= 0) ring("stopwatch", `timer@${t.timerAt}`);
 					})
 					.catch(() => {});
 		};
 		check();
-		const timer = window.setInterval(check, 2000);
+		const timer = window.setInterval(check, 1000);
 		return () => window.clearInterval(timer);
 	}, [windowLabel, enabledTools]);
 	const visualizerWantedRef = useRef(true);
@@ -1462,6 +1474,7 @@ function App() {
 			"bloom-low-battery-threshold": setLowBatteryThreshold,
 			"bloom-tools-enabled": (v: unknown) => setEnabledTools(parseEnabledTools(v)),
 			"bloom-cc-tiles": (v: unknown) => setCcTiles(parseCcTiles(v)),
+			"bloom-timer-display": (v: unknown) => setTimerDisplay(String(v)),
 			"bloom-tab-order": setTabOrder,
 			"bloom-progress-effect": (v: unknown) => setProgressStyle(asProgressStyle(v)),
 			"bloom-battery-saver": (v: unknown) => setSaverMode(String(v ?? "below")),
@@ -2013,15 +2026,18 @@ function App() {
 		// Esc steps back one level: a Wi-Fi / Bluetooth list returns to the
 		// Command Center, the next Esc closes the notch.
 		const unlisten = listen("notch-escape", () => {
-			if (bloomModeRef.current === "wifi" || bloomModeRef.current === "bluetooth") setBloomMode("command-center");
-			else releaseNotchHoverRef.current();
+			if (bloomModeRef.current === "wifi" || bloomModeRef.current === "bluetooth") return setBloomMode("command-center");
+			// A tool holding the keys (the Calculator) lets them go first.
+			const toolEsc = new Event("notch-escape-tool", { cancelable: true });
+			window.dispatchEvent(toolEsc);
+			if (!toolEsc.defaultPrevented) releaseNotchHoverRef.current();
 		});
 		// Global shortcuts (shortcuts.rs): the notch runs the action.
 		const unlistenShortcut = listen<string>("shortcut", (e) => runShortcutRef.current(e.payload));
 		// With this window focused (typing in a tool), 1–9 jump to a tab unless
 		// a text field has the keys.
 		const onDigit = (e: KeyboardEvent) => {
-			if (!isOpenRef.current || e.ctrlKey || e.altKey || e.metaKey || e.shiftKey) return;
+			if (e.defaultPrevented || !isOpenRef.current || e.ctrlKey || e.altKey || e.metaKey || e.shiftKey) return;
 			const target = e.target as HTMLElement | null;
 			if (target?.closest("input, textarea, [contenteditable='true']")) return;
 			const n = /^(Digit|Numpad)([1-9])$/.exec(e.code)?.[2];
@@ -2234,6 +2250,9 @@ function App() {
 	const timerIntervalRef = useRef<any>(null);
 	const prevTimerFinishedRef = useRef(false);
 
+	// The Timer tool's countdown takes the clock's place on the closed notch.
+	const showToolTimer =
+		!!toolTimer && !isOpen && timerSeconds === 0 && !isTimerFinished && (timerDisplay === "pill" || timerDisplay === "both");
 	const formatTimerTime = (totalSeconds: number) => {
 		const mins = Math.floor(Math.abs(totalSeconds) / 60);
 		const secs = Math.abs(totalSeconds) % 60;
@@ -4012,6 +4031,9 @@ function App() {
 					{fileStatus && !isOpen && (
 						<ProgressEffect style={progressStyle} percent={fileStatus.percent} result={fileStatus.result} />
 					)}
+					{toolTimer && !fileStatus && !isOpen && (timerDisplay === "edge" || timerDisplay === "both") && (
+						<ProgressEffect style="edge" percent={((toolTimer.total - toolTimer.left) / toolTimer.total) * 100} />
+					)}
 					<AnimatePresence>
 						{isMusicMode && settingsAmbienceEnabled && albumArtUrl && isOpen && !isCalendarMode && (
 							<motion.div
@@ -4266,7 +4288,19 @@ function App() {
 																</AnimatePresence>
 																<div className="time-flip-container" style={{ zoom: timeSize }} onClick={toggleCalendarMode}>
 																	<AnimatePresence initial={false}>
-																		{timerSeconds > 0 || isTimerFinished ? (
+																		{showToolTimer ? (
+																			<motion.span
+																				key="tool-timer"
+																				className="time compact-timer"
+																				initial={{ rotateX: -90, opacity: 0 }}
+																				animate={{ rotateX: 0, opacity: 1 }}
+																				exit={{ rotateX: 90, opacity: 0 }}
+																				transition={{ type: "spring", stiffness: 600, damping: 30 }}
+																			>
+																				<Timer size={12} strokeWidth={2.5} className="timer-bell" />
+																				{formatTimerTime(Math.ceil(toolTimer!.left / 1000))}
+																			</motion.span>
+																		) : timerSeconds > 0 || isTimerFinished ? (
 																			<motion.span
 																				key="timer"
 																				className={`time compact-timer ${isTimerFinished ? "timer-finished" : ""}`}

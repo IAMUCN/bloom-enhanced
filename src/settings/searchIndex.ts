@@ -69,6 +69,7 @@ export const SETTINGS_INDEX: SettingEntry[] = [
 		["In your notch", "Turn tools on or off and drag them into the tab bar's order, up to 15", "In your notch"],
 		["Tiles", "Command Center quick settings: Wi-Fi, Bluetooth, Do not disturb, Night light, Energy saver, Airplane mode, Mobile hotspot, Live captions, Studio effects, Cast, Project"],
 		["Timer Sound", "Play a chime when the timer finishes"],
+		["Countdown", "How a running Timer shows on the closed notch: time, edge light, both or off"],
 		["Erase Data", "Delete what a tool has saved on this PC"]
 	]),
 	...page(

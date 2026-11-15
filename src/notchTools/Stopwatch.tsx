@@ -20,6 +20,9 @@ type State = {
 	timerLength?: number;
 	timerAt?: number | null;
 	timerDone?: number;
+	/** The start time of the run that just finished, so the notch rings for
+	 *  it even if this tab saw the end first. */
+	finishedFor?: number | null;
 };
 const MIN = 60_000;
 const FOCUS = 25 * MIN;
@@ -61,7 +64,7 @@ export default function Stopwatch() {
 	// timer stops at zero.
 	useEffect(() => {
 		if (s.mode === "pomodoro" && s.phaseAt && elapsed >= length) set((p) => ({ ...p, phase: p.phase + 1, phaseAt: null, phaseDone: 0 }));
-		if (s.timerAt && timerLeft <= 0) set((p) => ({ ...p, timerAt: null, timerDone: p.timerLength ?? 5 * MIN }));
+		if (s.timerAt && timerLeft <= 0) set((p) => ({ ...p, timerAt: null, timerDone: p.timerLength ?? 5 * MIN, finishedFor: p.timerAt }));
 	});
 
 	const running = s.mode === "stopwatch" ? s.startedAt !== null : s.mode === "pomodoro" ? s.phaseAt !== null : !!s.timerAt;

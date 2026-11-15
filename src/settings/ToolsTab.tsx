@@ -1,6 +1,7 @@
 import { useRef, useState } from "react";
 import { Reorder } from "framer-motion";
-import { ArrowLeft, BellRing, ChevronRight, GripVertical, Plus, Trash2, X } from "lucide-react";
+import { ArrowLeft, BellRing, ChevronRight, GripVertical, Plus, Timer, Trash2, X } from "lucide-react";
+import { Choice } from "./Choice";
 import { ask } from "@tauri-apps/plugin-dialog";
 import { invoke } from "@tauri-apps/api/core";
 import { SettingRow } from "./SettingRow";
@@ -255,6 +256,8 @@ function ToolPage({ tool, setPage, saveSetting, timerSoundEnabled, toggleTimerSo
 				</>
 			)}
 
+			{tool.id === "stopwatch" && <TimerDisplayRow saveSetting={saveSetting} />}
+
 			{extra && (
 				<>
 					<div className="setting-group-label">Data</div>
@@ -267,6 +270,36 @@ function ToolPage({ tool, setPage, saveSetting, timerSoundEnabled, toggleTimerSo
 					</div>
 				</>
 			)}
+		</>
+	);
+}
+
+/** How a running Timer shows on the closed notch (`bloom-timer-display`). */
+const TIMER_DISPLAY = [
+	["both", "Time + edge light", "The countdown replaces the clock and light fills the notch's edge as time passes"],
+	["pill", "Time", "The countdown replaces the clock"],
+	["edge", "Edge light", "Light fills the notch's edge as time passes"],
+	["off", "Off", "Nothing on the closed notch; it still rings when done"]
+] as const;
+
+function TimerDisplayRow({ saveSetting }: { saveSetting: Save }) {
+	const [value, setValue] = useState(() => localStorage.getItem("bloom-timer-display") ?? "both");
+	return (
+		<>
+			<div className="setting-group-label">On the closed notch</div>
+			<div className="setting-group">
+				<SettingRow icon={Timer} label="Countdown" desc={TIMER_DISPLAY.find(([v]) => v === value)?.[2] ?? ""} divider={false}>
+					<Choice
+						value={value}
+						options={TIMER_DISPLAY.map(([v, name]) => [v, name] as const)}
+						onChange={(v) => {
+							setValue(v);
+							saveSetting("bloom-timer-display", v);
+						}}
+						label="Countdown on the closed notch"
+					/>
+				</SettingRow>
+			</div>
 		</>
 	);
 }
