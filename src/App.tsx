@@ -4391,13 +4391,13 @@ function App() {
 																		) : showToolTimer ? (
 																			<motion.span
 																				key="tool-timer"
-																				className="time compact-timer"
+																				className="time compact-timer tool-countdown"
 																				initial={{ rotateX: -90, opacity: 0 }}
 																				animate={{ rotateX: 0, opacity: 1 }}
 																				exit={{ rotateX: 90, opacity: 0 }}
 																				transition={{ type: "spring", stiffness: 600, damping: 30 }}
 																			>
-																				<Timer size={12} strokeWidth={2.5} className="timer-bell" />
+																				<Timer size={14} strokeWidth={2.5} />
 																				{formatTimerTime(Math.ceil(toolTimer!.left / 1000))}
 																			</motion.span>
 																		) : timerSeconds > 0 || isTimerFinished ? (

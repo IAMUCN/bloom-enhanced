@@ -191,13 +191,14 @@ textarea.nt-input {
 	outline-offset: 1px;
 }
 
-/* Timer · Stopwatch · Pomodoro: one centred column. */
+/* Timer · Stopwatch · Pomodoro: one centred column, sized to fill the body
+   (user, 2026-11-15: bigger things in the same space). */
 .nt-timers {
 	display: flex;
 	flex-direction: column;
 	align-items: center;
 	justify-content: center;
-	gap: 6px;
+	gap: 8px;
 	flex: 1;
 	min-height: 0;
 	text-align: center;
@@ -703,4 +704,26 @@ textarea.nt-input {
 .gs-link:focus-visible {
 	outline: 2px solid var(--bloom-accent, #0a84ff);
 	outline-offset: 1px;
+}
+
+.nt-timers .nt-seg button {
+	font-size: 12px;
+	padding: 5px 14px;
+}
+
+.nt-timers .nt-muted,
+.nt-timers .nt-times-up {
+	font-size: 13px;
+}
+
+.nt-timers .nt-chip {
+	height: 30px;
+	padding: 0 13px;
+	font-size: 12px;
+}
+
+.nt-timers .nt-timer-face .nt-icon-btn {
+	width: 32px;
+	height: 32px;
+	justify-content: center;
 }

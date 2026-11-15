@@ -137,7 +137,7 @@ export default function Stopwatch() {
 						<Minus size={14} />
 					</button>
 				)}
-				<div className="nt-big" style={{ color: "#FFC94D", fontSize: 36 }} aria-live="off">
+				<div className="nt-big" style={{ color: "#FFC94D", fontSize: 52, lineHeight: 1.05 }} aria-live="off">
 					{big}
 				</div>
 				{editable && (
@@ -154,11 +154,11 @@ export default function Stopwatch() {
 							{m}m
 						</button>
 					))}
-				<button type="button" className="nt-btn primary nt-icon-btn" style={{ width: 36, height: 36 }} aria-label={running ? "Pause" : "Start"} onClick={toggle}>
-					{running ? <Pause size={16} /> : <Play size={16} />}
+				<button type="button" className="nt-btn primary nt-icon-btn" style={{ width: 42, height: 42, justifyContent: "center" }} aria-label={running ? "Pause" : "Start"} onClick={toggle}>
+					{running ? <Pause size={18} /> : <Play size={18} />}
 				</button>
-				<button type="button" className="nt-btn nt-icon-btn" style={{ width: 36, height: 36 }} aria-label="Reset" onClick={reset}>
-					<RotateCcw size={16} />
+				<button type="button" className="nt-btn nt-icon-btn" style={{ width: 42, height: 42, justifyContent: "center" }} aria-label="Reset" onClick={reset}>
+					<RotateCcw size={18} />
 				</button>
 			</div>
 		</div>

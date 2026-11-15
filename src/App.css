@@ -2265,3 +2265,17 @@ img {
 	white-space: nowrap;
 	color: #b6f36b;
 }
+
+/* The Timer tool's countdown on the closed notch: bigger, and centred in the
+   notch itself. The closed notch is ~29 px tall but its clock row is 36 px,
+   so the row's centre sits ~3 px low.
+   ponytail: a fixed nudge; re-measure if the closed notch height changes. */
+.time.tool-countdown {
+	position: relative;
+	top: -3px;
+	gap: 6px;
+	font-size: 16px;
+	font-weight: 700;
+	line-height: 1;
+	font-variant-numeric: tabular-nums;
+}
