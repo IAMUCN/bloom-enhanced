@@ -2188,3 +2188,10 @@ input:checked + .slider:before {
 	font-size: 12px;
 	color: var(--bloom-text-secondary, #a1a1aa);
 }
+
+.pick-tool-note {
+	display: block;
+	font-size: 10px;
+	font-weight: 400;
+	color: var(--bloom-text-secondary, #a1a1aa);
+}

@@ -9,7 +9,8 @@
 	bottom: 0;
 	z-index: 2;
 	box-sizing: border-box;
-	padding: 4px 12px 16px;
+	/* 16 px in from the sides, the same as the bottom. */
+	padding: 4px 16px 16px;
 	display: flex;
 	flex-direction: column;
 	gap: 12px;
@@ -34,7 +35,6 @@
 	grid-template-columns: 1fr 1fr;
 	gap: 10px;
 	flex: none;
-	padding: 0 18px;
 }
 
 .cc-wide {
@@ -104,7 +104,6 @@
 	justify-content: space-between;
 	row-gap: 10px;
 	flex: none;
-	padding: 0 18px;
 }
 
 .cc-icon {
@@ -158,7 +157,6 @@
 	gap: 8px;
 	flex: none;
 	margin-top: auto;
-	padding: 0 12px;
 }
 
 .cc-slider {
@@ -166,7 +164,6 @@
 	align-items: center;
 	gap: 12px;
 	height: 28px;
-	padding: 0 6px;
 }
 
 .cc-slider-label {

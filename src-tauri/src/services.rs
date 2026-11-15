@@ -183,10 +183,13 @@ unsafe extern "system" fn keyboard_hook_proc(
         let is_down = wparam.0 == WM_KEYDOWN as usize || wparam.0 == WM_SYSKEYDOWN as usize;
         let is_up = wparam.0 == WM_KEYUP as usize || wparam.0 == WM_SYSKEYUP as usize;
 
-        // Esc closes an open notch. The key still reaches the focused app.
+        // Esc steps the open notch back (a list → the Command Center → closed).
+        // The key still reaches the focused app. Only read the flag: the
+        // notch reports open/closed itself (set_notch_open), and an Esc that
+        // only steps back leaves it open.
         if is_down
             && vk_code == windows::Win32::UI::Input::KeyboardAndMouse::VK_ESCAPE
-            && crate::state::NOTCH_OPEN.swap(false, Ordering::Relaxed)
+            && crate::state::NOTCH_OPEN.load(Ordering::Relaxed)
         {
             if let Some(app) = KEYBOARD_HOOK_APP_HANDLE.get().cloned() {
                 // Off the hook thread: a low-level hook must return quickly.

@@ -1,7 +1,7 @@
 .notch-tab-bar {
 	display: flex;
 	align-items: center;
-	/* 15 tabs exactly span the Command Center's edges (30 px in from each
+	/* 15 tabs exactly span the Command Center's edges (16 px in from each
 	   side): 15 × 32 px plus 14 equal gaps. Fewer tabs keep that gap and
 	   sit centred. */
 	gap: calc((100% - 15 * 32px) / 14);
@@ -9,7 +9,7 @@
 	flex: none;
 	box-sizing: border-box;
 	width: 100%;
-	padding: 0 30px;
+	padding: 0 16px;
 	overflow-x: auto;
 	scrollbar-width: none;
 	pointer-events: auto;

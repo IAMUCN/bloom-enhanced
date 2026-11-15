@@ -231,22 +231,33 @@ function CcTilePicker({ saveSetting }: { saveSetting: (key: string, value: strin
 			</div>
 			<div className="pick-tools-grid cc-tile-picker">
 				{CC_TILES.filter(([id]) => !ccIsWide(id)).map(([id, label, Icon]) => {
-					const on = tiles.includes(id);
+					// Dock mode needs the dock: with it off, the tile can't be added.
+					const dockOff = id === "dock-mode" && localStorage.getItem("bloom-dock-enabled") === "false";
+					const on = tiles.includes(id) && !dockOff;
 					return (
 						<button
 							key={id}
 							type="button"
 							role="checkbox"
 							aria-checked={on}
-							disabled={!on && full}
-							title={!on && full ? "The Command Center holds 14 tiles: turn one off first" : undefined}
+							disabled={dockOff || (!on && full)}
+							title={
+								dockOff
+									? "The dock is off. Turn it on in Settings › Dock to use this tile"
+									: !on && full
+										? "The Command Center holds 14 tiles: turn one off first"
+										: undefined
+							}
 							className={`pick-tool${on ? " on" : ""}`}
 							onClick={() => save(on ? tiles.filter((t) => t !== id) : [...tiles, id])}
 						>
 							<span className="tool-card-icon" style={{ color: TOOLS["command-center"].color }}>
 								<Icon size={16} />
 							</span>
-							<span className="pick-tool-label">{label}</span>
+							<span className="pick-tool-label">
+								{label}
+								{dockOff && <span className="pick-tool-note">Dock is off</span>}
+							</span>
 							<span className="pick-check">{on && <Check size={12} strokeWidth={3} />}</span>
 						</button>
 					);
