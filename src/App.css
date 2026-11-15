@@ -734,8 +734,10 @@ img {
 	padding-bottom: 2px;
 }
 
+/* Fixed-height cells: square ones grew with the wider notch and pushed the
+   last week out of the panel. Six weeks of 26 px fit the 6-row height. */
 .calendar-day {
-	aspect-ratio: 1;
+	height: 26px;
 	display: flex;
 	align-items: center;
 	justify-content: center;

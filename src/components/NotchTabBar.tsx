@@ -13,15 +13,19 @@ export function NotchTabBar({
 	tools,
 	active,
 	onSelect,
-	zoom = 1
+	zoom = 1,
+	onStep
 }: {
 	tools: Tool[];
 	active: string | null;
 	onSelect: (tool: string) => void;
 	/** Counter-zoom so the bar keeps one size whatever the panel's zoom. */
 	zoom?: number;
+	/** The mouse wheel over the bar steps to the next / previous tab. */
+	onStep: (dir: 1 | -1) => void;
 }) {
 	const bar = useRef<HTMLDivElement>(null);
+	const lastWheel = useRef(0);
 	useEffect(() => {
 		bar.current?.querySelector(".notch-tab.active")?.scrollIntoView({ block: "nearest", inline: "nearest" });
 	}, [active]);
@@ -34,8 +38,13 @@ export function NotchTabBar({
 			ref={bar}
 			className="notch-tab-bar"
 			onWheel={(e) => {
+				// Like the wheel over the clock: one tab per notch of the wheel.
 				e.stopPropagation();
-				if (bar.current) bar.current.scrollLeft += e.deltaY || e.deltaX;
+				const delta = Math.abs(e.deltaX) > Math.abs(e.deltaY) ? e.deltaX : e.deltaY;
+				const now = Date.now();
+				if (Math.abs(delta) < 5 || now - lastWheel.current < 250) return;
+				lastWheel.current = now;
+				onStep(delta > 0 ? 1 : -1);
 			}}
 			role="tablist"
 			aria-label="Notch tools"

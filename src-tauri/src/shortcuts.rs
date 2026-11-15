@@ -165,6 +165,42 @@ pub fn on_key_down(vk: u16) -> bool {
     true
 }
 
+/// While the notch is open, 1–9 (top row or numpad, no modifiers) jump to
+/// that tab. Only when another app has the keyboard: when LotusNotch's own
+/// window does, its page handles the digits (and leaves them to text fields).
+pub fn on_open_notch_digit(vk: u16) -> bool {
+    use windows::Win32::UI::Input::KeyboardAndMouse::{
+        GetAsyncKeyState, VK_CONTROL, VK_LWIN, VK_MENU, VK_RWIN, VK_SHIFT,
+    };
+    use windows::Win32::UI::WindowsAndMessaging::{GetForegroundWindow, GetWindowThreadProcessId};
+    if PAUSED.load(Ordering::Relaxed) || !crate::state::NOTCH_OPEN.load(Ordering::Relaxed) {
+        return false;
+    }
+    let n = match vk {
+        0x31..=0x39 => vk - 0x30,
+        0x61..=0x69 => vk - 0x60,
+        _ => return false,
+    };
+    let down = |k: u16| unsafe { (GetAsyncKeyState(k as i32) as u16 & 0x8000) != 0 };
+    if [VK_CONTROL.0, VK_MENU.0, VK_SHIFT.0, VK_LWIN.0, VK_RWIN.0]
+        .into_iter()
+        .any(down)
+    {
+        return false;
+    }
+    let mut pid = 0u32;
+    unsafe { GetWindowThreadProcessId(GetForegroundWindow(), Some(&mut pid)) };
+    if pid == std::process::id() {
+        return false;
+    }
+    if let Some(app) = KEYBOARD_APP.get().cloned() {
+        std::thread::spawn(move || {
+            let _ = app.emit_to("main", "shortcut", format!("tool-{n}"));
+        });
+    }
+    true
+}
+
 /// Settings records a shortcut: pause them all until it's done.
 #[tauri::command]
 pub fn set_shortcuts_paused(paused: bool) {

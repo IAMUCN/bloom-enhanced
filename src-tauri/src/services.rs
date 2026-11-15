@@ -179,7 +179,8 @@ unsafe extern "system" fn keyboard_hook_proc(
         // swallowed so the focused app doesn't also act on it.
         if is_down
             && (kb.flags.0 & LLKHF_INJECTED.0) == 0
-            && crate::shortcuts::on_key_down(kb.vkCode as u16)
+            && (crate::shortcuts::on_key_down(kb.vkCode as u16)
+                || crate::shortcuts::on_open_notch_digit(kb.vkCode as u16))
         {
             return windows::Win32::Foundation::LRESULT(1);
         }

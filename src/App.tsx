@@ -2001,9 +2001,22 @@ function App() {
 		});
 		// Global shortcuts (shortcuts.rs): the notch runs the action.
 		const unlistenShortcut = listen<string>("shortcut", (e) => runShortcutRef.current(e.payload));
+		// With this window focused (typing in a tool), 1–9 jump to a tab unless
+		// a text field has the keys.
+		const onDigit = (e: KeyboardEvent) => {
+			if (!isOpenRef.current || e.ctrlKey || e.altKey || e.metaKey || e.shiftKey) return;
+			const target = e.target as HTMLElement | null;
+			if (target?.closest("input, textarea, [contenteditable='true']")) return;
+			const n = /^(Digit|Numpad)([1-9])$/.exec(e.code)?.[2];
+			if (!n) return;
+			e.preventDefault();
+			runShortcutRef.current(`tool-${n}`);
+		};
+		window.addEventListener("keydown", onDigit);
 		return () => {
 			unlisten.then((f) => f());
 			unlistenShortcut.then((f) => f());
+			window.removeEventListener("keydown", onDigit);
 		};
 	}, [windowLabel]);
 
@@ -4390,6 +4403,7 @@ function App() {
 										active={activeTabId}
 										zoom={1 / panelZoomNow}
 										onSelect={selectTab}
+										onStep={(dir) => stepTabRef.current(dir)}
 									/>
 								)}
 								<AnimatePresence custom={tabDir}>

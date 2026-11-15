@@ -116,7 +116,7 @@ export const PARTS: Record<PartId, PartTool> = {
 	note: { id: "note", label: "Note", icon: StickyNote, color: "#FFE066", size: ["M", "M"], desc: "A note that saves itself", load: () => import("./notchTools/QuickNote") },
 	todo: { id: "todo", label: "To-dos", icon: ListChecks, color: "#7EE081", size: ["M", "M"], desc: "Today's tasks", load: () => import("./notchTools/Todos") },
 	reminders: { id: "reminders", label: "Reminders", icon: Bell, color: "#FF8F8F", size: ["M", "M"], desc: "Reminders with snooze; the notch rings", load: () => import("./notchTools/Reminders") },
-	stopwatch: { id: "stopwatch", label: "Stopwatch & Pomodoro", icon: Timer, color: "#FFC94D", size: ["M", "S"], desc: "Stopwatch and focus/break cycles", load: () => import("./notchTools/Stopwatch") },
+	stopwatch: { id: "stopwatch", label: "Timer", icon: Timer, color: "#FFC94D", size: ["M", "M"], desc: "Timer, stopwatch and Pomodoro focus/break cycles", load: () => import("./notchTools/Stopwatch") },
 	calc: { id: "calc", label: "Calculator", icon: Calculator, color: "#9DB4FF", size: ["S", "L"], desc: "Type or tap; click the result to copy", load: () => import("./notchTools/Calc") },
 	units: { id: "units", label: "Units", icon: Ruler, color: "#8BE3F5", size: ["M", "S"], desc: "Length, weight, temperature, data", load: () => import("./notchTools/Units") },
 	monitor: { id: "monitor", label: "Monitor", icon: Activity, color: "#57D9A3", size: ["L", "S"], desc: "CPU, memory and network", load: () => import("./notchTools/SystemMonitor") },
@@ -171,7 +171,7 @@ export const EXTRA_TOOLS: ExtraTool[] = [
 	tool("system", "System", Activity, "#57D9A3", "CPU, memory and network; power modes; keep awake", ["monitor", "power", "awake"]),
 	tool("todo", "To-dos", ListChecks, "#7EE081", PARTS.todo.desc, ["todo"]),
 	tool("reminders", "Reminders", Bell, "#FF8F8F", PARTS.reminders.desc, ["reminders"]),
-	tool("stopwatch", "Stopwatch & Pomodoro", Timer, "#FFC94D", PARTS.stopwatch.desc, ["stopwatch"]),
+	tool("stopwatch", "Timer", Timer, "#FFC94D", PARTS.stopwatch.desc, ["stopwatch"]),
 	tool("meeting", "Meeting", MicOff, "#FF7A70", PARTS.meeting.desc, ["meeting"])
 ];
 

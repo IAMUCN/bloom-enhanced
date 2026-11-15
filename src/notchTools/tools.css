@@ -190,3 +190,55 @@ textarea.nt-input {
 	outline: 2px solid var(--bloom-accent, #0a84ff);
 	outline-offset: 1px;
 }
+
+/* Timer · Stopwatch · Pomodoro: one centred column. */
+.nt-timers {
+	display: flex;
+	flex-direction: column;
+	align-items: center;
+	justify-content: center;
+	gap: 6px;
+	flex: 1;
+	min-height: 0;
+	text-align: center;
+}
+
+.nt-timer-face {
+	display: flex;
+	align-items: center;
+	gap: 12px;
+}
+
+.nt-timer-face .nt-big {
+	font-variant-numeric: tabular-nums;
+	min-width: 4ch;
+}
+
+.nt-timer-actions {
+	display: flex;
+	align-items: center;
+	justify-content: center;
+	gap: 6px;
+	margin-top: 2px;
+}
+
+.nt-chip {
+	height: 26px;
+	padding: 0 10px;
+	border: none;
+	border-radius: 999px;
+	background: color-mix(in srgb, var(--bloom-text, #fff) 7%, transparent);
+	color: var(--bloom-text-muted, rgba(255, 255, 255, 0.7));
+	font: 500 11px/1 "Inter", "Segoe UI", sans-serif;
+	cursor: pointer;
+}
+
+.nt-chip.on {
+	background: color-mix(in srgb, var(--tool-color, #ffc94d) 22%, transparent);
+	color: var(--bloom-text, #fff);
+}
+
+.nt-chip:focus-visible {
+	outline: 2px solid var(--bloom-accent, #0a84ff);
+	outline-offset: 1px;
+}
