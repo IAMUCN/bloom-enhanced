@@ -35,6 +35,7 @@ export const SETTINGS_INDEX: SettingEntry[] = [
 	]),
 	...page("appearance", [
 		["Theme Mode", "Dark, light, a custom colour or your Windows accent"],
+		["Animations", "Follow Windows, always on or off: motion in the notch, dock and menus"],
 		["Custom Theme Color", "Choose layout background color"],
 		["Background Opacity", "Adjust theme transparency"],
 		["Color Saturation", "Adjust theme color vibrancy"],

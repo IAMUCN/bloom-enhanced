@@ -71,19 +71,22 @@ const COLUMNS = 7;
 export const CC_MAX_ICONS = 2 * COLUMNS;
 export const ccIsWide = (id: CcTileId) => WIDE.includes(id);
 
-/** The user's design: row one full, row two Cast, Project, Battery. */
+/** Usage-ranked (user approved, 2026-11-15): row one the seven most used,
+ *  row two the next four, three spaces left for the user's own picks. */
 export const CC_DEFAULT: CcTileId[] = [
 	"wifi",
 	"bluetooth",
 	"dnd",
-	"captions",
-	"nearby",
 	"night-light",
 	"energy",
 	"airplane",
 	"hotspot",
 	"cast",
-	"project"
+	"project",
+	"captions",
+	"nearby",
+	"notch-mode",
+	"task-manager"
 ];
 
 /** The shown tiles (`bloom-cc-tiles`, a JSON list) in the user's order

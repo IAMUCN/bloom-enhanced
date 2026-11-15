@@ -66,6 +66,9 @@ const LIST_MOTION = {
 	exit: { opacity: 0, x: 16, transition: { duration: 0.12 } }
 } as const;
 
+type MotionPref = "windows" | "on" | "off";
+const asMotionPref = (v: unknown): MotionPref => (v === "on" || v === "off" ? v : "windows");
+
 /** system_tools.rs CcStates; a missing key = not available on this PC. */
 type CcSystemStates = Partial<Record<"night-light" | "airplane" | "hotspot" | "nearby" | "captions", boolean | null>>;
 import { reloadIfMirrorWasStale } from "./hooks/settingsMirror";
@@ -680,6 +683,12 @@ function App() {
 		() => parseInt(localStorage.getItem("bloom-battery-saver-threshold") ?? "", 10) || 30
 	);
 	const [saverPauses, setSaverPauses] = useState(() => parseSaverPauses(localStorage.getItem("bloom-battery-saver-pauses")));
+	// Animations (`bloom-motion`): follow Windows' "Animation effects"
+	// (default), always on, or off. Battery saver can still pause them.
+	const [motionPref, setMotionPref] = useState(() => asMotionPref(localStorage.getItem("bloom-motion")));
+	useEffect(() => {
+		document.documentElement.classList.toggle("motion-on", motionPref === "on");
+	}, [motionPref]);
 	// Fetched when the pointer reaches the battery widget, for its tooltip.
 	const [batteryDetails, setBatteryDetails] = useState<BatteryDetails | null>(null);
 	// The status widget whose tooltip is open, the side of the pill it hangs
@@ -1448,6 +1457,7 @@ function App() {
 			"bloom-battery-saver": (v: unknown) => setSaverMode(String(v ?? "below")),
 			"bloom-battery-saver-threshold": (v: unknown) => setSaverThreshold(parseInt(String(v ?? ""), 10) || 30),
 			"bloom-battery-saver-pauses": (v: unknown) => setSaverPauses(parseSaverPauses(v)),
+			"bloom-motion": (v: unknown) => setMotionPref(asMotionPref(v)),
 			"bloom-dock-enabled": setDockEnabled,
 			"bloom-dock-mode": setDockMode,
 			"bloom-notch-mode": setNotchMode,
@@ -3568,7 +3578,9 @@ function App() {
 	});
 
 	return (
-		<MotionConfig reducedMotion={saverOn && saverPauses.motion ? "always" : "user"}>
+		<MotionConfig
+			reducedMotion={saverOn && saverPauses.motion ? "always" : motionPref === "on" ? "never" : motionPref === "off" ? "always" : "user"}
+		>
 		<div className={`screen${saverOn && saverPauses.glass ? " battery-saver" : ""}`} style={{ overflow: "hidden" }}>
 			<div
 				style={{

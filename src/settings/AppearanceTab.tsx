@@ -1,4 +1,6 @@
-import { Palette, Droplet, Contrast, Droplets, Sun, Maximize2 } from "lucide-react";
+import { Palette, Droplet, Contrast, Droplets, Sun, Maximize2, Sparkles } from "lucide-react";
+import { useState } from "react";
+import { invoke } from "@tauri-apps/api/core";
 import { SettingRow } from "./SettingRow";
 import { ScaleStepper } from "./ScaleStepper";
 import { Choice } from "./Choice";
@@ -10,6 +12,32 @@ const THEME_MODES = [
 	["custom", "Custom", "A colour you pick"],
 	["adaptive", "Adaptive", "Follows your Windows accent colour"]
 ] as const;
+
+/** Animations (`bloom-motion`): Windows' "Animation effects" switch turns
+ *  motion off for every app; "On" keeps LotusNotch's own animations. */
+const MOTION = [
+	["windows", "Follow Windows", "Uses Windows' Animation effects setting"],
+	["on", "On", "Always animate, whatever Windows says"],
+	["off", "Off", "No movement; changes just appear"]
+] as const;
+
+function AnimationsRow() {
+	const [value, setValue] = useState(() => localStorage.getItem("bloom-motion") ?? "windows");
+	return (
+		<SettingRow icon={Sparkles} label="Animations" desc={MOTION.find(([v]) => v === value)?.[2] ?? MOTION[0][2]}>
+			<Choice
+				value={value}
+				options={MOTION.map(([v, name]) => [v, name] as const)}
+				onChange={(v) => {
+					setValue(v);
+					localStorage.setItem("bloom-motion", v);
+					invoke("save_setting", { key: "bloom-motion", value: v }).catch(() => {});
+				}}
+				label="Animations"
+			/>
+		</SettingRow>
+	);
+}
 
 interface AppearanceTabProps {
 	themeMode: string;
@@ -135,6 +163,7 @@ export function AppearanceTab({
 
 			<div className="setting-group-label">Display</div>
 			<div className="setting-group">
+				<AnimationsRow />
 				<SettingRow
 					icon={Maximize2}
 					label="UI & Font Scale"

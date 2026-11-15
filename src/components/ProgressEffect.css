@@ -60,11 +60,11 @@
 }
 
 @media (prefers-reduced-motion: reduce) {
-	.progress-edge,
-	.progress-bar {
+	:root:not(.motion-on) .progress-edge,
+	:root:not(.motion-on) .progress-bar {
 		transition: none;
 	}
-	.progress-glow {
+	:root:not(.motion-on) .progress-glow {
 		animation: none;
 		opacity: 0.85;
 	}

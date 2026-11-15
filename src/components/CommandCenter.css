@@ -198,16 +198,10 @@
 	height: 6px;
 	border-radius: 3px;
 	background: #26262b;
-	transition: transform 0.2s cubic-bezier(0.22, 1, 0.36, 1);
 }
 
-.cc-slider:hover .cc-slider-track,
-.cc-slider:active .cc-slider-track {
-	transform: scaleY(1.25);
-}
-
-/* The fill scales (transform only); a short ease smooths wheel steps
-   without lagging behind a drag. */
+/* The fill scales (transform only) and follows the value at once: an eased
+   fill looked glitchy on 5 % wheel steps (user, 2026-11-15). */
 .cc-slider-fill {
 	position: absolute;
 	inset: 0;
@@ -215,8 +209,6 @@
 	background: #fff;
 	pointer-events: none;
 	transform-origin: left center;
-	transition: transform 0.08s ease-out;
-	will-change: transform;
 }
 
 .cc-slider-track input {
@@ -238,13 +230,3 @@
 	color: #a1a1aa;
 }
 
-@media (prefers-reduced-motion: reduce) {
-	.cc-slider-track,
-	.cc-slider-fill {
-		transition: none;
-	}
-	.cc-slider:hover .cc-slider-track,
-	.cc-slider:active .cc-slider-track {
-		transform: none;
-	}
-}
