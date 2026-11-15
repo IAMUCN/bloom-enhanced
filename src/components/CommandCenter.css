@@ -206,12 +206,17 @@
 	transform: scaleY(1.25);
 }
 
+/* The fill scales (transform only); a short ease smooths wheel steps
+   without lagging behind a drag. */
 .cc-slider-fill {
 	position: absolute;
-	inset: 0 auto 0 0;
+	inset: 0;
 	border-radius: 3px;
 	background: #fff;
 	pointer-events: none;
+	transform-origin: left center;
+	transition: transform 0.08s ease-out;
+	will-change: transform;
 }
 
 .cc-slider-track input {
@@ -234,7 +239,8 @@
 }
 
 @media (prefers-reduced-motion: reduce) {
-	.cc-slider-track {
+	.cc-slider-track,
+	.cc-slider-fill {
 		transition: none;
 	}
 	.cc-slider:hover .cc-slider-track,

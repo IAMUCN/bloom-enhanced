@@ -63,6 +63,7 @@ export const CC_TILES = [
 ] as const satisfies readonly (readonly [string, string, LucideIcon])[];
 
 export type CcTileId = (typeof CC_TILES)[number][0];
+export const CC_BY_ID = Object.fromEntries(CC_TILES.map((t) => [t[0], t])) as Record<CcTileId, (typeof CC_TILES)[number]>;
 
 const WIDE: CcTileId[] = ["wifi", "bluetooth"];
 const COLUMNS = 7;
@@ -85,8 +86,9 @@ export const CC_DEFAULT: CcTileId[] = [
 	"project"
 ];
 
-/** The shown tiles (`bloom-cc-tiles`, a JSON list), in catalogue order:
- *  Wi-Fi and Bluetooth always, then at most 14 round tiles; missing or
+/** The shown tiles (`bloom-cc-tiles`, a JSON list) in the user's order
+ *  (Settings › Notch › Command Center): Wi-Fi and Bluetooth always first,
+ *  then at most 14 round tiles; unknown or repeated ids dropped; missing or
  *  broken → the defaults. */
 export function parseCcTiles(raw: unknown): CcTileId[] {
 	let list: unknown;
@@ -96,7 +98,10 @@ export function parseCcTiles(raw: unknown): CcTileId[] {
 		return CC_DEFAULT;
 	}
 	if (!Array.isArray(list)) return CC_DEFAULT;
-	const icons = CC_TILES.map(([id]) => id).filter((id) => !ccIsWide(id) && list.includes(id));
+	const known = new Set<string>(CC_TILES.map(([id]) => id));
+	const icons = list.filter(
+		(id, i): id is CcTileId => known.has(id) && !ccIsWide(id as CcTileId) && list.indexOf(id) === i
+	);
 	return [...WIDE, ...icons.slice(0, CC_MAX_ICONS)];
 }
 
@@ -174,7 +179,7 @@ function Slider({
 				<span>{label}</span>
 			</button>
 			<div className="cc-slider-track">
-				<div className="cc-slider-fill" style={{ width: `${value}%` }} />
+				<div className="cc-slider-fill" style={{ transform: `scaleX(${value / 100})` }} />
 				<input
 					type="range"
 					min={0}
@@ -214,7 +219,7 @@ export function CommandCenter({
 	onBrightness: (value: number) => void;
 	onBrightnessIcon: () => void;
 }) {
-	const shown = CC_TILES.filter(([id]) => tiles.includes(id));
+	const shown = tiles.map((id) => CC_BY_ID[id]);
 	const wide = shown.filter(([id]) => WIDE.includes(id));
 	const icons = shown.filter(([id]) => !WIDE.includes(id) && !state[id].hidden);
 	return (

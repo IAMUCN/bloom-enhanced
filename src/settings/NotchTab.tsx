@@ -18,8 +18,8 @@ import {
 	PanelRight,
 	GripVertical,
 	ListOrdered,
-	Check,
-	LayoutGrid
+	LayoutGrid,
+	Plus
 } from "lucide-react";
 import { useRef, useState } from "react";
 import { Reorder } from "framer-motion";
@@ -43,7 +43,7 @@ import { ScaleStepper } from "./ScaleStepper";
 import { Choice } from "./Choice";
 import { shortcutFrom } from "./ClipboardTab";
 import { EXTRA_TOOLS, MAX_TABS, TOOLS, builtInTabCount, parseEnabledTools, type ExtraToolId } from "../tools";
-import { CC_DEFAULT, CC_MAX_ICONS, CC_TILES, ccIsWide, parseCcTiles, type CcTileId } from "../components/CommandCenter";
+import { CC_BY_ID, CC_DEFAULT, CC_MAX_ICONS, CC_TILES, ccIsWide, parseCcTiles, type CcTileId } from "../components/CommandCenter";
 import { invoke } from "@tauri-apps/api/core";
 import { ask } from "@tauri-apps/plugin-dialog";
 import {
@@ -212,57 +212,104 @@ function MoreTools({ saveSetting }: { saveSetting: (key: string, value: string |
 	);
 }
 
-/** Settings › Notch › Command Center: which round tiles show
- *  (`bloom-cc-tiles`). Wi-Fi and Bluetooth are always there; the round
- *  tiles are capped at 14 (two rows of seven) and keep one fixed order. */
+/** Settings › Notch › Command Center: which round tiles show and in what
+ *  order (`bloom-cc-tiles`). Wi-Fi and Bluetooth are always first; up to 14
+ *  round tiles, dragged into order; the rest wait below to be added. */
 function CcTilePicker({ saveSetting }: { saveSetting: (key: string, value: string | null) => Promise<boolean> }) {
 	const [tiles, setTiles] = useState(() => parseCcTiles(localStorage.getItem("bloom-cc-tiles")));
+	const latest = useRef(tiles);
+	latest.current = tiles;
 	const save = (next: CcTileId[]) => {
 		const clean = parseCcTiles(JSON.stringify(next));
 		setTiles(clean);
 		saveSetting("bloom-cc-tiles", JSON.stringify(clean));
 	};
-	const count = tiles.filter((t) => !ccIsWide(t)).length;
-	const full = count >= CC_MAX_ICONS;
+	const dockOff = localStorage.getItem("bloom-dock-enabled") === "false";
+	const round = tiles.filter((t) => !ccIsWide(t));
+	const full = round.length >= CC_MAX_ICONS;
+	const rest = CC_TILES.filter(([id]) => !ccIsWide(id) && !tiles.includes(id));
+	const color = TOOLS["command-center"].color;
 	return (
 		<>
 			<div className="cc-picker-count">
-				{count} of {CC_MAX_ICONS} tiles · Wi-Fi and Bluetooth are always on top
+				{round.length} of {CC_MAX_ICONS} tiles · drag to reorder · Wi-Fi and Bluetooth stay on top
 			</div>
-			<div className="pick-tools-grid cc-tile-picker">
-				{CC_TILES.filter(([id]) => !ccIsWide(id)).map(([id, label, Icon]) => {
-					// Dock mode needs the dock: with it off, the tile can't be added.
-					const dockOff = id === "dock-mode" && localStorage.getItem("bloom-dock-enabled") === "false";
-					const on = tiles.includes(id) && !dockOff;
+			<Reorder.Group
+				axis="y"
+				values={round}
+				onReorder={(next) => setTiles(["wifi", "bluetooth", ...next])}
+				className="radial-rows page-order tool-cards cc-order"
+			>
+				{round.map((id) => {
+					const [, label, Icon] = CC_BY_ID[id];
+					const off = id === "dock-mode" && dockOff;
 					return (
-						<button
+						<Reorder.Item
 							key={id}
-							type="button"
-							role="checkbox"
-							aria-checked={on}
-							disabled={dockOff || (!on && full)}
-							title={
-								dockOff
-									? "The dock is off. Turn it on in Settings › Dock to use this tile"
-									: !on && full
-										? "The Command Center holds 14 tiles: turn one off first"
-										: undefined
-							}
-							className={`pick-tool${on ? " on" : ""}`}
-							onClick={() => save(on ? tiles.filter((t) => t !== id) : [...tiles, id])}
+							value={id}
+							className={`radial-row tool-card${off ? " off" : ""}`}
+							whileDrag={{ scale: 1.03, zIndex: 2 }}
+							onDragEnd={() => save(latest.current)}
 						>
-							<span className="tool-card-icon" style={{ color: TOOLS["command-center"].color }}>
+							<GripVertical size={13} className="radial-grip" />
+							<span className="tool-card-icon" style={{ color }}>
 								<Icon size={16} />
 							</span>
-							<span className="pick-tool-label">
-								{label}
-								{dockOff && <span className="pick-tool-note">Dock is off</span>}
+							<span className="tool-card-text">
+								<span className="radial-row-label">{label}</span>
+								{off && <span className="tool-card-desc">Dock is off: hidden until you turn the dock on</span>}
 							</span>
-							<span className="pick-check">{on && <Check size={12} strokeWidth={3} />}</span>
-						</button>
+							<button
+								type="button"
+								className="tool-erase"
+								aria-label={`Remove ${label}`}
+								title={`Remove ${label}`}
+								onPointerDown={(e) => e.stopPropagation()}
+								onClick={() => save(tiles.filter((t) => t !== id))}
+							>
+								<X size={13} />
+							</button>
+						</Reorder.Item>
 					);
 				})}
-			</div>
+			</Reorder.Group>
+			{rest.length > 0 && (
+				<>
+					<div className="cc-picker-count">Add a tile</div>
+					<div className="pick-tools-grid cc-tile-picker">
+						{rest.map(([id, label, Icon]) => {
+							const blocked = id === "dock-mode" && dockOff;
+							return (
+								<button
+									key={id}
+									type="button"
+									disabled={blocked || full}
+									title={
+										blocked
+											? "The dock is off. Turn it on in Settings › Dock to use this tile"
+											: full
+												? "The Command Center holds 14 tiles: remove one first"
+												: `Add ${label}`
+									}
+									className="pick-tool"
+									onClick={() => save([...tiles, id])}
+								>
+									<span className="tool-card-icon" style={{ color }}>
+										<Icon size={16} />
+									</span>
+									<span className="pick-tool-label">
+										{label}
+										{blocked && <span className="pick-tool-note">Dock is off</span>}
+									</span>
+									<span className="pick-check">
+										<Plus size={12} strokeWidth={3} />
+									</span>
+								</button>
+							);
+						})}
+					</div>
+				</>
+			)}
 			<button type="button" className="cc-tiles-reset" onClick={() => save(CC_DEFAULT)}>
 				Reset to default
 			</button>
@@ -625,7 +672,7 @@ export function NotchTab({
 								<SettingRow
 									icon={LayoutGrid}
 									label="Tiles"
-									desc="Pick up to 14 quick settings, two rows of seven"
+									desc="Pick up to 14 quick settings and drag them into order: two rows of seven"
 									divider={false}
 								/>
 								<div className="page-order-wrap">

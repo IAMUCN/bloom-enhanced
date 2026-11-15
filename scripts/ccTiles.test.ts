@@ -1,10 +1,11 @@
 import { expect, test } from "bun:test";
 import { CC_DEFAULT, CC_MAX_ICONS, CC_TILES, ccBodyHeight, parseCcTiles } from "../src/components/CommandCenter";
 
-test("Command Center tiles: Wi-Fi + Bluetooth always, catalogue order, defaults", () => {
+test("Command Center tiles: Wi-Fi + Bluetooth always first, user order, defaults", () => {
 	expect(parseCcTiles(null)).toEqual(CC_DEFAULT);
 	expect(parseCcTiles("not json")).toEqual(CC_DEFAULT);
-	expect(parseCcTiles('["cast","nope","dnd"]')).toEqual(["wifi", "bluetooth", "dnd", "cast"]);
+	// The user's order is kept; unknown and repeated ids are dropped.
+	expect(parseCcTiles('["cast","nope","dnd","cast"]')).toEqual(["wifi", "bluetooth", "cast", "dnd"]);
 	expect(parseCcTiles("[]")).toEqual(["wifi", "bluetooth"]);
 });
 
