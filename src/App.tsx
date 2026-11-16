@@ -2526,6 +2526,20 @@ function App() {
 		setBloomMode(view);
 	};
 
+	// Someone asks to pair: open the Shelf in the notch, where the share
+	// column shows the request and its code (an edge Shelf shows it when
+	// opened; the request waits a minute).
+	useEffect(() => {
+		if (windowLabel !== "main") return;
+		const off = listen("share-pair-request", () => {
+			if (!clipboardInNotchRef.current) return;
+			autoOpenedRef.current = true;
+			setIsOpen(true);
+			setBloomMode("clipboard");
+		});
+		return () => void off.then((f) => f());
+	}, [windowLabel]);
+
 	const openFromShortcutRef = useRef(() => {});
 	openFromShortcutRef.current = () => openFromRestRef.current();
 

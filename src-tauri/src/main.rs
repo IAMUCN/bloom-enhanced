@@ -11,6 +11,8 @@ mod jack;
 mod orbit;
 mod perf;
 mod services;
+mod share;
+mod share_app;
 mod shelf;
 mod shelf_preview;
 mod shortcuts;
@@ -220,6 +222,13 @@ fn main() {
             system_tools::pick_screen_color,
             system_tools::screen_clip,
             system_tools::ocr_snip,
+            share_app::share_me,
+            share_app::share_peers,
+            share_app::share_list,
+            share_app::share_pair,
+            share_app::share_answer,
+            share_app::share_requests,
+            share_app::share_unpair,
             system_tools::color_at_cursor,
             system_tools::ocr_clipboard,
             system_tools::cc_states,
@@ -302,6 +311,7 @@ fn main() {
             crate::utils::init_settings_cache(app.handle());
             clipboard::start(app.handle().clone());
             clipboard::start_shortcut(app.handle().clone());
+            share_app::start(app.handle().clone());
             shortcuts::start(app.handle().clone());
             orbit::start(app.handle().clone());
             // Crash-recovery: if a previous session was force-killed while the native
