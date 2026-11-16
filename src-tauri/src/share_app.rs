@@ -3,9 +3,10 @@
 //! `share-pair-request` { id, name, code }, `share-pair-code` { id, code },
 //! `share-progress` { id, done, total } (sending), `share-incoming`
 //! { from, done, total }, `share-received` { from, count },
-//! `share-incoming-failed` { from, why }.
+//! `share-incoming-failed` { from, why }, `share-live` { from, id, preview }
+//! (a live clipboard copy arrived).
 
-use crate::share::{Config, Event, Item, PeerView, Share, DEV_PORT, PORT};
+use crate::share::{Config, Event, Item, PeerView, Share, DEV_PORT, PORT, TOO_BIG_FOR_LIVE};
 use std::sync::{Arc, OnceLock};
 use tauri::{AppHandle, Emitter, Manager};
 
@@ -56,6 +57,7 @@ pub fn start(app: AppHandle) {
             announce_ports: announce,
             auto_accept: false,
             inbox,
+            live_inbox: dir.join("share").join("live"),
         },
         move |e| match e {
             Event::PeersChanged => {
@@ -73,17 +75,32 @@ pub fn start(app: AppHandle) {
                     serde_json::json!({ "from": from, "done": done, "total": total }),
                 );
             }
-            Event::Received { from, texts, paths } => {
+            Event::Received {
+                from,
+                texts,
+                paths,
+                live,
+            } => {
                 let count = texts.len() + paths.len();
+                let preview = texts
+                    .first()
+                    .map(|t| t.chars().take(60).collect::<String>());
                 let paths = paths
                     .iter()
                     .map(|p| p.to_string_lossy().to_string())
                     .collect();
-                crate::clipboard::add_received(&events_app, &from, texts, paths);
-                let _ = events_app.emit(
-                    "share-received",
-                    serde_json::json!({ "from": from, "count": count }),
-                );
+                let ids = crate::clipboard::add_received(&events_app, &from, texts, paths);
+                if live {
+                    let _ = events_app.emit(
+                        "share-live",
+                        serde_json::json!({ "from": from, "id": ids.first(), "preview": preview }),
+                    );
+                } else {
+                    let _ = events_app.emit(
+                        "share-received",
+                        serde_json::json!({ "from": from, "count": count }),
+                    );
+                }
             }
             Event::IncomingFailed { from, why } => {
                 let _ = events_app.emit(
@@ -214,4 +231,43 @@ pub async fn share_send_drop(
     let mut items: Vec<Item> = paths.into_iter().map(|p| Item::Path(p.into())).collect();
     items.extend(text.filter(|t| !t.trim().is_empty()).map(Item::Text));
     send(app, id, items).await
+}
+
+/// Live clipboard: a new copy goes to the chosen people, unless it came from
+/// someone (no echo). Runs only on copy; offline people are skipped quietly.
+pub fn on_copy(app: &AppHandle, item: crate::clipboard::ClipItem) {
+    let Some(s) = SHARE.get().cloned() else {
+        return;
+    };
+    if item.from.is_some() {
+        return;
+    }
+    let ids = s.live();
+    if ids.is_empty() {
+        return;
+    }
+    let app = app.clone();
+    std::thread::spawn(move || {
+        let items = crate::clipboard::share_items(std::slice::from_ref(&item.id));
+        for id in ids {
+            if s.send_live(&id, &items)
+                .is_err_and(|e| e == TOO_BIG_FOR_LIVE)
+            {
+                crate::clipboard::mark_unsynced(&app, &item.id);
+                return;
+            }
+        }
+    });
+}
+
+/// Who gets this PC's copies (live clipboard).
+#[tauri::command]
+pub fn share_live_get() -> Result<Vec<String>, String> {
+    Ok(share()?.live())
+}
+
+#[tauri::command]
+pub fn share_live_set(ids: Vec<String>) -> Result<(), String> {
+    share()?.set_live(&ids);
+    Ok(())
 }

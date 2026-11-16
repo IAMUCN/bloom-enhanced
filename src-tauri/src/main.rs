@@ -231,6 +231,8 @@ fn main() {
             share_app::share_unpair,
             share_app::share_send,
             share_app::share_send_drop,
+            share_app::share_live_get,
+            share_app::share_live_set,
             system_tools::color_at_cursor,
             system_tools::ocr_clipboard,
             system_tools::cc_states,

@@ -19,6 +19,8 @@ export interface ClipItem {
 	note?: string;
 	/** Who sent it (Shelf sharing); absent for your own copies. */
 	from?: string;
+	/** Too big for live clipboard, so not sent. */
+	unsynced?: boolean;
 }
 
 export type ClipFilter = "all" | "text" | "links" | "images" | "others" | "received";

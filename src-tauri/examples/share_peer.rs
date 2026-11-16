@@ -15,6 +15,7 @@ fn main() {
     let s = share::Share::start(
         share::Config {
             inbox: dir.join("inbox"),
+            live_inbox: dir.join("live"),
             dir,
             name: "Test peer".into(),
             listen_port: share::DEV_PORT,
@@ -25,9 +26,12 @@ fn main() {
             share::Event::PairRequest { name, code, .. } => {
                 println!("Pair request from {name}: code {code:04} (accepted)")
             }
-            share::Event::Received { from, texts, paths } => {
-                println!("From {from}: {texts:?} {paths:?}")
-            }
+            share::Event::Received {
+                from,
+                texts,
+                paths,
+                live,
+            } => println!("From {from} (live: {live}): {texts:?} {paths:?}"),
             share::Event::IncomingFailed { from, why } => println!("From {from} failed: {why}"),
             _ => {}
         },

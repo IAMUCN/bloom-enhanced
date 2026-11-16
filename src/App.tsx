@@ -1163,6 +1163,37 @@ function App() {
 	// The radial menu's job status, when Settings › Radial Menu shows it here
 	// (the menu sends it as `orbit-status`; null clears it).
 	const [fileStatus, setFileStatus] = useState<OrbitStatus>(null);
+	// Shelf sharing on the closed notch: "Riya copied: …" (click puts it on
+	// the clipboard) and "Riya sent 3 things". Shown through the status line.
+	const liveClipRef = useRef<string | null>(null);
+	useEffect(() => {
+		if (windowLabel !== "main") return;
+		let timer: ReturnType<typeof setTimeout> | undefined;
+		const show = (text: string, ms: number, clip: string | null) => {
+			liveClipRef.current = clip;
+			setFileStatus({ text, percent: null, result: clip ? null : "ok" });
+			clearTimeout(timer);
+			timer = setTimeout(() => {
+				liveClipRef.current = null;
+				setFileStatus(null);
+			}, ms);
+		};
+		const offs = [
+			listen<{ from: string; id: string | null; preview: string | null }>("share-live", (e) =>
+				show(`${e.payload.from} copied${e.payload.preview ? `: ${e.payload.preview}` : " something"}`, 6000, e.payload.id)
+			),
+			listen<{ from: string; count: number }>("share-received", (e) =>
+				show(`${e.payload.from} sent ${e.payload.count === 1 ? "something" : `${e.payload.count} things`} · in the Shelf`, 3500, null)
+			)
+		];
+		const onCopied = () => show("Ready to paste", 1200, null);
+		window.addEventListener("share-live-copied", onCopied);
+		return () => {
+			clearTimeout(timer);
+			window.removeEventListener("share-live-copied", onCopied);
+			offs.forEach((o) => o.then((f) => f()));
+		};
+	}, [windowLabel]);
 	// How a job's progress shows on the notch (Settings › Radial Menu).
 	const [progressStyle, setProgressStyle] = useState(() => asProgressStyle(localStorage.getItem("bloom-progress-effect")));
 	useEffect(() => {
@@ -4123,6 +4154,15 @@ function App() {
 					}}
 					onClick={(e) => {
 						e.stopPropagation();
+						// "Riya copied: …": a click puts it on the clipboard.
+						const clip = liveClipRef.current;
+						if (clip) {
+							liveClipRef.current = null;
+							invoke("clipboard_copy", { id: clip })
+								.then(() => window.dispatchEvent(new Event("share-live-copied")))
+								.catch(() => {});
+							return;
+						}
 						if (fileStatus) return;
 						if (!isOpen) openFromRestRef.current();
 					}}

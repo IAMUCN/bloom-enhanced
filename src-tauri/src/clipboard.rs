@@ -91,6 +91,9 @@ pub struct ClipItem {
     /// Who sent it (Shelf sharing); None for the user's own copies.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub from: Option<String>,
+    /// Too big for live clipboard, so not sent (a small mark on the tile).
+    #[serde(default, skip_serializing_if = "std::ops::Not::not")]
+    pub unsynced: bool,
 }
 
 impl ClipItem {
@@ -161,6 +164,9 @@ pub fn add_item(history: &mut Vec<ClipItem>, mut item: ClipItem) -> Vec<ClipItem
         item.image = old.image;
         item.hits = old.hits + 1;
         item.pinned = old.pinned;
+        // Copying it again keeps the user's note and who sent it.
+        item.note = item.note.or(old.note);
+        item.from = item.from.or(old.from);
     }
     history.insert(0, item);
     removed
@@ -484,6 +490,7 @@ fn capture_image(app: &AppHandle, id: &str) -> Option<ClipItem> {
         html: None,
         note: None,
         from: None,
+        unsynced: false,
     })
 }
 
@@ -505,6 +512,7 @@ fn capture(app: &AppHandle) -> Option<ClipItem> {
         html: None,
         note: None,
         from: None,
+        unsynced: false,
     };
     match read_clipboard()? {
         Captured::Files(paths) => Some(ClipItem {
@@ -596,6 +604,11 @@ fn watch(app: AppHandle) {
         let kind = item.kind.clone();
         add_all(&app, grouped(item));
         let _ = app.emit("clipboard-captured", kind);
+        // Live clipboard: the copy as it now stands in the history.
+        let front = HISTORY.lock().unwrap().first().cloned();
+        if let Some(front) = front {
+            crate::share_app::on_copy(&app, front);
+        }
     }
 }
 
@@ -653,6 +666,7 @@ fn text_item(text: String) -> ClipItem {
         html: None,
         note: None,
         from: None,
+        unsynced: false,
     }
 }
 
@@ -677,8 +691,23 @@ pub fn share_items(ids: &[String]) -> Vec<crate::share::Item> {
         .collect()
 }
 
+/// Marks an item as not sent by live clipboard (too big).
+pub fn mark_unsynced(app: &AppHandle, id: &str) {
+    let mut history = HISTORY.lock().unwrap();
+    if let Some(it) = history.iter_mut().find(|it| it.id == id) {
+        it.unsynced = true;
+        commit(app, &history, &[]);
+    }
+}
+
 /// A send from a paired person: into the Shelf, tagged with their name.
-pub fn add_received(app: &AppHandle, from: &str, texts: Vec<String>, paths: Vec<String>) {
+/// Returns the ids the new items have in the history, first first.
+pub fn add_received(
+    app: &AppHandle,
+    from: &str,
+    texts: Vec<String>,
+    paths: Vec<String>,
+) -> Vec<String> {
     let tag = Some(short_name(from));
     let mut items: Vec<ClipItem> = texts
         .into_iter()
@@ -699,9 +728,18 @@ pub fn add_received(app: &AppHandle, from: &str, texts: Vec<String>, paths: Vec<
             ..text_item(String::new())
         });
     }
-    if !items.is_empty() {
-        add_all(app, items);
+    let n = items.len();
+    if n == 0 {
+        return Vec::new();
     }
+    add_all(app, items);
+    HISTORY
+        .lock()
+        .unwrap()
+        .iter()
+        .take(n)
+        .map(|it| it.id.clone())
+        .collect()
 }
 
 fn short_name(name: &str) -> String {
@@ -1473,7 +1511,21 @@ mod tests {
             html: None,
             note: None,
             from: None,
+            unsynced: false,
         }
+    }
+
+    #[test]
+    fn copying_again_keeps_the_note_and_sender() {
+        let mut history = vec![ClipItem {
+            note: Some("keep".into()),
+            from: Some("Riya".into()),
+            ..text("a", "hello", 1)
+        }];
+        add_item(&mut history, text("b", "hello", 2));
+        assert_eq!(history.len(), 1);
+        assert_eq!(history[0].note.as_deref(), Some("keep"));
+        assert_eq!(history[0].from.as_deref(), Some("Riya"));
     }
 
     #[test]

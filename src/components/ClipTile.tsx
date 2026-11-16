@@ -202,6 +202,11 @@ export function ClipTile(props: ClipTileProps) {
 						</>
 					) : (
 						<>
+							{item.unsynced && (
+								<span className="ctile-unsynced" title="Too big for live clipboard (25 MB), so not sent">
+									Not synced ·{" "}
+								</span>
+							)}
 							{item.from ? `From ${item.from} · ` : ""}
 							{timeAgo(item.captured_at)}
 							{item.hits > 1 && ` · ${item.hits}×`}

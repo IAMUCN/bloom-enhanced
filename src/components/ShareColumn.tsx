@@ -1,7 +1,7 @@
 import { useEffect, useState } from "react";
 import { invoke } from "@tauri-apps/api/core";
 import { listen } from "@tauri-apps/api/event";
-import { ArrowLeft, Radio, Send, UserPlus, Users, X } from "lucide-react";
+import { ArrowLeft, Check, Radio, Send, TriangleAlert, UserPlus, Users, X } from "lucide-react";
 
 type Peer = { id: string; name: string; trusted: boolean; online: boolean };
 type Request = { id: string; name: string; code: number };
@@ -30,13 +30,17 @@ export const requestSend = (peer: string, payload: Payload) =>
  *  (.grill/shelf-share.md). Opening it asks who's online (the only time the
  *  network is asked; no polling). Pairing: both sides show one 4-digit code.
  *  Sending: drag a clip onto a person, tick clips and click a person, or drop
- *  files from Explorer onto a person; progress shows as %. Live clipboard
- *  (step 4) and groups (5) come next. */
+ *  files from Explorer onto a person; progress shows as %. Live clipboard:
+ *  a warning once, then pick who gets your copies (one way). Groups: step 5. */
 export function ShareColumn({ layout, selected = [], onSent }: { layout: "notch" | "edge"; selected?: string[]; onSent?: () => void }) {
 	const [peers, setPeers] = useState<Peer[]>([]);
 	const [requests, setRequests] = useState<Request[]>([]);
 	const [running, setRunning] = useState(true);
 	const [nearby, setNearby] = useState(false);
+	// Live clipboard: who gets my copies, and its view (warning first, once).
+	const [live, setLive] = useState<string[]>([]);
+	const [liveView, setLiveView] = useState(false);
+	const [warned, setWarned] = useState(() => localStorage.getItem("bloom-share-live-warned") === "yes");
 	const [pairing, setPairing] = useState<{ id: string; name: string; code?: number } | null>(null);
 	const [note, setNote] = useState("");
 	const [status, setStatus] = useState<Record<string, Status>>({});
@@ -63,6 +67,7 @@ export function ShareColumn({ layout, selected = [], onSent }: { layout: "notch"
 			.then(setPeers)
 			.catch(() => setRunning(false));
 		invoke<Request[]>("share_requests").then(setRequests).catch(() => {});
+		invoke<string[]>("share_live_get").then(setLive).catch(() => {});
 		const onSend = (e: Event) => {
 			const { peer, ...payload } = (e as CustomEvent<{ peer: string } & Payload>).detail;
 			send(peer, payload);
@@ -108,6 +113,12 @@ export function ShareColumn({ layout, selected = [], onSent }: { layout: "notch"
 		setRequests((all) => all.filter((x) => x.id !== r.id));
 	};
 
+	const toggleLive = (id: string) => {
+		const next = live.includes(id) ? live.filter((x) => x !== id) : [...live, id];
+		setLive(next);
+		invoke("share_live_set", { ids: next }).catch(() => {});
+	};
+
 	const trusted = peers.filter((p) => p.trusted);
 	const others = peers.filter((p) => !p.trusted);
 
@@ -141,6 +152,49 @@ export function ShareColumn({ layout, selected = [], onSent }: { layout: "notch"
 				</span>
 				<span className="clip-share-code">{pairing.code !== undefined ? code4(pairing.code) : "····"}</span>
 				<span className="clip-share-hint">Check {pairing.name} shows this code and accepts (up to 1 min).</span>
+			</div>
+		);
+	} else if (liveView && !warned) {
+		body = (
+			<div className="clip-share-card">
+				<TriangleAlert size={18} color="#FFD60A" />
+				<b>Live clipboard</b>
+				<span className="clip-share-hint">
+					Everything you copy goes to the people you pick, passwords too. Use it with care. Copies over 25 MB are skipped.
+				</span>
+				<div className="clip-share-row">
+					<button
+						type="button"
+						className="clip-share-btn primary"
+						onClick={() => {
+							localStorage.setItem("bloom-share-live-warned", "yes");
+							setWarned(true);
+						}}
+					>
+						I understand
+					</button>
+					<button type="button" className="clip-share-btn" onClick={() => setLiveView(false)}>
+						Cancel
+					</button>
+				</div>
+			</div>
+		);
+	} else if (liveView) {
+		body = (
+			<div className="clip-share-people">
+				<button type="button" className="clip-share-back" onClick={() => setLiveView(false)}>
+					<ArrowLeft size={12} /> Send my copies to
+				</button>
+				{trusted.length ? (
+					trusted.map((p) => (
+						<button key={p.id} type="button" role="checkbox" aria-checked={live.includes(p.id)} className="clip-share-person" onClick={() => toggleLive(p.id)}>
+							<span className={`clip-share-check${live.includes(p.id) ? " on" : ""}`}>{live.includes(p.id) && <Check size={10} strokeWidth={3} />}</span>
+							<span className="clip-share-name">{p.name}</span>
+						</button>
+					))
+				) : (
+					<div className="clip-share-empty">Pair with someone first.</div>
+				)}
 			</div>
 		);
 	} else if (nearby) {
@@ -237,14 +291,21 @@ export function ShareColumn({ layout, selected = [], onSent }: { layout: "notch"
 			{note && !pairing && !incoming && <div className="clip-share-note">{note}</div>}
 			{!pairing && !requests.length && running && (
 				<div className="clip-share-actions">
-					{!nearby && (
+					{!nearby && !liveView && (
 						<button type="button" className="clip-share-btn" onClick={() => (setNote(""), setNearby(true))}>
 							<UserPlus size={13} /> Pair
 						</button>
 					)}
-					<button type="button" className="clip-share-btn" disabled title="Send everything you copy to chosen people (coming soon)">
-						<Radio size={13} /> Live clipboard
-					</button>
+					{!liveView && (
+						<button
+							type="button"
+							className={`clip-share-btn${live.length ? " live-on" : ""}`}
+							title="Send everything you copy to the people you pick"
+							onClick={() => (setNearby(false), setLiveView(true))}
+						>
+							<Radio size={13} /> {live.length ? `Live · ${live.length}` : "Live clipboard"}
+						</button>
+					)}
 				</div>
 			)}
 		</aside>

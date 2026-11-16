@@ -297,11 +297,13 @@ pub enum Event {
         done: u64,
         total: u64,
     },
-    /// A send arrived in full: its texts and the top-level files/folders.
+    /// A send arrived in full: its texts and the top-level files/folders;
+    /// `live` = a live clipboard copy.
     Received {
         from: String,
         texts: Vec<String>,
         paths: Vec<PathBuf>,
+        live: bool,
     },
     /// An incoming send stopped; anything partial was deleted.
     IncomingFailed {
@@ -313,6 +315,10 @@ pub enum Event {
 /// Limits per send (.grill/shelf-share.md).
 pub const MAX_SEND: u64 = 250 * 1024 * 1024;
 pub const MAX_FILES: usize = 1000;
+/// Live clipboard: one copy at most this big; bigger ones are skipped.
+pub const MAX_LIVE: u64 = 25 * 1024 * 1024;
+/// The error a too-big live copy gives (the caller marks it "not synced").
+pub const TOO_BIG_FOR_LIVE: &str = "Too big for live clipboard";
 const CHUNK: usize = 512 * 1024;
 
 /// What a send carries: text, or a file or folder on disk.
@@ -453,6 +459,11 @@ pub struct Config {
     pub auto_accept: bool,
     /// Where received files go (Downloads\\LotusNotch).
     pub inbox: PathBuf,
+    /// Where live clipboard files go (app data, so Downloads doesn't fill up
+    /// with every copied screenshot).
+    /// ponytail: kept until removed by hand; tie to the Shelf's cleanup if
+    /// it grows.
+    pub live_inbox: PathBuf,
 }
 
 /// A pairing request waiting for an answer: (answer, name, code).
@@ -470,6 +481,8 @@ pub struct Share {
     tcp_port: u16,
     udp: UdpSocket,
     trusted: Mutex<Vec<Peer>>,
+    /// Who gets this side's copies (live clipboard), by id.
+    live: Mutex<Vec<String>>,
     seen: Mutex<HashMap<String, Seen>>,
     last_query: Mutex<Instant>,
     /// Pairing requests waiting for an answer: id → (answer, name, code).
@@ -494,12 +507,17 @@ impl Share {
             .ok()
             .and_then(|b| serde_json::from_slice(&b).ok())
             .unwrap_or_default();
+        let live = std::fs::read(cfg.dir.join("live.json"))
+            .ok()
+            .and_then(|b| serde_json::from_slice(&b).ok())
+            .unwrap_or_default();
         let share = Arc::new(Self {
             me,
             cfg,
             tcp_port,
             udp,
             trusted: Mutex::new(trusted),
+            live: Mutex::new(live),
             seen: Mutex::new(HashMap::new()),
             last_query: Mutex::new(Instant::now()),
             pending: Mutex::new(HashMap::new()),
@@ -666,9 +684,33 @@ impl Share {
             .collect()
     }
 
+    /// Who gets this side's copies.
+    pub fn live(&self) -> Vec<String> {
+        self.live.lock().unwrap().clone()
+    }
+
+    /// Sets who gets this side's copies (trusted people only).
+    pub fn set_live(&self, ids: &[String]) {
+        let trusted = self.trusted.lock().unwrap();
+        let ids: Vec<String> = ids
+            .iter()
+            .filter(|id| trusted.iter().any(|p| &p.id == *id))
+            .cloned()
+            .collect();
+        drop(trusted);
+        let _ = std::fs::create_dir_all(&self.cfg.dir);
+        let _ = std::fs::write(
+            self.cfg.dir.join("live.json"),
+            serde_json::to_vec(&ids).unwrap_or_default(),
+        );
+        *self.live.lock().unwrap() = ids;
+    }
+
     pub fn unpair(&self, id: &str) {
         self.trusted.lock().unwrap().retain(|p| p.id != id);
         self.save_trusted();
+        let live: Vec<String> = self.live().into_iter().filter(|x| x != id).collect();
+        self.set_live(&live);
         (self.events)(Event::PeersChanged);
     }
 
@@ -752,16 +794,34 @@ impl Share {
         &self,
         id: &str,
         items: &[Item],
+        progress: impl FnMut(u64, u64),
+    ) -> Result<(), String> {
+        self.transfer(id, items, false, progress)
+    }
+
+    /// One live clipboard copy; Err(TOO_BIG_FOR_LIVE) over 25 MB.
+    pub fn send_live(&self, id: &str, items: &[Item]) -> Result<(), String> {
+        self.transfer(id, items, true, |_, _| {})
+    }
+
+    fn transfer(
+        &self,
+        id: &str,
+        items: &[Item],
+        live: bool,
         mut progress: impl FnMut(u64, u64),
     ) -> Result<(), String> {
         let (texts, files, total) = plan(items)?;
+        if live && total > MAX_LIVE {
+            return Err(TOO_BIG_FOR_LIVE.into());
+        }
         let mut ch = self.connect(id)?;
         let list: Vec<_> = files
             .iter()
             .map(|f| serde_json::json!({ "rel": f.rel, "size": f.size }))
             .collect();
         ch.send_json(
-            &serde_json::json!({ "t": "send", "texts": texts, "files": list, "total": total }),
+            &serde_json::json!({ "t": "send", "texts": texts, "files": list, "total": total, "live": live }),
         )?;
         ch.set_timeout(Duration::from_secs(30));
         let reply = ch.recv_json()?;
@@ -821,9 +881,15 @@ impl Share {
         }
         let total = files.iter().map(|f| f.1).sum::<u64>()
             + texts.iter().map(|t| t.len() as u64).sum::<u64>();
-        if files.len() > MAX_FILES || total > MAX_SEND {
+        let live = msg["live"].as_bool().unwrap_or(false);
+        if files.len() > MAX_FILES || total > MAX_SEND || (live && total > MAX_LIVE) {
             return Err(too_big(total));
         }
+        let inbox = if live {
+            &self.cfg.live_inbox
+        } else {
+            &self.cfg.inbox
+        };
         ch.send_json(&serde_json::json!({ "t": "ok" }))?;
         ch.set_timeout(Duration::from_secs(30));
         let from = ch.peer_name.clone();
@@ -831,8 +897,7 @@ impl Share {
         // Each top-level name gets a free spot in the inbox once.
         let mut tops: HashMap<String, PathBuf> = HashMap::new();
         if !files.is_empty() {
-            std::fs::create_dir_all(&self.cfg.inbox)
-                .map_err(|_| "Can't write to Downloads".to_string())?;
+            std::fs::create_dir_all(inbox).map_err(|_| "Can't write to Downloads".to_string())?;
         }
         let mut last = Instant::now();
         for (rel, size) in &files {
@@ -845,7 +910,7 @@ impl Share {
             let top_path = match tops.get(&top) {
                 Some(p) => p.clone(),
                 None => {
-                    let p = unique(&self.cfg.inbox, &top);
+                    let p = unique(inbox, &top);
                     made.push(p.clone());
                     tops.insert(top.clone(), p.clone());
                     p
@@ -888,7 +953,12 @@ impl Share {
         ch.send_json(&serde_json::json!({ "t": "got" }))?;
         let mut paths: Vec<PathBuf> = tops.into_values().collect();
         paths.sort();
-        (self.events)(Event::Received { from, texts, paths });
+        (self.events)(Event::Received {
+            from,
+            texts,
+            paths,
+            live,
+        });
         Ok(())
     }
 }
@@ -913,6 +983,7 @@ mod tests {
                 announce_ports: vec![],
                 auto_accept: false,
                 inbox: temp(name).join("inbox"),
+                live_inbox: temp(name).join("live"),
             },
             events,
         )
@@ -994,6 +1065,7 @@ mod tests {
                 announce_ports: vec![DEV_PORT],
                 auto_accept: false,
                 inbox: temp("live").join("inbox"),
+                live_inbox: temp("live").join("live"),
             },
             |_| {},
         )
@@ -1032,6 +1104,7 @@ mod tests {
                 announce_ports: vec![],
                 auto_accept: true,
                 inbox: temp(&format!("{tag}-inbox")),
+                live_inbox: temp(&format!("{tag}-live")),
             },
             move |e| {
                 let _ = tx.lock().unwrap().send(e);
@@ -1145,6 +1218,34 @@ mod tests {
             .into_iter()
             .collect();
         assert!(left.iter().all(|n| *n == 0), "partial file deleted");
+    }
+
+    #[test]
+    fn live_copies_are_small_and_tagged_live() {
+        let (a, b, rx) = paired("livecopy");
+        a.set_live(&[b.id().to_string(), "not-trusted".into()]);
+        assert_eq!(a.live(), vec![b.id().to_string()], "only trusted people");
+        a.send_live(b.id(), &[Item::Text("copied".into())]).unwrap();
+        let live = loop {
+            match rx.recv_timeout(Duration::from_secs(10)).unwrap() {
+                Event::Received { live, texts, .. } => break (live, texts),
+                _ => continue,
+            }
+        };
+        assert_eq!(live, (true, vec!["copied".to_string()]));
+        let src = temp("livecopy-src");
+        std::fs::create_dir_all(&src).unwrap();
+        std::fs::File::create(src.join("big.bin"))
+            .unwrap()
+            .set_len(MAX_LIVE + 1)
+            .unwrap();
+        assert_eq!(
+            a.send_live(b.id(), &[Item::Path(src.join("big.bin"))])
+                .unwrap_err(),
+            TOO_BIG_FOR_LIVE
+        );
+        a.unpair(b.id());
+        assert!(a.live().is_empty(), "unpairing stops live sending");
     }
 
     #[test]
