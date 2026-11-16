@@ -223,6 +223,7 @@ fn main() {
             system_tools::screen_clip,
             system_tools::ocr_snip,
             share_app::share_me,
+            clipboard::clipboard_shelf_close,
             share_app::share_peers,
             share_app::share_list,
             share_app::share_pair,

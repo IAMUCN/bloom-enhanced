@@ -997,6 +997,10 @@ pub fn shelf_open() -> bool {
 /// Opened by the shortcut: stays open until the cursor has been in it.
 static SHELF_HELD: AtomicBool = AtomicBool::new(false);
 static SHELF_EXPIRY: AtomicU64 = AtomicU64::new(0);
+/// When the pointer reached the edge (ms; 0 = not there): the shelf opens
+/// only after it rests there a moment, so brushing past doesn't open it.
+static EDGE_SINCE: AtomicU64 = AtomicU64::new(0);
+const EDGE_DWELL_MS: u64 = 300;
 static SHELF_GEN: AtomicU64 = AtomicU64::new(0);
 static SHELF_RECT: Mutex<(i32, i32, i32, i32)> = Mutex::new((0, 0, 0, 0));
 
@@ -1073,9 +1077,10 @@ fn set_shelf_open(app: &AppHandle, side: ShelfSide, open: bool) {
                 ((560.0 * scale) as i32).min(mw * 9 / 10),
                 ((380.0 * scale) as i32).min(mh * 4 / 5),
             ),
+            // Narrow and tall, with room for the share section at the bottom.
             _ => (
-                (360.0 * scale) as i32,
-                ((560.0 * scale) as i32).min(mh * 4 / 5),
+                (320.0 * scale) as i32,
+                ((780.0 * scale) as i32).min(mh * 88 / 100),
             ),
         };
         let (x, y) = match side {
@@ -1142,6 +1147,19 @@ pub fn update_edge_shelf(
             ShelfSide::Right => x >= mon_x + mon_w - 8 && in_shelf_band(y, mon_y, mon_h),
             ShelfSide::Top => y <= mon_y + 2 && in_shelf_band(x, mon_x, mon_w),
         };
+    let at_edge = if at_edge {
+        let since = match EDGE_SINCE.load(Ordering::Relaxed) {
+            0 => {
+                EDGE_SINCE.store(now, Ordering::Relaxed);
+                now
+            }
+            t => t,
+        };
+        now - since >= EDGE_DWELL_MS
+    } else {
+        EDGE_SINCE.store(0, Ordering::Relaxed);
+        false
+    };
     let (rx, ry, rw, rh) = *SHELF_RECT.lock().unwrap();
     let inside =
         SHELF_OPEN.load(Ordering::Relaxed) && x >= rx && x < rx + rw && y >= ry && y < ry + rh;
@@ -1152,6 +1170,16 @@ pub fn update_edge_shelf(
         SHELF_EXPIRY.store(now + SHELF_LINGER_MS, Ordering::Relaxed);
     }
     set_shelf_open(app, side, now < SHELF_EXPIRY.load(Ordering::Relaxed));
+}
+
+/// The edge shelf's × and Esc: closes it now.
+#[tauri::command]
+pub fn clipboard_shelf_close(app: AppHandle) {
+    if let Some(side) = shelf_side() {
+        SHELF_HELD.store(false, Ordering::Relaxed);
+        SHELF_EXPIRY.store(0, Ordering::Relaxed);
+        set_shelf_open(&app, side, false);
+    }
 }
 
 /// The clipboard shortcut: toggles the edge shelf, or asks the notch to open

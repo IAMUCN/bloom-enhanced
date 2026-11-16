@@ -14,6 +14,7 @@ import {
 	CLIP_FILTERS,
 	THUMB_SIZES,
 	clearIds,
+	fileName,
 	filePaths,
 	visibleItems,
 	type ClipFilter,
@@ -37,11 +38,13 @@ interface ClipboardPanelProps {
 	dragOver?: boolean;
 	/** Notch: the share column on the right; edge shelf: along the bottom. */
 	layout?: "notch" | "edge";
+	/** The edge shelf's × (and Esc): close it. */
+	onClose?: () => void;
 }
 
 const openLink = (url: string) => openUrl(/^https?:/i.test(url) ? url : `https://${url}`);
 
-export function ClipboardPanel({ dragIcon, dropEvent, onDragStart, onDragEnd, dragOver, layout = "notch" }: ClipboardPanelProps) {
+export function ClipboardPanel({ dragIcon, dropEvent, onDragStart, onDragEnd, dragOver, layout = "notch", onClose }: ClipboardPanelProps) {
 	const options = useClipboardSettings();
 	const [items, setItems] = useState<ClipItem[]>([]);
 	const [query, setQuery] = useState("");
@@ -56,6 +59,8 @@ export function ClipboardPanel({ dragIcon, dropEvent, onDragStart, onDragEnd, dr
 	// The tile being dragged out, so dropping it back on another tile groups them.
 	const dragSource = useRef<string | null>(null);
 	const searchRef = useRef<HTMLInputElement>(null);
+	// What is being dragged out, so the share column can say so.
+	const [dragging, setDragging] = useState<string | null>(null);
 
 	const sound = (name: keyof typeof clipSounds) => options.sounds && clipSounds[name]();
 
@@ -162,10 +167,12 @@ export function ClipboardPanel({ dragIcon, dropEvent, onDragStart, onDragEnd, dr
 		else return;
 		st.dragging = true;
 		dragSource.current = source?.id ?? null;
+		setDragging(paths.length ? (paths.length === 1 ? `"${fileName(paths[0])}"` : `${paths.length} files`) : "this text");
 		onDragStart();
 		drag.catch((err) => console.error("[clipboard] drag out failed:", err)).finally(() => {
 			// The drop event can land just after the drag call returns.
 			window.setTimeout(() => (dragSource.current = null), 300);
+			setDragging(null);
 			onDragEnd();
 		});
 	};
@@ -249,7 +256,9 @@ export function ClipboardPanel({ dragIcon, dropEvent, onDragStart, onDragEnd, dr
 				setClearOpen(false);
 			}}
 			onKeyDown={(e) => {
-				if (e.key === "Escape" && (selected.size || selecting)) endSelection();
+				if (e.key !== "Escape") return;
+				if (selected.size || selecting) endSelection();
+				else onClose?.();
 			}}
 		>
 			<div className="clip-main">
@@ -287,6 +296,11 @@ export function ClipboardPanel({ dragIcon, dropEvent, onDragStart, onDragEnd, dr
 						}}
 					>
 						<ListChecks size={13} />
+					</button>
+				)}
+				{onClose && (
+					<button className="qp-icon-btn" title="Close (Esc)" aria-label="Close the Shelf" onClick={(e) => (e.stopPropagation(), onClose())}>
+						<X size={14} />
 					</button>
 				)}
 				<div className="clip-clear">
@@ -419,7 +433,7 @@ export function ClipboardPanel({ dragIcon, dropEvent, onDragStart, onDragEnd, dr
 				)}
 			</div>
 			</div>
-			<ShareColumn layout={layout} selected={[...selected]} onSent={endSelection} />
+			<ShareColumn layout={layout} selected={[...selected]} dragging={dragging} onSent={endSelection} />
 		</div>
 	);
 }

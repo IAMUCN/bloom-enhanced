@@ -36,7 +36,18 @@ export const requestSend = (peer: string, payload: Payload) =>
  *  files from Explorer onto a person; progress shows as %. Live clipboard:
  *  a warning once, then pick who gets your copies (one way). Groups: shared
  *  (up to 15), any member adds or removes, sends go to everyone online. */
-export function ShareColumn({ layout, selected = [], onSent }: { layout: "notch" | "edge"; selected?: string[]; onSent?: () => void }) {
+export function ShareColumn({
+	layout,
+	selected = [],
+	dragging = null,
+	onSent
+}: {
+	layout: "notch" | "edge";
+	selected?: string[];
+	/** What is being dragged out of the Shelf ("2 files", a file name…). */
+	dragging?: string | null;
+	onSent?: () => void;
+}) {
 	const [peers, setPeers] = useState<Peer[]>([]);
 	const [requests, setRequests] = useState<Request[]>([]);
 	const [running, setRunning] = useState(true);
@@ -45,7 +56,7 @@ export function ShareColumn({ layout, selected = [], onSent }: { layout: "notch"
 	const [live, setLive] = useState<string[]>([]);
 	const [liveView, setLiveView] = useState(false);
 	const [warned, setWarned] = useState(() => localStorage.getItem("bloom-share-live-warned") === "yes");
-	const [pairing, setPairing] = useState<{ id: string; name: string; code?: number } | null>(null);
+	const [pairing, setPairing] = useState<{ id: string; name: string; code?: number; error?: string } | null>(null);
 	const [note, setNote] = useState("");
 	const [status, setStatus] = useState<Record<string, Status>>({});
 	const [payloads, setPayloads] = useState<Record<string, Payload>>({});
@@ -123,11 +134,12 @@ export function ShareColumn({ layout, selected = [], onSent }: { layout: "notch"
 		setPairing({ id: p.id, name: p.name });
 		invoke("share_pair", { id: p.id })
 			.then(() => {
+				setPairing(null);
 				setNote(`Paired with ${p.name}`);
 				setNearby(false);
 			})
-			.catch((e) => setNote(String(e)))
-			.finally(() => setPairing(null));
+			// The card stays with the reason until it's dismissed.
+			.catch((e) => setPairing({ id: p.id, name: p.name, error: String(e) }));
 	};
 	const answer = (r: Request, accept: boolean) => {
 		invoke("share_answer", { id: r.id, accept }).catch(() => {});
@@ -207,14 +219,39 @@ export function ShareColumn({ layout, selected = [], onSent }: { layout: "notch"
 				</div>
 			</div>
 		);
+	} else if (pairing?.error) {
+		const unreachable = /reach|answer|dropped/i.test(pairing.error);
+		body = (
+			<div className="clip-share-card">
+				<TriangleAlert size={18} color="#FF9F0A" />
+				<span>
+					Couldn't pair with <b>{pairing.name}</b>
+				</span>
+				<span className="clip-share-hint">
+					{unreachable
+						? "Both PCs need the same Wi-Fi, set to Private, and LotusNotch allowed in Windows Firewall."
+						: pairing.error}
+				</span>
+				<div className="clip-share-row">
+					<button type="button" className="clip-share-btn" onClick={() => setPairing(null)}>
+						OK
+					</button>
+				</div>
+			</div>
+		);
 	} else if (pairing) {
 		body = (
 			<div className="clip-share-card">
 				<span>
-					Pairing with <b>{pairing.name}</b>
+					{pairing.code === undefined ? "Connecting to " : "Pairing with "}
+					<b>{pairing.name}</b>
 				</span>
 				<span className="clip-share-code">{pairing.code !== undefined ? code4(pairing.code) : "····"}</span>
-				<span className="clip-share-hint">Check {pairing.name} shows this code and accepts (up to 1 min).</span>
+				<span className="clip-share-hint">
+					{pairing.code === undefined
+						? "The code shows once you're connected."
+						: `Check ${pairing.name} shows this code, then they accept (up to 1 min).`}
+				</span>
 			</div>
 		);
 	} else if (invites[0]) {
@@ -422,6 +459,13 @@ export function ShareColumn({ layout, selected = [], onSent }: { layout: "notch"
 	return (
 		<aside className={`clip-share ${layout}`} aria-label="Share" onClick={(e) => e.stopPropagation()}>
 			<div className="clip-share-head">Share</div>
+			{running && (dragging || selected.length > 0) && trusted.length + groups.length > 0 && (
+				<div className="clip-share-banner">
+					{dragging
+						? `Drop ${dragging} on a person to send it`
+						: `${selected.length} selected · click a person to send`}
+				</div>
+			)}
 			{body}
 			{incoming && (
 				<div className="clip-share-note">

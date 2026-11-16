@@ -77,6 +77,7 @@ function ClipShelf() {
 				dragIcon={dragIcon}
 				dropEvent="clipshelf-drag-drop"
 				layout="edge"
+				onClose={() => invoke("clipboard_shelf_close").catch(() => {})}
 				dragOver={dragHover}
 				onDragStart={() => {
 					selfDrag.current = true;
