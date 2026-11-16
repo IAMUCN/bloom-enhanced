@@ -8,6 +8,7 @@ import { releaseTextKeyboard } from "../hooks/useTextInputKeyboard";
 import { useClipboardSettings } from "../hooks/useClipboardSettings";
 import { clipSounds } from "../clipboardSounds";
 import { ClipTile } from "./ClipTile";
+import { ShareColumn } from "./ShareColumn";
 import {
 	CLEAR_WINDOWS,
 	CLIP_FILTERS,
@@ -34,11 +35,13 @@ interface ClipboardPanelProps {
 	/** Something from another app is being dragged over: show only where to
 	 *  drop it, not the history. */
 	dragOver?: boolean;
+	/** Notch: the share column on the right; edge shelf: along the bottom. */
+	layout?: "notch" | "edge";
 }
 
 const openLink = (url: string) => openUrl(/^https?:/i.test(url) ? url : `https://${url}`);
 
-export function ClipboardPanel({ dragIcon, dropEvent, onDragStart, onDragEnd, dragOver }: ClipboardPanelProps) {
+export function ClipboardPanel({ dragIcon, dropEvent, onDragStart, onDragEnd, dragOver, layout = "notch" }: ClipboardPanelProps) {
 	const options = useClipboardSettings();
 	const [items, setItems] = useState<ClipItem[]>([]);
 	const [query, setQuery] = useState("");
@@ -234,7 +237,7 @@ export function ClipboardPanel({ dragIcon, dropEvent, onDragStart, onDragEnd, dr
 
 	return (
 		<div
-			className="qp clip-panel"
+			className={`qp clip-panel clip-${layout}`}
 			style={{ "--clip-tile": `${THUMB_SIZES[options.thumbSize]}px` } as React.CSSProperties}
 			onClick={(e) => {
 				e.stopPropagation();
@@ -250,6 +253,7 @@ export function ClipboardPanel({ dragIcon, dropEvent, onDragStart, onDragEnd, dr
 					<span>Drop files or selected text here</span>
 				</div>
 			)}
+			<div className="clip-main">
 			<div className="clip-toolbar">
 				<div className="clip-search">
 					<Search size={12} />
@@ -409,6 +413,8 @@ export function ClipboardPanel({ dragIcon, dropEvent, onDragStart, onDragEnd, dr
 					</div>
 				)}
 			</div>
+			</div>
+			<ShareColumn layout={layout} />
 		</div>
 	);
 }

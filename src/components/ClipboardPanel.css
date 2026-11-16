@@ -526,3 +526,111 @@
 	font: inherit;
 	font-size: 10px;
 }
+
+/* ---- Layout with the share column (.grill/shelf-share.md):
+   notch = history | share column on the right; edge = share row at the bottom. */
+.clip-panel.clip-notch {
+	flex-direction: row;
+	gap: 10px;
+}
+
+.clip-main {
+	flex: 1;
+	min-width: 0;
+	min-height: 0;
+	display: flex;
+	flex-direction: column;
+	gap: 6px;
+}
+
+.clip-share {
+	flex: none;
+	display: flex;
+	gap: 8px;
+	font-size: 11px;
+}
+
+.clip-share.notch {
+	width: 132px;
+	flex-direction: column;
+	padding-left: 10px;
+	border-left: 1px solid rgba(255, 255, 255, 0.08);
+}
+
+.clip-share.edge {
+	flex-direction: row;
+	align-items: center;
+	padding-top: 8px;
+	border-top: 1px solid rgba(255, 255, 255, 0.08);
+}
+
+.clip-share-head {
+	font-size: 10px;
+	font-weight: 600;
+	letter-spacing: 0.06em;
+	text-transform: uppercase;
+	opacity: 0.55;
+}
+
+.clip-share.edge .clip-share-head {
+	display: none;
+}
+
+.clip-share-people {
+	flex: 1;
+	min-height: 0;
+	min-width: 0;
+	overflow: auto;
+	scrollbar-width: none;
+}
+
+.clip-share-empty {
+	height: 100%;
+	display: flex;
+	flex-direction: column;
+	align-items: center;
+	justify-content: center;
+	gap: 6px;
+	text-align: center;
+	opacity: 0.5;
+}
+
+.clip-share.edge .clip-share-empty {
+	flex-direction: row;
+	justify-content: flex-start;
+}
+
+.clip-share-actions {
+	display: flex;
+	flex-direction: column;
+	gap: 4px;
+}
+
+.clip-share.edge .clip-share-actions {
+	flex-direction: row;
+}
+
+.clip-share-btn {
+	display: flex;
+	align-items: center;
+	gap: 6px;
+	height: 28px;
+	padding: 0 10px;
+	border: none;
+	border-radius: 8px;
+	background: rgba(255, 255, 255, 0.08);
+	color: inherit;
+	font: inherit;
+	font-size: 11px;
+	white-space: nowrap;
+	cursor: pointer;
+}
+
+.clip-share-btn:hover:not(:disabled) {
+	background: rgba(255, 255, 255, 0.14);
+}
+
+.clip-share-btn:disabled {
+	opacity: 0.45;
+	cursor: default;
+}

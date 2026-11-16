@@ -72,6 +72,7 @@ function ClipShelf() {
 			<ClipboardPanel
 				dragIcon={dragIcon}
 				dropEvent="clipshelf-drag-drop"
+				layout="edge"
 				dragOver={dragHover}
 				onDragStart={() => {
 					selfDrag.current = true;
