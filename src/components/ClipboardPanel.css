@@ -19,7 +19,11 @@
 	background: inherit;
 }
 
-.clip-panel:has(.clip-drop) > :not(.clip-drop) {
+.clip-main {
+	position: relative;
+}
+
+.clip-main:has(.clip-drop) > :not(.clip-drop) {
 	visibility: hidden;
 }
 
@@ -753,4 +757,57 @@ button.clip-share-person {
 
 .clip-share-btn.primary:hover {
 	background: #e8e8e8;
+}
+
+.clip-share-person.can-send {
+	cursor: pointer;
+	background: rgba(255, 255, 255, 0.06);
+}
+
+.clip-share-name small {
+	display: block;
+	font-size: 10px;
+	opacity: 0.6;
+	overflow: hidden;
+	text-overflow: ellipsis;
+}
+
+.clip-share-status.bad {
+	color: #ff6b61;
+	opacity: 1;
+}
+
+.clip-share-bar {
+	display: block;
+	height: 3px;
+	margin-top: 2px;
+	border-radius: 2px;
+	background: rgba(255, 255, 255, 0.12);
+	overflow: hidden;
+}
+
+.clip-share-bar > span {
+	display: block;
+	height: 100%;
+	background: #30d158;
+	transform-origin: left;
+	transition: transform 0.1s linear;
+}
+
+.clip-share-retry {
+	flex: none;
+	padding: 2px 7px;
+	border: none;
+	border-radius: 6px;
+	background: rgba(255, 255, 255, 0.14);
+	color: inherit;
+	font: inherit;
+	font-size: 10px;
+	cursor: pointer;
+}
+
+.clip-share-person:has(.clip-share-status) {
+	height: auto;
+	min-height: 28px;
+	padding-block: 4px;
 }

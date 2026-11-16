@@ -229,6 +229,8 @@ fn main() {
             share_app::share_answer,
             share_app::share_requests,
             share_app::share_unpair,
+            share_app::share_send,
+            share_app::share_send_drop,
             system_tools::color_at_cursor,
             system_tools::ocr_clipboard,
             system_tools::cc_states,

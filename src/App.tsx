@@ -70,6 +70,7 @@ import { deviceArtFor } from "./devices/deviceArtFor";
 import { deviceLookFor } from "./devices/deviceLooks";
 import type { BudLevel, BudsBattery } from "./devices/connectedDevices";
 import { ConnectedDevicesPanel } from "./components/ConnectedDevicesPanel";
+import { requestSend, sharePeerAt } from "./components/ShareColumn";
 import { ClipboardPanel } from "./components/ClipboardPanel";
 import { useClipboardSettings } from "./hooks/useClipboardSettings";
 import { clipSounds } from "./clipboardSounds";
@@ -2172,13 +2173,16 @@ function App() {
 				}
 			}
 		};
-		const drop = (event: { payload: { paths?: string[]; text?: string } }) => {
+		const drop = (event: { payload: { paths?: string[]; text?: string; position?: { x: number; y: number } } }) => {
 			setIsDragHovering(false);
 			shelfDragActiveRef.current = false;
 			shelfSelfDropAtRef.current = Date.now();
 			const paths = event.payload.paths ?? [];
 			const text = event.payload.text;
 			if (bloomModeRef.current === "clipboard") {
+				// Dropped on a person in the share column: send it, don't keep it.
+				const peer = clipboardSelfDragRef.current ? null : sharePeerAt(event.payload.position);
+				if (peer) return requestSend(peer, { paths, text });
 				// Dropping our own drag back onto the panel is a no-op.
 				if (!clipboardSelfDragRef.current) invoke("clipboard_add", { paths, text }).catch(() => {});
 				return;

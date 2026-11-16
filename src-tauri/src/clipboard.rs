@@ -88,6 +88,9 @@ pub struct ClipItem {
     /// kept through cleanup like pinned ones.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub note: Option<String>,
+    /// Who sent it (Shelf sharing); None for the user's own copies.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub from: Option<String>,
 }
 
 impl ClipItem {
@@ -480,6 +483,7 @@ fn capture_image(app: &AppHandle, id: &str) -> Option<ClipItem> {
         hits: 1,
         html: None,
         note: None,
+        from: None,
     })
 }
 
@@ -500,6 +504,7 @@ fn capture(app: &AppHandle) -> Option<ClipItem> {
         hits: 1,
         html: None,
         note: None,
+        from: None,
     };
     match read_clipboard()? {
         Captured::Files(paths) => Some(ClipItem {
@@ -647,7 +652,60 @@ fn text_item(text: String) -> ClipItem {
         hits: 1,
         html: None,
         note: None,
+        from: None,
     }
+}
+
+/// What the Shelf items `ids` send to someone: their text, or their files.
+pub fn share_items(ids: &[String]) -> Vec<crate::share::Item> {
+    let history = HISTORY.lock().unwrap();
+    ids.iter()
+        .filter_map(|id| history.iter().find(|it| &it.id == id))
+        .flat_map(|it| match it.kind {
+            ClipKind::Text => it
+                .text
+                .clone()
+                .map(crate::share::Item::Text)
+                .into_iter()
+                .collect(),
+            _ => it
+                .file_paths()
+                .into_iter()
+                .map(|p| crate::share::Item::Path(p.into()))
+                .collect::<Vec<_>>(),
+        })
+        .collect()
+}
+
+/// A send from a paired person: into the Shelf, tagged with their name.
+pub fn add_received(app: &AppHandle, from: &str, texts: Vec<String>, paths: Vec<String>) {
+    let tag = Some(short_name(from));
+    let mut items: Vec<ClipItem> = texts
+        .into_iter()
+        .map(|t| normalize_text(&t))
+        .filter(|t| !t.is_empty() && t.len() <= MAX_TEXT_BYTES)
+        .map(|t| ClipItem {
+            from: tag.clone(),
+            ..text_item(t)
+        })
+        .collect();
+    if !paths.is_empty() {
+        items.push(ClipItem {
+            kind: ClipKind::Files,
+            text: None,
+            is_url: false,
+            paths,
+            from: tag,
+            ..text_item(String::new())
+        });
+    }
+    if !items.is_empty() {
+        add_all(app, items);
+    }
+}
+
+fn short_name(name: &str) -> String {
+    name.chars().take(48).collect()
 }
 
 /// Files or text dropped onto the shelf. Recorded like a copy, without
@@ -1414,6 +1472,7 @@ mod tests {
             hits: 1,
             html: None,
             note: None,
+            from: None,
         }
     }
 

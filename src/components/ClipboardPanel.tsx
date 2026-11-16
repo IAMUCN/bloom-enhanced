@@ -8,7 +8,7 @@ import { releaseTextKeyboard } from "../hooks/useTextInputKeyboard";
 import { useClipboardSettings } from "../hooks/useClipboardSettings";
 import { clipSounds } from "../clipboardSounds";
 import { ClipTile } from "./ClipTile";
-import { ShareColumn } from "./ShareColumn";
+import { ShareColumn, sharePeerAt } from "./ShareColumn";
 import {
 	CLEAR_WINDOWS,
 	CLIP_FILTERS,
@@ -77,6 +77,11 @@ export function ClipboardPanel({ dragIcon, dropEvent, onDragStart, onDragEnd, dr
 			const source = dragSource.current;
 			const pos = e.payload.position;
 			if (!source || !pos) return;
+			const peer = sharePeerAt(pos);
+			if (peer) {
+				window.dispatchEvent(new CustomEvent("share-send", { detail: { peer, clips: [source] } }));
+				return;
+			}
 			const el = document.elementFromPoint(pos.x / devicePixelRatio, pos.y / devicePixelRatio);
 			const target = el?.closest<HTMLElement>("[data-clip-id]")?.dataset.clipId;
 			if (target && target !== source) {
@@ -247,13 +252,13 @@ export function ClipboardPanel({ dragIcon, dropEvent, onDragStart, onDragEnd, dr
 				if (e.key === "Escape" && (selected.size || selecting)) endSelection();
 			}}
 		>
+			<div className="clip-main">
 			{dragOver && (
 				<div className="clip-drop">
 					<Inbox size={22} strokeWidth={1.5} />
-					<span>Drop files or selected text here</span>
+					<span>Drop here to keep it, or on a person to send it</span>
 				</div>
 			)}
-			<div className="clip-main">
 			<div className="clip-toolbar">
 				<div className="clip-search">
 					<Search size={12} />
@@ -414,7 +419,7 @@ export function ClipboardPanel({ dragIcon, dropEvent, onDragStart, onDragEnd, dr
 				)}
 			</div>
 			</div>
-			<ShareColumn layout={layout} />
+			<ShareColumn layout={layout} selected={[...selected]} onSent={endSelection} />
 		</div>
 	);
 }

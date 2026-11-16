@@ -17,16 +17,19 @@ export interface ClipItem {
 	html?: string;
 	/** The user's note; noted items survive cleanup. */
 	note?: string;
+	/** Who sent it (Shelf sharing); absent for your own copies. */
+	from?: string;
 }
 
-export type ClipFilter = "all" | "text" | "links" | "images" | "others";
+export type ClipFilter = "all" | "text" | "links" | "images" | "others" | "received";
 
 export const CLIP_FILTERS: [ClipFilter, string][] = [
 	["all", "All"],
 	["text", "Text"],
 	["links", "Links"],
 	["images", "Images"],
-	["others", "Others"]
+	["others", "Others"],
+	["received", "Received"]
 ];
 
 // `bloom-clipboard-thumb-size` → tile width in px (the grid fits as many
@@ -71,6 +74,9 @@ export function matchesFilter(it: ClipItem, filter: ClipFilter): boolean {
 		// Non-image files and copied colour codes.
 		case "others":
 			return (it.kind === "files" && !isImageEntry(it)) || colorOf(it) !== null;
+		// Sent by a paired person.
+		case "received":
+			return !!it.from;
 	}
 }
 

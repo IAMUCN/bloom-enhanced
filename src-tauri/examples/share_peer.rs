@@ -14,16 +14,22 @@ fn main() {
     let dir = std::env::temp_dir().join("lotusnotch-share-peer");
     let s = share::Share::start(
         share::Config {
+            inbox: dir.join("inbox"),
             dir,
             name: "Test peer".into(),
             listen_port: share::DEV_PORT,
             announce_ports: vec![share::PORT],
             auto_accept: true,
         },
-        |e| {
-            if let share::Event::PairRequest { name, code, .. } = e {
-                println!("Pair request from {name}: code {code:04} (accepted)");
+        |e| match e {
+            share::Event::PairRequest { name, code, .. } => {
+                println!("Pair request from {name}: code {code:04} (accepted)")
             }
+            share::Event::Received { from, texts, paths } => {
+                println!("From {from}: {texts:?} {paths:?}")
+            }
+            share::Event::IncomingFailed { from, why } => println!("From {from} failed: {why}"),
+            _ => {}
         },
     )
     .expect("couldn't start");

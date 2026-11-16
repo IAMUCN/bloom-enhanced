@@ -6,6 +6,7 @@ import React, { useEffect, useRef, useState } from "react";
 import ReactDOM from "react-dom/client";
 import { invoke } from "@tauri-apps/api/core";
 import { listen } from "@tauri-apps/api/event";
+import { requestSend, sharePeerAt } from "./components/ShareColumn";
 import { ClipboardPanel } from "./components/ClipboardPanel";
 import { EdgeSurface } from "./components/EdgeSurface";
 import { useTextInputKeyboard, releaseTextKeyboard } from "./hooks/useTextInputKeyboard";
@@ -51,10 +52,13 @@ function ClipShelf() {
 			// Our own tile dragged within the shelf (to group it) keeps the history.
 			listen("clipshelf-drag-enter", () => setDragHover(!selfDrag.current)),
 			listen("clipshelf-drag-leave", () => setDragHover(false)),
-			listen<{ paths?: string[]; text?: string }>("clipshelf-drag-drop", (e) => {
+			listen<{ paths?: string[]; text?: string; position?: { x: number; y: number } }>("clipshelf-drag-drop", (e) => {
 				setDragHover(false);
 				// Dropping our own drag back onto the shelf is a no-op.
 				if (selfDrag.current) return;
+				// Dropped on a person in the share row: send it, don't keep it.
+				const peer = sharePeerAt(e.payload.position);
+				if (peer) return requestSend(peer, { paths: e.payload.paths ?? [], text: e.payload.text });
 				invoke("clipboard_add", { paths: e.payload.paths ?? [], text: e.payload.text }).catch(() => {});
 			})
 		];

@@ -202,6 +202,7 @@ export function ClipTile(props: ClipTileProps) {
 						</>
 					) : (
 						<>
+							{item.from ? `From ${item.from} · ` : ""}
 							{timeAgo(item.captured_at)}
 							{item.hits > 1 && ` · ${item.hits}×`}
 						</>

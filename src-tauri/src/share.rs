@@ -286,7 +286,159 @@ pub struct PeerView {
 
 pub enum Event {
     PeersChanged,
-    PairRequest { id: String, name: String, code: u16 },
+    PairRequest {
+        id: String,
+        name: String,
+        code: u16,
+    },
+    /// Bytes received so far of an incoming send.
+    Incoming {
+        from: String,
+        done: u64,
+        total: u64,
+    },
+    /// A send arrived in full: its texts and the top-level files/folders.
+    Received {
+        from: String,
+        texts: Vec<String>,
+        paths: Vec<PathBuf>,
+    },
+    /// An incoming send stopped; anything partial was deleted.
+    IncomingFailed {
+        from: String,
+        why: String,
+    },
+}
+
+/// Limits per send (.grill/shelf-share.md).
+pub const MAX_SEND: u64 = 250 * 1024 * 1024;
+pub const MAX_FILES: usize = 1000;
+const CHUNK: usize = 512 * 1024;
+
+/// What a send carries: text, or a file or folder on disk.
+pub enum Item {
+    Text(String),
+    Path(PathBuf),
+}
+
+/// One file of a send: its path inside the send ("Folder/sub/a.txt").
+struct Entry {
+    rel: String,
+    size: u64,
+    src: PathBuf,
+}
+
+fn too_big(total: u64) -> String {
+    format!(
+        "This is {} MB; the limit is 250 MB. Use another app for big files.",
+        total.div_ceil(1024 * 1024)
+    )
+}
+
+/// Lists the files of a send (folders walked, links skipped) and checks the
+/// limits before anything is sent.
+fn plan(items: &[Item]) -> Result<(Vec<String>, Vec<Entry>, u64), String> {
+    fn walk(dir: &Path, rel: &str, out: &mut Vec<Entry>) -> Result<(), String> {
+        let list = std::fs::read_dir(dir).map_err(|_| format!("Can't read {rel}"))?;
+        for e in list.flatten() {
+            let Ok(meta) = std::fs::symlink_metadata(e.path()) else {
+                continue;
+            };
+            let name = e.file_name().to_string_lossy().to_string();
+            let rel = format!("{rel}/{name}");
+            if meta.is_dir() {
+                walk(&e.path(), &rel, out)?;
+            } else if meta.is_file() {
+                out.push(Entry {
+                    rel,
+                    size: meta.len(),
+                    src: e.path(),
+                });
+            }
+            if out.len() > MAX_FILES {
+                return Err("Too many files: the limit is 1,000 per send.".into());
+            }
+        }
+        Ok(())
+    }
+    let (mut texts, mut files) = (Vec::new(), Vec::new());
+    for item in items {
+        match item {
+            Item::Text(t) => texts.push(t.clone()),
+            Item::Path(p) => {
+                let meta = std::fs::metadata(p).map_err(|_| "A file is gone".to_string())?;
+                let name = p
+                    .file_name()
+                    .map(|n| n.to_string_lossy().to_string())
+                    .ok_or("Bad file")?;
+                if meta.is_dir() {
+                    walk(p, &name, &mut files)?;
+                } else {
+                    files.push(Entry {
+                        rel: name,
+                        size: meta.len(),
+                        src: p.clone(),
+                    });
+                }
+            }
+        }
+    }
+    if files.len() > MAX_FILES {
+        return Err("Too many files: the limit is 1,000 per send.".into());
+    }
+    let total = files.iter().map(|f| f.size).sum::<u64>()
+        + texts.iter().map(|t| t.len() as u64).sum::<u64>();
+    if total > MAX_SEND {
+        return Err(too_big(total));
+    }
+    Ok((texts, files, total))
+}
+
+/// A received file's path inside the send, made safe: plain names only (no
+/// "..", drives, streams, reserved Windows names, trailing dots).
+pub fn safe_rel(rel: &str) -> Option<PathBuf> {
+    const RESERVED: [&str; 22] = [
+        "CON", "PRN", "AUX", "NUL", "COM1", "COM2", "COM3", "COM4", "COM5", "COM6", "COM7", "COM8",
+        "COM9", "LPT1", "LPT2", "LPT3", "LPT4", "LPT5", "LPT6", "LPT7", "LPT8", "LPT9",
+    ];
+    let mut out = PathBuf::new();
+    let parts: Vec<&str> = rel.split('/').collect();
+    if parts.len() > 32 || rel.len() > 400 {
+        return None;
+    }
+    for part in parts {
+        let stem = part.split('.').next().unwrap_or("").to_ascii_uppercase();
+        if part.is_empty()
+            || part == "."
+            || part == ".."
+            || part.ends_with('.')
+            || part.ends_with(' ')
+            || part
+                .chars()
+                .any(|c| c.is_control() || "\\:*?\"<>|".contains(c))
+            || RESERVED.contains(&stem.as_str())
+        {
+            return None;
+        }
+        out.push(part);
+    }
+    Some(out)
+}
+
+/// `dir/name`, or `dir/name (2)` … when that is taken.
+fn unique(dir: &Path, name: &str) -> PathBuf {
+    let first = dir.join(name);
+    if !first.exists() {
+        return first;
+    }
+    let (stem, ext) = match name.rsplit_once('.') {
+        Some((s, e)) if !s.is_empty() => (s, format!(".{e}")),
+        _ => (name, String::new()),
+    };
+    (2..)
+        .map(|n| dir.join(format!("{stem} ({n}){ext}")))
+        .find(|p| !p.exists())
+        .unwrap()
 }
 
 pub struct Config {
@@ -299,6 +451,8 @@ pub struct Config {
     pub announce_ports: Vec<u16>,
     /// The dev peer accepts every pairing by itself.
     pub auto_accept: bool,
+    /// Where received files go (Downloads\\LotusNotch).
+    pub inbox: PathBuf,
 }
 
 /// A pairing request waiting for an answer: (answer, name, code).
@@ -569,10 +723,173 @@ impl Share {
                 }
                 ch.send_json(&serde_json::json!({ "t": if ok { "pair-ok" } else { "pair-no" } }))
             }
-            // Everything else is for trusted people only (sending: step 3).
+            // Everything else is for trusted people only.
             _ if !self.is_trusted(&ch.peer_key) => Err("Not paired".into()),
+            Some("send") => {
+                let from = ch.peer_name.clone();
+                let mut made = Vec::new();
+                let result = self.receive(&mut ch, &msg, &mut made);
+                if let Err(why) = &result {
+                    // Nothing half-done stays behind.
+                    for p in made.iter().rev() {
+                        let _ = std::fs::remove_file(p).or_else(|_| std::fs::remove_dir_all(p));
+                    }
+                    let _ = ch.send_json(&serde_json::json!({ "t": "no", "why": why }));
+                    (self.events)(Event::IncomingFailed {
+                        from,
+                        why: why.clone(),
+                    });
+                }
+                result
+            }
             _ => Ok(()),
         }
+    }
+
+    /// Sends texts and files to a trusted person; `progress` gets (sent,
+    /// total) bytes. Fails without sending when over the limits.
+    pub fn send(
+        &self,
+        id: &str,
+        items: &[Item],
+        mut progress: impl FnMut(u64, u64),
+    ) -> Result<(), String> {
+        let (texts, files, total) = plan(items)?;
+        let mut ch = self.connect(id)?;
+        let list: Vec<_> = files
+            .iter()
+            .map(|f| serde_json::json!({ "rel": f.rel, "size": f.size }))
+            .collect();
+        ch.send_json(
+            &serde_json::json!({ "t": "send", "texts": texts, "files": list, "total": total }),
+        )?;
+        ch.set_timeout(Duration::from_secs(30));
+        let reply = ch.recv_json()?;
+        if reply["t"] != "ok" {
+            return Err(reply["why"]
+                .as_str()
+                .unwrap_or("They couldn't take it")
+                .to_string());
+        }
+        let mut done = texts.iter().map(|t| t.len() as u64).sum::<u64>();
+        progress(done, total);
+        let mut buf = vec![0u8; CHUNK];
+        for f in &files {
+            let mut file =
+                std::fs::File::open(&f.src).map_err(|_| format!("Can't open {}", f.rel))?;
+            let mut left = f.size;
+            while left > 0 {
+                let n = (left as usize).min(CHUNK);
+                file.read_exact(&mut buf[..n])
+                    .map_err(|_| format!("{} changed while sending", f.rel))?;
+                ch.send(&buf[..n])?;
+                left -= n as u64;
+                done += n as u64;
+                progress(done, total);
+            }
+        }
+        let end = ch.recv_json()?;
+        if end["t"] != "got" {
+            return Err(end["why"]
+                .as_str()
+                .unwrap_or("It didn't arrive")
+                .to_string());
+        }
+        Ok(())
+    }
+
+    /// Takes in one send; `made` collects what was created, for cleanup.
+    fn receive(
+        &self,
+        ch: &mut Channel,
+        msg: &serde_json::Value,
+        made: &mut Vec<PathBuf>,
+    ) -> Result<(), String> {
+        let texts: Vec<String> = msg["texts"]
+            .as_array()
+            .ok_or("Bad send")?
+            .iter()
+            .filter_map(|t| t.as_str().map(str::to_string))
+            .collect();
+        let mut files = Vec::new();
+        for f in msg["files"].as_array().ok_or("Bad send")? {
+            let rel = f["rel"]
+                .as_str()
+                .and_then(safe_rel)
+                .ok_or("Bad file name")?;
+            files.push((rel, f["size"].as_u64().ok_or("Bad send")?));
+        }
+        let total = files.iter().map(|f| f.1).sum::<u64>()
+            + texts.iter().map(|t| t.len() as u64).sum::<u64>();
+        if files.len() > MAX_FILES || total > MAX_SEND {
+            return Err(too_big(total));
+        }
+        ch.send_json(&serde_json::json!({ "t": "ok" }))?;
+        ch.set_timeout(Duration::from_secs(30));
+        let from = ch.peer_name.clone();
+        let mut done = texts.iter().map(|t| t.len() as u64).sum::<u64>();
+        // Each top-level name gets a free spot in the inbox once.
+        let mut tops: HashMap<String, PathBuf> = HashMap::new();
+        if !files.is_empty() {
+            std::fs::create_dir_all(&self.cfg.inbox)
+                .map_err(|_| "Can't write to Downloads".to_string())?;
+        }
+        let mut last = Instant::now();
+        for (rel, size) in &files {
+            let mut parts = rel.iter();
+            let top = parts
+                .next()
+                .ok_or("Bad file name")?
+                .to_string_lossy()
+                .to_string();
+            let top_path = match tops.get(&top) {
+                Some(p) => p.clone(),
+                None => {
+                    let p = unique(&self.cfg.inbox, &top);
+                    made.push(p.clone());
+                    tops.insert(top.clone(), p.clone());
+                    p
+                }
+            };
+            let dest: PathBuf = parts.fold(top_path, |p, c| p.join(c));
+            if let Some(parent) = dest.parent() {
+                std::fs::create_dir_all(parent)
+                    .map_err(|_| "Can't write to Downloads".to_string())?;
+            }
+            let part = dest.with_file_name(format!(
+                "{}.part",
+                dest.file_name().unwrap_or_default().to_string_lossy()
+            ));
+            made.push(part.clone());
+            let mut out =
+                std::fs::File::create(&part).map_err(|_| "Can't write to Downloads".to_string())?;
+            let mut left = *size;
+            while left > 0 {
+                let chunk = ch.recv()?;
+                if chunk.len() as u64 > left {
+                    return Err("Bad data".into());
+                }
+                out.write_all(&chunk)
+                    .map_err(|_| "The disk is full or can't be written".to_string())?;
+                left -= chunk.len() as u64;
+                done += chunk.len() as u64;
+                if last.elapsed() > Duration::from_millis(100) {
+                    last = Instant::now();
+                    (self.events)(Event::Incoming {
+                        from: from.clone(),
+                        done,
+                        total,
+                    });
+                }
+            }
+            drop(out);
+            std::fs::rename(&part, &dest).map_err(|_| "Can't write to Downloads".to_string())?;
+        }
+        ch.send_json(&serde_json::json!({ "t": "got" }))?;
+        let mut paths: Vec<PathBuf> = tops.into_values().collect();
+        paths.sort();
+        (self.events)(Event::Received { from, texts, paths });
+        Ok(())
     }
 }
 
@@ -595,6 +912,7 @@ mod tests {
                 listen_port: 0,
                 announce_ports: vec![],
                 auto_accept: false,
+                inbox: temp(name).join("inbox"),
             },
             events,
         )
@@ -675,6 +993,7 @@ mod tests {
                 listen_port: 0,
                 announce_ports: vec![DEV_PORT],
                 auto_accept: false,
+                inbox: temp("live").join("inbox"),
             },
             |_| {},
         )
@@ -689,6 +1008,143 @@ mod tests {
         assert!(peer.online);
         a.pair(&peer.id, |_| {}).unwrap();
         assert!(a.peers().iter().any(|p| p.id == peer.id && p.trusted));
+        let file = temp("live-src").with_extension("txt");
+        std::fs::write(&file, b"live send").unwrap();
+        let mut pct = 0;
+        a.send(
+            &peer.id,
+            &[Item::Text("hi from the live test".into()), Item::Path(file)],
+            |d, t| pct = d * 100 / t,
+        )
+        .unwrap();
+        assert_eq!(pct, 100);
+    }
+
+    /// Two people paired with each other (auto-accept on b), b's events out.
+    fn paired(tag: &str) -> (Arc<Share>, Arc<Share>, mpsc::Receiver<Event>) {
+        let (tx, rx) = mpsc::channel();
+        let tx = Mutex::new(tx);
+        let b = Share::start(
+            Config {
+                dir: temp(&format!("{tag}-b")),
+                name: format!("{tag}-b"),
+                listen_port: 0,
+                announce_ports: vec![],
+                auto_accept: true,
+                inbox: temp(&format!("{tag}-inbox")),
+            },
+            move |e| {
+                let _ = tx.lock().unwrap().send(e);
+            },
+        )
+        .unwrap();
+        let a = start(&format!("{tag}-a"), |_| {});
+        introduce(&a, &b);
+        a.seen.lock().unwrap().get_mut(b.id()).unwrap().addr =
+            SocketAddr::from(([127, 0, 0, 1], b.tcp_port));
+        a.pair(b.id(), |_| {}).unwrap();
+        (a, b, rx)
+    }
+
+    fn received(rx: &mpsc::Receiver<Event>) -> Option<(Vec<String>, Vec<PathBuf>)> {
+        while let Ok(e) = rx.recv_timeout(Duration::from_secs(10)) {
+            match e {
+                Event::Received { texts, paths, .. } => return Some((texts, paths)),
+                Event::IncomingFailed { .. } => return None,
+                _ => {}
+            }
+        }
+        None
+    }
+
+    #[test]
+    fn file_names_are_made_safe() {
+        assert_eq!(
+            safe_rel("a/b.txt").unwrap(),
+            PathBuf::from("a").join("b.txt")
+        );
+        for bad in [
+            "../x", "a/../b", "C:/x", r"a\b", "con.txt", "x.", "a//b", "", "f:stream",
+        ] {
+            assert!(safe_rel(bad).is_none(), "{bad}");
+        }
+    }
+
+    #[test]
+    fn sends_text_files_and_folders() {
+        let (a, b, rx) = paired("send");
+        let src = temp("send-src");
+        std::fs::create_dir_all(src.join("Notes/deep")).unwrap();
+        std::fs::write(src.join("Notes/deep/n.txt"), b"nested").unwrap();
+        let big: Vec<u8> = (0..1_300_000u32).map(|i| (i % 251) as u8).collect();
+        std::fs::write(src.join("pic.bin"), &big).unwrap();
+        let mut last = (0, 0);
+        a.send(
+            b.id(),
+            &[
+                Item::Text("hello".into()),
+                Item::Path(src.join("pic.bin")),
+                Item::Path(src.join("Notes")),
+            ],
+            |d, t| last = (d, t),
+        )
+        .unwrap();
+        assert_eq!(last.0, last.1, "progress ends at 100 %");
+        let (texts, paths) = received(&rx).expect("arrived");
+        assert_eq!(texts, vec!["hello".to_string()]);
+        let inbox = &b.cfg.inbox;
+        assert_eq!(std::fs::read(inbox.join("pic.bin")).unwrap(), big);
+        assert_eq!(
+            std::fs::read(inbox.join("Notes/deep/n.txt")).unwrap(),
+            b"nested"
+        );
+        assert_eq!(paths.len(), 2);
+        // The same again doesn't overwrite: "pic (2).bin", "Notes (2)".
+        a.send(
+            b.id(),
+            &[
+                Item::Path(src.join("pic.bin")),
+                Item::Path(src.join("Notes")),
+            ],
+            |_, _| {},
+        )
+        .unwrap();
+        received(&rx).unwrap();
+        assert!(inbox.join("pic (2).bin").exists() && inbox.join("Notes (2)/deep/n.txt").exists());
+        assert!(!std::fs::read_dir(inbox)
+            .unwrap()
+            .flatten()
+            .any(|e| e.path().to_string_lossy().ends_with(".part")));
+    }
+
+    #[test]
+    fn over_the_limit_sends_nothing() {
+        let (a, b, _rx) = paired("limit");
+        let src = temp("limit-src");
+        std::fs::create_dir_all(&src).unwrap();
+        let f = std::fs::File::create(src.join("huge.bin")).unwrap();
+        f.set_len(MAX_SEND + 1).unwrap(); // sparse: no real disk use
+        let err = a
+            .send(b.id(), &[Item::Path(src.join("huge.bin"))], |_, _| {})
+            .unwrap_err();
+        assert!(err.contains("limit is 250 MB"), "{err}");
+    }
+
+    #[test]
+    fn a_dropped_send_leaves_nothing() {
+        let (a, b, rx) = paired("drop");
+        let mut ch = a.connect(b.id()).unwrap();
+        ch.send_json(&serde_json::json!({ "t": "send", "texts": [], "files": [{ "rel": "half.bin", "size": 1000 }], "total": 1000 }))
+            .unwrap();
+        assert_eq!(ch.recv_json().unwrap()["t"], "ok");
+        ch.send(&[7u8; 10]).unwrap();
+        drop(ch); // the sender quits mid-way
+        assert!(received(&rx).is_none(), "reported as failed");
+        let left: Vec<_> = std::fs::read_dir(&b.cfg.inbox)
+            .map(|d| d.flatten().count())
+            .into_iter()
+            .collect();
+        assert!(left.iter().all(|n| *n == 0), "partial file deleted");
     }
 
     #[test]
