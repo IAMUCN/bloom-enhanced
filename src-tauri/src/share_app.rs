@@ -4,7 +4,7 @@
 //! `share-progress` { id, done, total } (sending), `share-incoming`
 //! { from, done, total }, `share-received` { from, count },
 //! `share-incoming-failed` { from, why }, `share-live` { from, id, preview }
-//! (a live clipboard copy arrived).
+//! (a live clipboard copy arrived), `share-group-invite` { gid, name, from }.
 
 use crate::share::{Config, Event, Item, PeerView, Share, DEV_PORT, PORT, TOO_BIG_FOR_LIVE};
 use std::sync::{Arc, OnceLock};
@@ -102,6 +102,12 @@ pub fn start(app: AppHandle) {
                     );
                 }
             }
+            Event::GroupInvite { gid, name, from } => {
+                let _ = events_app.emit(
+                    "share-group-invite",
+                    serde_json::json!({ "gid": gid, "name": name, "from": from }),
+                );
+            }
             Event::IncomingFailed { from, why } => {
                 let _ = events_app.emit(
                     "share-incoming-failed",
@@ -140,6 +146,9 @@ pub async fn share_peers() -> Result<Vec<PeerView>, String> {
     tauri::async_runtime::spawn_blocking(move || {
         s.query();
         std::thread::sleep(std::time::Duration::from_millis(700));
+        // Members who were away catch up on group changes (off this call).
+        let sync = s.clone();
+        std::thread::spawn(move || sync.sync_groups());
         s.peers()
     })
     .await
@@ -199,7 +208,7 @@ async fn send(app: AppHandle, id: String, items: Vec<Item>) -> Result<(), String
     let s = share()?.clone();
     tauri::async_runtime::spawn_blocking(move || {
         let mut last = std::time::Instant::now();
-        s.send(&id, &items, |done, total| {
+        let mut progress = |done: u64, total: u64| {
             if done == total || last.elapsed().as_millis() >= 100 {
                 last = std::time::Instant::now();
                 let _ = app.emit(
@@ -207,7 +216,11 @@ async fn send(app: AppHandle, id: String, items: Vec<Item>) -> Result<(), String
                     serde_json::json!({ "id": id, "done": done, "total": total }),
                 );
             }
-        })
+        };
+        match id.strip_prefix("group:") {
+            Some(gid) => s.send_group(gid, &items, &mut progress),
+            None => s.send(&id, &items, &mut progress),
+        }
     })
     .await
     .map_err(|e| e.to_string())?
@@ -249,7 +262,26 @@ pub fn on_copy(app: &AppHandle, item: crate::clipboard::ClipItem) {
     let app = app.clone();
     std::thread::spawn(move || {
         let items = crate::clipboard::share_items(std::slice::from_ref(&item.id));
+        // Groups expand to their members (each person once).
+        let groups = s.groups();
+        let mut people: Vec<String> = Vec::new();
         for id in ids {
+            let more: Vec<String> = match id.strip_prefix("group:") {
+                Some(gid) => groups
+                    .iter()
+                    .filter(|g| g.gid == gid)
+                    .flat_map(|g| g.members.iter().map(|m| m.id.clone()))
+                    .filter(|m| m != s.id())
+                    .collect(),
+                None => vec![id],
+            };
+            for m in more {
+                if !people.contains(&m) {
+                    people.push(m);
+                }
+            }
+        }
+        for id in people {
             if s.send_live(&id, &items)
                 .is_err_and(|e| e == TOO_BIG_FOR_LIVE)
             {
@@ -270,4 +302,45 @@ pub fn share_live_get() -> Result<Vec<String>, String> {
 pub fn share_live_set(ids: Vec<String>) -> Result<(), String> {
     share()?.set_live(&ids);
     Ok(())
+}
+
+/// The groups this PC is in, and groups waiting for Join / Ignore.
+#[tauri::command]
+pub fn share_groups() -> Result<serde_json::Value, String> {
+    let s = share()?;
+    Ok(serde_json::json!({ "groups": s.groups(), "invites": s.invites(), "me": s.id() }))
+}
+
+async fn blocking<T: Send + 'static>(
+    f: impl FnOnce(&Share) -> Result<T, String> + Send + 'static,
+) -> Result<T, String> {
+    let s = share()?.clone();
+    tauri::async_runtime::spawn_blocking(move || f(&s))
+        .await
+        .map_err(|e| e.to_string())?
+}
+
+#[tauri::command]
+pub async fn share_group_create(name: String, ids: Vec<String>) -> Result<String, String> {
+    blocking(move |s| s.create_group(&name, &ids)).await
+}
+
+#[tauri::command]
+pub async fn share_group_add(gid: String, id: String) -> Result<(), String> {
+    blocking(move |s| s.add_to_group(&gid, &id)).await
+}
+
+#[tauri::command]
+pub async fn share_group_remove(gid: String, id: String) -> Result<(), String> {
+    blocking(move |s| s.remove_from_group(&gid, &id)).await
+}
+
+#[tauri::command]
+pub async fn share_group_leave(gid: String) -> Result<(), String> {
+    blocking(move |s| s.leave_group(&gid)).await
+}
+
+#[tauri::command]
+pub async fn share_invite_answer(gid: String, join: bool) -> Result<(), String> {
+    blocking(move |s| s.answer_invite(&gid, join)).await
 }

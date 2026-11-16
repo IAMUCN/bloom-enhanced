@@ -1,10 +1,13 @@
 import { useEffect, useState } from "react";
 import { invoke } from "@tauri-apps/api/core";
 import { listen } from "@tauri-apps/api/event";
-import { ArrowLeft, Check, Radio, Send, TriangleAlert, UserPlus, Users, X } from "lucide-react";
+import { ArrowLeft, Check, LogOut, Plus, Radio, Send, Settings2, TriangleAlert, UserPlus, Users, X } from "lucide-react";
 
 type Peer = { id: string; name: string; trusted: boolean; online: boolean };
 type Request = { id: string; name: string; code: number };
+type Member = { id: string; name: string };
+type Group = { gid: string; name: string; members: Member[] };
+type Invite = { gid: string; name: string; from?: string };
 /** A send to one person: progress, or how it ended. */
 type Status = { done: number; total: number; error?: string; sent?: boolean };
 /** What a person was sent, so a failed send can be retried. */
@@ -31,7 +34,8 @@ export const requestSend = (peer: string, payload: Payload) =>
  *  network is asked; no polling). Pairing: both sides show one 4-digit code.
  *  Sending: drag a clip onto a person, tick clips and click a person, or drop
  *  files from Explorer onto a person; progress shows as %. Live clipboard:
- *  a warning once, then pick who gets your copies (one way). Groups: step 5. */
+ *  a warning once, then pick who gets your copies (one way). Groups: shared
+ *  (up to 15), any member adds or removes, sends go to everyone online. */
 export function ShareColumn({ layout, selected = [], onSent }: { layout: "notch" | "edge"; selected?: string[]; onSent?: () => void }) {
 	const [peers, setPeers] = useState<Peer[]>([]);
 	const [requests, setRequests] = useState<Request[]>([]);
@@ -46,6 +50,21 @@ export function ShareColumn({ layout, selected = [], onSent }: { layout: "notch"
 	const [status, setStatus] = useState<Record<string, Status>>({});
 	const [payloads, setPayloads] = useState<Record<string, Payload>>({});
 	const [incoming, setIncoming] = useState<{ from: string; done: number; total: number } | null>(null);
+	const [groups, setGroups] = useState<Group[]>([]);
+	const [invites, setInvites] = useState<Invite[]>([]);
+	const [me, setMe] = useState("");
+	// null = people; "new" = make a group; a gid = manage that group.
+	const [groupView, setGroupView] = useState<string | null>(null);
+	const [newName, setNewName] = useState("");
+	const [newPick, setNewPick] = useState<string[]>([]);
+	const loadGroups = () =>
+		invoke<{ groups: Group[]; invites: Invite[]; me: string }>("share_groups")
+			.then((r) => {
+				setGroups(r.groups);
+				setInvites((old) => r.invites.map((i) => ({ ...i, from: old.find((o) => o.gid === i.gid)?.from })));
+				setMe(r.me);
+			})
+			.catch(() => {});
 
 	const send = (peer: string, payload: Payload) => {
 		setPayloads((p) => ({ ...p, [peer]: payload }));
@@ -68,13 +87,15 @@ export function ShareColumn({ layout, selected = [], onSent }: { layout: "notch"
 			.catch(() => setRunning(false));
 		invoke<Request[]>("share_requests").then(setRequests).catch(() => {});
 		invoke<string[]>("share_live_get").then(setLive).catch(() => {});
+		loadGroups();
 		const onSend = (e: Event) => {
 			const { peer, ...payload } = (e as CustomEvent<{ peer: string } & Payload>).detail;
 			send(peer, payload);
 		};
 		window.addEventListener("share-send", onSend);
 		const offs = [
-			listen("share-peers-changed", list),
+			listen("share-peers-changed", () => (list(), loadGroups())),
+			listen<Invite>("share-group-invite", (e) => setInvites((all) => [...all.filter((x) => x.gid !== e.payload.gid), e.payload])),
 			listen<Request>("share-pair-request", (e) => setRequests((r) => [...r.filter((x) => x.id !== e.payload.id), e.payload])),
 			listen<{ id: string; code: number }>("share-pair-code", (e) => setPairing((p) => (p && p.id === e.payload.id ? { ...p, code: e.payload.code } : p))),
 			listen<{ id: string; done: number; total: number }>("share-progress", (e) =>
@@ -121,6 +142,48 @@ export function ShareColumn({ layout, selected = [], onSent }: { layout: "notch"
 
 	const trusted = peers.filter((p) => p.trusted);
 	const others = peers.filter((p) => !p.trusted);
+	const onlineIds = new Set(peers.filter((p) => p.online).map((p) => p.id));
+	const act = (call: Promise<unknown>) => call.then(loadGroups).catch((e) => setNote(String(e)));
+	const managed = groups.find((g) => g.gid === groupView);
+
+	/** A person or group you can drop on, or click to send the ticked clips. */
+	const target = (id: string, name: string, online: boolean, title: string, side: React.ReactNode, icon?: React.ReactNode) => {
+		const st = status[id];
+		const busy = !!st && !st.error && !st.sent;
+		return (
+			<div
+				key={id}
+				data-share-peer={id}
+				className={`clip-share-person${selected.length ? " can-send" : ""}`}
+				title={selected.length ? `Send ${selected.length} to ${name}` : title}
+				onClick={() => {
+					if (!selected.length || busy) return;
+					send(id, { clips: selected });
+					onSent?.();
+				}}
+			>
+				{icon ?? <span className={`clip-share-dot${online ? " on" : ""}`} />}
+				<span className="clip-share-name">
+					{name}
+					{st && <small className={`clip-share-status${st.error ? " bad" : ""}`}>{st.error ? st.error : st.sent ? "Sent" : `${pct(st)}%`}</small>}
+					{busy && (
+						<span className="clip-share-bar">
+							<span style={{ transform: `scaleX(${pct(st) / 100})` }} />
+						</span>
+					)}
+				</span>
+				{st?.error && payloads[id] ? (
+					<button type="button" className="clip-share-retry" onClick={(e) => (e.stopPropagation(), send(id, payloads[id]))}>
+						Retry
+					</button>
+				) : selected.length ? (
+					<Send size={12} />
+				) : (
+					side
+				)}
+			</div>
+		);
+	};
 
 	let body: React.ReactNode;
 	if (!running) {
@@ -152,6 +215,103 @@ export function ShareColumn({ layout, selected = [], onSent }: { layout: "notch"
 				</span>
 				<span className="clip-share-code">{pairing.code !== undefined ? code4(pairing.code) : "····"}</span>
 				<span className="clip-share-hint">Check {pairing.name} shows this code and accepts (up to 1 min).</span>
+			</div>
+		);
+	} else if (invites[0]) {
+		const inv = invites[0];
+		const answerInvite = (join: boolean) => {
+			setInvites((all) => all.filter((x) => x.gid !== inv.gid));
+			act(invoke("share_invite_answer", { gid: inv.gid, join }));
+		};
+		body = (
+			<div className="clip-share-card">
+				<Users size={18} />
+				<span>
+					{inv.from ? `${inv.from} added you to ` : "You were added to "}
+					<b>{inv.name}</b>
+				</span>
+				<div className="clip-share-row">
+					<button type="button" className="clip-share-btn primary" onClick={() => answerInvite(true)}>
+						Join
+					</button>
+					<button type="button" className="clip-share-btn" onClick={() => answerInvite(false)}>
+						Ignore
+					</button>
+				</div>
+			</div>
+		);
+	} else if (groupView === "new") {
+		body = (
+			<div className="clip-share-people">
+				<button type="button" className="clip-share-back" onClick={() => setGroupView(null)}>
+					<ArrowLeft size={12} /> New group
+				</button>
+				<input className="clip-share-input" value={newName} maxLength={32} placeholder="Group name" aria-label="Group name" onChange={(e) => setNewName(e.target.value)} />
+				{trusted.length ? (
+					trusted.map((p) => (
+						<button
+							key={p.id}
+							type="button"
+							role="checkbox"
+							aria-checked={newPick.includes(p.id)}
+							className="clip-share-person"
+							onClick={() => setNewPick((x) => (x.includes(p.id) ? x.filter((y) => y !== p.id) : x.length < 14 ? [...x, p.id] : x))}
+						>
+							<span className={`clip-share-check${newPick.includes(p.id) ? " on" : ""}`}>{newPick.includes(p.id) && <Check size={10} strokeWidth={3} />}</span>
+							<span className="clip-share-name">{p.name}</span>
+						</button>
+					))
+				) : (
+					<div className="clip-share-empty">Pair with people first, then group them.</div>
+				)}
+				<button
+					type="button"
+					className="clip-share-btn primary"
+					disabled={!newName.trim() || !newPick.length}
+					onClick={() =>
+						act(invoke("share_group_create", { name: newName, ids: newPick })).then(() => {
+							setGroupView(null);
+							setNewName("");
+							setNewPick([]);
+						})
+					}
+				>
+					Create · {newPick.length + 1} people
+				</button>
+			</div>
+		);
+	} else if (managed) {
+		const addable = trusted.filter((p) => !managed.members.some((m) => m.id === p.id));
+		body = (
+			<div className="clip-share-people">
+				<button type="button" className="clip-share-back" onClick={() => setGroupView(null)}>
+					<ArrowLeft size={12} /> {managed.name} · {managed.members.length}/15
+				</button>
+				{managed.members.map((m) => (
+					<div key={m.id} className="clip-share-person">
+						<span className={`clip-share-dot${m.id === me || onlineIds.has(m.id) ? " on" : ""}`} />
+						<span className="clip-share-name">{m.id === me ? `${m.name} (you)` : m.name}</span>
+						{m.id !== me && (
+							<button type="button" className="clip-share-forget" aria-label={`Remove ${m.name}`} title="Remove from the group" onClick={() => act(invoke("share_group_remove", { gid: managed.gid, id: m.id }))}>
+								<X size={10} />
+							</button>
+						)}
+					</div>
+				))}
+				{managed.members.length < 15 &&
+					addable.map((p) => (
+						<button key={p.id} type="button" className="clip-share-person faint" title={`Add ${p.name}`} onClick={() => act(invoke("share_group_add", { gid: managed.gid, id: p.id }))}>
+							<Plus size={12} />
+							<span className="clip-share-name">{p.name}</span>
+						</button>
+					))}
+				<button
+					type="button"
+					className="clip-share-btn"
+					onClick={() => act(invoke("share_group_leave", { gid: managed.gid })).then(() => setGroupView(null))}
+				>
+					<LogOut size={13} /> Leave group
+				</button>
 			</div>
 		);
 	} else if (liveView && !warned) {
@@ -186,10 +346,10 @@ export function ShareColumn({ layout, selected = [], onSent }: { layout: "notch"
 					<ArrowLeft size={12} /> Send my copies to
 				</button>
 				{trusted.length ? (
-					trusted.map((p) => (
-						<button key={p.id} type="button" role="checkbox" aria-checked={live.includes(p.id)} className="clip-share-person" onClick={() => toggleLive(p.id)}>
-							<span className={`clip-share-check${live.includes(p.id) ? " on" : ""}`}>{live.includes(p.id) && <Check size={10} strokeWidth={3} />}</span>
-							<span className="clip-share-name">{p.name}</span>
+					[...trusted.map((p) => [p.id, p.name]), ...groups.map((g) => [`group:${g.gid}`, `${g.name} (group)`])].map(([id, name]) => (
+						<button key={id} type="button" role="checkbox" aria-checked={live.includes(id)} className="clip-share-person" onClick={() => toggleLive(id)}>
+							<span className={`clip-share-check${live.includes(id) ? " on" : ""}`}>{live.includes(id) && <Check size={10} strokeWidth={3} />}</span>
+							<span className="clip-share-name">{name}</span>
 						</button>
 					))
 				) : (
@@ -219,57 +379,37 @@ export function ShareColumn({ layout, selected = [], onSent }: { layout: "notch"
 	} else {
 		body = (
 			<div className="clip-share-people">
-				{trusted.length ? (
-					trusted.map((p) => {
-						const st = status[p.id];
-						const busy = !!st && !st.error && !st.sent;
-						return (
-							<div
-								key={p.id}
-								data-share-peer={p.id}
-								className={`clip-share-person${selected.length ? " can-send" : ""}`}
-								title={selected.length ? `Send ${selected.length} to ${p.name}` : p.online ? `${p.name} · online · drop here to send` : `${p.name} · offline`}
-								onClick={() => {
-									if (!selected.length || busy) return;
-									send(p.id, { clips: selected });
-									onSent?.();
-								}}
-							>
-								<span className={`clip-share-dot${p.online ? " on" : ""}`} />
-								<span className="clip-share-name">
-									{p.name}
-									{st && (
-										<small className={`clip-share-status${st.error ? " bad" : ""}`}>
-											{st.error ? st.error : st.sent ? "Sent" : `${pct(st)}%`}
-										</small>
-									)}
-									{busy && (
-										<span className="clip-share-bar">
-											<span style={{ transform: `scaleX(${pct(st) / 100})` }} />
-										</span>
-									)}
-								</span>
-								{st?.error && payloads[p.id] ? (
-									<button type="button" className="clip-share-retry" onClick={(e) => (e.stopPropagation(), send(p.id, payloads[p.id]))}>
-										Retry
-									</button>
-								) : selected.length ? (
-									<Send size={12} />
-								) : (
-									<button
-										type="button"
-										className="clip-share-forget"
-										aria-label={`Forget ${p.name}`}
-										title="Forget (unpair)"
-										onClick={(e) => (e.stopPropagation(), invoke("share_unpair", { id: p.id }).catch(() => {}))}
-									>
-										<X size={10} />
-									</button>
-								)}
-							</div>
-						);
-					})
-				) : (
+				{trusted.map((p) =>
+					target(
+						p.id,
+						p.name,
+						p.online,
+						p.online ? `${p.name} · online · drop here to send` : `${p.name} · offline`,
+						<button
+							type="button"
+							className="clip-share-forget"
+							aria-label={`Forget ${p.name}`}
+							title="Forget (unpair)"
+							onClick={(e) => (e.stopPropagation(), invoke("share_unpair", { id: p.id }).catch(() => {}))}
+						>
+							<X size={10} />
+						</button>
+					)
+				)}
+				{groups.map((g) => {
+					const on = g.members.filter((m) => m.id !== me && onlineIds.has(m.id)).length;
+					return target(
+						`group:${g.gid}`,
+						g.name,
+						on > 0,
+						`${g.name} · ${g.members.length} people, ${on} online · drop here to send`,
+						<button type="button" className="clip-share-forget" aria-label={`Manage ${g.name}`} title="People in this group" onClick={(e) => (e.stopPropagation(), setGroupView(g.gid))}>
+							<Settings2 size={10} />
+						</button>,
+						<Users size={12} className={on ? "clip-share-group on" : "clip-share-group"} />
+					);
+				})}
+				{!trusted.length && !groups.length && (
 					<div className="clip-share-empty">
 						<Users size={16} strokeWidth={1.6} />
 						<span>No one paired yet</span>
@@ -289,8 +429,13 @@ export function ShareColumn({ layout, selected = [], onSent }: { layout: "notch"
 				</div>
 			)}
 			{note && !pairing && !incoming && <div className="clip-share-note">{note}</div>}
-			{!pairing && !requests.length && running && (
+			{!pairing && !requests.length && !invites.length && !groupView && running && (
 				<div className="clip-share-actions">
+					{!nearby && !liveView && trusted.length > 0 && (
+						<button type="button" className="clip-share-btn" onClick={() => (setNote(""), setGroupView("new"))}>
+							<Users size={13} /> New group
+						</button>
+					)}
 					{!nearby && !liveView && (
 						<button type="button" className="clip-share-btn" onClick={() => (setNote(""), setNearby(true))}>
 							<UserPlus size={13} /> Pair

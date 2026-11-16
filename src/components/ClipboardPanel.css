@@ -837,3 +837,38 @@ button.clip-share-person {
 	color: #ffb340;
 	opacity: 1;
 }
+
+.clip-share-input {
+	width: 100%;
+	box-sizing: border-box;
+	height: 28px;
+	margin-bottom: 4px;
+	padding: 0 8px;
+	border: none;
+	outline: none;
+	border-radius: 8px;
+	background: rgba(255, 255, 255, 0.08);
+	color: inherit;
+	font: inherit;
+	font-size: 12px;
+}
+
+.clip-share-group {
+	flex: none;
+	opacity: 0.5;
+}
+
+.clip-share-group.on {
+	color: #30d158;
+	opacity: 1;
+}
+
+.clip-share-person.faint {
+	opacity: 0.6;
+}
+
+.clip-share-people > .clip-share-btn {
+	margin-top: 6px;
+	width: 100%;
+	justify-content: center;
+}

@@ -267,12 +267,36 @@ pub fn handshake(
     Ok(ch)
 }
 
-#[derive(Clone, Serialize, Deserialize)]
+#[derive(Clone, Serialize, Deserialize, Debug)]
 pub struct Peer {
     pub id: String,
     pub name: String,
     /// The pinned public key, hex.
     pub key: String,
+}
+
+/// A shared group: every member keeps a copy; the highest `version` wins.
+/// Members trust each other through it (the one who added someone vouched
+/// for them), so they can send without pairing one by one.
+#[derive(Clone, Serialize, Deserialize, Debug)]
+pub struct Group {
+    pub gid: String,
+    pub name: String,
+    pub members: Vec<Peer>,
+    pub version: u64,
+    /// Last send to it, seconds since the epoch: 90 days unused = deleted.
+    pub used: u64,
+}
+
+/// Groups hold at most 15 people (.grill/shelf-share.md).
+pub const MAX_GROUP: usize = 15;
+const GROUP_IDLE_SECS: u64 = 90 * 24 * 3600;
+
+fn now_secs() -> u64 {
+    std::time::SystemTime::now()
+        .duration_since(std::time::UNIX_EPOCH)
+        .map(|d| d.as_secs())
+        .unwrap_or(0)
 }
 
 /// A person as the share column shows them.
@@ -304,6 +328,12 @@ pub enum Event {
         texts: Vec<String>,
         paths: Vec<PathBuf>,
         live: bool,
+    },
+    /// Someone added this PC to a group; it waits for Join or Ignore.
+    GroupInvite {
+        gid: String,
+        name: String,
+        from: String,
     },
     /// An incoming send stopped; anything partial was deleted.
     IncomingFailed {
@@ -483,6 +513,9 @@ pub struct Share {
     trusted: Mutex<Vec<Peer>>,
     /// Who gets this side's copies (live clipboard), by id.
     live: Mutex<Vec<String>>,
+    groups: Mutex<Vec<Group>>,
+    /// Groups this PC was added to, waiting for Join or Ignore.
+    invites: Mutex<Vec<Group>>,
     seen: Mutex<HashMap<String, Seen>>,
     last_query: Mutex<Instant>,
     /// Pairing requests waiting for an answer: id → (answer, name, code).
@@ -511,6 +544,15 @@ impl Share {
             .ok()
             .and_then(|b| serde_json::from_slice(&b).ok())
             .unwrap_or_default();
+        // Groups unused for 90 days are gone.
+        let groups: Vec<Group> = std::fs::read(cfg.dir.join("groups.json"))
+            .ok()
+            .and_then(|b| serde_json::from_slice(&b).ok())
+            .unwrap_or_default();
+        let groups = groups
+            .into_iter()
+            .filter(|g| now_secs().saturating_sub(g.used) < GROUP_IDLE_SECS)
+            .collect();
         let share = Arc::new(Self {
             me,
             cfg,
@@ -518,6 +560,8 @@ impl Share {
             udp,
             trusted: Mutex::new(trusted),
             live: Mutex::new(live),
+            groups: Mutex::new(groups),
+            invites: Mutex::new(Vec::new()),
             seen: Mutex::new(HashMap::new()),
             last_query: Mutex::new(Instant::now()),
             pending: Mutex::new(HashMap::new()),
@@ -691,13 +735,18 @@ impl Share {
 
     /// Sets who gets this side's copies (trusted people only).
     pub fn set_live(&self, ids: &[String]) {
-        let trusted = self.trusted.lock().unwrap();
+        let trusted = self.trusted.lock().unwrap().clone();
+        let groups = self.groups();
         let ids: Vec<String> = ids
             .iter()
-            .filter(|id| trusted.iter().any(|p| &p.id == *id))
+            .filter(|id| {
+                trusted.iter().any(|p| &p.id == *id)
+                    || id
+                        .strip_prefix("group:")
+                        .is_some_and(|g| groups.iter().any(|x| x.gid == g))
+            })
             .cloned()
             .collect();
-        drop(trusted);
         let _ = std::fs::create_dir_all(&self.cfg.dir);
         let _ = std::fs::write(
             self.cfg.dir.join("live.json"),
@@ -714,9 +763,277 @@ impl Share {
         (self.events)(Event::PeersChanged);
     }
 
+    /// Paired, or in a group with this PC.
     pub fn is_trusted(&self, key: &[u8]) -> bool {
         let key = hex(key);
         self.trusted.lock().unwrap().iter().any(|p| p.key == key)
+            || self
+                .groups
+                .lock()
+                .unwrap()
+                .iter()
+                .any(|g| g.members.iter().any(|m| m.key == key))
+    }
+
+    fn me_peer(&self) -> Peer {
+        Peer {
+            id: self.me.id.clone(),
+            name: self.cfg.name.clone(),
+            key: hex(self.me.pair.public_key().as_ref()),
+        }
+    }
+
+    pub fn groups(&self) -> Vec<Group> {
+        self.groups.lock().unwrap().clone()
+    }
+
+    pub fn invites(&self) -> Vec<Group> {
+        self.invites.lock().unwrap().clone()
+    }
+
+    fn save_groups(&self) {
+        let json = serde_json::to_vec_pretty(&*self.groups.lock().unwrap()).unwrap_or_default();
+        let _ = std::fs::create_dir_all(&self.cfg.dir);
+        let file = self.cfg.dir.join("groups.json");
+        let tmp = file.with_extension("tmp");
+        if std::fs::write(&tmp, json).is_ok() {
+            let _ = std::fs::rename(&tmp, &file);
+        }
+    }
+
+    /// Stores `g` (replacing an older copy) and tells the others.
+    fn publish(&self, g: Group, also_tell: &[Peer]) {
+        {
+            let mut groups = self.groups.lock().unwrap();
+            groups.retain(|x| x.gid != g.gid);
+            if g.members.iter().any(|m| m.id == self.me.id) {
+                groups.push(g.clone());
+            }
+        }
+        self.save_groups();
+        (self.events)(Event::PeersChanged);
+        let mut to: Vec<Peer> = g.members.iter().chain(also_tell).cloned().collect();
+        to.retain(|m| m.id != self.me.id);
+        self.push_group(&g, &to);
+    }
+
+    /// Sends a group's state to people (best effort: offline ones catch up
+    /// when a member opens the share column, see `sync_groups`).
+    fn push_group(&self, g: &Group, to: &[Peer]) {
+        for m in to {
+            if let Ok(mut ch) = self.connect(&m.id) {
+                let _ = ch.send_json(&serde_json::json!({ "t": "group", "group": g }));
+                ch.set_timeout(Duration::from_secs(5));
+                let _ = ch.recv_json();
+            }
+        }
+    }
+
+    /// Re-sends every group to its members who are online now (when the
+    /// share column opens), so anyone who was away catches up.
+    pub fn sync_groups(&self) {
+        let since = *self.last_query.lock().unwrap();
+        let online: Vec<String> = {
+            let seen = self.seen.lock().unwrap();
+            seen.iter()
+                .filter(|(_, s)| s.at >= since)
+                .map(|(id, _)| id.clone())
+                .collect()
+        };
+        for g in self.groups() {
+            let to: Vec<Peer> = g
+                .members
+                .iter()
+                .filter(|m| m.id != self.me.id && online.contains(&m.id))
+                .cloned()
+                .collect();
+            self.push_group(&g, &to);
+        }
+    }
+
+    /// A new group with this PC and the chosen paired people.
+    pub fn create_group(&self, name: &str, ids: &[String]) -> Result<String, String> {
+        let trusted = self.trusted.lock().unwrap().clone();
+        let mut members = vec![self.me_peer()];
+        members.extend(
+            ids.iter()
+                .filter_map(|id| trusted.iter().find(|p| &p.id == id))
+                .cloned(),
+        );
+        if members.len() > MAX_GROUP {
+            return Err("A group holds up to 15 people".into());
+        }
+        let mut raw = [0u8; 8];
+        ring::rand::SecureRandom::fill(&SystemRandom::new(), &mut raw)
+            .map_err(|_| "Random failed".to_string())?;
+        let g = Group {
+            gid: hex(&raw),
+            name: short(name.trim()).chars().take(32).collect::<String>(),
+            members,
+            version: 1,
+            used: now_secs(),
+        };
+        if g.name.is_empty() {
+            return Err("Give the group a name".into());
+        }
+        let gid = g.gid.clone();
+        self.publish(g, &[]);
+        Ok(gid)
+    }
+
+    fn group(&self, gid: &str) -> Result<Group, String> {
+        self.groups()
+            .into_iter()
+            .find(|g| g.gid == gid)
+            .ok_or_else(|| "No such group".to_string())
+    }
+
+    /// Any member adds someone they are paired with (they vouch for them).
+    pub fn add_to_group(&self, gid: &str, id: &str) -> Result<(), String> {
+        let mut g = self.group(gid)?;
+        let p = self
+            .trusted
+            .lock()
+            .unwrap()
+            .iter()
+            .find(|p| p.id == id)
+            .cloned()
+            .ok_or("Pair with them first")?;
+        if g.members.iter().any(|m| m.id == id) {
+            return Ok(());
+        }
+        if g.members.len() >= MAX_GROUP {
+            return Err("A group holds up to 15 people".into());
+        }
+        g.members.push(p);
+        g.version += 1;
+        self.publish(g, &[]);
+        Ok(())
+    }
+
+    /// Any member removes someone; they are told, and stop getting sends.
+    pub fn remove_from_group(&self, gid: &str, id: &str) -> Result<(), String> {
+        let mut g = self.group(gid)?;
+        let gone: Vec<Peer> = g.members.iter().filter(|m| m.id == id).cloned().collect();
+        g.members.retain(|m| m.id != id);
+        g.version += 1;
+        self.publish(g, &gone);
+        Ok(())
+    }
+
+    pub fn leave_group(&self, gid: &str) -> Result<(), String> {
+        self.remove_from_group(gid, &self.me.id.clone())
+    }
+
+    /// Join (or ignore) a group someone added this PC to.
+    pub fn answer_invite(&self, gid: &str, join: bool) -> Result<(), String> {
+        let g = {
+            let mut inv = self.invites.lock().unwrap();
+            let i = inv
+                .iter()
+                .position(|g| g.gid == gid)
+                .ok_or("No such invite")?;
+            inv.remove(i)
+        };
+        if join {
+            self.groups.lock().unwrap().retain(|x| x.gid != g.gid);
+            self.groups.lock().unwrap().push(g);
+            self.save_groups();
+            (self.events)(Event::PeersChanged);
+            Ok(())
+        } else {
+            // Ignoring takes this PC out for everyone.
+            self.groups.lock().unwrap().push(g);
+            self.leave_group(gid)
+        }
+    }
+
+    /// Sends to everyone else in a group who is online; Err lists who missed it.
+    pub fn send_group(
+        &self,
+        gid: &str,
+        items: &[Item],
+        mut progress: impl FnMut(u64, u64),
+    ) -> Result<(), String> {
+        let mut g = self.group(gid)?;
+        g.used = now_secs();
+        {
+            let mut groups = self.groups.lock().unwrap();
+            if let Some(x) = groups.iter_mut().find(|x| x.gid == gid) {
+                x.used = g.used;
+            }
+        }
+        self.save_groups();
+        let others: Vec<Peer> = g
+            .members
+            .into_iter()
+            .filter(|m| m.id != self.me.id)
+            .collect();
+        let n = others.len().max(1) as u64;
+        let mut missed = Vec::new();
+        for (i, m) in others.iter().enumerate() {
+            let i = i as u64;
+            if self
+                .send(&m.id, items, |d, t| progress(i * t + d, n * t))
+                .is_err()
+            {
+                missed.push(m.name.clone());
+            }
+        }
+        if missed.len() == others.len() && !others.is_empty() {
+            return Err("No one in the group is online".into());
+        }
+        if !missed.is_empty() {
+            return Err(format!("Not sent to {}", missed.join(", ")));
+        }
+        Ok(())
+    }
+
+    /// A group update or invite from someone.
+    fn on_group(&self, ch: &Channel, g: Group) -> Result<(), String> {
+        if g.members.len() > MAX_GROUP || g.gid.len() != 16 {
+            return Err("Bad group".into());
+        }
+        let sender = hex(&ch.peer_key);
+        let mine = self.groups().into_iter().find(|x| x.gid == g.gid);
+        match mine {
+            // An update: only from a member, only newer.
+            Some(old) => {
+                if !old.members.iter().any(|m| m.key == sender) || g.version <= old.version {
+                    return Ok(());
+                }
+                {
+                    let mut groups = self.groups.lock().unwrap();
+                    groups.retain(|x| x.gid != g.gid);
+                    if g.members.iter().any(|m| m.id == self.me.id) {
+                        groups.push(Group {
+                            used: old.used.max(g.used),
+                            ..g
+                        });
+                    }
+                }
+                self.save_groups();
+                (self.events)(Event::PeersChanged);
+            }
+            // New to this PC: an invite, from someone it is paired with.
+            None => {
+                let paired = self.trusted.lock().unwrap().iter().any(|p| p.key == sender);
+                if paired && g.members.iter().any(|m| m.id == self.me.id) {
+                    let (gid, name) = (g.gid.clone(), g.name.clone());
+                    let mut inv = self.invites.lock().unwrap();
+                    if !inv.iter().any(|x| x.gid == gid) {
+                        inv.push(g);
+                        drop(inv);
+                        (self.events)(Event::GroupInvite {
+                            gid,
+                            name,
+                            from: ch.peer_name.clone(),
+                        });
+                    }
+                }
+            }
+        }
+        Ok(())
     }
 
     fn trust(&self, ch: &Channel) {
@@ -767,6 +1084,12 @@ impl Share {
             }
             // Everything else is for trusted people only.
             _ if !self.is_trusted(&ch.peer_key) => Err("Not paired".into()),
+            Some("group") => {
+                let g: Group = serde_json::from_value(msg["group"].clone())
+                    .map_err(|_| "Bad group".to_string())?;
+                self.on_group(&ch, g)?;
+                ch.send_json(&serde_json::json!({ "t": "ok" }))
+            }
             Some("send") => {
                 let from = ch.peer_name.clone();
                 let mut made = Vec::new();
@@ -1246,6 +1569,61 @@ mod tests {
         );
         a.unpair(b.id());
         assert!(a.live().is_empty(), "unpairing stops live sending");
+    }
+
+    /// Points `a` at `b`'s real port, as discovery would.
+    fn meet(a: &Share, b: &Share) {
+        introduce(a, b);
+        a.seen.lock().unwrap().get_mut(b.id()).unwrap().addr =
+            SocketAddr::from(([127, 0, 0, 1], b.tcp_port));
+    }
+
+    fn wait_for(what: &str, ok: impl Fn() -> bool) {
+        for _ in 0..100 {
+            if ok() {
+                return;
+            }
+            std::thread::sleep(Duration::from_millis(50));
+        }
+        panic!("timed out: {what}");
+    }
+
+    #[test]
+    fn groups_vouch_for_members_and_removal_cuts_them_off() {
+        let (a, b, _) = paired("grp1");
+        let (a2, c, _) = paired("grp2");
+        drop(a2);
+        // a pairs with c too (c auto-accepts).
+        meet(&a, &c);
+        a.pair(c.id(), |_| {}).unwrap();
+        for (x, y) in [(&b, &c), (&c, &b), (&b, &a), (&c, &a)] {
+            meet(x, y);
+        }
+        let gid = a
+            .create_group("Hack team", &[b.id().into(), c.id().into()])
+            .unwrap();
+        wait_for("invites", || {
+            !b.invites().is_empty() && !c.invites().is_empty()
+        });
+        b.answer_invite(&gid, true).unwrap();
+        c.answer_invite(&gid, true).unwrap();
+        // b and c never paired, yet b can send to c through the group.
+        b.send(c.id(), &[Item::Text("via group".into())], |_, _| {})
+            .unwrap();
+        // Anyone in the group can remove; c is told and drops the group.
+        b.remove_from_group(&gid, c.id()).unwrap();
+        wait_for("c removed", || {
+            c.groups().is_empty() && a.group(&gid).is_ok_and(|g| g.members.len() == 2)
+        });
+        assert!(b
+            .send(c.id(), &[Item::Text("after".into())], |_, _| {})
+            .is_err());
+        // An old version can't undo the removal.
+        let mut stale = a.group(&gid).unwrap();
+        stale.version = 1;
+        let ch = a.connect(b.id()).unwrap();
+        a.on_group(&ch, stale).unwrap();
+        assert_eq!(a.group(&gid).unwrap().members.len(), 2);
     }
 
     #[test]
