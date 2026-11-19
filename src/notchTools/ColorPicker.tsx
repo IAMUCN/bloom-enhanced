@@ -12,9 +12,16 @@ const rgb = (hex: string) => {
 /** Colour picker: click Pick, then click anywhere on screen (right-click
  *  cancels). While picking, the cursor is a crosshair and the big swatch
  *  shows the colour under it. Picked colours are kept; click one to use it,
- *  its × removes it, Clear removes them all. */
+ *  its × removes it, Clear removes them all; 7 days after the last pick
+ *  they clear themselves. */
 export default function ColorPicker({ setPinned }: ToolProps) {
-	const [data, setData] = useToolData<{ recent: string[] }>("picker", { recent: [] });
+	// `at`: the last pick. Like OCR, kept 7 days after the last use.
+	const [stored, setData, ready] = useToolData<{ recent: string[]; at?: number }>("picker", { recent: [] });
+	const stale = !!stored.at && Date.now() - stored.at > 7 * 24 * 3600 * 1000;
+	useEffect(() => {
+		if (ready && stale) setData({ recent: [] });
+	}, [ready, stale]);
+	const data = stale ? { recent: [] } : stored;
 	const [picking, setPicking] = useState(false);
 	const [live, setLive] = useState<string | null>(null);
 	const [copied, setCopied] = useState("");
@@ -33,7 +40,7 @@ export default function ColorPicker({ setPinned }: ToolProps) {
 		setPicking(false);
 		setPinned(false);
 		if (!hex) return;
-		setData((d) => ({ recent: [hex, ...d.recent.filter((c) => c !== hex)].slice(0, 12) }));
+		setData((d) => ({ recent: [hex, ...d.recent.filter((c) => c !== hex)].slice(0, 12), at: Date.now() }));
 		copy(hex);
 	};
 	const copy = (text: string) => copyText(text).then((ok) => ok && (setCopied(text), window.setTimeout(() => setCopied(""), 1200)));

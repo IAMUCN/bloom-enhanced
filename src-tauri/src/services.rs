@@ -2320,7 +2320,7 @@ unsafe extern "system" fn capture_ui_enum_proc(hwnd: HWND, lparam: LPARAM) -> BO
 }
 
 /// Settings › Notch › Hide From Recordings (`bloom-notch-hide-from-capture`).
-fn notch_hides_from_capture() -> bool {
+pub fn notch_hides_from_capture() -> bool {
     crate::state::SETTINGS_CACHE
         .get()
         .and_then(|c| {

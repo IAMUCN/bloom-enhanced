@@ -1283,7 +1283,7 @@ function App() {
 	useEffect(() => {
 		if (windowLabel !== "main") return;
 		const off = listen<{ text?: string; error?: string }>("ocr-result", (e) => {
-			const result = { text: e.payload.text ?? "", error: e.payload.error ?? "" };
+			const result = { text: e.payload.text ?? "", error: e.payload.error ?? "", at: Date.now() };
 			invoke("tool_data_set", { tool: "ocr", json: JSON.stringify(result) }).catch(() => {});
 			if (!enabledTools.includes("capture")) return;
 			showPart("capture", "ocr");

@@ -522,10 +522,14 @@ fn send_chord(keys: &[u16]) {
 }
 
 /// Keeps the notch out of screen captures (snips, recordings, shares).
+/// Hides the notch from a snip; letting go goes back to the user's choice
+/// (Settings › Notch › Hide From Recordings, on by default). It used to go
+/// back to "not hidden", which undid that setting after every snip.
 fn notch_capture_excluded(app: &tauri::AppHandle, excluded: bool) {
     use tauri::Manager;
+    let wanted = excluded || crate::services::notch_hides_from_capture();
     if let Some(w) = app.get_webview_window("main") {
-        let _ = set_capture_excluded(w, excluded);
+        let _ = set_capture_excluded(w, wanted);
     }
 }
 
