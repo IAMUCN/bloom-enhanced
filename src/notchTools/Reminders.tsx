@@ -2,6 +2,7 @@ import { useState } from "react";
 import { BellRing, Check, Clock } from "lucide-react";
 import type { ToolProps } from "../tools";
 import { useToolData } from "./useToolData";
+import { DeadlineList } from "./Deadlines";
 
 export type Reminder = { id: string; text: string; at: number; repeat: "none" | "daily" | "weekly" };
 export type RemindersData = { items: Reminder[] };
@@ -101,6 +102,8 @@ export default function Reminders({ setPinned }: ToolProps) {
 				})}
 				{!data.items.length && <div className="nt-muted">No reminders.</div>}
 			</div>
+			<div className="nt-muted dl-heading">Deadlines</div>
+			<DeadlineList setPinned={setPinned} />
 		</div>
 	);
 }

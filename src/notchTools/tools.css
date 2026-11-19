@@ -978,3 +978,111 @@ textarea.nt-input {
 	font-size: 11.5px;
 	color: #ff453a;
 }
+
+/* Deadlines (Calendar side panel and Reminders). */
+.dl {
+	display: flex;
+	flex-direction: column;
+	gap: 4px;
+	width: 100%;
+	min-width: 0;
+}
+
+.dl-heading {
+	margin-top: 6px;
+	font-weight: 600;
+}
+
+.dl-item {
+	display: flex;
+	align-items: center;
+	gap: 7px;
+	height: 26px;
+	padding: 0 4px 0 9px;
+	border-radius: 8px;
+	background: color-mix(in srgb, var(--bloom-text, #fff) 7%, transparent);
+	font-size: 12px;
+	color: #ff9447;
+}
+
+.dl-title {
+	flex: 1;
+	min-width: 0;
+	overflow: hidden;
+	text-overflow: ellipsis;
+	white-space: nowrap;
+	color: var(--bloom-text, #fff);
+}
+
+.dl-days {
+	flex: none;
+	font-weight: 600;
+	font-variant-numeric: tabular-nums;
+}
+
+.dl-item.soon .dl-days {
+	color: #ff453a;
+}
+
+.dl-item.past {
+	opacity: 0.5;
+}
+
+.dl-remove {
+	flex: none;
+	display: grid;
+	place-items: center;
+	width: 18px;
+	height: 18px;
+	padding: 0;
+	border: none;
+	border-radius: 50%;
+	background: none;
+	color: var(--bloom-text-muted, rgba(255, 255, 255, 0.6));
+	cursor: pointer;
+}
+
+.dl-remove:hover {
+	background: color-mix(in srgb, var(--bloom-text, #fff) 12%, transparent);
+	color: var(--bloom-text, #fff);
+}
+
+.dl-add {
+	display: flex;
+	gap: 4px;
+	align-items: center;
+}
+
+.dl-add .nt-input {
+	min-width: 0;
+	padding: 5px 8px;
+	font-size: 12px;
+}
+
+.dl-add .dl-date {
+	flex: none;
+	width: 118px;
+	color-scheme: dark;
+}
+
+.dl-new {
+	align-self: flex-start;
+	display: inline-flex;
+	align-items: center;
+	gap: 5px;
+	padding: 4px 10px;
+	border: none;
+	border-radius: 999px;
+	background: color-mix(in srgb, #ff9447 16%, transparent);
+	color: #ffb27a;
+	font: inherit;
+	font-size: 11.5px;
+	font-weight: 600;
+	cursor: pointer;
+}
+
+.dl-new:focus-visible,
+.dl-remove:focus-visible {
+	outline: 2px solid #ff9447;
+	outline-offset: 1px;
+}

@@ -710,6 +710,14 @@ img {
 	padding-left: 16px;
 }
 
+/* Today on top, the next deadlines at the bottom. */
+.timer-column.day-side {
+	justify-content: space-between;
+	gap: 10px;
+	padding-top: 6px;
+	padding-bottom: 6px;
+}
+
 /* Day: today beside the month. The date is the anchor; weekday above,
    month and the week of the month below, quieter. */
 .today-panel {
@@ -728,7 +736,7 @@ img {
 }
 
 .today-date {
-	font-size: 56px;
+	font-size: 44px;
 	font-weight: 700;
 	line-height: 1;
 	letter-spacing: -0.03em;
@@ -783,13 +791,45 @@ img {
 /* Fixed-height cells: square ones grew with the wider notch and pushed the
    last week out of the panel. Six weeks of 26 px fit the 6-row height. */
 .calendar-day {
+	position: relative;
 	height: 26px;
 	display: flex;
 	align-items: center;
 	justify-content: center;
+	padding: 0;
+	border: none;
+	background: none;
+	color: inherit;
+	font: inherit;
 	font-size: 10px;
 	border-radius: 4px;
 	transition: background 0.2s ease;
+}
+
+button.calendar-day {
+	cursor: pointer;
+}
+
+button.calendar-day:hover {
+	background: color-mix(in srgb, var(--bloom-text, #fff) 10%, transparent);
+}
+
+button.calendar-day:focus-visible {
+	outline: 1.5px solid #ff9447;
+	outline-offset: -1px;
+}
+
+/* A day with a deadline: a dot under the number. */
+.calendar-day.has-deadline::after {
+	content: "";
+	position: absolute;
+	bottom: 2px;
+	left: 50%;
+	width: 4px;
+	height: 4px;
+	margin-left: -2px;
+	border-radius: 50%;
+	background: #ff9447;
 }
 
 .calendar-day.today {

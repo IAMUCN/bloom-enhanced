@@ -72,6 +72,7 @@ import type { BudLevel, BudsBattery } from "./devices/connectedDevices";
 import { ConnectedDevicesPanel } from "./components/ConnectedDevicesPanel";
 import { requestSend, sharePeerAt } from "./components/ShareColumn";
 import { useHideFromCapture } from "./hooks/useHideFromCapture";
+import { DeadlineList, dayKey, useDeadlines } from "./notchTools/Deadlines";
 import { NotchOutline } from "./components/NotchOutline";
 import { ClipboardPanel } from "./components/ClipboardPanel";
 import { useClipboardSettings } from "./hooks/useClipboardSettings";
@@ -4845,13 +4846,7 @@ function App() {
 											} /* Block mode switches when clicking inside */
 											{...bodyMotion(tabDir)}
 										>
-											<div className="calendar-column">
-												<Calendar />
-											</div>
-
-											<div className="timer-column">
-												<TodayPanel />
-											</div>
+											<DayView setPinned={setNotchPinned} />
 										</motion.div>
 									)}
 								</AnimatePresence>
@@ -5075,7 +5070,26 @@ function TodayPanel() {
 	);
 }
 
-function Calendar() {
+/** The Calendar tab: the month (click a day to give it a deadline) and,
+ *  beside it, today and the next deadlines with the days left. */
+function DayView({ setPinned }: { setPinned: (pinned: boolean) => void }) {
+	const store = useDeadlines();
+	const [picked, setPicked] = useState<string | null>(null);
+	const marked = new Set(store[0].items.map((d) => d.date));
+	return (
+		<>
+			<div className="calendar-column">
+				<Calendar marked={marked} onPick={(d) => setPicked(`${d}#${Date.now()}`)} />
+			</div>
+			<div className="timer-column day-side">
+				<TodayPanel />
+				<DeadlineList picked={picked} max={2} setPinned={setPinned} store={store} />
+			</div>
+		</>
+	);
+}
+
+function Calendar({ marked, onPick }: { marked: Set<string>; onPick: (day: string) => void }) {
 	const [date] = useState(new Date());
 
 	const daysInMonth = (year: number, month: number) => new Date(year, month + 1, 0).getDate();
@@ -5100,10 +5114,17 @@ function Calendar() {
 		new Date().getMonth() === currentMonth && new Date().getFullYear() === currentYear;
 
 	for (let i = 1; i <= totalDays; i++) {
+		const key = dayKey(new Date(currentYear, currentMonth, i));
 		days.push(
-			<div key={i} className={`calendar-day ${isCurrentMonth && i === today ? "today" : ""}`}>
+			<button
+				type="button"
+				key={i}
+				className={`calendar-day ${isCurrentMonth && i === today ? "today" : ""}${marked.has(key) ? " has-deadline" : ""}`}
+				title="Add a deadline on this day"
+				onClick={() => onPick(key)}
+			>
 				{i}
-			</div>
+			</button>
 		);
 	}
 
