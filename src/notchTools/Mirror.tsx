@@ -4,12 +4,12 @@ import { Camera, CameraOff, Mic, MicOff, Speaker, Volume2 } from "lucide-react";
 
 type Device = { id: string; name: string; default: boolean };
 
-/** Mirror (Meeting + output switch + camera check, user 2026-11-15): before
- *  a call, see your camera as it really captures (its own aspect ratio,
- *  16:9 for most webcams), pick the camera, the mic and the speakers (the
- *  mic and speakers become the Windows defaults), watch the mic level, mute
- *  it for every app and test the speakers. The camera is off until you turn
- *  it on; camera and mic only run while this tab shows. Nothing is recorded. */
+/** Mirror (user's layout, 2026-11-20): the camera large in the middle,
+ *  and under it one line each to pick the camera, the mic (with its level
+ *  and a mute for every app) and the speakers (with a test). The mic and
+ *  speakers picked become the Windows defaults. The camera is off until you
+ *  turn it on; camera and mic run only while this tab shows (the notch is
+ *  open on it). Nothing is recorded. */
 export default function Mirror() {
 	const video = useRef<HTMLVideoElement>(null);
 	const [cameraOn, setCameraOn] = useState(false);
@@ -69,9 +69,15 @@ export default function Mirror() {
 		let stream: MediaStream | null = null;
 		let ctx: AudioContext | null = null;
 		let frame = 0;
+		// The mic opens a moment after asking. If this effect was cleaned up
+		// meanwhile (the tab closed, or the mic list loaded and re-ran it),
+		// close it at once: it used to keep running until LotusNotch quit,
+		// so Windows showed the mic in use all the time.
+		let stopped = false;
 		navigator.mediaDevices
 			.getUserMedia({ audio: true })
 			.then((s) => {
+				if (stopped) return s.getTracks().forEach((t) => t.stop());
 				stream = s;
 				ctx = new AudioContext();
 				const analyser = ctx.createAnalyser();
@@ -89,6 +95,7 @@ export default function Mirror() {
 			})
 			.catch(() => {});
 		return () => {
+			stopped = true;
 			cancelAnimationFrame(frame);
 			stream?.getTracks().forEach((t) => t.stop());
 			ctx?.close();
@@ -119,28 +126,26 @@ export default function Mirror() {
 		setCameraId(id);
 	};
 
-	const list = (items: Device[], icon: typeof Mic, label: string) => (
-		<div className="mirror-list" role="radiogroup" aria-label={label}>
-			{items.map((d) => {
-				const Icon = icon;
-				return (
-					<button key={d.id} type="button" role="radio" aria-checked={d.default} className={`mirror-output${d.default ? " on" : ""}`} onClick={() => makeDefault(d.id)}>
-						<Icon size={12} />
-						<span>{d.name}</span>
-					</button>
-				);
-			})}
+	/** One line of choices (scrolls sideways when there are many). */
+	const chips = (items: { id: string; name: string; on: boolean }[], pick: (id: string) => void, label: string) => (
+		<div className="mirror-chips" role="radiogroup" aria-label={label}>
+			{items.map((d) => (
+				<button key={d.id} type="button" role="radio" aria-checked={d.on} className={`mirror-chip${d.on ? " on" : ""}`} title={d.name} onClick={() => pick(d.id)}>
+					{d.name}
+				</button>
+			))}
 		</div>
 	);
+	const asChips = (items: Device[]) => items.map((d) => ({ id: d.id, name: d.name, on: d.default }));
 
 	return (
 		<div className="mirror" style={{ ["--tool-color" as string]: "#FF7A70" }}>
-			<div className="mirror-left">
+			<div className="mirror-stage">
 				<div className="mirror-camera" style={{ aspectRatio: String(ratio) }}>
 					{cameraOn && <video ref={video} autoPlay muted playsInline className="mirror-video" />}
 					{!cameraOn && (
 						<button type="button" className="mirror-camera-off" onClick={() => setCameraOn(true)}>
-							<Camera size={26} />
+							<Camera size={28} />
 							<span>{cameraError || "Turn on camera"}</span>
 						</button>
 					)}
@@ -150,45 +155,48 @@ export default function Mirror() {
 						</button>
 					)}
 				</div>
-				{cameraOn && cameras.length > 0 && (
-					<div className="mirror-cameras" role="radiogroup" aria-label="Cameras">
-						{cameras.map((c, i) => (
-							<button key={c.deviceId} type="button" role="radio" aria-checked={c.deviceId === cameraId} className={`mirror-output${c.deviceId === cameraId ? " on" : ""}`} onClick={() => pickCamera(c.deviceId)}>
-								<Camera size={14} />
-								<span>{c.label || `Camera ${i + 1}`}</span>
-							</button>
-						))}
-					</div>
-				)}
 			</div>
-			<div className="mirror-side">
-				<div className="nt-row">
+			<div className="mirror-rows">
+				<div className="mirror-row">
+					<span className="mirror-row-icon" aria-hidden>
+						<Camera size={15} />
+					</span>
+					{cameraOn && cameras.length > 0 ? (
+						chips(
+							cameras.map((c, i) => ({ id: c.deviceId, name: c.label || `Camera ${i + 1}`, on: c.deviceId === cameraId })),
+							pickCamera,
+							"Cameras"
+						)
+					) : (
+						<span className="mirror-row-note">{cameraOn ? "Finding cameras…" : "Turn the camera on to pick one"}</span>
+					)}
+				</div>
+				<div className="mirror-row">
 					<button
 						type="button"
-						className="nt-btn nt-icon-btn"
-						style={{ width: 40, height: 40, background: muted ? "#FF453A" : undefined, color: muted ? "#fff" : undefined }}
+						className={`mirror-row-icon button${muted ? " muted" : ""}`}
 						aria-pressed={!!muted}
 						aria-label={muted ? "Unmute microphone" : "Mute microphone"}
+						title={muted ? "Muted for every app · click to unmute" : "Mute for every app"}
 						disabled={muted === null}
 						onClick={toggleMute}
 					>
-						{muted ? <MicOff size={18} /> : <Mic size={18} />}
+						{muted ? <MicOff size={15} /> : <Mic size={15} />}
 					</button>
-					<div className="nt-grow">
-						<div className="mirror-title">{muted === null ? "No microphone" : muted ? "Mic muted for every app" : "Mic on"}</div>
-						<div className="mirror-meter" aria-label="Microphone level">
-							<div className="mirror-meter-fill" style={{ transform: `scaleX(${muted ? 0 : level})` }} />
-						</div>
+					<div className="mirror-meter" aria-label="Microphone level">
+						<div className="mirror-meter-fill" style={{ transform: `scaleX(${muted ? 0 : level})` }} />
 					</div>
+					{mics.length > 0 ? chips(asChips(mics), makeDefault, "Microphones") : <span className="mirror-row-note">No microphone</span>}
 				</div>
-				{mics.length > 1 && list(mics, Mic, "Microphones")}
-				<div className="mirror-heading">
-					<span>Speakers</span>
+				<div className="mirror-row">
+					<span className="mirror-row-icon" aria-hidden>
+						<Speaker size={15} />
+					</span>
+					{chips(asChips(speakers), makeDefault, "Speakers")}
 					<button type="button" className="mirror-test" onClick={testSpeaker}>
 						<Volume2 size={13} /> Test
 					</button>
 				</div>
-				{list(speakers, Speaker, "Speakers")}
 			</div>
 		</div>
 	);

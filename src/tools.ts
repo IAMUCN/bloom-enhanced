@@ -80,7 +80,8 @@ export const OPEN_WIDTH = 580;
 /** The size grid (design › Foundations): widths S/M/L and the tool body's
  *  height S/M/L, below the clock row and the tab bar. */
 export const GRID_W = { S: 440, M: 580, L: 720 } as const;
-export const GRID_H = { S: 120, M: 200, L: 290 } as const;
+/** XL: the Mirror's tall page (a big camera with its pickers under it). */
+export const GRID_H = { S: 120, M: 200, L: 290, XL: 420 } as const;
 
 /** What every tool component gets. */
 export interface ToolProps {
@@ -131,7 +132,7 @@ export const PARTS: Record<PartId, PartTool> = {
 	power: { id: "power", label: "Power", icon: Gauge, color: "#FFD25A", size: ["M", "S"], desc: "Windows power modes in one tap", load: () => import("./notchTools/PowerModes") },
 	teleprompter: { id: "teleprompter", label: "Teleprompter", icon: AlignCenter, color: "#E6E6E6", size: ["M", "L"], desc: "Your script scrolls under the camera; hidden from screen shares and recordings", load: () => import("./notchTools/Teleprompter") },
 	game: { id: "game", label: "Game strip", icon: Gamepad2, color: "#B6F36B", size: ["M", "S"], desc: "CPU, GPU, memory and the time at a glance; opens the Game Bar", load: () => import("./notchTools/GameStrip") },
-	mirror: { id: "mirror", label: "Mirror", icon: ScanFace, color: "#FF7A70", size: ["M", "L"], desc: "See your camera, check the mic, mute it for every app, pick and test speakers", load: () => import("./notchTools/Mirror") },
+	mirror: { id: "mirror", label: "Mirror", icon: ScanFace, color: "#FF7A70", size: ["M", "XL"], desc: "See your camera, check the mic, mute it for every app, pick and test speakers", load: () => import("./notchTools/Mirror") },
 	awake: { id: "awake", label: "Keep awake", icon: Coffee, color: "#FFB347", size: ["S", "S"], desc: "Stop the PC sleeping for a while", load: () => import("./notchTools/KeepAwake") },
 	emoji: { id: "emoji", label: "Emoji", icon: Smile, color: "#FFD166", size: ["M", "M"], desc: "Click an emoji to copy it", load: () => import("./notchTools/Emoji") },
 	launch: { id: "launch", label: "Sets", icon: Rocket, color: "#C3A6FF", size: ["M", "S"], desc: "Open a set of apps together", load: () => import("./notchTools/MultiLaunch") },
@@ -162,8 +163,8 @@ export type ExtraToolId =
 	| "teleprompter"
 	| "game";
 
-const ORDER = ["S", "M", "L"] as const;
-const largest = <T extends "S" | "M" | "L">(xs: T[]) => xs.reduce((a, b) => (ORDER.indexOf(b) > ORDER.indexOf(a) ? b : a));
+const ORDER = ["S", "M", "L", "XL"] as const;
+const largest = <T extends "S" | "M" | "L" | "XL">(xs: T[]) => xs.reduce((a, b) => (ORDER.indexOf(b) > ORDER.indexOf(a) ? b : a));
 const tool = (id: ExtraToolId, label: string, icon: LucideIcon, color: string, desc: string, parts: PartId[]): ExtraTool => ({
 	id,
 	label,
