@@ -13,6 +13,7 @@ import {
 	ListChecks,
 	UserRound,
 	Monitor,
+	MousePointer2,
 	Network,
 	PanelLeft,
 	StickyNote,
@@ -86,6 +87,30 @@ const RETENTION: [number, string][] = [
 	[168, "7 days"],
 	[720, "30 days"]
 ];
+
+/** How a side shelf opens (`bloom-clipboard-edge-open`): thrown at the edge
+ *  (default; creeping there to reach a browser's side tabs doesn't open it)
+ *  or resting there. Dragging a file to it always opens on resting. */
+function EdgeOpenRow({ saveSetting }: { saveSetting: (key: string, value: string | null) => Promise<boolean> }) {
+	const [mode, setMode] = useState(() => (localStorage.getItem("bloom-clipboard-edge-open") === "rest" ? "rest" : "flick"));
+	return (
+		<SettingRow
+			icon={MousePointer2}
+			label="How It Opens"
+			desc={mode === "flick" ? "Throw the pointer at the edge; moving there slowly doesn't open it" : "Rest the pointer at the edge"}
+		>
+			<Choice
+				value={mode}
+				options={[
+					["flick", "Quick move"],
+					["rest", "Rest"]
+				]}
+				onChange={(v) => (setMode(v), saveSetting("bloom-clipboard-edge-open", v))}
+				label="How the shelf opens"
+			/>
+		</SettingRow>
+	);
+}
 
 /** The port sharing listens on (`bloom-share-port`, default 47917): change it
  *  when another app holds it. Every PC that shares together needs the same
@@ -218,6 +243,7 @@ export function ClipboardTab({
 								label="Shelf position"
 							/>
 						</SettingRow>
+						{(position === "left" || position === "right") && <EdgeOpenRow saveSetting={saveSetting} />}
 
 						{(position !== "notch" || !notchOn) && monitors.length > 1 && (
 							<SettingRow icon={Monitor} label="Shelf Monitor" desc="Which screen's edge the shelf slides out of">

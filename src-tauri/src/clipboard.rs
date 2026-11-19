@@ -1055,6 +1055,32 @@ static SHELF_EXPIRY: AtomicU64 = AtomicU64::new(0);
 /// When the pointer reached the edge (ms; 0 = not there): the shelf opens
 /// only after it rests there a moment, so brushing past doesn't open it.
 static EDGE_SINCE: AtomicU64 = AtomicU64::new(0);
+/// "Flick" opening (`bloom-clipboard-edge-open`, the default for the left
+/// and right edges; user's idea, 2026-11-20): a side shelf opens when the
+/// cursor is thrown at its edge, not when it creeps there. Creeping to the
+/// edge is usually work right there (a browser's side tabs, a scrollbar).
+/// Speed toward the edge over the last FLICK_WINDOW_MS, in physical px/ms;
+/// about 1000 px a second is a throw, aiming is much slower near the target.
+const FLICK_PX_PER_MS: f64 = 1.0;
+const FLICK_WINDOW_MS: u64 = 150;
+/// After a flick, the cursor must still be at the edge this long: passing
+/// through it to another monitor doesn't count.
+const FLICK_DWELL_MS: u64 = 60;
+static ARRIVED_FAST: AtomicBool = AtomicBool::new(false);
+/// Recent samples: (ms, distance from the shelf's edge).
+static RECENT: Mutex<Vec<(u64, i32)>> = Mutex::new(Vec::new());
+
+/// Speed toward the edge (px/ms) from the oldest recent sample to `dist`
+/// now. No recent sample means the cursor was still, then got here within
+/// one frame: a throw.
+fn approach_speed(recent: &[(u64, i32)], now: u64, dist: i32) -> f64 {
+    match recent.first() {
+        Some(&(t, d)) if now > t => (d - dist) as f64 / (now - t) as f64,
+        Some(_) => 0.0,
+        None => f64::INFINITY,
+    }
+}
+
 /// Rest this long at the edge to open (Edge-Drop: 40 ms + the user's
 /// delay); with the watchdog re-checking, it now runs out while resting.
 const EDGE_DWELL_MS: u64 = 150;
@@ -1208,15 +1234,42 @@ pub fn update_edge_shelf(
             ShelfSide::Right => x >= mon_x + mon_w - 8 && in_side_band(y, mon_y, mon_h),
             ShelfSide::Top => y <= mon_y + 2 && in_shelf_band(x, mon_x, mon_w),
         };
+    // Where the cursor was lately, to tell a flick at the edge from a slow
+    // arrival (side shelves only).
+    let toward = |px: i32, py: i32| match side {
+        ShelfSide::Left => px - mon_x,
+        ShelfSide::Right => mon_x + mon_w - 1 - px,
+        ShelfSide::Top => py - mon_y,
+    };
+    let approach = {
+        let mut recent = RECENT.lock().unwrap();
+        recent.retain(|&(t, _)| now.saturating_sub(t) <= FLICK_WINDOW_MS);
+        let speed = approach_speed(&recent, now, toward(x, y));
+        recent.push((now, toward(x, y)));
+        speed
+    };
+    // Dragging something to drop on the shelf: resting is enough, however
+    // slowly it got there.
+    let dragging = unsafe {
+        windows::Win32::UI::Input::KeyboardAndMouse::GetAsyncKeyState(0x01) as u16 & 0x8000 != 0
+    };
+    let flick_mode = side != ShelfSide::Top
+        && !dragging
+        && setting("bloom-clipboard-edge-open").as_deref() != Some("rest");
     let at_edge = if at_edge {
         let since = match EDGE_SINCE.load(Ordering::Relaxed) {
             0 => {
                 EDGE_SINCE.store(now, Ordering::Relaxed);
+                ARRIVED_FAST.store(approach >= FLICK_PX_PER_MS, Ordering::Relaxed);
                 now
             }
             t => t,
         };
-        now - since >= EDGE_DWELL_MS
+        if flick_mode {
+            ARRIVED_FAST.load(Ordering::Relaxed) && now - since >= FLICK_DWELL_MS
+        } else {
+            now - since >= EDGE_DWELL_MS
+        }
     } else {
         EDGE_SINCE.store(0, Ordering::Relaxed);
         false
@@ -1751,6 +1804,16 @@ mod tests {
         assert_eq!(parse_shortcut("Alt+F25"), None);
         assert_eq!(parse_shortcut("Alt+Tab"), None);
         assert_eq!(parse_shortcut(""), None);
+    }
+
+    #[test]
+    fn a_throw_opens_a_creep_does_not() {
+        // 600 px in 150 ms: thrown.
+        assert!(approach_speed(&[(1000, 600)], 1150, 0) >= FLICK_PX_PER_MS);
+        // 60 px in 150 ms: aiming at something near the edge.
+        assert!(approach_speed(&[(1000, 60)], 1150, 0) < FLICK_PX_PER_MS);
+        // Still, then there within a frame.
+        assert!(approach_speed(&[], 1150, 0) >= FLICK_PX_PER_MS);
     }
 
     #[test]
