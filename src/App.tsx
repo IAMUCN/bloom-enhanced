@@ -5086,7 +5086,7 @@ function DayView({ setPinned }: { setPinned: (pinned: boolean) => void }) {
 			</div>
 			<div className="timer-column day-side">
 				<TodayPanel />
-				<DeadlineList picked={picked} max={2} setPinned={setPinned} store={store} />
+				<DeadlineList picked={picked} max={2} setPinned={setPinned} store={store} calendarPicks />
 			</div>
 		</>
 	);

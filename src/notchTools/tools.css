@@ -1059,10 +1059,102 @@ textarea.nt-input {
 	font-size: 12px;
 }
 
-.dl-add .dl-date {
+.dl-date {
 	flex: none;
-	width: 118px;
-	color-scheme: dark;
+	padding: 5px 10px;
+	border: none;
+	border-radius: 8px;
+	background: color-mix(in srgb, #ff9447 16%, transparent);
+	color: #ffb27a;
+	font: inherit;
+	font-size: 12px;
+	font-weight: 600;
+	white-space: nowrap;
+	cursor: pointer;
+}
+
+.dl-date.on {
+	background: #ff9447;
+	color: #000;
+}
+
+/* The month picker inside the notch. */
+.mm {
+	padding: 8px;
+	border-radius: 12px;
+	background: color-mix(in srgb, var(--bloom-text, #fff) 6%, transparent);
+}
+
+.mm-head {
+	display: flex;
+	align-items: center;
+	justify-content: space-between;
+	margin-bottom: 4px;
+	font-size: 12px;
+	font-weight: 600;
+}
+
+.mm-nav {
+	display: grid;
+	place-items: center;
+	width: 22px;
+	height: 22px;
+	padding: 0;
+	border: none;
+	border-radius: 50%;
+	background: none;
+	color: inherit;
+	cursor: pointer;
+}
+
+.mm-nav:hover {
+	background: color-mix(in srgb, var(--bloom-text, #fff) 12%, transparent);
+}
+
+.mm-grid {
+	display: grid;
+	grid-template-columns: repeat(7, 1fr);
+	gap: 2px;
+}
+
+.mm-dow {
+	text-align: center;
+	font-size: 10px;
+	color: var(--bloom-text-muted, rgba(255, 255, 255, 0.55));
+}
+
+.mm-day {
+	height: 22px;
+	padding: 0;
+	border: none;
+	border-radius: 6px;
+	background: none;
+	color: inherit;
+	font: inherit;
+	font-size: 11px;
+	font-variant-numeric: tabular-nums;
+	cursor: pointer;
+}
+
+.mm-day:hover {
+	background: color-mix(in srgb, var(--bloom-text, #fff) 12%, transparent);
+}
+
+.mm-day.today {
+	box-shadow: inset 0 0 0 1px #ff9447;
+}
+
+.mm-day.on {
+	background: #ff9447;
+	color: #000;
+	font-weight: 700;
+}
+
+.dl-date:focus-visible,
+.mm-nav:focus-visible,
+.mm-day:focus-visible {
+	outline: 2px solid #ff9447;
+	outline-offset: 1px;
 }
 
 .dl-new {
