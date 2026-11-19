@@ -378,6 +378,26 @@ unsafe extern "system" fn window_change_event_proc(
         return;
     }
 
+    // Snipping Tool (Win+Shift+S / R, Print Screen) lists the windows it
+    // offers in its first instant, before the throttled capture scan below
+    // has hidden the notch (it was still offered, 2026-11-19). Its first
+    // window being created is the earliest sign: hide now, and hold the scan
+    // off until its overlay is up so the scan doesn't undo this meanwhile.
+    {
+        use windows::Win32::UI::WindowsAndMessaging::{EVENT_OBJECT_CREATE, EVENT_OBJECT_SHOW};
+        if (event == EVENT_OBJECT_CREATE || event == EVENT_OBJECT_SHOW)
+            && !CAPTURE_UI_ACTIVE.load(Ordering::Relaxed)
+            && is_capture_tool_window(hwnd)
+        {
+            if let Some(app) = WINDOW_CHANGE_APP_HANDLE.get() {
+                CAPTURE_UI_ACTIVE.store(true, Ordering::Relaxed);
+                apply_capture_ui_state(app, true);
+                CAPTURE_LAST_SCAN_MS.store(now_ms() + 1500, Ordering::Relaxed);
+                CAPTURE_RECHECK.store(true, Ordering::Relaxed);
+            }
+        }
+    }
+
     // A top-level window appeared/disappeared (or focus moved): capture UI
     // state may have changed. Cheap flag; the worker thread does the scan.
     {
@@ -2277,29 +2297,11 @@ unsafe extern "system" fn capture_ui_enum_proc(hwnd: HWND, lparam: LPARAM) -> BO
 
     let mut pid = 0u32;
     GetWindowThreadProcessId(hwnd, Some(&mut pid));
-    if pid != 0 && pid != std::process::id() {
-        if let Ok(handle) = OpenProcess(PROCESS_QUERY_LIMITED_INFORMATION, false, pid) {
-            let mut buf = [0u16; 512];
-            let mut len = buf.len() as u32;
-            if QueryFullProcessImageNameW(
-                handle,
-                PROCESS_NAME_WIN32,
-                windows::core::PWSTR(buf.as_mut_ptr()),
-                &mut len,
-            )
-            .is_ok()
-            {
-                let path = String::from_utf16_lossy(&buf[..len as usize]).to_lowercase();
-                let name = path.rsplit('\\').next().unwrap_or("");
-                if name == "snippingtool.exe"
-                    || name == "screenclippinghost.exe"
-                    || name == "screensketch.exe"
-                {
-                    *found = true;
-                }
-            }
-            let _ = CloseHandle(handle);
-        }
+    if pid != 0
+        && pid != std::process::id()
+        && crate::commands::process_image_path(pid).is_some_and(|p| is_capture_tool_name(&p))
+    {
+        *found = true;
     }
 
     if !*found {
@@ -2315,6 +2317,32 @@ unsafe extern "system" fn capture_ui_enum_proc(hwnd: HWND, lparam: LPARAM) -> BO
     }
 
     BOOL(1)
+}
+
+fn is_capture_tool_name(path: &str) -> bool {
+    let name = path.rsplit('\\').next().unwrap_or("").to_lowercase();
+    matches!(
+        name.as_str(),
+        "snippingtool.exe" | "screenclippinghost.exe" | "screensketch.exe"
+    )
+}
+
+/// The window belongs to Snipping Tool. The last process looked up is
+/// remembered: one app creates many windows in a row.
+fn is_capture_tool_window(hwnd: HWND) -> bool {
+    static LAST: Mutex<(u32, bool)> = Mutex::new((0, false));
+    let mut pid = 0u32;
+    unsafe { GetWindowThreadProcessId(hwnd, Some(&mut pid)) };
+    if pid == 0 || pid == std::process::id() {
+        return false;
+    }
+    let mut last = LAST.lock().unwrap_or_else(|e| e.into_inner());
+    if last.0 != pid {
+        let hit = unsafe { crate::commands::process_image_path(pid) }
+            .is_some_and(|p| is_capture_tool_name(&p));
+        *last = (pid, hit);
+    }
+    last.1
 }
 
 fn is_capture_ui_present() -> bool {
@@ -4524,6 +4552,14 @@ fn recover_from_webview_failure(handle: &AppHandle) {
 
 #[cfg(test)]
 mod tests {
+    #[test]
+    fn snipping_tool_is_recognised() {
+        assert!(super::is_capture_tool_name(
+            r"C:\Program Files\WindowsApps\Microsoft.ScreenSketch_11.2609.15.0_x64__8wekyb3d8bbwe\SnippingTool\SnippingTool.exe"
+        ));
+        assert!(!super::is_capture_tool_name(r"C:\Windows\explorer.exe"));
+    }
+
     #[test]
     fn smart_dock_overlap_uses_the_expanded_bar_instead_of_the_live_pill() {
         let expanded = super::dock_span_px(

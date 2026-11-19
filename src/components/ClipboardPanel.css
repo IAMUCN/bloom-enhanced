@@ -187,6 +187,8 @@
 /* A tile: the shelf-tile look. */
 .ctile {
 	position: relative;
+	/* A click copies; the text itself is never selected. */
+	user-select: none;
 	display: flex;
 	flex-direction: column;
 	gap: 4px;
