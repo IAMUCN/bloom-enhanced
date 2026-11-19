@@ -124,6 +124,17 @@ fn main() {
     diagnostics::initialize();
     setup_brightness_worker();
     let app = tauri::Builder::default()
+        // Windows hit-tests a layered window at the size it had when it became
+        // layered: the notch starts 420 px tall, grows to fit the Shelf, and
+        // the mouse fell through its lower part (closing it on the way to the
+        // people row). Re-layering after every resize keeps them in step.
+        .on_window_event(|window, event| {
+            if let tauri::WindowEvent::Resized(_) = event {
+                if let Ok(hwnd) = window.hwnd() {
+                    utils::refresh_layered(hwnd);
+                }
+            }
+        })
         .plugin(tauri_plugin_opener::init())
         .plugin(tauri_plugin_dialog::init())
         .plugin(tauri_plugin_clipboard_manager::init())

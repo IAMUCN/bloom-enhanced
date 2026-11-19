@@ -74,6 +74,18 @@ export function ShareColumn({
 	const setPeers = (list: Peer[]) => setPeersState((seen.peers = list));
 	const [requests, setRequests] = useState<Request[]>([]);
 	const [running, setRunning] = useState(true);
+	// Nearby people hidden from the Pair list (this PC only).
+	const [hidden, setHiddenState] = useState<string[]>(() => {
+		try {
+			return JSON.parse(localStorage.getItem("bloom-share-hidden") ?? "[]");
+		} catch {
+			return [];
+		}
+	});
+	const setHidden = (ids: string[]) => {
+		setHiddenState(ids);
+		localStorage.setItem("bloom-share-hidden", JSON.stringify(ids));
+	};
 	const [myName, setMyName] = useState(() => localStorage.getItem("bloom-share-name") ?? "");
 	const [sheet, setSheet] = useState<Sheet>(null);
 	const [live, setLive] = useState<string[]>([]);
@@ -209,7 +221,9 @@ export function ShareColumn({
 
 	const known = peers ?? [];
 	const trusted = known.filter((p) => p.trusted);
-	const others = known.filter((p) => !p.trusted);
+	const nearby = known.filter((p) => !p.trusted);
+	const others = nearby.filter((p) => !hidden.includes(p.id));
+	const hiddenNearby = nearby.length - others.length;
 	const onlineIds = new Set(known.filter((p) => p.online).map((p) => p.id));
 	const act = (call: Promise<unknown>) => call.then(loadGroups).catch((e) => setNote(String(e)));
 	const managed = sheet && typeof sheet === "object" ? groups.find((g) => g.gid === sheet.group) : undefined;
@@ -287,13 +301,27 @@ export function ShareColumn({
 		body = (
 			<div className="clip-share-list">
 				{back("Pair with someone nearby")}
+				{hiddenNearby > 0 && (
+					<button type="button" className="clip-share-show-hidden" onClick={() => setHidden([])}>
+						Show {hiddenNearby} hidden
+					</button>
+				)}
 				{others.length ? (
 					others.map((p) => (
-						<button key={p.id} type="button" className="clip-share-person" title={`Pair with ${p.name}`} onClick={() => pair(p)}>
+						<div key={p.id} role="button" tabIndex={0} className="clip-share-person can-pair" title={`Pair with ${p.name}`} onClick={() => pair(p)} onKeyDown={(e) => e.key === "Enter" && pair(p)}>
 							<span className="clip-share-dot on" />
 							<span className="clip-share-name">{p.name}</span>
 							<UserPlus size={13} />
-						</button>
+							<button
+								type="button"
+								className="clip-share-forget"
+								aria-label={`Hide ${p.name}`}
+								title="Hide from this list"
+								onClick={(e) => (e.stopPropagation(), setHidden([...hidden, p.id]))}
+							>
+								<X size={10} />
+							</button>
+						</div>
 					))
 				) : (
 					<div className="clip-share-empty">

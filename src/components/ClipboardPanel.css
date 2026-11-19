@@ -1071,3 +1071,22 @@ button.clip-share-person,
 	color: #ffb340;
 	opacity: 1;
 }
+
+.clip-share-person.can-pair {
+	cursor: pointer;
+}
+
+.clip-share-person.can-pair:hover .clip-share-forget {
+	opacity: 1;
+}
+
+.clip-share-show-hidden {
+	align-self: flex-start;
+	padding: 0;
+	border: none;
+	background: none;
+	color: #64b5ff;
+	font: inherit;
+	font-size: 11px;
+	cursor: pointer;
+}

@@ -1498,6 +1498,23 @@ pub fn set_click_through(hwnd: HWND, ignore: bool) -> bool {
     }
 }
 
+/// Drops and re-adds WS_EX_LAYERED on a layered window so Windows hit-tests
+/// it at its current size (see the resize handler in main.rs). Windows that
+/// aren't layered are left alone.
+pub fn refresh_layered(hwnd: HWND) {
+    use windows::Win32::UI::WindowsAndMessaging::{
+        GetWindowLongPtrW, SetWindowLongPtrW, GWL_EXSTYLE, WS_EX_LAYERED,
+    };
+    unsafe {
+        let style = GetWindowLongPtrW(hwnd, GWL_EXSTYLE);
+        if style as u32 & WS_EX_LAYERED.0 == 0 {
+            return;
+        }
+        SetWindowLongPtrW(hwnd, GWL_EXSTYLE, style & !(WS_EX_LAYERED.0 as isize));
+        SetWindowLongPtrW(hwnd, GWL_EXSTYLE, style);
+    }
+}
+
 /// The extended style with WS_EX_LAYERED set and WS_EX_TRANSPARENT set only
 /// when ignoring input, every other bit kept.
 fn click_through_style(style: u32, ignore: bool) -> u32 {
