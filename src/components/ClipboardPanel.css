@@ -1090,3 +1090,26 @@ button.clip-share-person,
 	font-size: 11px;
 	cursor: pointer;
 }
+
+/* Remove / Keep on a paired device (Pair › Paired devices). */
+.clip-share-remove {
+	flex: none;
+	height: 20px;
+	padding: 0 8px;
+	border: none;
+	border-radius: 10px;
+	background: rgba(255, 255, 255, 0.1);
+	color: inherit;
+	font: inherit;
+	font-size: 11px;
+	cursor: pointer;
+}
+
+.clip-share-remove:hover {
+	background: rgba(255, 255, 255, 0.18);
+}
+
+.clip-share-remove.confirm {
+	background: rgba(255, 107, 97, 0.22);
+	color: #ff6b61;
+}

@@ -14,7 +14,7 @@ type Status = { done: number; total: number; error?: string; sent?: boolean };
 /** What a person was sent, so a failed send can be retried. */
 type Payload = { clips?: string[]; paths?: string[]; text?: string };
 /** The sheet over the history: what it shows. */
-type Sheet = null | "name" | "pair" | "live" | "groups" | "new-group" | { group: string };
+type Sheet = null | "name" | "pair" | "scan" | "live" | "groups" | "new-group" | { group: string };
 
 /** The last people and groups seen, kept while the Shelf is closed so that
  *  reopening it shows them at once instead of an empty row that fills in. */
@@ -86,6 +86,8 @@ export function ShareColumn({
 		setHiddenState(ids);
 		localStorage.setItem("bloom-share-hidden", JSON.stringify(ids));
 	};
+	// The paired device waiting for "Remove" to be confirmed.
+	const [removing, setRemoving] = useState<string | null>(null);
 	const [myName, setMyName] = useState(() => localStorage.getItem("bloom-share-name") ?? "");
 	const [sheet, setSheet] = useState<Sheet>(null);
 	const [live, setLive] = useState<string[]>([]);
@@ -203,7 +205,7 @@ export function ShareColumn({
 		invoke("share_pair", { id: p.id })
 			.then(() => {
 				setPairing(null);
-				setSheet(null);
+				setSheet("pair");
 				setNote(`Paired with ${p.name}`);
 			})
 			// The card stays with the reason until it's dismissed.
@@ -300,7 +302,54 @@ export function ShareColumn({
 	} else if (sheet === "pair") {
 		body = (
 			<div className="clip-share-list">
-				{back("Pair with someone nearby")}
+				{back("Paired devices")}
+				{trusted.length ? (
+					trusted.map((p) => (
+						<div key={p.id} className="clip-share-person">
+							<span className={`clip-share-dot${p.online ? " on" : ""}`} />
+							<span className="clip-share-name">{p.name}</span>
+							{removing === p.id ? (
+								<>
+									<button
+										type="button"
+										className="clip-share-remove confirm"
+										onClick={() => {
+											setRemoving(null);
+											invoke("share_unpair", { id: p.id }).catch(() => {});
+										}}
+									>
+										Remove
+									</button>
+									<button type="button" className="clip-share-remove" onClick={() => setRemoving(null)}>
+										Keep
+									</button>
+								</>
+							) : (
+								<button type="button" className="clip-share-remove" title="You'd need to pair again to send to them" onClick={() => setRemoving(p.id)}>
+									Remove
+								</button>
+							)}
+						</div>
+					))
+				) : (
+					<div className="clip-share-empty">No paired devices yet.</div>
+				)}
+				<button
+					type="button"
+					className="clip-share-btn primary"
+					onClick={() => {
+						setSheet("scan");
+						invoke<Peer[]>("share_peers").then(setPeers).catch(() => {});
+					}}
+				>
+					<UserPlus size={13} /> Pair a new device
+				</button>
+			</div>
+		);
+	} else if (sheet === "scan") {
+		body = (
+			<div className="clip-share-list">
+				{back("New device nearby", "pair")}
 				{hiddenNearby > 0 && (
 					<button type="button" className="clip-share-show-hidden" onClick={() => setHidden([])}>
 						Show {hiddenNearby} hidden
@@ -500,7 +549,7 @@ export function ShareColumn({
 	const toolIcons = running && tools
 		? createPortal(
 				<>
-					{icon("Pair with someone", UserPlus, openPair, "clip-share-tool pair")}
+					{icon("Paired devices", UserPlus, openPair, "clip-share-tool pair")}
 					{icon("Groups", Users, () => (setNote(""), setSheet("groups")), "clip-share-tool")}
 					{icon(liveCount ? `Live clipboard · on for ${liveCount}` : "Live clipboard", Radio, () => (setNote(""), setSheet("live")), `clip-share-tool${liveCount ? " lit" : ""}`, liveCount)}
 				</>,
@@ -568,22 +617,7 @@ export function ShareColumn({
 									</div>
 								);
 							})}
-							{trusted.map((p) =>
-								target(
-									p.id,
-									p.name,
-									p.online,
-									<button
-										type="button"
-										className="clip-share-forget"
-										aria-label={`Forget ${p.name}`}
-										title="Forget (unpair)"
-										onClick={(e) => (e.stopPropagation(), invoke("share_unpair", { id: p.id }).catch(() => {}))}
-									>
-										<X size={10} />
-									</button>
-								)
-							)}
+							{trusted.map((p) => target(p.id, p.name, p.online, null))}
 							{groups.map((g) =>
 								target(
 									`group:${g.gid}`,
