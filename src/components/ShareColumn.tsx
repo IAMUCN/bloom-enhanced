@@ -16,6 +16,10 @@ type Payload = { clips?: string[]; paths?: string[]; text?: string };
 /** The sheet over the history: what it shows. */
 type Sheet = null | "name" | "pair" | "live" | "groups" | "new-group" | { group: string };
 
+/** The last people and groups seen, kept while the Shelf is closed so that
+ *  reopening it shows them at once instead of an empty row that fills in. */
+const seen: { peers: Peer[] | null; groups: Group[] } = { peers: null, groups: [] };
+
 const code4 = (n: number) => String(n).padStart(4, "0");
 const pct = (s: Status) => (s.total ? Math.floor((s.done / s.total) * 100) : 0);
 
@@ -66,7 +70,8 @@ export function ShareColumn({
 	dragOverEvent?: string;
 }) {
 	const rowRef = useRef<HTMLDivElement>(null);
-	const [peers, setPeers] = useState<Peer[]>([]);
+	const [peers, setPeersState] = useState<Peer[] | null>(seen.peers);
+	const setPeers = (list: Peer[]) => setPeersState((seen.peers = list));
 	const [requests, setRequests] = useState<Request[]>([]);
 	const [running, setRunning] = useState(true);
 	const [myName, setMyName] = useState(() => localStorage.getItem("bloom-share-name") ?? "");
@@ -78,7 +83,8 @@ export function ShareColumn({
 	const [status, setStatus] = useState<Record<string, Status>>({});
 	const [payloads, setPayloads] = useState<Record<string, Payload>>({});
 	const [incoming, setIncoming] = useState<{ from: string; done: number; total: number } | null>(null);
-	const [groups, setGroups] = useState<Group[]>([]);
+	const [groups, setGroupsState] = useState<Group[]>(seen.groups);
+	const setGroups = (list: Group[]) => setGroupsState((seen.groups = list));
 	const [invites, setInvites] = useState<Invite[]>([]);
 	const [me, setMe] = useState("");
 	const [newName, setNewName] = useState("");
@@ -109,6 +115,8 @@ export function ShareColumn({
 
 	useEffect(() => {
 		const list = () => invoke<Peer[]>("share_list").then(setPeers).catch(() => {});
+		// Paired people at once from what's saved, then who's online.
+		if (!seen.peers) list();
 		invoke<Peer[]>("share_peers")
 			.then(setPeers)
 			.catch(() => setRunning(false));
@@ -199,9 +207,10 @@ export function ShareColumn({
 		invoke("share_live_set", { ids: next }).catch(() => {});
 	};
 
-	const trusted = peers.filter((p) => p.trusted);
-	const others = peers.filter((p) => !p.trusted);
-	const onlineIds = new Set(peers.filter((p) => p.online).map((p) => p.id));
+	const known = peers ?? [];
+	const trusted = known.filter((p) => p.trusted);
+	const others = known.filter((p) => !p.trusted);
+	const onlineIds = new Set(known.filter((p) => p.online).map((p) => p.id));
 	const act = (call: Promise<unknown>) => call.then(loadGroups).catch((e) => setNote(String(e)));
 	const managed = sheet && typeof sheet === "object" ? groups.find((g) => g.gid === sheet.group) : undefined;
 	const hasPeople = trusted.length + groups.length > 0;
@@ -560,7 +569,8 @@ export function ShareColumn({
 							)}
 						</div>
 					) : (
-						<div className="clip-share-hint">Pair with someone (icon at the top right) to send them clips.</div>
+						// Not shown until the first list arrives, so it never flashes.
+						peers && <div className="clip-share-hint">Pair with someone (icon at the top right) to send them clips.</div>
 					)}
 				</aside>
 			)}
