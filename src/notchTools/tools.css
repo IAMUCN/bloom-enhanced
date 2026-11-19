@@ -802,3 +802,157 @@ textarea.nt-input {
 @media (prefers-reduced-motion: reduce) {
 	.cp-swatch.picking { animation: none; }
 }
+
+/* Unit converter: both sides are the same box, line for line (the input
+   and the result used to differ in height). */
+.units-value {
+	display: flex;
+	align-items: center;
+	width: 100%;
+	height: 30px;
+	margin: 0;
+	padding: 0;
+	border: none;
+	background: none;
+	font: inherit;
+	font-size: 20px;
+	font-weight: 600;
+	line-height: 30px;
+	color: inherit;
+	overflow: hidden;
+	text-overflow: ellipsis;
+	white-space: nowrap;
+}
+
+.units-out {
+	color: var(--tool-color, #8be3f5);
+}
+
+.units-unit {
+	margin-top: 4px;
+	align-self: flex-start;
+}
+
+/* Power modes: one slider with three stops, like Settings › Power. */
+.pm {
+	display: flex;
+	flex-direction: column;
+	gap: 14px;
+	padding: 4px 18px;
+}
+
+.pm-head {
+	display: flex;
+	flex-direction: column;
+	gap: 2px;
+}
+
+.pm-name {
+	font-size: 17px;
+	font-weight: 650;
+	letter-spacing: -0.01em;
+}
+
+.pm-note {
+	font-size: 12px;
+	color: var(--bloom-text-muted, rgba(255, 255, 255, 0.6));
+}
+
+.pm-track {
+	position: relative;
+	height: 22px;
+	margin: 0 9px;
+}
+
+.pm-rail,
+.pm-fill {
+	position: absolute;
+	top: 50%;
+	left: 0;
+	height: 4px;
+	margin-top: -2px;
+	border-radius: 2px;
+}
+
+.pm-rail {
+	right: 0;
+	background: color-mix(in srgb, var(--bloom-text, #fff) 16%, transparent);
+}
+
+.pm-fill {
+	background: var(--tool-color);
+}
+
+.pm-stop {
+	position: absolute;
+	top: 50%;
+	width: 22px;
+	height: 22px;
+	margin: -11px 0 0 -11px;
+	padding: 0;
+	border: none;
+	border-radius: 50%;
+	background: none;
+	cursor: pointer;
+}
+
+/* The stop's dot; the thumb covers it on the chosen one. */
+.pm-stop::before {
+	content: "";
+	position: absolute;
+	inset: 7px;
+	border-radius: 50%;
+	background: color-mix(in srgb, var(--bloom-text, #fff) 35%, transparent);
+}
+
+.pm-stop.passed::before {
+	background: var(--tool-color);
+}
+
+.pm-stop:focus-visible {
+	outline: 2px solid var(--tool-color);
+	outline-offset: 1px;
+}
+
+.pm-thumb {
+	position: absolute;
+	inset: 2px;
+	border-radius: 50%;
+	background: #fff;
+	box-shadow: 0 0 0 4px var(--tool-color), 0 2px 6px rgba(0, 0, 0, 0.4);
+}
+
+.pm-labels {
+	display: flex;
+	justify-content: space-between;
+}
+
+.pm-labels button {
+	padding: 0;
+	border: none;
+	background: none;
+	font: inherit;
+	font-size: 11.5px;
+	color: var(--bloom-text-muted, rgba(255, 255, 255, 0.6));
+	cursor: pointer;
+}
+
+.pm-labels button.on {
+	color: inherit;
+	font-weight: 600;
+}
+
+.pm.off .pm-track,
+.pm.off .pm-labels {
+	opacity: 0.35;
+}
+
+.pm.off .pm-stop,
+.pm.off .pm-labels button {
+	cursor: default;
+}
+
+.pm-error {
+	font-size: 11.5px;
+	color: #ff453a;
+}

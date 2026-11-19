@@ -307,10 +307,47 @@ unsafe fn powrprof(name: &[u8]) -> Option<unsafe extern "system" fn() -> isize> 
     GetProcAddress(lib, windows::core::PCSTR(name.as_ptr()))
 }
 
+/// Plugged in (true) or on battery.
+fn on_ac() -> bool {
+    let mut s = windows::Win32::System::Power::SYSTEM_POWER_STATUS::default();
+    unsafe { windows::Win32::System::Power::GetSystemPowerStatus(&mut s) }.is_err()
+        || s.ACLineStatus != 0
+}
+
+/// Windows offers power modes only on the Balanced plan (any other plan,
+/// e.g. High performance, greys out the slider in Settings).
+#[tauri::command]
+pub fn power_modes_available() -> bool {
+    use windows::Win32::System::Power::PowerGetActiveScheme;
+    const BALANCED: windows::core::GUID =
+        windows::core::GUID::from_u128(0x381b4222_f694_41f0_9685_ff5bb260df2e);
+    unsafe {
+        let mut ptr: *mut windows::core::GUID = std::ptr::null_mut();
+        if PowerGetActiveScheme(None, &mut ptr).is_err() || ptr.is_null() {
+            return true;
+        }
+        let balanced = *ptr == BALANCED;
+        let _ = windows::Win32::Foundation::LocalFree(Some(windows::Win32::Foundation::HLOCAL(
+            ptr as *mut _,
+        )));
+        balanced
+    }
+}
+
+/// The mode the user picked for the current power source, as Settings ›
+/// Power shows it (Windows 11 keeps one for plugged in, one on battery);
+/// else the one in effect. None when it isn't one of the three.
 #[tauri::command]
 pub fn power_mode() -> Option<String> {
     unsafe {
-        let get: OverlayFn = std::mem::transmute(powrprof(b"PowerGetEffectiveOverlayScheme\0")?);
+        let name: &[u8] = if on_ac() {
+            b"PowerGetUserConfiguredACPowerMode\0"
+        } else {
+            b"PowerGetUserConfiguredDCPowerMode\0"
+        };
+        let get: OverlayFn = std::mem::transmute(
+            powrprof(name).or_else(|| powrprof(b"PowerGetEffectiveOverlayScheme\0"))?,
+        );
         let mut guid = windows::core::GUID::zeroed();
         if get(&mut guid) != 0 {
             return None;
@@ -333,10 +370,28 @@ pub fn set_power_mode(mode: String) -> Result<(), String> {
             powrprof(b"PowerSetActiveOverlayScheme\0")
                 .ok_or("Power modes aren't available here")?,
         );
-        match set(guid) {
-            0 => Ok(()),
-            code => Err(format!("Windows refused the power mode (error {code})")),
+        if !power_modes_available() {
+            return Err(
+                "Power modes need Windows' Balanced power plan (Control Panel › Power Options)."
+                    .into(),
+            );
         }
+        if let code @ 1.. = set(guid) {
+            return Err(format!("Windows refused the power mode (error {code})"));
+        }
+        // Also save it as the user's choice for this power source, like
+        // Settings › Power does; the overlay alone can be undone by plugging
+        // in or unplugging. (Windows 11 22H2+; older ones skip this.)
+        let name: &[u8] = if on_ac() {
+            b"PowerSetUserConfiguredACPowerMode\0"
+        } else {
+            b"PowerSetUserConfiguredDCPowerMode\0"
+        };
+        if let Some(f) = powrprof(name) {
+            let save: SetOverlayFn = std::mem::transmute(f);
+            let _ = save(guid);
+        }
+        Ok(())
     }
 }
 

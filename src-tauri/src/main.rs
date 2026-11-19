@@ -241,6 +241,7 @@ fn main() {
             system_tools::system_stats,
             system_tools::power_mode,
             system_tools::set_power_mode,
+            system_tools::power_modes_available,
             system_tools::pick_screen_color,
             system_tools::screen_clip,
             system_tools::ocr_snip,

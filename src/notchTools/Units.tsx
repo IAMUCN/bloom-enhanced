@@ -49,15 +49,14 @@ export default function Units({ setPinned }: ToolProps) {
 			<div className="nt-row">
 				<div className="nt-card nt-grow">
 					<input
-						className="nt-input"
-						style={{ background: "none", padding: 0, fontSize: 20, fontWeight: 600 }}
+						className="nt-input units-value"
 						value={value}
 						aria-label="Value"
 						onFocus={() => setPinned(true)}
 						onBlur={() => setPinned(false)}
 						onChange={(e) => setValue(e.target.value)}
 					/>
-					<button type="button" className="nt-btn" style={{ marginTop: 4 }} onClick={() => cycle(f, setFrom)} aria-label="Change the from unit">
+					<button type="button" className="nt-btn units-unit" onClick={() => cycle(f, setFrom)} aria-label="Change the from unit">
 						{f}
 					</button>
 				</div>
@@ -65,8 +64,8 @@ export default function Units({ setPinned }: ToolProps) {
 					<ArrowLeftRight size={14} />
 				</button>
 				<div className="nt-card nt-grow">
-					<div style={{ fontSize: 20, fontWeight: 600, color: "#8BE3F5" }}>{out}</div>
-					<button type="button" className="nt-btn" style={{ marginTop: 4 }} onClick={() => cycle(t, setTo)} aria-label="Change the to unit">
+					<output className="units-value units-out">{out === "" ? "–" : out}</output>
+					<button type="button" className="nt-btn units-unit" onClick={() => cycle(t, setTo)} aria-label="Change the to unit">
 						{t}
 					</button>
 				</div>
