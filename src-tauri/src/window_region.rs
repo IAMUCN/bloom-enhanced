@@ -43,8 +43,7 @@ pub fn set_window_region(window: Window, rects: Vec<IntRect>) {
     let scale = window.scale_factor().unwrap_or(1.0);
     if window.label() == "main" {
         let bottom = rects.iter().map(|r| r.y + r.height).max().unwrap_or(0);
-        crate::state::NOTCH_REGION_BOTTOM
-            .store(bottom as i32, std::sync::atomic::Ordering::Relaxed);
+        crate::state::NOTCH_REGION_BOTTOM.store(bottom, std::sync::atomic::Ordering::Relaxed);
     }
     // A region on a window that isn't layered turns its transparent pixels
     // opaque (see set_click_through). Make sure it's layered before the region
