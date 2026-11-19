@@ -147,7 +147,8 @@ export function ShareColumn({
 	};
 
 	useEffect(() => {
-		const list = () => invoke<Peer[]>("share_list").then(setPeers).catch(() => {});
+		// A failure here is sharing not running (its port taken): say why.
+		const list = () => invoke<Peer[]>("share_list").then(setPeers).catch((e) => setNote(String(e)));
 		// Paired people at once from what's saved, then who's online.
 		if (!seen.peers) list();
 		invoke<Peer[]>("share_peers")

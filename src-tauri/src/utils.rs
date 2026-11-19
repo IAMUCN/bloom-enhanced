@@ -1498,6 +1498,12 @@ pub fn set_click_through(hwnd: HWND, ignore: bool) -> bool {
     }
 }
 
+/// LotusNotch's own executable: `LotusNotch.exe`, or `bloom.exe` (dev
+/// builds, and installs from before the rename).
+pub fn is_own_exe_name(name: &str) -> bool {
+    name.eq_ignore_ascii_case("LotusNotch.exe") || name.eq_ignore_ascii_case("bloom.exe")
+}
+
 /// Drops and re-adds WS_EX_LAYERED on a layered window so Windows hit-tests
 /// it at its current size (see the resize handler in main.rs), but only when
 /// the window grew past its biggest size so far: hit-testing is only stuck

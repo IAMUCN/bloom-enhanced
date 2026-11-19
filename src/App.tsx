@@ -3554,6 +3554,17 @@ function App() {
 	// The floating pill style sits 6px below the edge (see pillTargetY).
 	const pillGap = notchStyle === "pill" ? 6 : 0;
 
+	// Fixed mode only: 10 s after the notch was last used (closed, not
+	// hovered, nothing happening), it fades to 45% so it sits back; any use
+	// brings it back at once.
+	const [idleFaded, setIdleFaded] = useState(false);
+	useEffect(() => {
+		setIdleFaded(false);
+		if (notchMode !== "fixed" || isOpen || isHovered || fileStatus || isDragHovering) return;
+		const t = setTimeout(() => setIdleFaded(true), 10000);
+		return () => clearTimeout(t);
+	}, [notchMode, isOpen, isHovered, fileStatus, isDragHovering, bloomMode]);
+
 	// Notch style (Settings > Notch > Style). "pill" floats below the edge
 	// with no flares; "minimal" shrinks the idle notch to a thin bar that shows
 	// its content again on hover or when a live activity or alert appears.
@@ -4214,7 +4225,9 @@ function App() {
 					width: "100%",
 					display: "flex",
 					justifyContent: "center",
-					position: "relative"
+					position: "relative",
+					opacity: idleFaded ? 0.45 : 1,
+					transition: `opacity ${idleFaded ? 800 : 150}ms ease`
 				}}
 			>
 				<DeviceArtDefs />

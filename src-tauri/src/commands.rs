@@ -709,7 +709,7 @@ fn is_bloom_launch_target(target: &str, identifier: &str) -> bool {
         || target.eq_ignore_ascii_case(identifier)
         || std::path::Path::new(target)
             .file_name()
-            .is_some_and(|name| name.to_string_lossy().eq_ignore_ascii_case("bloom.exe"))
+            .is_some_and(|name| crate::utils::is_own_exe_name(&name.to_string_lossy()))
 }
 
 /// Launches another instance of an app instead of focusing an existing window.

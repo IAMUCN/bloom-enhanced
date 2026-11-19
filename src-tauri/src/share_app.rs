@@ -12,10 +12,33 @@ use tauri::{AppHandle, Emitter, Manager};
 
 static SHARE: OnceLock<Arc<Share>> = OnceLock::new();
 
+/// Why sharing didn't start (the port taken by another app, most likely).
+static START_ERROR: std::sync::OnceLock<String> = std::sync::OnceLock::new();
+
 fn share() -> Result<&'static Arc<Share>, String> {
-    SHARE
+    SHARE.get().ok_or_else(|| {
+        START_ERROR
+            .get()
+            .cloned()
+            .unwrap_or_else(|| "Sharing isn't running".to_string())
+    })
+}
+
+/// The sharing port (`bloom-share-port`, 1024-65535), else [`PORT`]. Every
+/// PC that shares together needs the same one.
+fn port_setting() -> u16 {
+    crate::state::SETTINGS_CACHE
         .get()
-        .ok_or_else(|| "Sharing isn't running".to_string())
+        .and_then(|c| {
+            c.lock()
+                .ok()?
+                .get("bloom-share-port")?
+                .as_str()?
+                .parse::<u16>()
+                .ok()
+        })
+        .filter(|p| *p >= 1024)
+        .unwrap_or(PORT)
 }
 
 /// Starts listening (idle sockets: no battery cost) when the Shelf is on.
@@ -56,7 +79,8 @@ pub fn start(app: AppHandle) {
         .or_else(|| std::env::var("COMPUTERNAME").ok())
         .unwrap_or_else(|| "This PC".into());
     // Debug builds also talk to the dev peer (examples/share_peer.rs).
-    let mut announce = vec![PORT];
+    let port = port_setting();
+    let mut announce = vec![port];
     if cfg!(debug_assertions) {
         announce.push(DEV_PORT);
     }
@@ -65,7 +89,7 @@ pub fn start(app: AppHandle) {
         Config {
             dir: dir.join("share"),
             name,
-            listen_port: PORT,
+            listen_port: port,
             announce_ports: announce,
             auto_accept: false,
             inbox,
@@ -138,7 +162,12 @@ pub fn start(app: AppHandle) {
         Ok(s) => {
             let _ = SHARE.set(s);
         }
-        Err(e) => eprintln!("[share] not started: {e}"),
+        Err(e) => {
+            eprintln!("[share] not started: {e}");
+            let _ = START_ERROR.set(format!(
+                "Port {port} is used by another app. Pick another in Settings › Shelf › Sharing Port (the same on every PC), then restart LotusNotch."
+            ));
+        }
     }
 }
 

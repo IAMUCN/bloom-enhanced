@@ -195,7 +195,7 @@ mod recorder {
                 working += w;
                 commit += c;
                 cpu += t;
-                if name == "bloom.exe" {
+                if crate::utils::is_own_exe_name(&name) {
                     bloom += p;
                 } else {
                     webview += p;

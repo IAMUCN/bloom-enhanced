@@ -62,8 +62,10 @@ fn subnet_broadcast(addr: Ipv4Addr, mask: Ipv4Addr) -> Ipv4Addr {
 /// Discovery group and port (the dev peer listens on DEV_PORT so it can run
 /// next to the app on one PC).
 pub const GROUP: Ipv4Addr = Ipv4Addr::new(239, 255, 71, 17);
-pub const PORT: u16 = 53317;
-pub const DEV_PORT: u16 = 53318;
+/// Not 53317: that is LocalSend's port, and both apps can't hold it.
+/// The user can pick another (`bloom-share-port`, Settings › Shelf).
+pub const PORT: u16 = 47917;
+pub const DEV_PORT: u16 = 47918;
 const MAGIC: &[u8; 4] = b"LNS1";
 /// Largest plaintext in one frame.
 pub const MAX_FRAME: usize = 1 << 20;

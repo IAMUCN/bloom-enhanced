@@ -13,6 +13,7 @@ import {
 	ListChecks,
 	UserRound,
 	Monitor,
+	Network,
 	PanelLeft,
 	StickyNote,
 	Timer,
@@ -86,6 +87,41 @@ const RETENTION: [number, string][] = [
 	[720, "30 days"]
 ];
 
+/** The port sharing listens on (`bloom-share-port`, default 47917): change it
+ *  when another app holds it. Every PC that shares together needs the same
+ *  one; it applies after a restart. */
+function SharePortRow({ saveSetting }: { saveSetting: (key: string, value: string | null) => Promise<boolean> }) {
+	const saved = localStorage.getItem("bloom-share-port") || "47917";
+	const [port, setPort] = useState(saved);
+	const [changed, setChanged] = useState(false);
+	const valid = /^\d+$/.test(port) && Number(port) >= 1024 && Number(port) <= 65535;
+	return (
+		<SettingRow icon={Network} label="Sharing Port" desc={changed ? "Restart LotusNotch to use it; use the same port on every PC" : "Change it if another app uses it (the same on every PC)"}>
+			<input
+				className="setting-text-input setting-port-input"
+				value={port}
+				inputMode="numeric"
+				maxLength={5}
+				aria-label="Sharing port"
+				aria-invalid={!valid}
+				onChange={(e) => setPort(e.target.value.replace(/\D/g, ""))}
+				onBlur={() => {
+					if (!valid) return setPort(saved);
+					if (port === saved) return;
+					saveSetting("bloom-share-port", port);
+					setChanged(true);
+				}}
+				onKeyDown={(e) => e.key === "Enter" && e.currentTarget.blur()}
+			/>
+			{changed && (
+				<button type="button" className="setting-button" onClick={() => invoke("restart_bloom").catch(() => {})}>
+					Restart
+				</button>
+			)}
+		</SettingRow>
+	);
+}
+
 export function ClipboardTab({
 	enabled,
 	incognito,
@@ -151,6 +187,7 @@ export function ClipboardTab({
 								}}
 							/>
 						</SettingRow>
+						<SharePortRow saveSetting={saveSetting} />
 					</div>
 				</>
 			)}
