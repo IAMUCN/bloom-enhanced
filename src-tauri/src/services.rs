@@ -2661,18 +2661,21 @@ fn update_main_interaction(
                 let rx = win_pos.x + (r.x as f64 * scale) as i32 - pad_x - hyst;
                 let rw = (r.width as f64 * scale) as i32 + (pad_x * 2) + (hyst * 2);
                 let ry_top = win_pos.y;
+                let mut rx = rx;
+                let mut rw = rw;
                 let mut ry_bottom =
                     win_pos.y + (r.height as f64 * scale) as i32 + pad_y_bottom + hyst;
-                // An open notch reaches at least to its clickable region's
-                // bottom: the measured rect can lag a tall page (the Shelf)
-                // springing open, and its lower part then counted as "left",
-                // closing the notch before Share could be reached.
-                if crate::state::NOTCH_OPEN.load(Ordering::Relaxed) {
-                    let region_bottom =
-                        crate::state::NOTCH_REGION_BOTTOM.load(Ordering::Relaxed) as f64;
-                    ry_bottom = ry_bottom.max(win_pos.y + (region_bottom * scale) as i32);
+                // The clickable region is the box the notch is animating to:
+                // count it as the notch too, so a stale NOTCH_RECT can't make
+                // the lower part of a tall page (the Shelf) count as outside.
+                let region = crate::state::NOTCH_REGION.lock().ok().and_then(|g| *g);
+                if let Some((left, _, right, bottom)) = region {
+                    let left = win_pos.x + (left as f64 * scale) as i32;
+                    let right = win_pos.x + (right as f64 * scale) as i32;
+                    rw = (rx + rw).max(right) - rx.min(left);
+                    rx = rx.min(left);
+                    ry_bottom = ry_bottom.max(win_pos.y + (bottom as f64 * scale) as i32);
                 }
-
                 let in_notch_rect = cursor.x >= rx
                     && cursor.x <= (rx + rw)
                     && cursor.y >= ry_top
