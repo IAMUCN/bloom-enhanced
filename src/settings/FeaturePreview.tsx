@@ -384,7 +384,7 @@ export function FeaturePreview({ tab, settings, focus }: FeaturePreviewProps) {
 				"Peek Delay": "resting",
 				"Remember Last Panel": "resting",
 				"Default Panel": "resting",
-				"Calendar & Timer": "resting",
+				"Calendar": "resting",
 				"Timer Sound": "resting",
 				"Keep Items": "resting",
 				"Weather Status": "resting",
