@@ -4067,7 +4067,9 @@ function App() {
 					ref={bloomRef}
 					className={`bloom ${isHovered ? "expanded" : ""} ${isImpacted ? "is-impacted" : ""} ${minimalIdle ? "minimal-idle" : ""} ${isDragHovering ? "drag-hover" : ""}`}
 					onMouseEnter={() => setIsNotchHovered(true)}
-					onMouseLeave={() => setIsNotchHovered(false)}
+					// Open: leaving is decided by the backend, which allows a grace
+					// margin around the notch (services.rs OPEN_GRACE_PX).
+					onMouseLeave={() => !isOpenRef.current && setIsNotchHovered(false)}
 					onWheel={handleWheel}
 					initial={{
 						y: 250,

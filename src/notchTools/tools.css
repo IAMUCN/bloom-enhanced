@@ -421,6 +421,7 @@ textarea.nt-input {
 .mirror-row {
 	display: flex;
 	align-items: center;
+	justify-content: center;
 	gap: 8px;
 	height: 30px;
 	min-width: 0;
@@ -470,7 +471,7 @@ textarea.nt-input {
 }
 
 .mirror-chips {
-	flex: 1;
+	flex: 0 1 auto;
 	min-width: 0;
 	display: flex;
 	gap: 4px;

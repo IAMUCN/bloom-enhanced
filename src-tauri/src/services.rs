@@ -2631,6 +2631,10 @@ fn top_edge_armed_for(
 
 /// Hover + click-through state for the notch window. Shared by the mouse hook
 /// (on movement) and the top-edge watchdog (to finish a stationary dwell).
+/// How far past the open notch's edge the pointer may stray before it
+/// closes (left, right and below).
+const OPEN_GRACE_PX: f64 = 40.0;
+
 fn update_main_interaction(
     app_handle: &AppHandle,
     cursor: windows::Win32::Foundation::POINT,
@@ -2733,6 +2737,16 @@ fn update_main_interaction(
                     rw = (rx + rw).max(right) - rx.min(left);
                     rx = rx.min(left);
                     ry_bottom = ry_bottom.max(win_pos.y + (bottom as f64 * scale) as i32);
+                }
+                // Grace around the open notch (user, 2026-11-20): a shaky
+                // hand reaching for a corner button may slip past its edge;
+                // it closes only once the pointer is this far out. Clicks out
+                // there still reach the apps below (the window region).
+                if crate::state::NOTCH_OPEN.load(Ordering::Relaxed) {
+                    let grace = (OPEN_GRACE_PX * scale) as i32;
+                    rx -= grace;
+                    rw += grace * 2;
+                    ry_bottom += grace;
                 }
                 let in_notch_rect = cursor.x >= rx
                     && cursor.x <= (rx + rw)
