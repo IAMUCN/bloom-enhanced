@@ -2186,9 +2186,17 @@ img {
 
 /* A tool body that animates as a whole: it covers the notch so the panel
    inside keeps its own absolute place, and only the panel takes clicks. */
+/* A page's body is laid out at the notch's final width from the first
+   frame, centred, and clipped to the notch as it springs open, so text never
+   re-wraps while the bouncy shell grows and settles (it used to fold onto
+   the next line, then jump back). */
 .notch-body {
 	position: absolute;
-	inset: 0;
+	top: 0;
+	bottom: 0;
+	left: calc(50% - var(--notch-final-width, 100%) / 2);
+	width: var(--notch-final-width, 100%);
+	clip-path: inset(0 max(0px, calc((var(--notch-final-width, 100cqw) - 100cqw) / 2)));
 	z-index: 2;
 	pointer-events: none;
 }

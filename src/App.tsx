@@ -4225,7 +4225,15 @@ function App() {
 					}}
 					onHoverEnd={releaseNotchHover}
 					// Panels placed below the clock row move down by the tab bar.
-					style={{ originY: 0, "--tab-bar-space": `${tabBarSpace}px` } as React.CSSProperties}
+					style={
+						{
+							originY: 0,
+							"--tab-bar-space": `${tabBarSpace}px`,
+							// The width it is opening to: bodies lay out at it (App.css .notch-body).
+							"--notch-final-width": `${pillTargetWidth}px`,
+							containerType: "inline-size"
+						} as React.CSSProperties
+					}
 					transition={{
 						// Opening bounces like the Dynamic Island; closing settles
 						// softly; changing tools resizes with a lively spring.

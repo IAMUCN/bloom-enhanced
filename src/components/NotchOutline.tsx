@@ -27,10 +27,13 @@ export function outlineHalf(w: number, h: number, r: number, flares: boolean, si
 }
 
 /** A white outline traced on the notch's real shape while the first-run
- *  setup sizes it: both halves draw from the bottom centre at once, opening
- *  like a lotus, then the line breathes softly. Black and white only. */
+ *  setup sizes it. A faint line stays on the whole shape; over it a bright
+ *  line flows from the bottom centre out to both flares and then clears from
+ *  the centre the same way, so each loop starts from nothing (no flicker),
+ *  opening like a lotus. Black and white only. */
 export function NotchOutline({ width, height, radius, flares }: { width: number; height: number; radius: number; flares: boolean }) {
 	const pad = FLARE + 6;
+	const halves = ([1, -1] as const).map((side) => [side, outlineHalf(width, height, radius, flares, side)] as const);
 	return (
 		<svg
 			className="notch-outline"
@@ -40,21 +43,22 @@ export function NotchOutline({ width, height, radius, flares }: { width: number;
 			viewBox={`${-pad} 0 ${width + pad * 2} ${height + 6}`}
 			style={{ position: "absolute", left: -pad, top: 0, overflow: "visible", pointerEvents: "none", zIndex: 30 }}
 		>
-			{([1, -1] as const).map((side) => (
+			{halves.map(([side, d]) => (
+				<path key={`base${side}`} d={d} fill="none" stroke="rgba(255,255,255,0.35)" strokeWidth={1.2} strokeLinecap="round" />
+			))}
+			{halves.map(([side, d]) => (
 				<motion.path
-					key={`${side}-${width}-${height}`}
-					d={outlineHalf(width, height, radius, flares, side)}
+					key={`flow${side}`}
+					d={d}
 					fill="none"
 					stroke="#fff"
-					strokeWidth={1.6}
-					strokeLinecap="round"
+					strokeWidth={1.8}
+					// Flat ends: a round cap draws a dot at length 0 (a blink).
+					strokeLinecap="butt"
 					style={{ filter: "drop-shadow(0 0 3px rgba(255,255,255,0.9)) drop-shadow(0 0 8px rgba(255,255,255,0.45))" }}
-					initial={{ pathLength: 0, opacity: 1 }}
-					animate={{ pathLength: 1, opacity: [1, 1, 0.55, 1] }}
-					transition={{
-						pathLength: { duration: 1.1, ease: [0.22, 1, 0.36, 1] },
-						opacity: { duration: 2.4, times: [0, 0.45, 0.75, 1], repeat: Infinity, delay: 1.1 }
-					}}
+					initial={{ pathLength: 0, pathOffset: 0 }}
+					animate={{ pathLength: [0, 1, 0], pathOffset: [0, 0, 1] }}
+					transition={{ duration: 2.6, times: [0, 0.5, 1], ease: [0.45, 0, 0.55, 1], repeat: Infinity, repeatDelay: 0.35 }}
 				/>
 			))}
 		</svg>
