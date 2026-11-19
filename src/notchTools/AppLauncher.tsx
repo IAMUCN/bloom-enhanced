@@ -23,7 +23,6 @@ export default function AppLauncher({ setPinned }: ToolProps) {
 					style={{ all: "unset", flex: 1 }}
 					placeholder="Search apps"
 					value={q}
-					autoFocus
 					aria-label="Search apps"
 					onFocus={() => setPinned(true)}
 					onBlur={() => setPinned(false)}

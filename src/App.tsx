@@ -75,7 +75,7 @@ import { NotchOutline } from "./components/NotchOutline";
 import { ClipboardPanel } from "./components/ClipboardPanel";
 import { useClipboardSettings } from "./hooks/useClipboardSettings";
 import { clipSounds } from "./clipboardSounds";
-import { releaseTextKeyboard, useTextInputKeyboard } from "./hooks/useTextInputKeyboard";
+import { focusFirstTextField, releaseTextKeyboard, useTextInputKeyboard } from "./hooks/useTextInputKeyboard";
 import { useConnectedDevices } from "./hooks/useConnectedDevices";
 import { isWiredAudio, usbArtFor, usbDisplayName, type UsbIdentity } from "./devices/usbArtFor";
 import type { DeviceArtKey } from "./devices/art";
@@ -2143,25 +2143,41 @@ function App() {
 		// Esc steps back one level: a Wi-Fi / Bluetooth list returns to the
 		// Command Center, the next Esc closes the notch.
 		const unlisten = listen("notch-escape", () => {
+			// Typing in a field: Esc leaves it (number keys switch tabs again);
+			// the next Esc steps back / closes.
+			const active = document.activeElement as HTMLElement | null;
+			if (active?.matches("input, textarea, [contenteditable='true']")) {
+				active.blur();
+				releaseTextKeyboard();
+				notchPinnedRef.current = false;
+				return;
+			}
 			if (bloomModeRef.current === "wifi" || bloomModeRef.current === "bluetooth") return setBloomMode("command-center");
 			// A tool holding the keys (the Calculator) lets them go first.
 			const toolEsc = new Event("notch-escape-tool", { cancelable: true });
 			window.dispatchEvent(toolEsc);
 			if (toolEsc.defaultPrevented) return;
-			// Esc always closes, even while a field has the keyboard (the
-			// Shelf's search, a tool's text box): that used to keep it open.
+			// Closes, clearing any pin a tool left (a pinned notch used to
+			// ignore Esc).
 			notchPinnedRef.current = false;
 			(document.activeElement as HTMLElement | null)?.blur?.();
 			releaseNotchHoverRef.current();
 		});
 		// Global shortcuts (shortcuts.rs): the notch runs the action.
 		const unlistenShortcut = listen<string>("shortcut", (e) => runShortcutRef.current(e.payload));
+		// Tab moves into the open tab's typing box (the Shelf's search, a note…).
+		const typeHere = () => focusFirstTextField(document.querySelector(".tool-host-motion") ?? document.querySelector(".qp") ?? bloomRef.current);
+		const unlistenTab = listen("notch-tab", () => isOpenRef.current && typeHere());
 		// With this window focused (typing in a tool), 1–9 jump to a tab and
 		// Shift+1–9 to one counted from the end, unless a text field has the keys.
 		const onDigit = (e: KeyboardEvent) => {
 			if (e.defaultPrevented || !isOpenRef.current || e.ctrlKey || e.altKey || e.metaKey) return;
 			const target = e.target as HTMLElement | null;
 			if (target?.closest("input, textarea, [contenteditable='true']")) return;
+			if (e.key === "Tab" && !e.shiftKey) {
+				if (typeHere()) e.preventDefault();
+				return;
+			}
 			const m = /^(Digit|Numpad)([1-9])$/.exec(e.code);
 			if (!m || (e.shiftKey && m[1] === "Numpad")) return;
 			e.preventDefault();
@@ -2171,6 +2187,7 @@ function App() {
 		return () => {
 			unlisten.then((f) => f());
 			unlistenShortcut.then((f) => f());
+			unlistenTab.then((f) => f());
 			window.removeEventListener("keydown", onDigit);
 		};
 	}, [windowLabel]);

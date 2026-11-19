@@ -246,6 +246,19 @@ pub fn on_open_notch_digit(vk: u16) -> bool {
     if pid == std::process::id() {
         return false;
     }
+    // Tab: the open tab's text field takes the keyboard (nothing does by
+    // default, so the digits keep switching tabs).
+    if vk == 0x09 {
+        if down(VK_SHIFT.0) {
+            return false;
+        }
+        if let Some(app) = KEYBOARD_APP.get().cloned() {
+            std::thread::spawn(move || {
+                let _ = app.emit_to("main", "notch-tab", ());
+            });
+        }
+        return true;
+    }
     // The Calculator is listening: numbers and operators go to it.
     if KEY_CAPTURE.load(Ordering::Relaxed) {
         let Some(key) = calc_key(vk, down(VK_SHIFT.0)) else {
