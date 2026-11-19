@@ -1499,19 +1499,42 @@ pub fn set_click_through(hwnd: HWND, ignore: bool) -> bool {
 }
 
 /// Drops and re-adds WS_EX_LAYERED on a layered window so Windows hit-tests
-/// it at its current size (see the resize handler in main.rs). Windows that
+/// it at its current size (see the resize handler in main.rs), but only when
+/// the window grew past its biggest size so far: hit-testing is only stuck
+/// at a smaller size. Rare on purpose: for that instant the window isn't
+/// layered, and with a region (window_region.rs) its clear pixels paint
+/// opaque; done on every resize, white boxes sometimes stuck beside the notch
+/// pill. A repaint afterwards clears anything painted meanwhile. Windows that
 /// aren't layered are left alone.
-pub fn refresh_layered(hwnd: HWND) {
+pub fn refresh_layered(hwnd: HWND, width: u32, height: u32) {
+    use windows::Win32::Graphics::Gdi::{
+        RedrawWindow, RDW_ALLCHILDREN, RDW_FRAME, RDW_INVALIDATE, RDW_UPDATENOW,
+    };
     use windows::Win32::UI::WindowsAndMessaging::{
         GetWindowLongPtrW, SetWindowLongPtrW, GWL_EXSTYLE, WS_EX_LAYERED,
     };
+    static BIGGEST: std::sync::Mutex<Vec<(isize, u32, u32)>> = std::sync::Mutex::new(Vec::new());
     unsafe {
         let style = GetWindowLongPtrW(hwnd, GWL_EXSTYLE);
         if style as u32 & WS_EX_LAYERED.0 == 0 {
             return;
         }
+        {
+            let mut biggest = BIGGEST.lock().unwrap_or_else(|e| e.into_inner());
+            match biggest.iter_mut().find(|b| b.0 == hwnd.0 as isize) {
+                Some(b) if width <= b.1 && height <= b.2 => return,
+                Some(b) => (b.1, b.2) = (b.1.max(width), b.2.max(height)),
+                None => biggest.push((hwnd.0 as isize, width, height)),
+            }
+        }
         SetWindowLongPtrW(hwnd, GWL_EXSTYLE, style & !(WS_EX_LAYERED.0 as isize));
         SetWindowLongPtrW(hwnd, GWL_EXSTYLE, style);
+        let _ = RedrawWindow(
+            Some(hwnd),
+            None,
+            None,
+            RDW_INVALIDATE | RDW_ALLCHILDREN | RDW_FRAME | RDW_UPDATENOW,
+        );
     }
 }
 

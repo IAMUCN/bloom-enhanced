@@ -129,9 +129,9 @@ fn main() {
         // the mouse fell through its lower part (closing it on the way to the
         // people row). Re-layering after every resize keeps them in step.
         .on_window_event(|window, event| {
-            if let tauri::WindowEvent::Resized(_) = event {
+            if let tauri::WindowEvent::Resized(size) = event {
                 if let Ok(hwnd) = window.hwnd() {
-                    utils::refresh_layered(hwnd);
+                    utils::refresh_layered(hwnd, size.width, size.height);
                 }
             }
         })
@@ -364,7 +364,18 @@ fn main() {
             // needs to stay transparent; set_click_through then drives the
             // click-through bit directly. The worst a rebuild does is make the
             // window click-through until the next cursor update.
+            // Windows hit-tests a layered window at the size it had when it
+            // became layered: become layered at the screen's full size (it's
+            // still hidden), then go back, so growing later (opening the
+            // notch) never needs re-layering (utils::refresh_layered).
+            let first_size = window.outer_size().ok();
+            if let Ok(Some(m)) = window.primary_monitor() {
+                let _ = window.set_size(*m.size());
+            }
             let _ = window.set_ignore_cursor_events(true);
+            if let Some(size) = first_size {
+                let _ = window.set_size(size);
+            }
             let dock_win = app.get_webview_window("dock").unwrap();
             // Same for the dock window, which has a region too.
             let _ = dock_win.set_ignore_cursor_events(true);
