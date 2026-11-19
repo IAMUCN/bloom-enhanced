@@ -928,9 +928,64 @@ pub fn shelf_side() -> Option<ShelfSide> {
     }
 }
 
-/// The shelf's trigger band: the middle third of the edge.
+/// The top shelf's trigger band: the middle third of the edge.
 pub fn in_shelf_band(y: i32, mon_y: i32, mon_h: i32) -> bool {
     y >= mon_y + mon_h / 3 && y <= mon_y + mon_h * 2 / 3
+}
+
+/// A side shelf's trigger band: the middle two thirds of the edge, about
+/// where the shelf itself shows (it is up to two thirds of the screen tall).
+/// It was the middle third, so reaching the edge level with the top or
+/// bottom of the shelf didn't open it.
+pub fn in_side_band(y: i32, mon_y: i32, mon_h: i32) -> bool {
+    y >= mon_y + mon_h / 6 && y <= mon_y + mon_h * 5 / 6
+}
+
+/// Whether the cursor watchdog (services.rs) should re-check the shelf now:
+/// the shelf is open, or the cursor rests on its edge. Mouse events alone
+/// stop when the cursor rests against the edge, so the open delay never
+/// ran out and the shelf "sometimes" didn't open until the mouse moved.
+pub fn shelf_needs_tick(x: i32, y: i32) -> bool {
+    if SHELF_OPEN.load(Ordering::Relaxed) {
+        return true;
+    }
+    let (Some(side), Some((mx, my, mw, mh))) = (shelf_side(), shelf_monitor_rect()) else {
+        return false;
+    };
+    match side {
+        ShelfSide::Left => x <= mx + 8 && y >= my && y < my + mh,
+        ShelfSide::Right => x >= mx + mw - 8 && y >= my && y < my + mh,
+        ShelfSide::Top => y <= my + 2 && x >= mx && x < mx + mw,
+    }
+}
+
+/// A real full-screen app (a game, a video, a presentation), as Windows
+/// itself reports it. The notch's own full-screen test also counts a
+/// maximized Chrome, VS Code or Terminal (no standard title bar, and the dock
+/// replaces the taskbar), which kept the shelf shut over them. Edge-Drop
+/// asks Windows the same way. The desktop reports "busy" too: not full screen.
+fn real_fullscreen() -> bool {
+    use windows::Win32::UI::Shell::{
+        SHQueryUserNotificationState, QUNS_BUSY, QUNS_PRESENTATION_MODE,
+        QUNS_RUNNING_D3D_FULL_SCREEN,
+    };
+    use windows::Win32::UI::WindowsAndMessaging::{GetClassNameW, GetForegroundWindow};
+    let Ok(state) = (unsafe { SHQueryUserNotificationState() }) else {
+        return false;
+    };
+    if state == QUNS_RUNNING_D3D_FULL_SCREEN || state == QUNS_PRESENTATION_MODE {
+        return true;
+    }
+    if state != QUNS_BUSY {
+        return false;
+    }
+    let mut buf = [0u16; 64];
+    let len = unsafe { GetClassNameW(GetForegroundWindow(), &mut buf) } as usize;
+    let class = String::from_utf16_lossy(&buf[..len]);
+    !matches!(
+        class.as_str(),
+        "Progman" | "WorkerW" | "Shell_TrayWnd" | "Shell_SecondaryTrayWnd"
+    )
 }
 
 /// Whether the volume (left) or brightness (right) edge hover must stay shut
@@ -947,7 +1002,7 @@ pub fn shelf_blocks_hud(
     if shelf_side() != Some(side) || shelf_monitor_rect() != Some(primary) {
         return false;
     }
-    SHELF_OPEN.load(Ordering::Relaxed) || (!hud_active && in_shelf_band(y, primary.1, primary.3))
+    SHELF_OPEN.load(Ordering::Relaxed) || (!hud_active && in_side_band(y, primary.1, primary.3))
 }
 
 /// The monitor the shelf lives on: `bloom-clipboard-monitor` (a monitor
@@ -1000,7 +1055,9 @@ static SHELF_EXPIRY: AtomicU64 = AtomicU64::new(0);
 /// When the pointer reached the edge (ms; 0 = not there): the shelf opens
 /// only after it rests there a moment, so brushing past doesn't open it.
 static EDGE_SINCE: AtomicU64 = AtomicU64::new(0);
-const EDGE_DWELL_MS: u64 = 300;
+/// Rest this long at the edge to open (Edge-Drop: 40 ms + the user's
+/// delay); with the watchdog re-checking, it now runs out while resting.
+const EDGE_DWELL_MS: u64 = 150;
 static SHELF_GEN: AtomicU64 = AtomicU64::new(0);
 static SHELF_RECT: Mutex<(i32, i32, i32, i32)> = Mutex::new((0, 0, 0, 0));
 
@@ -1142,11 +1199,13 @@ pub fn update_edge_shelf(
             ShelfSide::Top => false,
         };
 
-    let at_edge = !fullscreen
+    // `fullscreen` (the notch's test) only gates the cheap check; Windows'
+    // own answer decides, so a maximized browser no longer keeps it shut.
+    let at_edge = !(fullscreen && real_fullscreen())
         && !hud_active
         && match side {
-            ShelfSide::Left => x <= mon_x + 8 && in_shelf_band(y, mon_y, mon_h),
-            ShelfSide::Right => x >= mon_x + mon_w - 8 && in_shelf_band(y, mon_y, mon_h),
+            ShelfSide::Left => x <= mon_x + 8 && in_side_band(y, mon_y, mon_h),
+            ShelfSide::Right => x >= mon_x + mon_w - 8 && in_side_band(y, mon_y, mon_h),
             ShelfSide::Top => y <= mon_y + 2 && in_shelf_band(x, mon_x, mon_w),
         };
     let at_edge = if at_edge {
@@ -1692,6 +1751,14 @@ mod tests {
         assert_eq!(parse_shortcut("Alt+F25"), None);
         assert_eq!(parse_shortcut("Alt+Tab"), None);
         assert_eq!(parse_shortcut(""), None);
+    }
+
+    #[test]
+    fn side_band_is_middle_two_thirds() {
+        assert!(!in_side_band(149, 0, 900));
+        assert!(in_side_band(150, 0, 900));
+        assert!(in_side_band(750, 0, 900));
+        assert!(!in_side_band(751, 0, 900));
     }
 
     #[test]

@@ -2822,6 +2822,11 @@ fn setup_top_edge_watchdog(app_handle: AppHandle) {
         }
         let fg_fs = CURRENT_FOREGROUND_FULLSCREEN.load(Ordering::Relaxed);
         update_main_interaction(&app_handle, pt, now_ms(), fg_fs);
+        // The edge Shelf too, while it's open or the cursor rests on its
+        // edge (no mouse events then; also none over elevated apps).
+        if crate::clipboard::shelf_needs_tick(pt.x, pt.y) {
+            queue_cursor(pt);
+        }
     });
 }
 
