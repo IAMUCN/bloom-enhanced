@@ -1,4 +1,4 @@
-import { Suspense, lazy, useEffect, useMemo, useState } from "react";
+import { Component as ReactComponent, Suspense, lazy, useEffect, useMemo, useState, type ReactNode } from "react";
 import { motion } from "framer-motion";
 import { EXTRA_BY_ID, PARTS, type ExtraToolId, type PartId, type ToolProps } from "../tools";
 import { SNAP } from "../motion";
@@ -15,15 +15,41 @@ export function showPart(tool: ExtraToolId, part: PartId) {
 	window.dispatchEvent(new CustomEvent("tool-part", { detail: { tool, part } }));
 }
 
+/** A tool that throws (or whose code fails to load) shows a line with
+ *  Retry instead of taking the whole notch down with it (React unmounts
+ *  everything above a thrown error that nothing catches). */
+class ToolBoundary extends ReactComponent<{ children: ReactNode }, { failed: boolean }> {
+	state = { failed: false };
+	static getDerivedStateFromError() {
+		return { failed: true };
+	}
+	componentDidCatch(error: unknown) {
+		console.error("[tool] failed:", error);
+	}
+	render() {
+		if (!this.state.failed) return this.props.children;
+		return (
+			<div className="nt-row" style={{ justifyContent: "center", opacity: 0.8 }}>
+				This tool stopped.{" "}
+				<button type="button" className="nt-btn" onClick={() => this.setState({ failed: false })}>
+					Retry
+				</button>
+			</div>
+		);
+	}
+}
+
 /** One part, loaded the first time it shows; a tool that is off is never
  *  loaded (the tool contract). */
 function Part({ part, ...props }: ToolProps & { part: PartId }) {
 	const Component = useMemo(() => lazy(PARTS[part].load), [part]);
 	return (
 		<div className="notch-tool" data-tool={part}>
-			<Suspense fallback={null}>
-				<Component {...props} />
-			</Suspense>
+			<ToolBoundary>
+				<Suspense fallback={null}>
+					<Component {...props} />
+				</Suspense>
+			</ToolBoundary>
 		</div>
 	);
 }

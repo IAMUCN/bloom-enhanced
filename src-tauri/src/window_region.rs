@@ -72,11 +72,62 @@ pub fn set_window_region(window: Window, rects: Vec<IntRect>) {
             let _ = DeleteObject(part.into());
         }
         // The system owns the region from here on, so it isn't deleted on
-        // success. Redraw so the newly uncovered parts paint.
+        // success. Redraw so the newly uncovered parts paint, erasing the
+        // window's own surface there (see clear_on_erase) but not the page.
         if SetWindowRgn(hwnd, Some(region), true) == 0 {
             let _ = DeleteObject(region.into());
         }
+        use windows::Win32::Graphics::Gdi::{
+            RedrawWindow, RDW_ERASE, RDW_INVALIDATE, RDW_NOCHILDREN,
+        };
+        let _ = RedrawWindow(
+            Some(hwnd),
+            None,
+            None,
+            RDW_INVALIDATE | RDW_ERASE | RDW_NOCHILDREN,
+        );
     }
+}
+
+/// Keeps the window's own surface (under the webview) see-through. tao
+/// leaves erasing to Windows, which with no background brush paints
+/// nothing: pixels uncovered when the region grows kept whatever was there
+/// before, which showed as light boxes beside the notch pill (2026-11-19,
+/// sometimes; then beside the open notch where the closed one had been).
+/// Here every erase fills the client area with black, which this
+/// transparent window (DWM blur-behind) shows as clear.
+pub fn clear_on_erase(hwnd: windows::Win32::Foundation::HWND) {
+    use windows::Win32::UI::Shell::SetWindowSubclass;
+    // SAFETY: called on the window's own (main) thread; the callback only
+    // handles WM_ERASEBKGND and passes everything else on.
+    unsafe {
+        let _ = SetWindowSubclass(hwnd, Some(erase_proc), 0x4C4E, 0);
+    }
+}
+
+unsafe extern "system" fn erase_proc(
+    hwnd: windows::Win32::Foundation::HWND,
+    msg: u32,
+    wparam: windows::Win32::Foundation::WPARAM,
+    lparam: windows::Win32::Foundation::LPARAM,
+    _id: usize,
+    _data: usize,
+) -> windows::Win32::Foundation::LRESULT {
+    use windows::Win32::Graphics::Gdi::{FillRect, GetStockObject, BLACK_BRUSH, HBRUSH, HDC};
+    use windows::Win32::UI::Shell::DefSubclassProc;
+    use windows::Win32::UI::WindowsAndMessaging::{GetClientRect, WM_ERASEBKGND};
+    if msg == WM_ERASEBKGND {
+        let mut rc = RECT::default();
+        if GetClientRect(hwnd, &mut rc).is_ok() {
+            FillRect(
+                HDC(wparam.0 as *mut _),
+                &rc,
+                HBRUSH(GetStockObject(BLACK_BRUSH).0),
+            );
+            return windows::Win32::Foundation::LRESULT(1);
+        }
+    }
+    DefSubclassProc(hwnd, msg, wparam, lparam)
 }
 
 #[cfg(test)]

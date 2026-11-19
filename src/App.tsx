@@ -3555,7 +3555,7 @@ function App() {
 	const pillGap = notchStyle === "pill" ? 6 : 0;
 
 	// Fixed mode only: 10 s after the notch was last used (closed, not
-	// hovered, nothing happening), it fades to 45% so it sits back; any use
+	// hovered, nothing happening), it fades to 40% so it sits back; any use
 	// brings it back at once.
 	const [idleFaded, setIdleFaded] = useState(false);
 	useEffect(() => {
@@ -4226,7 +4226,7 @@ function App() {
 					display: "flex",
 					justifyContent: "center",
 					position: "relative",
-					opacity: idleFaded ? 0.45 : 1,
+					opacity: idleFaded ? 0.4 : 1,
 					transition: `opacity ${idleFaded ? 800 : 150}ms ease`
 				}}
 			>

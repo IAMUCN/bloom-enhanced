@@ -373,12 +373,18 @@ fn main() {
                 let _ = window.set_size(*m.size());
             }
             let _ = window.set_ignore_cursor_events(true);
+            if let Ok(hwnd) = window.hwnd() {
+                window_region::clear_on_erase(hwnd);
+            }
             if let Some(size) = first_size {
                 let _ = window.set_size(size);
             }
             let dock_win = app.get_webview_window("dock").unwrap();
             // Same for the dock window, which has a region too.
             let _ = dock_win.set_ignore_cursor_events(true);
+            if let Ok(hwnd) = dock_win.hwnd() {
+                window_region::clear_on_erase(hwnd);
+            }
             if let Ok(hwnd) = dock_win.hwnd() {
                 DOCK_HWND.store(hwnd.0 as isize, Ordering::Relaxed);
             }
