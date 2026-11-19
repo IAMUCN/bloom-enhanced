@@ -2319,6 +2319,20 @@ unsafe extern "system" fn capture_ui_enum_proc(hwnd: HWND, lparam: LPARAM) -> BO
     BOOL(1)
 }
 
+/// Settings › Notch › Hide From Recordings (`bloom-notch-hide-from-capture`).
+fn notch_hides_from_capture() -> bool {
+    crate::state::SETTINGS_CACHE
+        .get()
+        .and_then(|c| {
+            c.lock()
+                .ok()?
+                .get("bloom-notch-hide-from-capture")?
+                .as_str()
+                .map(|v| v != "false")
+        })
+        .unwrap_or(true)
+}
+
 fn is_capture_tool_name(path: &str) -> bool {
     let name = path.rsplit('\\').next().unwrap_or("").to_lowercase();
     matches!(
@@ -2366,7 +2380,11 @@ fn apply_capture_ui_state(app: &AppHandle, active: bool) {
             if let Ok(hwnd) = main_win.hwnd() {
                 set_click_through(hwnd, true);
             }
-            let _ = main_win.hide();
+            // Only when the notch hides from recordings (Settings › Notch,
+            // on by default); off = it stays, so a screenshot can show it.
+            if notch_hides_from_capture() {
+                let _ = main_win.hide();
+            }
         } else {
             if crate::utils::notch_enabled() {
                 let _ = main_win.show();

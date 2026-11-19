@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from "react";
 import { invoke } from "@tauri-apps/api/core";
+import { hidesFromCapture } from "../hooks/useHideFromCapture";
 import { Check, Pause, Pencil, Play, RotateCcw, Trash2, Type, Gauge } from "lucide-react";
 import { listen } from "@tauri-apps/api/event";
 import { readText } from "@tauri-apps/plugin-clipboard-manager";
@@ -23,7 +24,7 @@ export default function Teleprompter({ setPinned }: ToolProps) {
 	useEffect(() => {
 		invoke("set_capture_excluded", { excluded: true }).catch(() => {});
 		// Back to the notch's own choice (Settings › Notch › Hide From Recordings).
-		return () => void invoke("set_capture_excluded", { excluded: localStorage.getItem("bloom-notch-hide-from-capture") !== "false" }).catch(() => {});
+		return () => void invoke("set_capture_excluded", { excluded: hidesFromCapture("bloom-notch-hide-from-capture", true) }).catch(() => {});
 	}, []);
 
 	// Ctrl+V on this page loads the copied text as the script: from another

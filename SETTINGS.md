@@ -95,7 +95,10 @@ Edit `settings.json` with any text editor while Bloom is running. Changes are ap
 | `bloom-notch-shortcut` | e.g. `"Ctrl+Alt+N"`, `""` = none | `"Ctrl+Alt+N"` | Global shortcut that opens and closes the notch (RegisterHotKey; at least one modifier unless an F-key). |
 | `bloom-notch-open-on` | `"click"` / `"hover"` | `"click"` | How the notch opens: a click, or resting the pointer on it for `bloom-notch-hover-delay`. |
 | `bloom-notch-hover-delay` | ms as string, `"0"`–`"1000"` | `"300"` | Hover opening: how long the pointer rests on the notch first. |
-| `bloom-notch-hide-from-capture` | `"true"` / `"false"` | `"true"` | Leaves the notch out of screen recordings, shares and screenshots (Windows can't tell them apart). The Teleprompter hides it while it shows either way. |
+| `bloom-notch-hide-from-capture` | `"true"` / `"false"` | `"true"` | Leaves the notch (and the Shelf inside it) out of screen recordings, shares and screenshots (Windows can't tell them apart), and hides the notch while Snipping Tool is open. Off = screenshots show it. The Teleprompter hides it while it shows either way. |
+| `bloom-dock-hide-from-capture` | `"true"` / `"false"` | `"false"` | The same for the dock (Settings › Dock). |
+| `bloom-clipboard-hide-from-capture` | `"true"` / `"false"` | `"false"` | The same for the Shelf on a screen edge (Settings › Shelf); in the notch it follows the notch. |
+| `bloom-files-hide-from-capture` | `"true"` / `"false"` | `"true"` | The same for the radial menu (Settings › Radial Menu). |
 | `bloom-notch-remember-panel` | `"true"` / `"false"` | `"true"` | Smart Start: a click reopens the last-used panel if the notch closed less than 5 minutes ago; otherwise (or when off) it opens `bloom-notch-default-panel`. |
 | `bloom-notch-default-panel` | `"calendar"` / `"command-center"` / `"devices"` | `"command-center"` | The favourite panel: opened on click when Smart Start doesn't reopen the last one. If that panel is turned off, the first panel that's on opens instead. |
 | `bloom-notch-last-panel`    | `"calendar"` / `"command-center"` / `"devices"` | (unset)  | Last panel the notch was left on, saved by Bloom while panel memory is on. |

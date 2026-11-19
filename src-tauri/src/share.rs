@@ -369,8 +369,12 @@ pub enum Event {
         from: String,
     },
     /// Something to tell the user on the notch ("Paired with Riya",
-    /// "Riya turned on Live clipboard for you").
-    Notice(String),
+    /// "Riya turned on Live clipboard for you"); `bad` = a loss ("Riya
+    /// removed you"), shown with a red outline instead of green.
+    Notice {
+        text: String,
+        bad: bool,
+    },
     /// An incoming send stopped; anything partial was deleted.
     IncomingFailed {
         from: String,
@@ -1172,7 +1176,10 @@ impl Share {
 
     fn trust(&self, ch: &Channel) {
         self.missed.lock().unwrap().remove(&ch.peer_id);
-        (self.events)(Event::Notice(format!("Paired with {}", ch.peer_name)));
+        (self.events)(Event::Notice {
+            text: format!("Paired with {}", ch.peer_name),
+            bad: false,
+        });
         {
             let mut trusted = self.trusted.lock().unwrap();
             trusted.retain(|p| p.id != ch.peer_id);
@@ -1237,10 +1244,10 @@ impl Share {
             }
             Some("unpair") => {
                 self.forget(&ch.peer_id);
-                (self.events)(Event::Notice(format!(
-                    "{} removed you from their paired devices",
-                    ch.peer_name
-                )));
+                (self.events)(Event::Notice {
+                    text: format!("{} removed you from their paired devices", ch.peer_name),
+                    bad: true,
+                });
                 ch.send_json(&serde_json::json!({ "t": "ok" }))
             }
             Some("live-notice") => {
@@ -1256,11 +1263,14 @@ impl Share {
                         serde_json::to_vec(&*live_in).unwrap_or_default(),
                     );
                 }
-                (self.events)(Event::Notice(format!(
-                    "{} turned {} Live clipboard for you",
-                    ch.peer_name,
-                    if on { "on" } else { "off" }
-                )));
+                (self.events)(Event::Notice {
+                    text: format!(
+                        "{} turned {} Live clipboard for you",
+                        ch.peer_name,
+                        if on { "on" } else { "off" }
+                    ),
+                    bad: false,
+                });
                 (self.events)(Event::PeersChanged);
                 ch.send_json(&serde_json::json!({ "t": "ok" }))
             }
@@ -1777,7 +1787,7 @@ mod tests {
         assert_eq!(b.live_in(), vec![a.id().to_string()]);
         let told = rx
             .try_iter()
-            .any(|e| matches!(&e, Event::Notice(t) if t.contains("turned on Live")));
+            .any(|e| matches!(&e, Event::Notice { text, .. } if text.contains("turned on Live")));
         assert!(told, "a notice for the user");
         a.tell_live(b.id(), false).unwrap();
         assert!(b.live_in().is_empty());

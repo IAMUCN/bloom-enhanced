@@ -21,6 +21,7 @@ import {
 } from "lucide-react";
 import { useClipboardSettings } from "../hooks/useClipboardSettings";
 import { SettingRow } from "./SettingRow";
+import { HideFromCaptureRow } from "./HideFromCaptureRow";
 import { Choice } from "./Choice";
 import { ScaleStepper } from "./ScaleStepper";
 
@@ -158,6 +159,7 @@ export function ClipboardTab({
 				<>
 					<div className="setting-group-label">Shelf</div>
 					<div className="setting-group">
+						<HideFromCaptureRow settingKey="bloom-clipboard-hide-from-capture" byDefault={false} what="the Shelf on a screen edge (in the notch it follows the notch)" />
 						<SettingRow
 							icon={PanelLeft}
 							label="Position"

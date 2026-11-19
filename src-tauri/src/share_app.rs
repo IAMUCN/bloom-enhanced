@@ -120,8 +120,11 @@ pub fn start(app: AppHandle) {
                     serde_json::json!({ "gid": gid, "name": name, "from": from }),
                 );
             }
-            Event::Notice(text) => {
-                let _ = events_app.emit("share-notice", text);
+            Event::Notice { text, bad } => {
+                let _ = events_app.emit(
+                    "share-notice",
+                    serde_json::json!({ "text": text, "bad": bad }),
+                );
             }
             Event::IncomingFailed { from, why } => {
                 let _ = events_app.emit(

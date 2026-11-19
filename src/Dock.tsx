@@ -19,6 +19,7 @@ import {
 } from "./dockApps";
 import { driveLetter, hideDrive, removeCustomFolder, type DockExtra } from "./dockExtras";
 import { createRegionSender, measureElements, padRect, type RegionRect } from "./windowRegion";
+import { useHideFromCapture } from "./hooks/useHideFromCapture";
 
 // Host processes (Edge/Chrome/Brave/ApplicationFrameHost) run every PWA/UWP
 // window, so their window title must be part of their identity — otherwise two
@@ -163,6 +164,7 @@ function WindowDots({ count, background }: { count: number; background?: boolean
 }
 
 const Dock = memo(function Dock() {
+	useHideFromCapture("bloom-dock-hide-from-capture", false);
 	useEffect(() => {
 		return initTheme();
 	}, []);

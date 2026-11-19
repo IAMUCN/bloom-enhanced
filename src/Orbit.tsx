@@ -34,6 +34,7 @@ import { ORBIT_ICONS } from "./orbitIcons";
 import { useSettingsSync } from "./hooks/useSettingsSync";
 import { initTheme } from "./theme";
 import "./Orbit.css";
+import { useHideFromCapture } from "./hooks/useHideFromCapture";
 
 
 const SIZE = 360;
@@ -88,6 +89,7 @@ const inputOf = (p: DragPayload): OrbitInput => (p.paths ? { paths: p.paths } : 
 const RESULT_ICON = { ok: CircleCheck, failed: CircleAlert, canceled: CircleSlash };
 
 function Orbit() {
+	useHideFromCapture("bloom-files-hide-from-capture", true);
 	const [phase, setPhase] = useState<Phase>({ kind: "closed" });
 	const [input, setInput] = useState<OrbitInput>({ paths: [] });
 	const [mode, setMode] = useState<OrbitMode>("convert");

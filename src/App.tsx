@@ -71,6 +71,7 @@ import { deviceLookFor } from "./devices/deviceLooks";
 import type { BudLevel, BudsBattery } from "./devices/connectedDevices";
 import { ConnectedDevicesPanel } from "./components/ConnectedDevicesPanel";
 import { requestSend, sharePeerAt } from "./components/ShareColumn";
+import { useHideFromCapture } from "./hooks/useHideFromCapture";
 import { NotchOutline } from "./components/NotchOutline";
 import { ClipboardPanel } from "./components/ClipboardPanel";
 import { useClipboardSettings } from "./hooks/useClipboardSettings";
@@ -1183,9 +1184,10 @@ function App() {
 	useEffect(() => {
 		if (windowLabel !== "main") return;
 		let timer: ReturnType<typeof setTimeout> | undefined;
-		const show = (text: string, ms: number, clip: string | null) => {
+		const show = (text: string, ms: number, clip: string | null, bad = false) => {
 			liveClipRef.current = clip;
-			setFileStatus({ text, percent: null, result: clip ? null : "ok" });
+			// A loss ("Riya removed you") gets the red outline.
+			setFileStatus({ text, percent: null, result: bad ? "failed" : clip ? null : "ok" });
 			clearTimeout(timer);
 			timer = setTimeout(() => {
 				liveClipRef.current = null;
@@ -1196,7 +1198,7 @@ function App() {
 			listen<{ from: string; id: string | null; preview: string | null }>("share-live", (e) =>
 				show(`${e.payload.from} copied${e.payload.preview ? `: ${e.payload.preview}` : " something"}`, 6000, e.payload.id)
 			),
-			listen<string>("share-notice", (e) => show(e.payload, 4000, null)),
+			listen<{ text: string; bad: boolean }>("share-notice", (e) => show(e.payload.text, 4000, null, e.payload.bad)),
 			listen<{ from: string; count: number }>("share-received", (e) =>
 				show(`${e.payload.from} sent ${e.payload.count === 1 ? "something" : `${e.payload.count} things`} · in the Shelf`, 3500, null)
 			)
@@ -2673,16 +2675,7 @@ function App() {
 	}, []);
 
 	// Settings › Notch › Hide From Recordings (on by default).
-	useEffect(() => {
-		if (windowLabel !== "main") return;
-		const apply = (v: string | null) => invoke("set_capture_excluded", { excluded: v !== "false" }).catch(() => {});
-		apply(localStorage.getItem("bloom-notch-hide-from-capture"));
-		const on = (e: { payload: { key?: string; value?: unknown } }) => {
-			if (e.payload?.key === "bloom-notch-hide-from-capture") apply(String(e.payload.value));
-		};
-		const offs = [listen<{ key?: string; value?: unknown }>("settings-changed", on)];
-		return () => offs.forEach((o) => o.then((f) => f()));
-	}, [windowLabel]);
+	useHideFromCapture("bloom-notch-hide-from-capture", true, windowLabel === "main");
 
 	// Setup's live preview: hold the notch closed (showing the time) or open
 	// on the Command Center while its size is chosen; null lets it go.

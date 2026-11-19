@@ -51,7 +51,7 @@ export const SETTINGS_INDEX: SettingEntry[] = [
 		["Style", "Notch, floating pill or minimal bar"],
 		["Notch Size", "Size of the notch only; the dock keeps its own"],
 		["Open Size", "How big the notch is when it's open, on top of Notch Size"],
-		["Hide From Recordings", "Screen recordings, shares and screenshots leave the notch out"],
+		["Hide From Recordings", "Recordings, screen shares and screenshots leave the notch out"],
 		["Run Setup Again", "Pick your modules, then size the notch and dock with a live preview"],
 		["Favourite", "The tool the notch opens on; off = the tool you used last. Pick it with the star in Tools"],
 		["Quick Return", "Come back within a few minutes and the notch reopens where you left off"],
@@ -80,6 +80,7 @@ export const SETTINGS_INDEX: SettingEntry[] = [
 		EXTRA_TOOLS.map((t) => [t.label, `${t.desc} (Tools)`])
 	),
 	...page("dock", [
+		["Hide From Recordings", "Recordings, screen shares and screenshots leave the dock out"],
 		["When It Shows", "Fixed, Smart or Peek: when the dock is on screen"],
 		["Peek Delay", "How long to rest on the bottom edge before it shows"],
 		["Dock Size", "Size of the dock only; the notch keeps its own"],
@@ -95,6 +96,7 @@ export const SETTINGS_INDEX: SettingEntry[] = [
 		["Start Menu Icon", "The picture on the dock's Start button"]
 	]),
 	...page("clipboard", [
+		["Hide From Recordings", "Recordings, screen shares and screenshots leave the Shelf on a screen edge out"],
 		["Incognito", "Pause recording; nothing copied meanwhile is kept"],
 		["Your Name", "Shown only to people you share your Shelf with"],
 		["Position", "In the notch, or a shelf on the left, right or top screen edge"],
@@ -113,6 +115,7 @@ export const SETTINGS_INDEX: SettingEntry[] = [
 		["Clear History", "Delete every unpinned item now"]
 	]),
 	...page("files", [
+		["Hide From Recordings", "Recordings, screen shares and screenshots leave the radial menu out"],
 		["Trigger Key", "Shift, Ctrl or Alt opens the menu and switches its modes"],
 		["Drag, Then Tap", "While dragging files or text, tap the trigger key to open the menu", "Drag, Then Tap"],
 		["Double Press on Selected Files", "With files selected in File Explorer, press the trigger key twice", "Double "],

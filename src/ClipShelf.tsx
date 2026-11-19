@@ -14,10 +14,12 @@ import { useSettingsSync } from "./hooks/useSettingsSync";
 import { panelZoom } from "./notchLayout";
 import { initTheme } from "./theme";
 import "./ClipShelf.css";
+import { useHideFromCapture } from "./hooks/useHideFromCapture";
 
 document.addEventListener("contextmenu", (e) => e.preventDefault());
 
 function ClipShelf() {
+	useHideFromCapture("bloom-clipboard-hide-from-capture", false);
 	const [open, setOpen] = useState(false);
 	const [side, setSide] = useState<"left" | "right" | "top">("left");
 	const [dragHover, setDragHover] = useState(false);
