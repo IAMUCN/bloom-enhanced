@@ -167,6 +167,7 @@
         "type": "embedBootstrapper"
       },
       "nsis": {
+        "template": "installer/installer.nsi",
         "installerHooks": "installer/hooks.nsh",
         "headerImage": "installer/header.bmp",
         "sidebarImage": "installer/sidebar.bmp",

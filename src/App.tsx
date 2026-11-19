@@ -71,6 +71,7 @@ import { deviceLookFor } from "./devices/deviceLooks";
 import type { BudLevel, BudsBattery } from "./devices/connectedDevices";
 import { ConnectedDevicesPanel } from "./components/ConnectedDevicesPanel";
 import { requestSend, sharePeerAt } from "./components/ShareColumn";
+import { NotchOutline } from "./components/NotchOutline";
 import { ClipboardPanel } from "./components/ClipboardPanel";
 import { useClipboardSettings } from "./hooks/useClipboardSettings";
 import { clipSounds } from "./clipboardSounds";
@@ -4240,6 +4241,9 @@ function App() {
 					}}
 				>
 					<EdgeSurface edge="top" flares={attachedToEdge} />
+					{setupPreview && isVisible && (
+						<NotchOutline width={pillTargetWidth} height={pillTargetHeight} radius={minimalIdle ? 4 : isCalendarMode ? 28 : 18} flares={attachedToEdge} />
+					)}
 					{fileStatus && !isOpen && (
 						<ProgressEffect style={progressStyle} percent={fileStatus.percent} result={fileStatus.result} />
 					)}
