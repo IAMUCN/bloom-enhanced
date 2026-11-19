@@ -807,6 +807,8 @@
 	border-radius: 0 0 18px 18px;
 	overflow-y: auto;
 	scrollbar-width: none;
+	/* The notch keeps its text on one line; sheet text wraps. */
+	white-space: normal;
 }
 
 .clip-share-list {
@@ -1046,6 +1048,17 @@ button.clip-share-person,
 	gap: 8px;
 	text-align: center;
 	font-size: 13px;
+	min-width: 0;
+}
+
+/* Centred lines wrap inside the card instead of running off its sides. */
+.clip-share-card > * {
+	max-width: 100%;
+	overflow-wrap: anywhere;
+}
+
+.clip-share-card .clip-share-hint {
+	max-width: 36ch;
 }
 
 .clip-share-code {

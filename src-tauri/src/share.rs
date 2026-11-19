@@ -1092,6 +1092,8 @@ impl Share {
                 if ok {
                     self.trust(&ch);
                 }
+                // Answered or expired: the request's card goes away.
+                (self.events)(Event::PeersChanged);
                 ch.send_json(&serde_json::json!({ "t": if ok { "pair-ok" } else { "pair-no" } }))
             }
             // Everything else is for trusted people only.
@@ -1372,6 +1374,10 @@ mod tests {
         assert!(shown < 10_000);
         assert!(a.peers().iter().any(|p| p.id == b.id() && p.trusted));
         assert!(b.trusted.lock().unwrap().iter().any(|p| p.id == a.id()));
+        assert!(
+            b.requests().is_empty(),
+            "an answered request leaves no card"
+        );
         // A declined request trusts nobody.
         let c = start("carol", |_| {});
         introduce(&c, &b);

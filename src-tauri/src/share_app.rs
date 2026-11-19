@@ -213,9 +213,38 @@ pub fn share_unpair(id: String) -> Result<(), String> {
 }
 
 /// Sends `items` to `id`, emitting `share-progress` about 10 times a second.
-async fn send(app: AppHandle, id: String, items: Vec<Item>) -> Result<(), String> {
+/// Splits off files that are gone (a drive unplugged, a file deleted since
+/// it was copied): the rest is still sent, and the names come back to say so.
+fn drop_missing(items: Vec<Item>) -> (Vec<Item>, Vec<String>) {
+    let mut missing = Vec::new();
+    let kept = items
+        .into_iter()
+        .filter(|item| match item {
+            Item::Path(p) if !p.exists() => {
+                missing.push(
+                    p.file_name()
+                        .unwrap_or(p.as_os_str())
+                        .to_string_lossy()
+                        .into_owned(),
+                );
+                false
+            }
+            _ => true,
+        })
+        .collect();
+    (kept, missing)
+}
+
+/// Sends to a person or a group; returns the names of files that were gone
+/// and left out (empty when everything went).
+async fn send(app: AppHandle, id: String, items: Vec<Item>) -> Result<Vec<String>, String> {
+    let (items, missing) = drop_missing(items);
     if items.is_empty() {
-        return Err("Nothing to send".into());
+        return Err(match missing.as_slice() {
+            [] => "Nothing to send".into(),
+            [one] => format!("{one} isn't there anymore"),
+            more => format!("{} files aren't there anymore", more.len()),
+        });
     }
     let s = share()?.clone();
     tauri::async_runtime::spawn_blocking(move || {
@@ -235,12 +264,17 @@ async fn send(app: AppHandle, id: String, items: Vec<Item>) -> Result<(), String
         }
     })
     .await
-    .map_err(|e| e.to_string())?
+    .map_err(|e| e.to_string())??;
+    Ok(missing)
 }
 
 /// Sends Shelf items (by id) to a paired person.
 #[tauri::command]
-pub async fn share_send(app: AppHandle, id: String, clips: Vec<String>) -> Result<(), String> {
+pub async fn share_send(
+    app: AppHandle,
+    id: String,
+    clips: Vec<String>,
+) -> Result<Vec<String>, String> {
     send(app, id, crate::clipboard::share_items(&clips)).await
 }
 
@@ -252,7 +286,7 @@ pub async fn share_send_drop(
     id: String,
     paths: Vec<String>,
     text: Option<String>,
-) -> Result<(), String> {
+) -> Result<Vec<String>, String> {
     let mut items: Vec<Item> = paths.into_iter().map(|p| Item::Path(p.into())).collect();
     items.extend(text.filter(|t| !t.trim().is_empty()).map(Item::Text));
     send(app, id, items).await
@@ -362,4 +396,21 @@ pub async fn share_invite_answer(gid: String, join: bool) -> Result<(), String> 
 pub fn share_set_name(name: String) -> Result<(), String> {
     share()?.set_name(&name);
     Ok(())
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn missing_files_are_left_out_and_named() {
+        let here = std::env::current_dir().unwrap();
+        let (kept, missing) = drop_missing(vec![
+            Item::Text("hi".into()),
+            Item::Path(here.clone()),
+            Item::Path(r"Z:\gone\DCIM".into()),
+        ]);
+        assert_eq!(kept.len(), 2);
+        assert_eq!(missing, vec!["DCIM".to_string()]);
+    }
 }

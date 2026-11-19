@@ -38,7 +38,53 @@ fn main() {
     )
     .expect("couldn't start");
     println!("Test peer {} running. Ctrl+C to stop.", s.id());
-    loop {
-        std::thread::sleep(std::time::Duration::from_secs(3600));
+    println!("Commands: peers | pair <name> | send <name> <text> | file <name> <path> | live <name> <text>");
+    // Commands on stdin, so it can also start things (pairing, sends).
+    for line in std::io::stdin().lines().map_while(Result::ok) {
+        let mut parts = line.trim().splitn(3, ' ');
+        let (cmd, who, rest) = (
+            parts.next().unwrap_or(""),
+            parts.next().unwrap_or(""),
+            parts.next().unwrap_or(""),
+        );
+        if cmd == "peers" {
+            s.query();
+            std::thread::sleep(std::time::Duration::from_millis(700));
+        }
+        let peers = s.peers();
+        let Some(peer) = peers
+            .iter()
+            .find(|p| p.name.to_lowercase().starts_with(&who.to_lowercase()))
+        else {
+            println!(
+                "Peers: {:?}",
+                peers
+                    .iter()
+                    .map(|p| (&p.name, p.trusted, p.online))
+                    .collect::<Vec<_>>()
+            );
+            continue;
+        };
+        let result = match cmd {
+            "pair" => s.pair(&peer.id, |code| println!("Code {code:04}")),
+            "send" => s.send(&peer.id, &[share::Item::Text(rest.into())], |_, _| {}),
+            "file" => s.send(
+                &peer.id,
+                &[share::Item::Path(rest.into())],
+                |done, total| println!("{done}/{total}"),
+            ),
+            "live" => s.send_live(&peer.id, &[share::Item::Text(rest.into())]),
+            _ => {
+                println!(
+                    "Peers: {:?}",
+                    peers
+                        .iter()
+                        .map(|p| (&p.name, p.trusted, p.online))
+                        .collect::<Vec<_>>()
+                );
+                Ok(())
+            }
+        };
+        println!("{cmd} {}: {result:?}", peer.name);
     }
 }

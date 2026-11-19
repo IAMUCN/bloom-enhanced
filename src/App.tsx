@@ -952,11 +952,15 @@ function App() {
 	// A running Timer shown on the notch keeps it on screen (Peek / Smart).
 	const glanceOn = gameGlance && enabledTools.includes("game");
 	const timerShowing = (!!toolTimer && timerDisplay !== "off") || timesUp || (glanceOn && !isOpen);
+	const [fileStatus, setFileStatus] = useState<OrbitStatus>(null);
 	const isHidden =
 		!isOpen &&
 		!timerShowing &&
 		!startupAnimating &&
 		!deviceAlertOnScreen &&
+		// A notice ("Riya copied: …", a send's result) shows the notch
+		// for its few seconds even when an app covers the top.
+		!fileStatus &&
 		!setupPreview &&
 		((notchMode === "smart" && isOverlapped && interactionState === "none" && !eventPeek) ||
 			(notchMode === "peek" && interactionState === "none" && !eventPeek));
@@ -1172,7 +1176,6 @@ function App() {
 	}, [windowLabel, settingsClipboardEnabled, clipboardCopyIndicator, clipOptions.sounds, notchMode, triggerEventPeek]);
 	// The radial menu's job status, when Settings › Radial Menu shows it here
 	// (the menu sends it as `orbit-status`; null clears it).
-	const [fileStatus, setFileStatus] = useState<OrbitStatus>(null);
 	// Shelf sharing on the closed notch: "Riya copied: …" (click puts it on
 	// the clipboard) and "Riya sent 3 things". Shown through the status line.
 	const liveClipRef = useRef<string | null>(null);

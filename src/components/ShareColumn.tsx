@@ -117,10 +117,12 @@ export function ShareColumn({
 		setPayloads((p) => ({ ...p, [peer]: payload }));
 		setStatus((s) => ({ ...s, [peer]: { done: 0, total: 0 } }));
 		const call = payload.clips
-			? invoke("share_send", { id: peer, clips: payload.clips })
-			: invoke("share_send_drop", { id: peer, paths: payload.paths ?? [], text: payload.text });
+			? invoke<string[]>("share_send", { id: peer, clips: payload.clips })
+			: invoke<string[]>("share_send_drop", { id: peer, paths: payload.paths ?? [], text: payload.text });
 		call
-			.then(() => {
+			.then((missing) => {
+				// Files that were gone (an unplugged drive) were left out.
+				if (missing.length) setNote(`Sent the rest · ${missing.length === 1 ? `${missing[0]} isn't there anymore` : `${missing.length} files aren't there anymore`}`);
 				setStatus((s) => ({ ...s, [peer]: { ...s[peer], sent: true } }));
 				window.setTimeout(() => setStatus(({ [peer]: done, ...rest }) => (done?.sent ? rest : { ...rest, [peer]: done })), 2500);
 			})
@@ -143,7 +145,14 @@ export function ShareColumn({
 		};
 		window.addEventListener("share-send", onSend);
 		const offs = [
-			listen("share-peers-changed", () => (list(), loadGroups())),
+			listen("share-peers-changed", () => {
+				list();
+				loadGroups();
+				// A request that was answered or expired (after 1 min) goes away.
+				invoke<Request[]>("share_requests").then(setRequests).catch(() => {});
+				// Removing someone also turns Live off for them.
+				invoke<string[]>("share_live_get").then(setLive).catch(() => {});
+			}),
 			listen<Invite>("share-group-invite", (e) => setInvites((all) => [...all.filter((x) => x.gid !== e.payload.gid), e.payload])),
 			listen<Request>("share-pair-request", (e) => setRequests((r) => [...r.filter((x) => x.id !== e.payload.id), e.payload])),
 			listen<{ id: string; code: number }>("share-pair-code", (e) => setPairing((p) => (p && p.id === e.payload.id ? { ...p, code: e.payload.code } : p))),
@@ -476,7 +485,7 @@ export function ShareColumn({
 						})
 					}
 				>
-					Create · {newPick.length + 1} people
+					Create · {newPick.length + 1} {newPick.length ? "people" : "person"}
 				</button>
 			</div>
 		);
