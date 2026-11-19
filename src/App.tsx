@@ -724,6 +724,7 @@ function App() {
 		eventPeekTimeoutRef.current = setTimeout(() => setEventPeek(false), duration);
 	}, []);
 
+	const [radialOn, setRadialOn] = useState(() => localStorage.getItem("bloom-files-enabled") !== "false");
 	const [notchMode, setNotchMode] = useState(() => {
 		const raw = localStorage.getItem("bloom-notch-mode") || "fixed";
 		if (raw === "auto-hide") return "smart";
@@ -1605,6 +1606,7 @@ function App() {
 			"bloom-dock-enabled": setDockEnabled,
 			"bloom-dock-mode": setDockMode,
 			"bloom-notch-mode": setNotchMode,
+			"bloom-files-enabled": (v: unknown) => setRadialOn(v !== false && v !== "false"),
 			"bloom-status-widgets": (value) => {
 				try {
 					const parsed = JSON.parse(value);
@@ -3699,6 +3701,14 @@ function App() {
 		}
 	});
 	const modeName = (m: string) => (m === "fixed" ? "Fixed" : m === "smart" ? "Smart" : "Peek");
+	// Turn the radial menu off for a while (an app where Shift+drag means
+	// something else); the same switch as Settings › Radial Menu.
+	const toggleRadialMenu = () => {
+		const next = !radialOn;
+		setRadialOn(next);
+		localStorage.setItem("bloom-files-enabled", String(next));
+		invoke("save_setting", { key: "bloom-files-enabled", value: String(next) }).catch(console.error);
+	};
 	const ccState: Record<CcTileId, CcTileState> = {
 		wifi: {
 			on: wifiEnabled,
@@ -3739,6 +3749,7 @@ function App() {
 		project: { hint: "pick a display mode", onClick: openSystem("project") },
 		"dock-mode": { caption: modeName(dockMode), hidden: !dockEnabled, onClick: toggleDockModeSetting },
 		"notch-mode": { caption: modeName(notchMode), onClick: toggleNotchModeSetting },
+		"radial-menu": { on: radialOn, onClick: toggleRadialMenu },
 		studio: { hint: "opens camera settings", onClick: openSystem("studio-effects") },
 		accessibility: { onClick: openSystem("accessibility") },
 		"task-manager": { onClick: openSystem("task-manager") },

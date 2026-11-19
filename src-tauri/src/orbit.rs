@@ -177,9 +177,49 @@ unsafe extern "system" fn on_win_event(
         // (Chromium, Electron) still run OLE's drag loop.
         class_of(hwnd) == "CLIPBRDWNDCLASS"
     };
-    if drag_window && drag_button_down() && drag_gesture_on() {
+    if drag_window && drag_button_down() && drag_gesture_on() && !in_shift_drag_app(hwnd) {
         ARMED.store(true, Ordering::Relaxed);
     }
+}
+
+/// Apps where Shift while dragging is part of the app's own tools
+/// (constrain, add to selection), so a drag there never arms the wheel.
+// ponytail: a fixed list; a user-editable one if people ask for more apps.
+const SHIFT_DRAG_APPS: &[&str] = &[
+    "photoshop.exe",
+    "illustrator.exe",
+    "indesign.exe",
+    "afterfx.exe",
+    "adobe premiere pro.exe",
+    "lightroom.exe",
+    "figma.exe",
+    "blender.exe",
+    "krita.exe",
+    "gimp-2.10.exe",
+    "gimp-3.0.exe",
+    "photo.exe",
+    "designer.exe",
+    "coreldrw.exe",
+    "clipstudiopaint.exe",
+    "paintdotnet.exe",
+    "acad.exe",
+    "davinci resolve.exe",
+    "resolve.exe",
+];
+
+fn is_shift_drag_app(path: &str) -> bool {
+    let exe = path.rsplit('\\').next().unwrap_or(path).to_lowercase();
+    SHIFT_DRAG_APPS.contains(&exe.as_str())
+}
+
+/// The drag's window belongs to one of [`SHIFT_DRAG_APPS`].
+fn in_shift_drag_app(hwnd: HWND) -> bool {
+    use windows::Win32::UI::WindowsAndMessaging::GetWindowThreadProcessId;
+    let mut pid = 0u32;
+    unsafe { GetWindowThreadProcessId(hwnd, Some(&mut pid)) };
+    pid != 0
+        && unsafe { crate::commands::process_image_path(pid) }
+            .is_some_and(|p| is_shift_drag_app(&p))
 }
 
 /// Watches Shift for a clean tap; every other key marks the press as used.
@@ -1741,6 +1781,14 @@ pub fn orbit_cancel() {
 
 #[cfg(test)]
 mod tests {
+    #[test]
+    fn creative_apps_keep_their_shift_drag() {
+        assert!(super::is_shift_drag_app(
+            r"C:\Program Files\Adobe\Adobe Photoshop 2025\Photoshop.exe"
+        ));
+        assert!(!super::is_shift_drag_app(r"C:\Windows\explorer.exe"));
+    }
+
     use super::*;
 
     fn is_hidden(path: &Path) -> bool {

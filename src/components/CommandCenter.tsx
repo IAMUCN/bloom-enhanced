@@ -29,6 +29,7 @@ import {
 	VolumeX,
 	Wifi,
 	WifiOff,
+	Disc3,
 	type LucideIcon
 } from "lucide-react";
 import "./CommandCenter.css";
@@ -54,6 +55,7 @@ export const CC_TILES = [
 	["project", "Project", MonitorUp],
 	["dock-mode", "Dock mode", PanelBottom],
 	["notch-mode", "Notch mode", PanelTop],
+	["radial-menu", "Radial menu", Disc3],
 	["studio", "Studio effects", Camera],
 	["accessibility", "Accessibility", Accessibility],
 	["task-manager", "Task Manager", Activity],
