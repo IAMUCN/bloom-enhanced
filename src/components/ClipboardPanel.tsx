@@ -71,6 +71,8 @@ export function ClipboardPanel({ dragIcon, dropEvent, onDragStart, onDragEnd, dr
 	const searchRef = useRef<HTMLInputElement>(null);
 	// What is being dragged out, so the share column can say so.
 	const [dragging, setDragging] = useState<string | null>(null);
+	// Where the share column puts its Pair / Groups / Live icons.
+	const [shareSlot, setShareSlot] = useState<HTMLSpanElement | null>(null);
 
 	const sound = (name: keyof typeof clipSounds) => options.sounds && clipSounds[name]();
 
@@ -418,6 +420,8 @@ export function ClipboardPanel({ dragIcon, dropEvent, onDragStart, onDragEnd, dr
 							</button>
 						);
 					})}
+					<span className="clip-filters-gap" />
+					<span className="clip-share-tools" ref={setShareSlot} />
 				</div>
 			)}
 
@@ -449,7 +453,14 @@ export function ClipboardPanel({ dragIcon, dropEvent, onDragStart, onDragEnd, dr
 				)}
 			</div>
 			</div>
-			<ShareColumn layout={layout} selected={[...selected]} dragging={dragging} onSent={endSelection} />
+			<ShareColumn
+				layout={layout}
+				selected={[...selected]}
+				dragging={dragging}
+				onSent={endSelection}
+				tools={shareSlot}
+				dragOverEvent={dropEvent.replace(/-drop$/, "-over")}
+			/>
 		</div>
 	);
 }

@@ -369,14 +369,19 @@ impl IDropTarget_Impl for ShelfDropTarget_Impl {
         effect: *mut DROPEFFECT,
     ) -> windows::core::Result<()> {
         unsafe { *effect = *self.cursor_effect.get() };
-        // The file wheel highlights the option under the pointer.
-        if self.prefix == "orbit" && unsafe { *self.enter_valid.get() } {
+        // The file wheel highlights the option under the pointer; the Shelf
+        // scrolls its people row when the pointer nears either end.
+        if unsafe { *self.enter_valid.get() } {
             let point = unsafe { self.client_point(pt) };
-            let _ = self.app.emit_to(
-                "orbit",
-                "orbit-drag-over",
-                serde_json::json!({ "x": point.x, "y": point.y }),
-            );
+            let at = serde_json::json!({ "x": point.x, "y": point.y });
+            let _ = if self.prefix == "orbit" {
+                self.app.emit_to("orbit", "orbit-drag-over", at)
+            } else {
+                self.app.emit(
+                    &format!("{}-drag-over", self.prefix),
+                    serde_json::json!({ "position": at }),
+                )
+            };
         }
         Ok(())
     }

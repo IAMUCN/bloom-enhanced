@@ -594,22 +594,133 @@
 	font-size: 11px;
 }
 
-/* People and groups as chips, wrapping; two rows, then it scrolls. */
+/* People and groups as name chips in one row that scrolls sideways (wheel
+   too); a drag near either end scrolls it (ShareColumn). */
 .clip-share-people {
 	display: flex;
-	flex-wrap: wrap;
-	gap: 4px;
-	max-height: 64px;
-	overflow-y: auto;
+	gap: 5px;
+	overflow-x: auto;
+	overflow-y: hidden;
 	scrollbar-width: none;
+	padding-bottom: 1px;
 }
 
-.clip-share .clip-share-person {
-	width: auto;
+.clip-share-chip {
+	flex: none;
+	display: flex;
+	align-items: center;
+	gap: 6px;
+	height: 28px;
 	max-width: 170px;
-	min-height: 28px;
-	padding: 2px 8px;
+	padding: 0 9px;
+	border-radius: 14px;
 	background: rgba(255, 255, 255, 0.07);
+	font-size: 12px;
+	white-space: nowrap;
+}
+
+.clip-share-chip.can-send {
+	cursor: pointer;
+	box-shadow: inset 0 0 0 1px rgba(100, 181, 255, 0.5);
+}
+
+.clip-share-chip.can-send:hover {
+	background: rgba(10, 132, 255, 0.22);
+}
+
+.clip-share-chip.failed .clip-share-dot {
+	background: #ff6b61;
+}
+
+.clip-share-chip.ask {
+	max-width: none;
+	padding-right: 4px;
+	background: rgba(10, 132, 255, 0.16);
+	box-shadow: inset 0 0 0 1px rgba(100, 181, 255, 0.45);
+}
+
+.clip-share-chip .clip-share-name b {
+	font-variant-numeric: tabular-nums;
+	letter-spacing: 0.06em;
+}
+
+.clip-share-accept {
+	flex: none;
+	height: 20px;
+	padding: 0 8px;
+	border: none;
+	border-radius: 10px;
+	background: #fff;
+	color: #000;
+	font: inherit;
+	font-size: 11px;
+	font-weight: 600;
+	cursor: pointer;
+}
+
+.clip-share-chip:hover .clip-share-forget,
+.clip-share-forget.show {
+	opacity: 1;
+}
+
+/* The ring that stands in for the dot while sending. */
+.clip-share-ring {
+	flex: none;
+	width: 13px;
+	height: 13px;
+	margin: 0 -3px;
+	transform: rotate(-90deg);
+	fill: none;
+	stroke-width: 2.4;
+}
+
+.clip-share-ring circle:first-child {
+	stroke: rgba(255, 255, 255, 0.18);
+}
+
+.clip-share-ring circle:last-child {
+	stroke: #64b5ff;
+	stroke-linecap: round;
+	transition: stroke-dashoffset 0.15s linear;
+}
+
+.clip-share-ring.done circle:last-child {
+	stroke: #30d158;
+}
+
+/* Pair / Groups / Live at the end of the filter row. */
+.clip-share-tools {
+	display: flex;
+	gap: 2px;
+}
+
+.clip-filters .clip-share-tool {
+	position: relative;
+}
+
+.clip-filters .clip-share-tool.pair {
+	color: #64b5ff;
+	opacity: 0.9;
+}
+
+.clip-filters .clip-share-tool.lit {
+	color: #30d158;
+	opacity: 1;
+}
+
+.clip-share-badge {
+	position: absolute;
+	top: -2px;
+	right: -1px;
+	min-width: 12px;
+	height: 12px;
+	padding: 0 2px;
+	border-radius: 6px;
+	background: #30d158;
+	color: #000;
+	font-size: 8px;
+	font-weight: 700;
+	line-height: 12px;
 }
 
 .clip-share-actions {
