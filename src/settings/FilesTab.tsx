@@ -3,7 +3,7 @@ import { AnimatePresence, Reorder, motion } from "framer-motion";
 import { invoke } from "@tauri-apps/api/core";
 import { ArrowBigUp, ChevronRight, EyeOff, GripVertical, Hand, Keyboard, MapPin, Sparkles, Timer, Zap } from "lucide-react";
 import { useSettingsSync } from "../hooks/useSettingsSync";
-import { MODE_LABEL, ordered, parseLayout, type OrbitLayout, type OrbitMode, type OrbitOp } from "../orbitOps";
+import { DRAG_KINDS, MODE_LABEL, opsForKind, ordered, parseLayout, type DragKind, type OrbitLayout, type OrbitMode, type OrbitOp } from "../orbitOps";
 import { ORBIT_ICONS } from "../orbitIcons";
 import { ScaleStepper } from "./ScaleStepper";
 import { Choice } from "./Choice";
@@ -134,8 +134,11 @@ export function FilesTab({ saveSetting }: { saveSetting: (key: string, value: st
 		save("bloom-files-order", JSON.stringify(next.order));
 		save("bloom-files-mode-order", JSON.stringify(next.modes));
 	};
-	const shown = (m: OrbitMode) => ordered(m, layout).filter((op) => !layout.hidden.includes(op.id));
-	const hiddenOps = ordered(mode, layout).filter((op) => layout.hidden.includes(op.id));
+	// The menus as they look for one kind of drag (the wheel only shows what
+	// fits), so the preview matches the real wheel.
+	const [kind, setKind] = useState<DragKind>("images");
+	const shown = (m: OrbitMode) => opsForKind(kind, m, layout).filter((op) => !layout.hidden.includes(op.id));
+	const hiddenOps = opsForKind(kind, mode, layout).filter((op) => layout.hidden.includes(op.id));
 	/** Saves `ids` as the shown order of `mode`, hidden ones after them. */
 	const withOrder = (m: OrbitMode, ids: string[], hidden = layout.hidden): OrbitLayout => ({
 		...layout,
@@ -259,6 +262,10 @@ export function FilesTab({ saveSetting }: { saveSetting: (key: string, value: st
 						<p className="radial-hint">
 							Drag the menus to change the order {keyName} goes through them. Click one to edit it.
 						</p>
+						<div className="radial-kind">
+							<span>When you drag</span>
+							<Choice value={kind} options={DRAG_KINDS} onChange={setKind} label="Show the menu for" />
+						</div>
 						<div className="radial-flow">
 							<div className="radial-shift-key">
 								<ArrowBigUp size={16} />

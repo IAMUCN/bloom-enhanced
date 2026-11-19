@@ -77,8 +77,8 @@ export const CATALOG: Record<OrbitMode, Entry[]> = {
 			progress: "Combining into one PDF",
 			fits: (exts) => exts.length > 1 && images(exts)
 		},
-		{ id: "text.upper", label: "UPPER", progress: "Copying", fits: text },
-		{ id: "text.lower", label: "lower", progress: "Copying", fits: text }
+		{ id: "text.upper", label: "UPPER", icon: "CaseUpper", progress: "Copying", fits: text },
+		{ id: "text.lower", label: "lower", icon: "CaseLower", progress: "Copying", fits: text }
 	],
 	tools: [
 		{
@@ -157,6 +157,31 @@ export function opsFor(input: OrbitInput, mode: OrbitMode, layout: OrbitLayout =
 	return ordered(mode, layout)
 		.filter((op) => !layout.hidden.includes(op.id) && entries.get(op.id)?.fits(exts, input))
 		.map((op) => ({ ...op, label: entries.get(op.id)?.labelFor?.(input.paths.length) ?? op.label }));
+}
+
+/** What can be dragged, for Settings › Radial Menu: it shows the menu as
+ *  it looks for each (the wheel only ever shows the options that fit). */
+export const DRAG_KINDS = [
+	["images", "Images"],
+	["pdfs", "PDFs"],
+	["files", "Other files"],
+	["text", "Text"]
+] as const;
+export type DragKind = (typeof DRAG_KINDS)[number][0];
+const SAMPLES: Record<DragKind, OrbitInput[]> = {
+	images: [{ paths: ["a.png"] }, { paths: ["a.png", "b.jpg"] }],
+	pdfs: [{ paths: ["a.pdf"] }, { paths: ["a.pdf", "b.pdf"] }],
+	files: [{ paths: ["a.zip"] }, { paths: ["a.docx"] }, { paths: ["a.txt", "b.mp4"] }],
+	text: [{ paths: [], text: "text" }]
+};
+
+/** Every option of `mode` that one or several files of `kind` can get, in
+ *  the user's order, hidden ones included. */
+export function opsForKind(kind: DragKind, mode: OrbitMode, layout: OrbitLayout = DEFAULT_LAYOUT): OrbitOp[] {
+	const entries = new Map(CATALOG[mode].map((e) => [e.id, e]));
+	return ordered(mode, layout).filter((op) =>
+		SAMPLES[kind].some((input) => entries.get(op.id)?.fits(input.paths.map(extOf), input))
+	);
 }
 
 /** Modes with options for `input`, in the user's Shift order. */

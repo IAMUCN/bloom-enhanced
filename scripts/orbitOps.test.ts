@@ -6,6 +6,8 @@ import {
 	hitTest,
 	modesFor,
 	opsFor,
+	opsForKind,
+	ordered,
 	parseLayout,
 	parseRanges,
 	splitPresets,
@@ -99,4 +101,16 @@ test("slices run clockwise from 12 o'clock", () => {
 	expect(hitTest(0, -165, 4)).toBe(0); // the rim still counts
 	expect(hitTest(0, -200, 4)).toBe(OUTSIDE);
 	expect(hitTest(0, -100, 0)).toBe(HUB);
+});
+
+test("Settings shows each menu as it looks for one kind of drag", () => {
+	expect(opsForKind("text", "convert").map((o) => o.id)).toEqual(["text.upper", "text.lower"]);
+	expect(opsForKind("pdfs", "tools").map((o) => o.id)).toContain("tool.pdf.compress");
+	expect(opsForKind("pdfs", "tools").map((o) => o.id)).not.toContain("tool.image.resize");
+	expect(opsForKind("images", "tools").map((o) => o.id)).toContain("tool.image.resize");
+	// Every option shows for at least one kind, so none is out of reach.
+	for (const mode of ["convert", "tools", "actions"] as const) {
+		const all = new Set((["images", "pdfs", "files", "text"] as const).flatMap((k) => opsForKind(k, mode).map((o) => o.id)));
+		expect(ordered(mode).filter((o) => !all.has(o.id)).map((o) => o.id)).toEqual([]);
+	}
 });

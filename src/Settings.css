@@ -768,6 +768,17 @@ body {
 	color: var(--text-muted);
 }
 
+/* "When you drag: Images · PDFs · …": which menu the designer shows. */
+.radial-kind {
+	display: flex;
+	align-items: center;
+	flex-wrap: wrap;
+	gap: 10px;
+	margin: 0 0 12px;
+	font-size: 12px;
+	color: var(--text-muted);
+}
+
 .radial-hint:last-child {
 	margin: 12px 0 0;
 }
