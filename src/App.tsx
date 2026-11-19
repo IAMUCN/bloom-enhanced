@@ -4119,7 +4119,10 @@ function App() {
 						// Hovering the shelf cancels its post-drop auto-close.
 						if (bloomMode === "shelf") clearShelfCollapse();
 					}}
-					onHoverEnd={releaseNotchHover}
+					// Open: the backend closes it once the pointer is past the grace
+					// margin (notch-pointer-left); closing here, on the pill's own
+					// edge, made that margin do nothing.
+					onHoverEnd={() => !isOpenRef.current && releaseNotchHover()}
 					// Panels placed below the clock row move down by the tab bar.
 					style={
 						{
