@@ -89,6 +89,35 @@ pub fn set_window_region(window: Window, rects: Vec<IntRect>) {
     }
 }
 
+/// Logs (diagnostics.log) every time the notch window stops or starts being
+/// layered: an un-layered moment with a region paints its clear pixels
+/// opaque, the suspect for the white boxes that still sometimes show beside
+/// the pill. Checked twice a second; costs one GetWindowLong.
+pub fn watch_layered(hwnd: windows::Win32::Foundation::HWND) {
+    use windows::Win32::UI::WindowsAndMessaging::{GetWindowLongPtrW, GWL_EXSTYLE, WS_EX_LAYERED};
+    let raw = hwnd.0 as isize;
+    std::thread::spawn(move || {
+        let hwnd = windows::Win32::Foundation::HWND(raw as *mut _);
+        let mut was = true;
+        loop {
+            std::thread::sleep(std::time::Duration::from_millis(500));
+            let style = unsafe { GetWindowLongPtrW(hwnd, GWL_EXSTYLE) } as u32;
+            let now = style & WS_EX_LAYERED.0 != 0;
+            if now != was {
+                crate::diagnostics::record(
+                    if now {
+                        "notch_layered"
+                    } else {
+                        "notch_not_layered"
+                    },
+                    &format!("exstyle=0x{style:X}"),
+                );
+                was = now;
+            }
+        }
+    });
+}
+
 /// Keeps the window's own surface (under the webview) see-through. tao
 /// leaves erasing to Windows, which with no background brush paints
 /// nothing: pixels uncovered when the region grows kept whatever was there

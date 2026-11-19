@@ -72,6 +72,15 @@ fn main() {
     unsafe {
         let _ = SetConsoleCtrlHandler(Some(ctrl_handler), true);
     }
+    // Dev builds: the pages can be inspected live (chasing the white boxes
+    // beside the notch, 2026-11-20). Never in releases.
+    if cfg!(debug_assertions) && std::env::var_os("WEBVIEW2_ADDITIONAL_BROWSER_ARGUMENTS").is_none()
+    {
+        std::env::set_var(
+            "WEBVIEW2_ADDITIONAL_BROWSER_ARGUMENTS",
+            "--remote-debugging-port=9333",
+        );
+    }
 
     // Single-instance enforcement
     unsafe {
@@ -376,6 +385,7 @@ fn main() {
             let _ = window.set_ignore_cursor_events(true);
             if let Ok(hwnd) = window.hwnd() {
                 window_region::clear_on_erase(hwnd);
+                window_region::watch_layered(hwnd);
             }
             if let Some(size) = first_size {
                 let _ = window.set_size(size);
