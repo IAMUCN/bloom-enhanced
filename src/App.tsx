@@ -2142,7 +2142,7 @@ function App() {
 		if (windowLabel !== "main") return;
 		// Esc steps back one level: a Wi-Fi / Bluetooth list returns to the
 		// Command Center, the next Esc closes the notch.
-		const unlisten = listen("notch-escape", () => {
+		const onEscape = () => {
 			// Typing in a field: Esc leaves it (number keys switch tabs again);
 			// the next Esc steps back / closes.
 			const active = document.activeElement as HTMLElement | null;
@@ -2162,7 +2162,15 @@ function App() {
 			notchPinnedRef.current = false;
 			(document.activeElement as HTMLElement | null)?.blur?.();
 			releaseNotchHoverRef.current();
-		});
+		};
+		// From the keyboard hook while another app has the keyboard…
+		const unlisten = listen("notch-escape", onEscape);
+		// …and here while the notch has it (typing in a note): Windows doesn't
+		// run LotusNotch's hook then.
+		const onEscKey = (e: KeyboardEvent) => {
+			if (e.key === "Escape" && !e.defaultPrevented && isOpenRef.current) onEscape();
+		};
+		window.addEventListener("keydown", onEscKey);
 		// Global shortcuts (shortcuts.rs): the notch runs the action.
 		const unlistenShortcut = listen<string>("shortcut", (e) => runShortcutRef.current(e.payload));
 		// Tab moves into the open tab's typing box (the Shelf's search, a note…).
@@ -2188,6 +2196,7 @@ function App() {
 			unlisten.then((f) => f());
 			unlistenShortcut.then((f) => f());
 			unlistenTab.then((f) => f());
+			window.removeEventListener("keydown", onEscKey);
 			window.removeEventListener("keydown", onDigit);
 		};
 	}, [windowLabel]);

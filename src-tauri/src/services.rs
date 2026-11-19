@@ -161,6 +161,14 @@ fn emit_dock_win_number(index: u8) {
     });
 }
 
+/// True while one of LotusNotch's own windows has the keyboard.
+fn foreground_is_ours() -> bool {
+    use windows::Win32::UI::WindowsAndMessaging::{GetForegroundWindow, GetWindowThreadProcessId};
+    let mut pid = 0u32;
+    unsafe { GetWindowThreadProcessId(GetForegroundWindow(), Some(&mut pid)) };
+    pid == std::process::id()
+}
+
 unsafe extern "system" fn keyboard_hook_proc(
     code: i32,
     wparam: windows::Win32::Foundation::WPARAM,
@@ -190,9 +198,13 @@ unsafe extern "system" fn keyboard_hook_proc(
         // The key still reaches the focused app. Only read the flag: the
         // notch reports open/closed itself (set_notch_open), and an Esc that
         // only steps back leaves it open.
+        // While LotusNotch has the keyboard (typing in the notch), Windows
+        // doesn't call this hook; the page handles Esc itself then. Skip it
+        // here too, so one press never counts twice.
         if is_down
             && vk_code == windows::Win32::UI::Input::KeyboardAndMouse::VK_ESCAPE
             && crate::state::NOTCH_OPEN.load(Ordering::Relaxed)
+            && !foreground_is_ours()
         {
             if let Some(app) = KEYBOARD_HOOK_APP_HANDLE.get().cloned() {
                 // Off the hook thread: a low-level hook must return quickly.
