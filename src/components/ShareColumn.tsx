@@ -57,7 +57,8 @@ export function ShareColumn({
 	dragging = null,
 	onSent,
 	tools,
-	dragOverEvent
+	dragOverEvent,
+	onBusy
 }: {
 	layout: "notch" | "edge";
 	selected?: string[];
@@ -68,8 +69,14 @@ export function ShareColumn({
 	tools?: HTMLElement | null;
 	/** The drag-over event of this window's drop target (physical px). */
 	dragOverEvent?: string;
+	/** True while something is being sent and its result shows, so the
+	 *  notch stays open (a drop onto a person used to close it). */
+	onBusy?: (busy: boolean) => void;
 }) {
 	const rowRef = useRef<HTMLDivElement>(null);
+	const sending = useRef(0);
+	const hold = () => sending.current++ === 0 && onBusy?.(true);
+	const letGo = () => --sending.current === 0 && onBusy?.(false);
 	const [peers, setPeersState] = useState<Peer[] | null>(seen.peers);
 	const setPeers = (list: Peer[]) => setPeersState((seen.peers = list));
 	const [requests, setRequests] = useState<Request[]>([]);
@@ -100,6 +107,8 @@ export function ShareColumn({
 	const [groups, setGroupsState] = useState<Group[]>(seen.groups);
 	const setGroups = (list: Group[]) => setGroupsState((seen.groups = list));
 	const [invites, setInvites] = useState<Invite[]>([]);
+	// Who turned Live on for this PC (their copies arrive here).
+	const [liveIn, setLiveIn] = useState<string[]>([]);
 	const [me, setMe] = useState("");
 	const [newName, setNewName] = useState("");
 	const [newPick, setNewPick] = useState<string[]>([]);
@@ -119,14 +128,22 @@ export function ShareColumn({
 		const call = payload.clips
 			? invoke<string[]>("share_send", { id: peer, clips: payload.clips })
 			: invoke<string[]>("share_send_drop", { id: peer, paths: payload.paths ?? [], text: payload.text });
+		hold();
 		call
 			.then((missing) => {
 				// Files that were gone (an unplugged drive) were left out.
 				if (missing.length) setNote(`Sent the rest · ${missing.length === 1 ? `${missing[0]} isn't there anymore` : `${missing.length} files aren't there anymore`}`);
 				setStatus((s) => ({ ...s, [peer]: { ...s[peer], sent: true } }));
-				window.setTimeout(() => setStatus(({ [peer]: done, ...rest }) => (done?.sent ? rest : { ...rest, [peer]: done })), 2500);
+				window.setTimeout(() => {
+					setStatus(({ [peer]: done, ...rest }) => (done?.sent ? rest : { ...rest, [peer]: done }));
+					letGo();
+				}, 2500);
 			})
-			.catch((e) => setStatus((s) => ({ ...s, [peer]: { done: 0, total: 0, error: String(e) } })));
+			.catch((e) => {
+				setStatus((s) => ({ ...s, [peer]: { done: 0, total: 0, error: String(e) } }));
+				// Long enough to read why it failed.
+				window.setTimeout(letGo, 4000);
+			});
 	};
 
 	useEffect(() => {
@@ -138,6 +155,7 @@ export function ShareColumn({
 			.catch(() => setRunning(false));
 		invoke<Request[]>("share_requests").then(setRequests).catch(() => {});
 		invoke<string[]>("share_live_get").then(setLive).catch(() => {});
+		invoke<string[]>("share_live_in").then(setLiveIn).catch(() => {});
 		loadGroups();
 		const onSend = (e: Event) => {
 			const { peer, ...payload } = (e as CustomEvent<{ peer: string } & Payload>).detail;
@@ -152,6 +170,7 @@ export function ShareColumn({
 				invoke<Request[]>("share_requests").then(setRequests).catch(() => {});
 				// Removing someone also turns Live off for them.
 				invoke<string[]>("share_live_get").then(setLive).catch(() => {});
+				invoke<string[]>("share_live_in").then(setLiveIn).catch(() => {});
 			}),
 			listen<Invite>("share-group-invite", (e) => setInvites((all) => [...all.filter((x) => x.gid !== e.payload.gid), e.payload])),
 			listen<Request>("share-pair-request", (e) => setRequests((r) => [...r.filter((x) => x.id !== e.payload.id), e.payload])),
@@ -288,7 +307,7 @@ export function ShareColumn({
 					Couldn't pair with <b>{pairing.name}</b>
 				</span>
 				<span className="clip-share-hint">
-					{unreachable ? "Both PCs need the same Wi-Fi, set to Private, and LotusNotch allowed in Windows Firewall." : pairing.error}
+					{unreachable ? "Both PCs need the same network (Wi-Fi, hotspot or Bluetooth) and LotusNotch allowed in Windows Firewall." : pairing.error}
 				</span>
 				<button type="button" className="clip-share-btn" onClick={() => setPairing(null)}>
 					OK
@@ -383,7 +402,7 @@ export function ShareColumn({
 					))
 				) : (
 					<div className="clip-share-empty">
-						No other LotusNotch on this network. They need it open, on the same Wi-Fi (set to Private).
+						No other LotusNotch on this network. They need it open, on the same network (Wi-Fi, hotspot or Bluetooth).
 					</div>
 				)}
 			</div>
@@ -444,6 +463,7 @@ export function ShareColumn({
 						<button key={id} type="button" role="checkbox" aria-checked={live.includes(id)} className="clip-share-person" onClick={() => toggleLive(id)}>
 							{check(live.includes(id))}
 							<span className="clip-share-name">{name}</span>
+							{liveIn.includes(id) && <small className="clip-share-live-in">sends you theirs</small>}
 						</button>
 					))
 				) : (

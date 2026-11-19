@@ -207,7 +207,11 @@ export function ClipTile(props: ClipTileProps) {
 									Not synced ·{" "}
 								</span>
 							)}
-							{item.from ? `From ${item.from} · ` : ""}
+							{item.from && (
+								<>
+									<span className="ctile-from">From {item.from}</span> ·{" "}
+								</>
+							)}
 							{timeAgo(item.captured_at)}
 							{item.hits > 1 && ` · ${item.hits}×`}
 						</>

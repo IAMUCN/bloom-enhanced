@@ -120,6 +120,9 @@ pub fn start(app: AppHandle) {
                     serde_json::json!({ "gid": gid, "name": name, "from": from }),
                 );
             }
+            Event::Notice(text) => {
+                let _ = events_app.emit("share-notice", text);
+            }
             Event::IncomingFailed { from, why } => {
                 let _ = events_app.emit(
                     "share-incoming-failed",
@@ -352,8 +355,38 @@ pub fn share_live_get() -> Result<Vec<String>, String> {
 
 #[tauri::command]
 pub fn share_live_set(ids: Vec<String>) -> Result<(), String> {
-    share()?.set_live(&ids);
+    let s = share()?.clone();
+    let before = s.live();
+    s.set_live(&ids);
+    let after = s.live();
+    // Tell each person whose Live changed (best effort: someone offline
+    // isn't told; a group's members aren't told one by one).
+    let changed: Vec<(String, bool)> = before
+        .iter()
+        .filter(|x| !after.contains(x))
+        .map(|x| (x.clone(), false))
+        .chain(
+            after
+                .iter()
+                .filter(|x| !before.contains(x))
+                .map(|x| (x.clone(), true)),
+        )
+        .filter(|(x, _)| !x.starts_with("group:"))
+        .collect();
+    if !changed.is_empty() {
+        std::thread::spawn(move || {
+            for (id, on) in changed {
+                let _ = s.tell_live(&id, on);
+            }
+        });
+    }
     Ok(())
+}
+
+/// Who turned Live clipboard on for this PC (their copies arrive here).
+#[tauri::command]
+pub fn share_live_in() -> Result<Vec<String>, String> {
+    Ok(share()?.live_in())
 }
 
 /// The groups this PC is in, and groups waiting for Join / Ignore.

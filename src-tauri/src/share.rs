@@ -26,8 +26,9 @@ use std::path::{Path, PathBuf};
 use std::sync::{mpsc, Arc, Mutex};
 use std::time::{Duration, Instant};
 
-/// This PC's IPv4 addresses with their masks, without loopback and
-/// link-local (169.254, an adapter with no network).
+/// This PC's IPv4 addresses with their masks, without loopback. Link-local
+/// (169.254) stays: a Bluetooth network between two laptops, or a cable
+/// with no router, only has those.
 fn local_nets() -> Vec<(Ipv4Addr, Ipv4Addr)> {
     use windows::Win32::NetworkManagement::IpHelper::{GetIpAddrTable, MIB_IPADDRTABLE};
     let mut size = 0u32;
@@ -49,7 +50,7 @@ fn local_nets() -> Vec<(Ipv4Addr, Ipv4Addr)> {
                     Ipv4Addr::from(r.dwMask.to_ne_bytes()),
                 )
             })
-            .filter(|(a, _)| !a.is_loopback() && !a.is_link_local() && !a.is_unspecified())
+            .filter(|(a, _)| !a.is_loopback() && !a.is_unspecified())
             .collect()
     }
 }
@@ -367,6 +368,9 @@ pub enum Event {
         name: String,
         from: String,
     },
+    /// Something to tell the user on the notch ("Paired with Riya",
+    /// "Riya turned on Live clipboard for you").
+    Notice(String),
     /// An incoming send stopped; anything partial was deleted.
     IncomingFailed {
         from: String,
@@ -546,6 +550,8 @@ pub struct Share {
     name: Mutex<String>,
     /// Who gets this side's copies (live clipboard), by id.
     live: Mutex<Vec<String>>,
+    /// Who sends this side their copies (they turned Live on for us), by id.
+    live_in: Mutex<Vec<String>>,
     groups: Mutex<Vec<Group>>,
     /// Groups this PC was added to, waiting for Join or Ignore.
     invites: Mutex<Vec<Group>>,
@@ -580,6 +586,10 @@ impl Share {
             .ok()
             .and_then(|b| serde_json::from_slice(&b).ok())
             .unwrap_or_default();
+        let live_in = std::fs::read(cfg.dir.join("live-in.json"))
+            .ok()
+            .and_then(|b| serde_json::from_slice(&b).ok())
+            .unwrap_or_default();
         // Groups unused for 90 days are gone.
         let groups: Vec<Group> = std::fs::read(cfg.dir.join("groups.json"))
             .ok()
@@ -598,6 +608,7 @@ impl Share {
             trusted: Mutex::new(trusted),
             name: Mutex::new(name),
             live: Mutex::new(live),
+            live_in: Mutex::new(live_in),
             groups: Mutex::new(groups),
             invites: Mutex::new(Vec::new()),
             seen: Mutex::new(HashMap::new()),
@@ -824,6 +835,18 @@ impl Share {
             serde_json::to_vec(&ids).unwrap_or_default(),
         );
         *self.live.lock().unwrap() = ids;
+    }
+
+    /// Who sends this side their copies.
+    pub fn live_in(&self) -> Vec<String> {
+        self.live_in.lock().unwrap().clone()
+    }
+
+    /// Tells `id` that this side turned Live clipboard on or off for them.
+    pub fn tell_live(&self, id: &str, on: bool) -> Result<(), String> {
+        let mut ch = self.connect(id)?;
+        ch.send_json(&serde_json::json!({ "t": "live-notice", "on": on }))?;
+        ch.recv_json().map(|_| ())
     }
 
     pub fn unpair(&self, id: &str) {
@@ -1109,6 +1132,7 @@ impl Share {
 
     fn trust(&self, ch: &Channel) {
         self.missed.lock().unwrap().remove(&ch.peer_id);
+        (self.events)(Event::Notice(format!("Paired with {}", ch.peer_name)));
         {
             let mut trusted = self.trusted.lock().unwrap();
             trusted.retain(|p| p.id != ch.peer_id);
@@ -1167,6 +1191,27 @@ impl Share {
             }
             // Everything else is for trusted people only.
             _ if !self.is_trusted(&ch.peer_key) => Err("Not paired".into()),
+            Some("live-notice") => {
+                let on = msg["on"].as_bool().unwrap_or(false);
+                {
+                    let mut live_in = self.live_in.lock().unwrap();
+                    live_in.retain(|x| x != &ch.peer_id);
+                    if on {
+                        live_in.push(ch.peer_id.clone());
+                    }
+                    let _ = std::fs::write(
+                        self.cfg.dir.join("live-in.json"),
+                        serde_json::to_vec(&*live_in).unwrap_or_default(),
+                    );
+                }
+                (self.events)(Event::Notice(format!(
+                    "{} turned {} Live clipboard for you",
+                    ch.peer_name,
+                    if on { "on" } else { "off" }
+                )));
+                (self.events)(Event::PeersChanged);
+                ch.send_json(&serde_json::json!({ "t": "ok" }))
+            }
             Some("group") => {
                 let g: Group = serde_json::from_value(msg["group"].clone())
                     .map_err(|_| "Bad group".to_string())?;
@@ -1656,6 +1701,19 @@ mod tests {
         );
         a.unpair(b.id());
         assert!(a.live().is_empty(), "unpairing stops live sending");
+    }
+
+    #[test]
+    fn the_other_side_is_told_about_live() {
+        let (a, b, rx) = paired("livetell");
+        a.tell_live(b.id(), true).unwrap();
+        assert_eq!(b.live_in(), vec![a.id().to_string()]);
+        let told = rx
+            .try_iter()
+            .any(|e| matches!(&e, Event::Notice(t) if t.contains("turned on Live")));
+        assert!(told, "a notice for the user");
+        a.tell_live(b.id(), false).unwrap();
+        assert!(b.live_in().is_empty());
     }
 
     #[test]

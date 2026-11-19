@@ -605,6 +605,15 @@
 	padding-bottom: 1px;
 }
 
+/* Centred while the chips fit; once they overflow, auto margins collapse to
+   0 so the row still scrolls from its start (justify-content would clip it). */
+.clip-share-people > :first-child {
+	margin-left: auto;
+}
+.clip-share-people > :last-child {
+	margin-right: auto;
+}
+
 .clip-share-chip {
 	flex: none;
 	display: flex;
@@ -1085,6 +1094,12 @@ button.clip-share-person,
 	opacity: 1;
 }
 
+/* Came from someone else's Shelf: the same blue as share requests. */
+.ctile-from {
+	color: #64b5ff;
+	font-weight: 600;
+}
+
 .clip-share-person.can-pair {
 	cursor: pointer;
 }
@@ -1125,4 +1140,11 @@ button.clip-share-person,
 .clip-share-remove.confirm {
 	background: rgba(255, 107, 97, 0.22);
 	color: #ff6b61;
+}
+
+/* Live sheet: this person turned Live on for you. */
+.clip-share-live-in {
+	margin-left: auto;
+	color: #30d158;
+	font-size: 11px;
 }

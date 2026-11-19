@@ -247,6 +247,7 @@ fn main() {
             share_app::share_send_drop,
             share_app::share_live_get,
             share_app::share_live_set,
+            share_app::share_live_in,
             share_app::share_groups,
             share_app::share_group_create,
             share_app::share_group_add,

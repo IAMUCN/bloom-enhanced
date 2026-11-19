@@ -1195,6 +1195,7 @@ function App() {
 			listen<{ from: string; id: string | null; preview: string | null }>("share-live", (e) =>
 				show(`${e.payload.from} copied${e.payload.preview ? `: ${e.payload.preview}` : " something"}`, 6000, e.payload.id)
 			),
+			listen<string>("share-notice", (e) => show(e.payload, 4000, null)),
 			listen<{ from: string; count: number }>("share-received", (e) =>
 				show(`${e.payload.from} sent ${e.payload.count === 1 ? "something" : `${e.payload.count} things`} · in the Shelf`, 3500, null)
 			)
@@ -4841,6 +4842,7 @@ function App() {
 													releaseNotchHover();
 													invoke("set_notch_hovered", { hovered: false }).catch(() => {});
 												}}
+												onBusy={setNotchPinned}
 											/>
 										</motion.div>
 									)}

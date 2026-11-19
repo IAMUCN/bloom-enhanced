@@ -33,6 +33,8 @@ interface ClipboardPanelProps {
 	 *  stays open meanwhile and releases its hover afterwards. */
 	onDragStart: () => void;
 	onDragEnd: () => void;
+	/** A send is running or its result shows: keep the surface open. */
+	onBusy?: (busy: boolean) => void;
 	/** Something from another app is being dragged over: show only where to
 	 *  drop it, not the history. */
 	dragOver?: boolean;
@@ -54,7 +56,7 @@ const FILTER_ICONS: Record<ClipFilter, typeof Type> = {
 
 const openLink = (url: string) => openUrl(/^https?:/i.test(url) ? url : `https://${url}`);
 
-export function ClipboardPanel({ dragIcon, dropEvent, onDragStart, onDragEnd, dragOver, layout = "notch", onClose }: ClipboardPanelProps) {
+export function ClipboardPanel({ dragIcon, dropEvent, onDragStart, onDragEnd, onBusy, dragOver, layout = "notch", onClose }: ClipboardPanelProps) {
 	const options = useClipboardSettings();
 	const [items, setItems] = useState<ClipItem[]>([]);
 	const [query, setQuery] = useState("");
@@ -460,6 +462,7 @@ export function ClipboardPanel({ dragIcon, dropEvent, onDragStart, onDragEnd, dr
 				onSent={endSelection}
 				tools={shareSlot}
 				dragOverEvent={dropEvent.replace(/-drop$/, "-over")}
+				onBusy={onBusy}
 			/>
 		</div>
 	);
