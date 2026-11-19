@@ -49,6 +49,8 @@ const pdfs = every(["pdf"]);
 /** Word and PowerPoint files: PDF through the installed Office. */
 const office = every(["doc", "docx", "rtf", "odt", "ppt", "pptx", "pps", "ppsx", "odp"]);
 const files = (exts: string[]) => exts.length > 0;
+/** Selected text dragged in (no files). */
+const text = (exts: string[], input: OrbitInput) => exts.length === 0 && !!input.text;
 
 const format = (to: string, fromPdf: boolean): Entry => ({
 	id: `convert.${to}`,
@@ -74,7 +76,9 @@ export const CATALOG: Record<OrbitMode, Entry[]> = {
 			label: "One PDF",
 			progress: "Combining into one PDF",
 			fits: (exts) => exts.length > 1 && images(exts)
-		}
+		},
+		{ id: "text.upper", label: "UPPER", progress: "Copying", fits: text },
+		{ id: "text.lower", label: "lower", progress: "Copying", fits: text }
 	],
 	tools: [
 		{
@@ -86,16 +90,27 @@ export const CATALOG: Record<OrbitMode, Entry[]> = {
 			fits: (exts) => exts.length > 1 && exts.includes("pdf") && exts.every((e) => e === "pdf" || images([e]))
 		},
 		{ id: "tool.pdf.split", label: "Split", icon: "Scissors", progress: "Splitting into pages", fits: pdfs },
+		{ id: "tool.pdf.compress", label: "Compress", icon: "FileDown", progress: "Compressing the PDF", fits: pdfs },
+		{ id: "tool.pdf.rotate-right", label: "Rotate right", icon: "RotateCw", progress: "Rotating pages", fits: pdfs },
+		{ id: "tool.pdf.rotate-left", label: "Rotate left", icon: "RotateCcw", progress: "Rotating pages", fits: pdfs },
 		{ id: "tool.image.rotate-right", label: "Rotate right", icon: "RotateCw", progress: "Rotating", fits: images },
 		{ id: "tool.image.rotate-left", label: "Rotate left", icon: "RotateCcw", progress: "Rotating", fits: images },
 		{ id: "tool.image.flip", label: "Flip", icon: "FlipHorizontal2", progress: "Flipping", fits: images },
 		{ id: "tool.image.grayscale", label: "Grayscale", icon: "Contrast", progress: "Making grayscale", fits: images },
 		{ id: "tool.image.half", label: "Half size", icon: "Minimize2", progress: "Resizing", fits: images },
 		{ id: "tool.image.compress", label: "Compress", icon: "FileDown", progress: "Compressing", fits: images },
+		{ id: "tool.image.resize", label: "Resize", icon: "Scaling", progress: "Resizing", fits: images },
+		{ id: "tool.image.square", label: "Square", icon: "Crop", progress: "Cropping", fits: images },
+		{ id: "tool.image.invert", label: "Invert", icon: "SunMoon", progress: "Inverting", fits: images },
+		// Saving again keeps only the pixels: location and camera details go.
+		{ id: "tool.image.clean", label: "No details", icon: "EyeOff", progress: "Removing details", fits: images },
+		{ id: "text.count", label: "Word count", icon: "Hash", progress: "Counting", fits: text },
 		{ id: "tool.archive.extract", label: "Extract", icon: "FolderOpen", progress: "Extracting", fits: every(["zip"]) }
 	],
 	actions: [
 		{ id: "action.shelf", label: "To shelf", icon: "ClipboardPlus", progress: "Adding", fits: (e, i) => files(e) || !!i.text },
+		{ id: "text.search", label: "Search web", icon: "Search", progress: "Searching", fits: text },
+		{ id: "text.save", label: "Save .txt", icon: "FileText", progress: "Saving", fits: text },
 		{ id: "action.copy-path", label: "Copy path", icon: "Link", progress: "Copying", fits: files },
 		{ id: "action.copy-name", label: "Copy name", icon: "Type", progress: "Copying", fits: files },
 		{ id: "action.copy-to", label: "Copy to", icon: "Copy", progress: "Copying", fits: files },

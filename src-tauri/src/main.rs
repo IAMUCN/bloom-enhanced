@@ -195,6 +195,7 @@ fn main() {
             clipboard::clipboard_take_out,
             orbit::orbit_run,
             orbit::orbit_cancel,
+            orbit::orbit_save_text,
             orbit::orbit_close,
             orbit::orbit_hide,
             orbit::orbit_shrink,

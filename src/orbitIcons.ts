@@ -17,6 +17,13 @@ import {
 	Scissors,
 	SquareTerminal,
 	Type,
+	Crop,
+	EyeOff,
+	FileText,
+	Hash,
+	Scaling,
+	Search,
+	SunMoon,
 	Wallpaper
 } from "lucide-react";
 
@@ -37,5 +44,12 @@ export const ORBIT_ICONS: Record<string, typeof Copy> = {
 	Scissors,
 	SquareTerminal,
 	Type,
+	Crop,
+	EyeOff,
+	FileText,
+	Hash,
+	Scaling,
+	Search,
+	SunMoon,
 	Wallpaper
 };

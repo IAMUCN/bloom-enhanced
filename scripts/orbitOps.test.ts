@@ -32,8 +32,14 @@ test("options fit every file in the set", () => {
 	expect(ids(files("C:\\x.zip"), "tools")).toEqual(["tool.archive.extract"]);
 	// PDFs merge (with images too) and split, one or several at a time.
 	expect(ids(files("C:\\a.pdf", "C:\\b.pdf", "C:\\c.png"), "tools")).toEqual(["tool.pdf.merge"]);
-	expect(ids(files("C:\\a.pdf", "C:\\b.pdf"), "tools")).toEqual(["tool.pdf.merge", "tool.pdf.split"]);
-	expect(ids(files("C:\\a.pdf"), "tools")).toEqual(["tool.pdf.split"]);
+	expect(ids(files("C:\\a.pdf", "C:\\b.pdf"), "tools")).toEqual([
+		"tool.pdf.merge",
+		"tool.pdf.split",
+		"tool.pdf.compress",
+		"tool.pdf.rotate-right",
+		"tool.pdf.rotate-left"
+	]);
+	expect(ids(files("C:\\a.pdf"), "tools")).toEqual(["tool.pdf.split", "tool.pdf.compress", "tool.pdf.rotate-right", "tool.pdf.rotate-left"]);
 	expect(ids(files("C:\\a.png", "C:\\b.png"), "tools")).not.toContain("tool.pdf.merge");
 	expect(ids(files("C:\\a.png"), "actions")).toContain("action.wallpaper");
 	expect(ids(files("C:\\a.png", "C:\\b.png"), "actions")).not.toContain("action.wallpaper");
@@ -58,9 +64,14 @@ test("Split's page ranges", () => {
 	expect(splitPresets(1, 1)).toEqual([]);
 });
 
-test("dragged text has one option: To shelf", () => {
-	expect(modesFor({ paths: [], text: "hi" })).toEqual(["actions"]);
-	expect(ids({ paths: [], text: "hi" }, "actions")).toEqual(["action.shelf"]);
+test("dragged text: case, word count, search, save and To shelf; no file options", () => {
+	const t = { paths: [], text: "hi" };
+	expect(modesFor(t)).toEqual(["convert", "tools", "actions"]);
+	expect(ids(t, "convert")).toEqual(["text.upper", "text.lower"]);
+	expect(ids(t, "tools")).toEqual(["text.count"]);
+	expect(ids(t, "actions")).toEqual(["action.shelf", "text.search", "text.save"]);
+	// Files never get the text options.
+	expect(ids(files("C:\a.png"), "tools")).not.toContain("text.count");
 });
 
 test("the layout hides, reorders and sets the Shift order", () => {

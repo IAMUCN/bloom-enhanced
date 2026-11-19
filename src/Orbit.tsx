@@ -10,6 +10,7 @@ import { AnimatePresence, motion } from "framer-motion";
 import { invoke } from "@tauri-apps/api/core";
 import { emitTo, listen } from "@tauri-apps/api/event";
 import { writeText } from "@tauri-apps/plugin-clipboard-manager";
+import { openUrl } from "@tauri-apps/plugin-opener";
 import { CircleAlert, CircleCheck, CircleSlash, X } from "lucide-react";
 import {
 	HUB,
@@ -61,6 +62,8 @@ type Phase =
 	| { kind: "running"; op: OrbitOp; percent: number | null }
 	/** Split asks which pages first; pages is null while they are counted. */
 	| { kind: "ranges"; op: OrbitOp; input: OrbitInput; pages: number | null }
+	/** Resize asks for the size first. */
+	| { kind: "size"; op: OrbitOp; input: OrbitInput }
 	| { kind: "done"; text: string; result: Result };
 
 const point = (r: number, deg: number) => {
@@ -170,12 +173,34 @@ function Orbit() {
 			// Dragged text: copying it is what records it, so it lands in the
 			// shelf once and is also on the clipboard.
 			if (input.text) {
+				const t = input.text;
 				try {
-					await writeText(input.text);
-					finish("Added to the shelf and copied", "ok");
+					if (op.id === "text.upper") {
+						await writeText(t.toUpperCase());
+						finish("Copied in UPPER CASE", "ok");
+					} else if (op.id === "text.lower") {
+						await writeText(t.toLowerCase());
+						finish("Copied in lower case", "ok");
+					} else if (op.id === "text.count") {
+						const words = t.trim() ? t.trim().split(/\s+/).length : 0;
+						finish(`${words} word${words === 1 ? "" : "s"} · ${t.length} characters`, "ok");
+					} else if (op.id === "text.search") {
+						await openUrl(`https://www.google.com/search?q=${encodeURIComponent(t.trim().slice(0, 500))}`);
+						finish("Searching the web", "ok");
+					} else if (op.id === "text.save") {
+						const path = await invoke<string>("orbit_save_text", { text: t });
+						finish(`Saved ${fileName(path)}`, "ok");
+					} else {
+						await writeText(t);
+						finish("Added to the shelf and copied", "ok");
+					}
 				} catch (e) {
 					finish(String(e), "failed");
 				}
+				return;
+			}
+			if (op.id === "tool.image.resize") {
+				setPhase({ kind: "size", op, input });
 				return;
 			}
 			// Split asks for the page ranges first (the colon form carries them).
@@ -297,6 +322,24 @@ function Orbit() {
 				pages={phase.pages}
 				files={phase.input.paths.length}
 				onPick={(ranges) => run({ ...phase.op, id: `${phase.op.id}:${ranges}` }, phase.input)}
+				onCancel={close}
+			/>
+		);
+
+	if (phase.kind === "size")
+		return (
+			<PickRing
+				title="Resize"
+				placeholder="1200"
+				presets={SIZE_PRESETS}
+				check={(t) =>
+					!t
+						? { value: null, note: "Longest side, px", bad: false }
+						: /^\d+$/.test(t) && +t >= 16 && +t <= 20000
+							? { value: t, note: `Longest side ${t} px`, bad: false }
+							: { value: null, note: "A size like 1200", bad: true }
+				}
+				onPick={(px) => run({ ...phase.op, id: `${phase.op.id}:${px}` }, phase.input)}
 				onCancel={close}
 			/>
 		);
@@ -446,8 +489,18 @@ function Orbit() {
 	);
 }
 
-/** Split's second ring: one-click page choices around a hub where any
- *  ranges can be typed ("1-5, 6-20"); Enter splits. */
+/** Resize's sizes: the longest side, never made bigger. */
+const SIZE_PRESETS = [
+	{ label: "4K", hint: "3840 px", value: "3840" },
+	{ label: "Full HD", hint: "1920 px", value: "1920" },
+	{ label: "HD", hint: "1280 px", value: "1280" },
+	{ label: "Small", hint: "800 px", value: "800" },
+	{ label: "Thumbnail", hint: "320 px", value: "320" }
+];
+
+type Check = { value: string | null; note: string; bad: boolean };
+
+/** Split's page ranges: one-click choices plus typed ranges ("1-5, 6-20"). */
 function RangeRing({
 	pages,
 	files,
@@ -457,6 +510,40 @@ function RangeRing({
 	pages: number | null;
 	files: number;
 	onPick: (ranges: string) => void;
+	onCancel: () => void;
+}) {
+	const presets = pages ? splitPresets(pages, files).map((p) => ({ label: p.label, hint: p.hint, value: p.ranges })) : [];
+	const check = (text: string): Check => {
+		if (pages === null) return { value: null, note: "Counting pages…", bad: false };
+		const parsed = parseRanges(text, pages);
+		if (typeof parsed === "string") return { value: null, note: parsed, bad: true };
+		if (pages < 2 && !text) return { value: formatRanges(parsed), note: "Only one page", bad: false };
+		return {
+			value: formatRanges(parsed),
+			note: `${parsed.length} PDF${parsed.length === 1 ? "" : "s"} · ${files > 1 ? `${files} files` : `${pages} pages`}`,
+			bad: false
+		};
+	};
+	return <PickRing title="Split" placeholder="1-5, 6-20" presets={presets} disabled={pages === null} check={check} onPick={onPick} onCancel={onCancel} />;
+}
+
+/** A second ring that asks for one value: one-click choices around a hub
+ *  where it can be typed; Enter takes it (Split's ranges, Resize's size). */
+function PickRing({
+	title,
+	placeholder,
+	presets,
+	disabled = false,
+	check,
+	onPick,
+	onCancel
+}: {
+	title: string;
+	placeholder: string;
+	presets: { label: string; hint: string; value: string }[];
+	disabled?: boolean;
+	check: (text: string) => Check;
+	onPick: (value: string) => void;
 	onCancel: () => void;
 }) {
 	const [text, setText] = useState("");
@@ -471,17 +558,8 @@ function RangeRing({
 	useEffect(() => {
 		grab();
 	}, []);
-	const presets = pages ? splitPresets(pages, files) : [];
-	const parsed = pages ? parseRanges(text, pages) : null;
+	const { value, note, bad } = check(text);
 	const step = 360 / Math.max(1, presets.length);
-	const note =
-		pages === null
-			? "Counting pages…"
-			: typeof parsed === "string"
-				? parsed
-				: pages < 2 && !text
-					? "Only one page"
-					: `${parsed?.length} PDF${parsed?.length === 1 ? "" : "s"} · ${files > 1 ? `${files} files` : `${pages} pages`}`;
 	return (
 		<motion.div className="orbit" initial={{ scale: 0.5, opacity: 0, rotate: 30 }} animate={{ scale: 1, opacity: 1, rotate: 0 }} transition={SPRING}>
 			<svg
@@ -491,7 +569,7 @@ function RangeRing({
 				onPointerLeave={() => setHover(HUB)}
 				onClick={(e) => {
 					const i = hitTest(e.clientX - C, e.clientY - C, presets.length);
-					if (i >= 0) onPick(presets[i].ranges);
+					if (i >= 0) onPick(presets[i].value);
 					else if (i !== HUB) onCancel();
 				}}
 			>
@@ -521,22 +599,22 @@ function RangeRing({
 				<circle className="orbit-hub" cx={C} cy={C} r={INNER_R - 6} />
 				<foreignObject x={C - 52} y={C - 34} width={104} height={68}>
 					<div className="orbit-hub-label orbit-ranges">
-						<strong>Split</strong>
+						<strong>{title}</strong>
 						<input
 							ref={field}
 							value={text}
-							placeholder="1-5, 6-20"
+							placeholder={placeholder}
 							spellCheck={false}
-							disabled={pages === null}
-							className={typeof parsed === "string" ? "bad" : ""}
+							disabled={disabled}
+							className={bad ? "bad" : ""}
 							onPointerDown={grab}
 							onChange={(e) => setText(e.target.value)}
 							onKeyDown={(e) => {
-								if (e.key === "Enter" && Array.isArray(parsed)) onPick(formatRanges(parsed));
+								if (e.key === "Enter" && value) onPick(value);
 								if (e.key === "Escape") onCancel();
 							}}
 						/>
-						<motion.span key={note} initial={{ y: 4, opacity: 0 }} animate={{ y: 0, opacity: 1 }} className={typeof parsed === "string" ? "bad" : ""}>
+						<motion.span key={note} initial={{ y: 4, opacity: 0 }} animate={{ y: 0, opacity: 1 }} className={bad ? "bad" : ""}>
 							{note}
 						</motion.span>
 					</div>

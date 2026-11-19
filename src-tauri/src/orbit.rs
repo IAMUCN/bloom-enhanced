@@ -1127,6 +1127,72 @@ fn load_pdf(path: &Path) -> Result<lopdf::Document, String> {
     }
 }
 
+/// Compress PDF: photos inside are re-saved as JPEG at quality 60 (when
+/// that is smaller), unused objects dropped and every stream deflated.
+/// Text and vector pages stay sharp. Fails, saving nothing, when the result
+/// wouldn't be smaller.
+fn compress_pdf(path: &Path) -> Result<PathBuf, String> {
+    use lopdf::Object;
+    let before = std::fs::metadata(path).map(|m| m.len()).unwrap_or(u64::MAX);
+    let mut doc = load_pdf(path)?;
+    let ids: Vec<_> = doc.objects.keys().copied().collect();
+    for (i, id) in ids.iter().enumerate() {
+        canceled()?;
+        progress(0.8 * i as f64 / ids.len().max(1) as f64);
+        let Some(Object::Stream(stream)) = doc.objects.get_mut(id) else {
+            continue;
+        };
+        let is_jpeg = stream.dict.get(b"Subtype").and_then(|o| o.as_name()).ok()
+            == Some(b"Image".as_slice())
+            && stream.dict.get(b"Filter").and_then(|o| o.as_name()).ok()
+                == Some(b"DCTDecode".as_slice());
+        if !is_jpeg {
+            continue;
+        }
+        let Ok(img) =
+            image::load_from_memory_with_format(&stream.content, image::ImageFormat::Jpeg)
+        else {
+            continue;
+        };
+        // Grey and CMYK photos keep their bytes: re-saving would change them.
+        if !matches!(img.color(), image::ColorType::Rgb8) {
+            continue;
+        }
+        if let Ok(smaller) = jpeg_bytes(&img, 60) {
+            if smaller.len() < stream.content.len() {
+                stream.set_content(smaller);
+            }
+        }
+    }
+    doc.delete_zero_length_streams();
+    doc.prune_objects();
+    let bytes = pdf_bytes(doc)?;
+    if bytes.len() as u64 >= before {
+        return Err("It's already as small as it gets.".into());
+    }
+    save_bytes(path, "pdf", Some("compressed"), &bytes)
+}
+
+/// Rotate pages: every page turned by `degrees` (90 or 270) on top of the
+/// turn it has.
+fn rotate_pdf(path: &Path, degrees: i64) -> Result<PathBuf, String> {
+    use lopdf::Object;
+    let mut doc = load_pdf(path)?;
+    let pages: Vec<_> = doc.get_pages().into_values().collect();
+    for id in pages {
+        // A page without its own /Rotate inherits one; resolve it first.
+        let had = doc
+            .get_dictionary(id)
+            .ok()
+            .and_then(|d| d.get(b"Rotate").ok().and_then(|o| o.as_i64().ok()))
+            .unwrap_or(0);
+        if let Ok(page) = doc.get_dictionary_mut(id) {
+            page.set("Rotate", Object::Integer((had + degrees).rem_euclid(360)));
+        }
+    }
+    save_bytes(path, "pdf", Some("rotated"), &pdf_bytes(doc)?)
+}
+
 fn pdf_bytes(mut doc: lopdf::Document) -> Result<Vec<u8>, String> {
     doc.compress();
     let mut out = Vec::new();
@@ -1559,7 +1625,43 @@ fn image_tool(path: &Path, tool: &str) -> Result<PathBuf, String> {
             "50%",
         ),
         "compress" => return save_bytes(path, "jpg", Some("compressed"), &jpeg_bytes(&img, 70)?),
-        _ => return Err("Unknown tool.".into()),
+        "invert" => {
+            let mut img = img;
+            img.invert();
+            (img, "inverted")
+        }
+        "square" => {
+            let side = img.width().min(img.height());
+            (
+                img.crop_imm(
+                    (img.width() - side) / 2,
+                    (img.height() - side) / 2,
+                    side,
+                    side,
+                ),
+                "square",
+            )
+        }
+        // Decoding and saving again keeps only the pixels: location, camera
+        // and the rest of the photo's details are gone (the turn they asked
+        // for is already applied by decode).
+        "clean" => (img, "clean"),
+        _ => match tool
+            .strip_prefix("resize-")
+            .and_then(|s| s.parse::<u32>().ok())
+        {
+            // Longest side to this many pixels; never made bigger.
+            Some(side) if (16..=20000).contains(&side) => {
+                if img.width().max(img.height()) <= side {
+                    return Err(format!("It's already {side} px or smaller."));
+                }
+                (
+                    img.resize(side, side, image::imageops::FilterType::Lanczos3),
+                    "resized",
+                )
+            }
+            _ => return Err("Unknown tool.".into()),
+        },
     };
     let ext = match ext_of(path).as_str() {
         "jpeg" | "jfif" => "jpg".to_string(),
@@ -1716,9 +1818,13 @@ fn run(app: &AppHandle, op: &str, paths: &[PathBuf]) -> Vec<Outcome> {
                 progress(0.9);
                 save_bytes(path, to, None, &bytes)
             }),
+            ["tool", "image", "resize"] => image_tool(path, &format!("resize-{arg}")),
             ["tool", "image", tool] => image_tool(path, tool),
             ["tool", "archive", "extract"] => extract_zip(path),
             ["tool", "pdf", "split"] => split_pdf(path, arg),
+            ["tool", "pdf", "compress"] => compress_pdf(path),
+            ["tool", "pdf", "rotate-right"] => rotate_pdf(path, 90),
+            ["tool", "pdf", "rotate-left"] => rotate_pdf(path, 270),
             ["action", "copy-to" | "move-to"] => transfer(
                 path,
                 folder.as_deref().unwrap_or(Path::new("")),
@@ -1774,6 +1880,44 @@ pub async fn orbit_run(
     result
 }
 
+/// Selected text dragged to "Save as text": a .txt in Downloads\LotusNotch
+/// named after its first words; returns its path.
+#[tauri::command]
+pub fn orbit_save_text(app: AppHandle, text: String) -> Result<String, String> {
+    let dir = app
+        .path()
+        .download_dir()
+        .map_err(|e| e.to_string())?
+        .join("LotusNotch");
+    std::fs::create_dir_all(&dir).map_err(|e| e.to_string())?;
+    let name = text_file_name(&text);
+    let mut path = dir.join(format!("{name}.txt"));
+    let mut n = 2;
+    while path.exists() {
+        path = dir.join(format!("{name} ({n}).txt"));
+        n += 1;
+    }
+    std::fs::write(&path, text).map_err(|e| e.to_string())?;
+    Ok(path.to_string_lossy().into_owned())
+}
+
+/// The first few words, with characters Windows forbids in names left out.
+fn text_file_name(text: &str) -> String {
+    let words: Vec<&str> = text.split_whitespace().take(6).collect();
+    let name: String = words
+        .join(" ")
+        .chars()
+        .filter(|c| !r#"<>:"/\|?*"#.contains(*c) && !c.is_control())
+        .take(48)
+        .collect();
+    let name = name.trim().trim_end_matches('.').to_string();
+    if name.is_empty() {
+        "Text".into()
+    } else {
+        name
+    }
+}
+
 #[tauri::command]
 pub fn orbit_cancel() {
     CANCEL.store(true, Ordering::Relaxed);
@@ -1781,6 +1925,22 @@ pub fn orbit_cancel() {
 
 #[cfg(test)]
 mod tests {
+    #[test]
+    fn text_files_are_named_after_their_first_words() {
+        assert_eq!(
+            super::text_file_name("Hello: world? how are you today friend"),
+            "Hello world how are you today"
+        );
+        assert_eq!(
+            super::text_file_name(
+                "  
+ "
+            ),
+            "Text"
+        );
+        assert_eq!(super::text_file_name(r"a/b\c..."), "abc");
+    }
+
     #[test]
     fn creative_apps_keep_their_shift_drag() {
         assert!(super::is_shift_drag_app(
@@ -1794,6 +1954,59 @@ mod tests {
     fn is_hidden(path: &Path) -> bool {
         use std::os::windows::fs::MetadataExt;
         std::fs::metadata(path).unwrap().file_attributes() & 0x2 != 0
+    }
+
+    #[test]
+    fn pdf_pages_rotate_and_images_resize_square_invert() {
+        let dir = Path::new(env!("CARGO_MANIFEST_DIR"))
+            .join("target")
+            .join(format!("bloom-orbit-new-{}", std::process::id()));
+        let _ = std::fs::remove_dir_all(&dir);
+        std::fs::create_dir_all(&dir).unwrap();
+        let img = image::DynamicImage::ImageRgb8(image::RgbImage::from_pixel(
+            300,
+            200,
+            image::Rgb([10, 20, 30]),
+        ));
+        let png = dir.join("pic.png");
+        img.save(&png).unwrap();
+        let pdf = dir.join("doc.pdf");
+        std::fs::write(&pdf, pdf_from_jpegs(&[pdf_page(&img).unwrap()])).unwrap();
+
+        let rotated = rotate_pdf(&pdf, 90).unwrap();
+        let doc = load_pdf(&rotated).unwrap();
+        let page = *doc.get_pages().values().next().unwrap();
+        let turn = doc
+            .get_dictionary(page)
+            .unwrap()
+            .get(b"Rotate")
+            .unwrap()
+            .as_i64()
+            .unwrap();
+        assert_eq!(turn, 90);
+        let back = rotate_pdf(&rotated, 270).unwrap();
+        let doc = load_pdf(&back).unwrap();
+        let page = *doc.get_pages().values().next().unwrap();
+        assert_eq!(
+            doc.get_dictionary(page)
+                .unwrap()
+                .get(b"Rotate")
+                .unwrap()
+                .as_i64()
+                .unwrap(),
+            0
+        );
+
+        let small = decode(&image_tool(&png, "resize-100").unwrap()).unwrap();
+        assert_eq!((small.width(), small.height()), (100, 67));
+        assert!(image_tool(&png, "resize-400").is_err(), "never made bigger");
+        let square = decode(&image_tool(&png, "square").unwrap()).unwrap();
+        assert_eq!((square.width(), square.height()), (200, 200));
+        let inverted = decode(&image_tool(&png, "invert").unwrap())
+            .unwrap()
+            .to_rgb8();
+        assert_eq!(inverted.get_pixel(0, 0).0, [245, 235, 225]);
+        let _ = std::fs::remove_dir_all(&dir);
     }
 
     #[test]
