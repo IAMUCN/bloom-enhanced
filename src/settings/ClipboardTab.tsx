@@ -5,6 +5,7 @@ import {
 	BellRing,
 	ClipboardCheck,
 	EyeOff,
+	Gauge,
 	Globe,
 	History,
 	Image,
@@ -93,7 +94,9 @@ const RETENTION: [number, string][] = [
  *  or resting there. Dragging a file to it always opens on resting. */
 function EdgeOpenRow({ saveSetting }: { saveSetting: (key: string, value: string | null) => Promise<boolean> }) {
 	const [mode, setMode] = useState(() => (localStorage.getItem("bloom-clipboard-edge-open") === "rest" ? "rest" : "flick"));
+	const [speed, setSpeed] = useState(() => Number(localStorage.getItem("bloom-clipboard-edge-speed")) || 1000);
 	return (
+		<>
 		<SettingRow
 			icon={MousePointer2}
 			label="How It Opens"
@@ -109,6 +112,25 @@ function EdgeOpenRow({ saveSetting }: { saveSetting: (key: string, value: string
 				label="How the shelf opens"
 			/>
 		</SettingRow>
+		{mode === "flick" && (
+			<SettingRow icon={Gauge} label="Quick Move Speed" desc={`How fast the pointer must reach the edge: ${speed} px a second (lower opens more easily)`}>
+				<input
+					type="range"
+					min="300"
+					max="3000"
+					step="100"
+					value={speed}
+					onChange={(e) => {
+						const v = parseInt(e.target.value, 10);
+						setSpeed(v);
+						saveSetting("bloom-clipboard-edge-speed", String(v));
+					}}
+					className="settings-slider"
+					aria-label="Quick move speed"
+				/>
+			</SettingRow>
+		)}
+		</>
 	);
 }
 

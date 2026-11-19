@@ -97,6 +97,7 @@ export const SETTINGS_INDEX: SettingEntry[] = [
 	]),
 	...page("clipboard", [
 		["How It Opens", "Throw the pointer at the edge, or rest it there (left or right edge)"],
+		["Quick Move Speed", "How fast the pointer must reach the edge to open the shelf"],
 		["Sharing Port", "Change it if another app uses it (the same on every PC)"],
 		["Hide From Recordings", "Recordings, screen shares and screenshots leave the Shelf on a screen edge out"],
 		["Incognito", "Pause recording; nothing copied meanwhile is kept"],

@@ -1062,6 +1062,15 @@ static EDGE_SINCE: AtomicU64 = AtomicU64::new(0);
 /// Speed toward the edge over the last FLICK_WINDOW_MS, in physical px/ms;
 /// about 1000 px a second is a throw, aiming is much slower near the target.
 const FLICK_PX_PER_MS: f64 = 1.0;
+
+/// The quick-move speed in px/ms: `bloom-clipboard-edge-speed` (px per
+/// second, 300-3000, Settings › Shelf), else [`FLICK_PX_PER_MS`].
+fn flick_speed() -> f64 {
+    setting("bloom-clipboard-edge-speed")
+        .and_then(|v| v.parse::<f64>().ok())
+        .map(|v| v.clamp(300.0, 3000.0) / 1000.0)
+        .unwrap_or(FLICK_PX_PER_MS)
+}
 const FLICK_WINDOW_MS: u64 = 150;
 /// After a flick, the cursor must still be at the edge this long: passing
 /// through it to another monitor doesn't count.
@@ -1260,7 +1269,7 @@ pub fn update_edge_shelf(
         let since = match EDGE_SINCE.load(Ordering::Relaxed) {
             0 => {
                 EDGE_SINCE.store(now, Ordering::Relaxed);
-                ARRIVED_FAST.store(approach >= FLICK_PX_PER_MS, Ordering::Relaxed);
+                ARRIVED_FAST.store(approach >= flick_speed(), Ordering::Relaxed);
                 now
             }
             t => t,
