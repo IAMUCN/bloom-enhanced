@@ -258,20 +258,27 @@ pub fn on_open_notch_digit(vk: u16) -> bool {
         }
         return true;
     }
-    if down(VK_SHIFT.0) {
+    let Some(action) = tab_action(vk, down(VK_SHIFT.0)) else {
         return false;
-    }
-    let n = match vk {
-        0x31..=0x39 => vk - 0x30,
-        0x61..=0x69 => vk - 0x60,
-        _ => return false,
     };
     if let Some(app) = KEYBOARD_APP.get().cloned() {
         std::thread::spawn(move || {
-            let _ = app.emit_to("main", "shortcut", format!("tool-{n}"));
+            let _ = app.emit_to("main", "shortcut", action);
         });
     }
     true
+}
+
+/// The tab a digit opens: 1–9 count from the first tab (`tool-N`), Shift+1–9
+/// from the last (`tool-end-N`). Numpad digits only without Shift (with Shift
+/// they are arrow keys).
+fn tab_action(vk: u16, shift: bool) -> Option<String> {
+    match (vk, shift) {
+        (0x31..=0x39, false) => Some(format!("tool-{}", vk - 0x30)),
+        (0x61..=0x69, false) => Some(format!("tool-{}", vk - 0x60)),
+        (0x31..=0x39, true) => Some(format!("tool-end-{}", vk - 0x30)),
+        _ => None,
+    }
 }
 
 /// Settings records a shortcut: pause them all until it's done.
@@ -283,6 +290,16 @@ pub fn set_shortcuts_paused(paused: bool) {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn digits_pick_tabs_from_either_end() {
+        assert_eq!(tab_action(0x31, false).as_deref(), Some("tool-1"));
+        assert_eq!(tab_action(0x63, false).as_deref(), Some("tool-3")); // numpad
+        assert_eq!(tab_action(0x31, true).as_deref(), Some("tool-end-1"));
+        assert_eq!(tab_action(0x32, true).as_deref(), Some("tool-end-2"));
+        assert_eq!(tab_action(0x63, true), None);
+        assert_eq!(tab_action(0x41, false), None);
+    }
 
     #[test]
     fn calculator_keys() {

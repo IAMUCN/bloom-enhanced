@@ -2156,16 +2156,16 @@ function App() {
 		});
 		// Global shortcuts (shortcuts.rs): the notch runs the action.
 		const unlistenShortcut = listen<string>("shortcut", (e) => runShortcutRef.current(e.payload));
-		// With this window focused (typing in a tool), 1–9 jump to a tab unless
-		// a text field has the keys.
+		// With this window focused (typing in a tool), 1–9 jump to a tab and
+		// Shift+1–9 to one counted from the end, unless a text field has the keys.
 		const onDigit = (e: KeyboardEvent) => {
-			if (e.defaultPrevented || !isOpenRef.current || e.ctrlKey || e.altKey || e.metaKey || e.shiftKey) return;
+			if (e.defaultPrevented || !isOpenRef.current || e.ctrlKey || e.altKey || e.metaKey) return;
 			const target = e.target as HTMLElement | null;
 			if (target?.closest("input, textarea, [contenteditable='true']")) return;
-			const n = /^(Digit|Numpad)([1-9])$/.exec(e.code)?.[2];
-			if (!n) return;
+			const m = /^(Digit|Numpad)([1-9])$/.exec(e.code);
+			if (!m || (e.shiftKey && m[1] === "Numpad")) return;
 			e.preventDefault();
-			runShortcutRef.current(`tool-${n}`);
+			runShortcutRef.current(e.shiftKey ? `tool-end-${m[2]}` : `tool-${m[2]}`);
 		};
 		window.addEventListener("keydown", onDigit);
 		return () => {
@@ -3717,6 +3717,9 @@ function App() {
 		if (action === "notch") {
 			if (isOpen) releaseNotchHover();
 			else openFromShortcutRef.current();
+		} else if (action.startsWith("tool-end-")) {
+			// Shift+N: the Nth tab from the end.
+			openTab(tabTools[tabTools.length - Number(action.slice(9))]?.id);
 		} else if (action.startsWith("tool-")) {
 			openTab(tabTools[Number(action.slice(5)) - 1]?.id);
 		} else if (action.startsWith("tool:")) {
