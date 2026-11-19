@@ -1,4 +1,5 @@
 import {
+	Wand2,
 	PanelTop,
 	Music,
 	Minimize2,
@@ -338,6 +339,12 @@ export function NotchTab({
 						</SettingRow>
 
 						<OpenSizeRow saveSetting={saveSetting} />
+
+						<SettingRow icon={Wand2} label="Run Setup Again" desc="Size the notch with a live preview and set your name again">
+							<button type="button" className="setting-button" onClick={() => window.dispatchEvent(new Event("run-setup"))}>
+								Start
+							</button>
+						</SettingRow>
 					</div>
 
 					<div className="setting-group-label">Opening</div>

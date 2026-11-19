@@ -468,6 +468,16 @@ pub async fn change_dock_mode(app: AppHandle, mode: String) {
     }
 }
 
+/// True once after a manual (re)install: the installer leaves a marker
+/// (installer/hooks.nsh) so the first-run setup opens again.
+#[tauri::command]
+pub fn take_setup_marker(app: AppHandle) -> bool {
+    let Ok(dir) = app.path().app_config_dir() else {
+        return false;
+    };
+    std::fs::remove_file(dir.join("setup-again")).is_ok()
+}
+
 /// Spans the notch window over the primary monitor's width, tall enough for
 /// the tallest page (the Shelf) at the notch's sizes. Run at start, on a
 /// notch mode change and when a notch size changes.

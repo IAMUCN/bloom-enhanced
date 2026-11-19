@@ -1454,9 +1454,15 @@ function App() {
 						});
 						localStorage.setItem("bloom-first-run", "done");
 					}
-					// First-run setup (name, notch size, tools) lives in Settings:
-					// open it until it's done.
-					if (getVal("bloom-setup-done", "false") !== "true") window.setTimeout(() => invoke("open_settings_window").catch(() => {}), 2500);
+					// First-run setup (notch size, name, tools) lives in Settings:
+					// open it until it's done, and again after a manual reinstall.
+					const again = await invoke<boolean>("take_setup_marker").catch(() => false);
+					if (again) {
+						localStorage.setItem("bloom-setup-done", "false");
+						await invoke("save_setting", { key: "bloom-setup-done", value: "false" }).catch(() => {});
+					}
+					if (again || getVal("bloom-setup-done", "false") !== "true")
+						window.setTimeout(() => invoke("open_settings_window").catch(() => {}), 2500);
 					const rawDockMode = getVal("bloom-dock-mode", "smart") as string;
 					const dockMode = rawDockMode === "auto-hide" ? "smart" : rawDockMode;
 					setDockMode(dockMode);

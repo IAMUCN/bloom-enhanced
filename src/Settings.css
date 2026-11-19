@@ -2702,3 +2702,20 @@ button.shortcut-icon:hover {
 	font-size: 12px;
 	opacity: 0.6;
 }
+
+/* A small action button at the end of a setting row. */
+.setting-button {
+	height: 32px;
+	padding: 0 16px;
+	border: 1px solid var(--bloom-border, rgba(255, 255, 255, 0.14));
+	border-radius: 8px;
+	background: var(--bloom-group-bg, rgba(255, 255, 255, 0.06));
+	color: var(--bloom-text, #fff);
+	font: inherit;
+	font-size: 13px;
+	cursor: pointer;
+}
+
+.setting-button:hover {
+	background: rgba(255, 255, 255, 0.12);
+}

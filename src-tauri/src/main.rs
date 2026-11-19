@@ -156,6 +156,7 @@ fn main() {
             toggle_dock,
             change_dock_mode,
             change_notch_mode,
+            take_setup_marker,
             sync_appbar,
             open_app,
             launch_new_instance,

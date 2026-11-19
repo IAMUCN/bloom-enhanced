@@ -199,6 +199,12 @@ function SettingsApp() {
 		() => localStorage.getItem("bloom-setup-done") !== "true" || localStorage.getItem("bloom-tools-picked") !== "true"
 	);
 	const { announcement, dismissed, dismiss } = useAnnouncement();
+	// Settings › Notch › Run Setup Again.
+	useEffect(() => {
+		const again = () => setSetup(true);
+		window.addEventListener("run-setup", again);
+		return () => window.removeEventListener("run-setup", again);
+	}, []);
 
 	useEffect(() => {
 		return initTheme({ followSystem: true });
