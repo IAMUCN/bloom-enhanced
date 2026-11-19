@@ -2635,3 +2635,58 @@ button.shortcut-icon:hover {
 	outline: 2px solid var(--bloom-accent, #0a84ff);
 	outline-offset: 2px;
 }
+
+/* First-run setup: name and notch size (settings/Setup.tsx). */
+.pick-tools.setup {
+	width: min(520px, calc(100% - 32px));
+}
+
+.setup-input {
+	height: 40px;
+	padding: 0 14px;
+	border-radius: 10px;
+	border: 1px solid var(--bloom-border, rgba(255, 255, 255, 0.14));
+	background: transparent;
+	color: inherit;
+	font: inherit;
+	font-size: 15px;
+	outline: none;
+}
+
+.setup-input:focus-visible {
+	border-color: var(--accent-color, #0a84ff);
+}
+
+.setup-scale {
+	display: flex;
+	align-items: center;
+	gap: 12px;
+	font-size: 13px;
+}
+
+.setup-scale input {
+	flex: 1;
+	accent-color: var(--accent-color, #0a84ff);
+}
+
+.setup-scale b {
+	min-width: 44px;
+	text-align: right;
+	font-variant-numeric: tabular-nums;
+}
+
+.setting-text-input {
+	width: 200px;
+	height: 32px;
+	padding: 0 10px;
+	border-radius: 8px;
+	border: 1px solid var(--bloom-border, rgba(255, 255, 255, 0.14));
+	background: transparent;
+	color: inherit;
+	font: inherit;
+	outline: none;
+}
+
+.setting-text-input:focus-visible {
+	border-color: var(--accent-color, #0a84ff);
+}

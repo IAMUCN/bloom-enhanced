@@ -93,8 +93,8 @@ export const SETTINGS_INDEX: SettingEntry[] = [
 	]),
 	...page("clipboard", [
 		["Incognito", "Pause recording; nothing copied meanwhile is kept"],
+		["Your Name", "Shown only to people you share your Shelf with"],
 		["Position", "In the notch, or a shelf on the left, right or top screen edge"],
-		["Wide in the Notch", "A wider Clipboard panel, so more and larger tiles fit"],
 		["Shelf Monitor", "Which screen's edge the shelf slides out of"],
 		["Shortcut", "The key combination that opens the shelf"],
 		["Group Copied Files", "Several files or images copied at once stay one stack; off records each on its own"],

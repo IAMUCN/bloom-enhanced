@@ -42,7 +42,19 @@ pub fn start(app: AppHandle) {
         .download_dir()
         .unwrap_or_else(|_| dir.clone())
         .join("LotusNotch");
-    let name = std::env::var("COMPUTERNAME").unwrap_or_else(|_| "This PC".into());
+    // The name the user gave on first run (`bloom-share-name`), else the PC's.
+    let name = crate::state::SETTINGS_CACHE
+        .get()
+        .and_then(|c| {
+            c.lock()
+                .ok()?
+                .get("bloom-share-name")?
+                .as_str()
+                .map(str::to_string)
+        })
+        .filter(|n| !n.trim().is_empty())
+        .or_else(|| std::env::var("COMPUTERNAME").ok())
+        .unwrap_or_else(|| "This PC".into());
     // Debug builds also talk to the dev peer (examples/share_peer.rs).
     let mut announce = vec![PORT];
     if cfg!(debug_assertions) {
@@ -135,7 +147,7 @@ pub fn share_me() -> Result<Me, String> {
     let s = share()?;
     Ok(Me {
         id: s.id().to_string(),
-        name: s.name().to_string(),
+        name: s.name(),
     })
 }
 
@@ -343,4 +355,11 @@ pub async fn share_group_leave(gid: String) -> Result<(), String> {
 #[tauri::command]
 pub async fn share_invite_answer(gid: String, join: bool) -> Result<(), String> {
     blocking(move |s| s.answer_invite(&gid, join)).await
+}
+
+/// The name others see (first-run setup); takes effect at once.
+#[tauri::command]
+pub fn share_set_name(name: String) -> Result<(), String> {
+    share()?.set_name(&name);
+    Ok(())
 }

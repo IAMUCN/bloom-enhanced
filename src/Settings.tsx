@@ -31,7 +31,7 @@ import {
 } from "./settings/index";
 import type { SettingsTab } from "./settings/index";
 import { useAnnouncement } from "./hooks/useAnnouncement";
-import { PickTools } from "./settings/PickTools";
+import { Setup } from "./settings/Setup";
 import { ToolsTab } from "./settings/ToolsTab";
 import { ShortcutsTab } from "./settings/ShortcutsTab";
 import { useSettingsSync } from "./hooks/useSettingsSync";
@@ -194,8 +194,10 @@ function SettingsApp() {
 					? String(settings.clipboardEnabled)
 					: localStorage.getItem(k)
 		) + parseEnabledTools(localStorage.getItem("bloom-tools-enabled")).length;
-	// First run: "Pick your tools", once (bloom-tools-picked).
-	const [pickTools, setPickTools] = useState(() => localStorage.getItem("bloom-tools-picked") !== "true");
+	// First run: name, notch size and "Pick your tools", once (bloom-setup-done).
+	const [setup, setSetup] = useState(
+		() => localStorage.getItem("bloom-setup-done") !== "true" || localStorage.getItem("bloom-tools-picked") !== "true"
+	);
 	const { announcement, dismissed, dismiss } = useAnnouncement();
 
 	useEffect(() => {
@@ -232,7 +234,7 @@ function SettingsApp() {
 
 	return (
 		<div className="settings-container" style={{ zoom: settings.scale }}>
-			{pickTools && <PickTools saveSetting={settings.saveSetting} onDone={() => setPickTools(false)} />}
+			{setup && <Setup saveSetting={settings.saveSetting} onDone={() => setSetup(false)} />}
 			<div className="title-bar" data-tauri-drag-region>
 				<span className="title-text" data-tauri-drag-region>
 					Settings

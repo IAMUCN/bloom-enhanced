@@ -1445,6 +1445,9 @@ function App() {
 						});
 						localStorage.setItem("bloom-first-run", "done");
 					}
+					// First-run setup (name, notch size, tools) lives in Settings:
+					// open it until it's done.
+					if (getVal("bloom-setup-done", "false") !== "true") window.setTimeout(() => invoke("open_settings_window").catch(() => {}), 2500);
 					const rawDockMode = getVal("bloom-dock-mode", "smart") as string;
 					const dockMode = rawDockMode === "auto-hide" ? "smart" : rawDockMode;
 					setDockMode(dockMode);
@@ -2124,7 +2127,12 @@ function App() {
 			// A tool holding the keys (the Calculator) lets them go first.
 			const toolEsc = new Event("notch-escape-tool", { cancelable: true });
 			window.dispatchEvent(toolEsc);
-			if (!toolEsc.defaultPrevented) releaseNotchHoverRef.current();
+			if (toolEsc.defaultPrevented) return;
+			// Esc always closes, even while a field has the keyboard (the
+			// Shelf's search, a tool's text box): that used to keep it open.
+			notchPinnedRef.current = false;
+			(document.activeElement as HTMLElement | null)?.blur?.();
+			releaseNotchHoverRef.current();
 		});
 		// Global shortcuts (shortcuts.rs): the notch runs the action.
 		const unlistenShortcut = listen<string>("shortcut", (e) => runShortcutRef.current(e.payload));
@@ -3711,8 +3719,9 @@ function App() {
 		if (bloomMode === "announcement" && announcement && !announcementDismissed) return 380;
 		if (bloomMode === "device" && deviceAlert) return 330;
 		if (isCalendarMode) return 480;
-		if (bloomMode === "clipboard" && clipOptions.notchWide) return 560;
-		if (bloomMode === "shelf" || bloomMode === "clipboard") return 380;
+		// The Shelf and the file shelf keep the one open width like every
+		// other page (they used to be narrower, so the notch jumped).
+		if (bloomMode === "shelf" || bloomMode === "clipboard") return OPEN_WIDTH / panelZoomNow;
 		if (bloomMode === "command-center" && isOpen) return 400;
 		if (bloomMode === "wifi" || bloomMode === "bluetooth" || bloomMode === "devices") return 350;
 		if (showMusicOnStatusHover) {

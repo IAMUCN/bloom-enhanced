@@ -3,12 +3,12 @@ import { invoke } from "@tauri-apps/api/core";
 import { listen } from "@tauri-apps/api/event";
 import { openUrl } from "@tauri-apps/plugin-opener";
 import { startDrag } from "@crabnebula/tauri-plugin-drag";
-import { ArrowLeft, Copy, Eraser, Inbox, Layers, ListChecks, Pin, Search, Trash2, Ungroup, X } from "lucide-react";
+import { ArrowLeft, Copy, Download, Eraser, Image, Inbox, LayoutGrid, Layers, Link, ListChecks, Pin, Search, Share2, Shapes, Trash2, Type, Ungroup, X } from "lucide-react";
 import { releaseTextKeyboard } from "../hooks/useTextInputKeyboard";
 import { useClipboardSettings } from "../hooks/useClipboardSettings";
 import { clipSounds } from "../clipboardSounds";
 import { ClipTile } from "./ClipTile";
-import { ShareColumn, sharePeerAt } from "./ShareColumn";
+import { ShareColumn, openShareMenu, sharePeerAt } from "./ShareColumn";
 import {
 	CLEAR_WINDOWS,
 	CLIP_FILTERS,
@@ -41,6 +41,16 @@ interface ClipboardPanelProps {
 	/** The edge shelf's × (and Esc): close it. */
 	onClose?: () => void;
 }
+
+/** The filter row shows icons (their names on hover), leaving room. */
+const FILTER_ICONS: Record<ClipFilter, typeof Type> = {
+	all: LayoutGrid,
+	text: Type,
+	links: Link,
+	images: Image,
+	others: Shapes,
+	received: Download
+};
 
 const openLink = (url: string) => openUrl(/^https?:/i.test(url) ? url : `https://${url}`);
 
@@ -390,18 +400,36 @@ export function ClipboardPanel({ dragIcon, dropEvent, onDragStart, onDragEnd, dr
 				</div>
 			) : (
 				<div className="clip-filters">
-					{CLIP_FILTERS.map(([id, text]) => (
-						<button
-							key={id}
-							className={filter === id ? "active" : ""}
-							onClick={(e) => {
-								e.stopPropagation();
-								setFilter(id);
-							}}
-						>
-							{text}
-						</button>
-					))}
+					{CLIP_FILTERS.map(([id, text]) => {
+						const Icon = FILTER_ICONS[id];
+						return (
+							<button
+								key={id}
+								className={filter === id ? "active" : ""}
+								title={text}
+								aria-label={text}
+								aria-pressed={filter === id}
+								onClick={(e) => {
+									e.stopPropagation();
+									setFilter(id);
+								}}
+							>
+								<Icon size={14} />
+							</button>
+						);
+					})}
+					<span className="clip-filters-gap" />
+					<button
+						className="clip-share-open"
+						title="Share: pair, live clipboard, groups"
+						aria-label="Share"
+						onClick={(e) => {
+							e.stopPropagation();
+							openShareMenu();
+						}}
+					>
+						<Share2 size={14} />
+					</button>
 				</div>
 			)}
 

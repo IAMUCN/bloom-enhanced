@@ -51,6 +51,7 @@ pub fn setup_keyboard_hook(app_handle: AppHandle) {
             let wanted = (NATIVE_TASKBAR_HIDDEN.load(Ordering::Relaxed)
                 && dock_win_number_enabled())
                 || crate::state::NOTCH_OPEN.load(Ordering::Relaxed)
+                || crate::clipboard::shelf_open()
                 || crate::shortcuts::any();
             if wanted != (KEYBOARD_HOOK.load(Ordering::Relaxed) != 0) {
                 // A low-level hook runs on the thread that installed it, which
@@ -198,6 +199,16 @@ unsafe extern "system" fn keyboard_hook_proc(
                 std::thread::spawn(move || {
                     let _ = app.emit_to("main", "notch-escape", ());
                 });
+            }
+        }
+
+        // Esc closes an open edge Shelf (its window never takes the keyboard).
+        if is_down
+            && vk_code == windows::Win32::UI::Input::KeyboardAndMouse::VK_ESCAPE
+            && crate::clipboard::shelf_open()
+        {
+            if let Some(app) = KEYBOARD_HOOK_APP_HANDLE.get().cloned() {
+                std::thread::spawn(move || crate::clipboard::clipboard_shelf_close(app));
             }
         }
 

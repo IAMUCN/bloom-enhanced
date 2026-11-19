@@ -511,6 +511,7 @@ pub struct Share {
     tcp_port: u16,
     udp: UdpSocket,
     trusted: Mutex<Vec<Peer>>,
+    name: Mutex<String>,
     /// Who gets this side's copies (live clipboard), by id.
     live: Mutex<Vec<String>>,
     groups: Mutex<Vec<Group>>,
@@ -553,12 +554,14 @@ impl Share {
             .into_iter()
             .filter(|g| now_secs().saturating_sub(g.used) < GROUP_IDLE_SECS)
             .collect();
+        let name = short(&cfg.name);
         let share = Arc::new(Self {
             me,
             cfg,
             tcp_port,
             udp,
             trusted: Mutex::new(trusted),
+            name: Mutex::new(name),
             live: Mutex::new(live),
             groups: Mutex::new(groups),
             invites: Mutex::new(Vec::new()),
@@ -591,12 +594,21 @@ impl Share {
         &self.me.id
     }
 
-    pub fn name(&self) -> &str {
-        &self.cfg.name
+    /// The name others see (the user's, set on first run; else the PC's).
+    pub fn name(&self) -> String {
+        self.name.lock().unwrap().clone()
+    }
+
+    pub fn set_name(&self, name: &str) {
+        let name = short(name.trim());
+        if !name.is_empty() {
+            *self.name.lock().unwrap() = name;
+            self.announce("hello");
+        }
     }
 
     fn datagram(&self, t: &str) -> Vec<u8> {
-        serde_json::json!({ "t": t, "id": self.me.id, "name": self.cfg.name, "port": self.tcp_port })
+        serde_json::json!({ "t": t, "id": self.me.id, "name": self.name(), "port": self.tcp_port })
             .to_string()
             .into_bytes()
     }
@@ -689,7 +701,7 @@ impl Share {
             .ok_or("Not on this network now")?;
         let stream = TcpStream::connect_timeout(&addr, Duration::from_secs(5))
             .map_err(|_| "Couldn't reach them".to_string())?;
-        let ch = handshake(stream, &self.me, &self.cfg.name, true)?;
+        let ch = handshake(stream, &self.me, &self.name(), true)?;
         if ch.peer_id != id {
             return Err("Someone else answered".into());
         }
@@ -778,7 +790,7 @@ impl Share {
     fn me_peer(&self) -> Peer {
         Peer {
             id: self.me.id.clone(),
-            name: self.cfg.name.clone(),
+            name: self.name(),
             key: hex(self.me.pair.public_key().as_ref()),
         }
     }
@@ -1061,7 +1073,7 @@ impl Share {
 
     /// One incoming connection.
     fn serve(&self, stream: TcpStream) -> Result<(), String> {
-        let mut ch = handshake(stream, &self.me, &self.cfg.name, false)?;
+        let mut ch = handshake(stream, &self.me, &self.name(), false)?;
         let msg = ch.recv_json()?;
         match msg["t"].as_str() {
             Some("pair") => {

@@ -86,6 +86,7 @@ Edit `settings.json` with any text editor while Bloom is running. Changes are ap
 | `bloom-tab-order` | JSON list of tool ids | `[]` | The tab bar's order, set by dragging in Settings › Tools (built-in and extra tools mixed). Tools not in it follow in their default place. `bloom-notch-panel-order` is kept in step for the mouse-wheel cycle. |
 | `bloom-tools-enabled` | JSON list of tool ids | `[]` | The notch tools beyond the built-in panels that are on, in tab order (Settings › Notch › More Tools). Off tools are never loaded; each tool's data lives in `<app config>/tools/<id>.json` until "Erase data". |
 | `bloom-tools-picked` | `"true"` / absent | absent | Set once the first-run "Pick your tools" welcome in Settings was finished or skipped. |
+| `bloom-setup-done` | `"true"` / absent | absent | Set once the first-run setup (your name, notch size, Pick your tools) was finished or skipped; until then the notch opens Settings on start. |
 | `bloom-battery-saver` | `"off"` / `"battery"` / `"below"` | `"below"` | When Battery saver turns on: never, on battery, or on battery at or below `bloom-battery-saver-threshold`. A leaf shows on the notch while it's on. |
 | `bloom-battery-saver-threshold` | percent as string, `"10"`–`"80"` | `"30"` | Battery level for `"below"`. |
 | `bloom-battery-saver-pauses` | JSON `{"visualizer","motion","glass"}` booleans | all `true` | What Battery saver pauses: the audio visualizer (stops the capture), animations (reduced motion), blur. |
@@ -112,7 +113,8 @@ Edit `settings.json` with any text editor while Bloom is running. Changes are ap
 | `bloom-clipboard-position` | `"notch"` / `"left"` / `"right"` | `"notch"` | Where the history lives: the notch's Clipboard panel (with the notch off, a shelf under the middle of the top edge), or a shelf that slides out of the left or right screen edge. On a shared edge the first of shelf and volume/brightness HUD to open keeps the edge until it closes. Dragging something in goes to the same place: the notch, or that edge. |
 | `bloom-clipboard-shortcut` | e.g. `"Alt+C"`, `"Ctrl+Shift+V"`, `"F9"` | `"Alt+C"` | Global shortcut that opens/closes the clipboard (notch panel or edge shelf). `""` = no shortcut. Letters, digits and Space need a modifier. |
 | `bloom-clipboard-monitor` | monitor device name as Windows reports it (ends in `DISPLAY2` etc.) | `""` | Screen whose edge the shelf uses; `""` = primary. Ignored when the clipboard is in the notch. |
-| `bloom-clipboard-notch-wide` | `"true"` / `"false"` | `"false"` | A wider Clipboard panel in the notch (560 instead of 380), so more and larger tiles fit. |
+| `bloom-clipboard-notch-wide` | `"true"` / `"false"` | `"false"` | No longer used: the Shelf in the notch now always has the notch's one open width. |
+| `bloom-share-name` | string (≤ 48 chars) | (unset: the PC's name) | Your name, shown only to people you share your Shelf with (asked on first run; Settings › Shelf › Sharing). |
 | `bloom-clipboard-rich-text` | `"true"` / `"false"` | `"true"` | Keep the HTML of formatted text (up to 64 KB) and paste it back formatted. |
 | `bloom-clipboard-link-previews` | `"true"` / `"false"` | `"true"` | Show a site badge, a title from the address and the domain for links. Made offline; nothing is fetched. |
 | `bloom-clipboard-notes` | `"true"` / `"false"` | `"true"` | Allow a note or #tags on items. Noted items are kept through cleanup and found by search. |

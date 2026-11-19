@@ -1,4 +1,5 @@
 import { useEffect, useState } from "react";
+import { invoke } from "@tauri-apps/api/core";
 import { availableMonitors } from "@tauri-apps/api/window";
 import {
 	BellRing,
@@ -10,7 +11,7 @@ import {
 	Keyboard,
 	Layers,
 	ListChecks,
-	Maximize2,
+	UserRound,
 	Monitor,
 	PanelLeft,
 	StickyNote,
@@ -132,6 +133,29 @@ export function ClipboardTab({
 
 			{enabled && (
 				<>
+					<div className="setting-group-label">Sharing</div>
+					<div className="setting-group">
+						<SettingRow icon={UserRound} label="Your Name" desc="Shown only to people you share your Shelf with" divider={false}>
+							<input
+								className="setting-text-input"
+								defaultValue={localStorage.getItem("bloom-share-name") ?? ""}
+								maxLength={48}
+								placeholder="Your name"
+								aria-label="Your name"
+								onBlur={(e) => {
+									const name = e.target.value.trim();
+									if (name === (localStorage.getItem("bloom-share-name") ?? "")) return;
+									saveSetting("bloom-share-name", name);
+									if (name) invoke("share_set_name", { name }).catch(() => {});
+								}}
+							/>
+						</SettingRow>
+					</div>
+				</>
+			)}
+
+			{enabled && (
+				<>
 					<div className="setting-group-label">Shelf</div>
 					<div className="setting-group">
 						<SettingRow
@@ -155,19 +179,6 @@ export function ClipboardTab({
 								label="Shelf position"
 							/>
 						</SettingRow>
-
-						{position === "notch" && notchOn && (
-							<SettingRow icon={Maximize2} label="Wide in the Notch" desc="A wider Clipboard panel, so more and larger tiles fit">
-								<label className="toggle-switch">
-									<input
-										type="checkbox"
-										checked={options.notchWide}
-										onChange={() => saveSetting("bloom-clipboard-notch-wide", String(!options.notchWide))}
-									/>
-									<span className="slider"></span>
-								</label>
-							</SettingRow>
-						)}
 
 						{(position !== "notch" || !notchOn) && monitors.length > 1 && (
 							<SettingRow icon={Monitor} label="Shelf Monitor" desc="Which screen's edge the shelf slides out of">
