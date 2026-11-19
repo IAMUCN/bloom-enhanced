@@ -22,7 +22,8 @@ export default function Teleprompter({ setPinned }: ToolProps) {
 
 	useEffect(() => {
 		invoke("set_capture_excluded", { excluded: true }).catch(() => {});
-		return () => void invoke("set_capture_excluded", { excluded: false }).catch(() => {});
+		// Back to the notch's own choice (Settings › Notch › Hide From Recordings).
+		return () => void invoke("set_capture_excluded", { excluded: localStorage.getItem("bloom-notch-hide-from-capture") !== "false" }).catch(() => {});
 	}, []);
 
 	// Ctrl+V on this page loads the copied text as the script: from another

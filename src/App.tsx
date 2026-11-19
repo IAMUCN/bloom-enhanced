@@ -2670,6 +2670,18 @@ function App() {
 		// eslint-disable-next-line react-hooks/exhaustive-deps
 	}, []);
 
+	// Settings › Notch › Hide From Recordings (on by default).
+	useEffect(() => {
+		if (windowLabel !== "main") return;
+		const apply = (v: string | null) => invoke("set_capture_excluded", { excluded: v !== "false" }).catch(() => {});
+		apply(localStorage.getItem("bloom-notch-hide-from-capture"));
+		const on = (e: { payload: { key?: string; value?: unknown } }) => {
+			if (e.payload?.key === "bloom-notch-hide-from-capture") apply(String(e.payload.value));
+		};
+		const offs = [listen<{ key?: string; value?: unknown }>("settings-changed", on)];
+		return () => offs.forEach((o) => o.then((f) => f()));
+	}, [windowLabel]);
+
 	// Setup's live preview: hold the notch closed (showing the time) or open
 	// on the Command Center while its size is chosen; null lets it go.
 	useEffect(() => {

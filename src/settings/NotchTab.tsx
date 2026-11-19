@@ -15,7 +15,8 @@ import {
 	PanelLeft,
 	PanelRight,
 	Star,
-	History
+	History,
+	VideoOff
 } from "lucide-react";
 import { useState } from "react";
 import { SettingRow } from "./SettingRow";
@@ -47,6 +48,26 @@ const ROW_SIZES = [
 	["bloom-notch-left-size", PanelLeft, "Left Icons", "Widgets left of the clock"],
 	["bloom-notch-right-size", PanelRight, "Right Icons", "Widgets right of the clock"]
 ] as const;
+
+/** Windows can't tell a screenshot from a recording: both leave the notch out. */
+function HideFromCaptureRow({ saveSetting }: { saveSetting: (key: string, value: string | null) => Promise<boolean> }) {
+	const [on, setOn] = useState(() => localStorage.getItem("bloom-notch-hide-from-capture") !== "false");
+	return (
+		<SettingRow icon={VideoOff} label="Hide From Recordings" desc="Screen recordings, shares and screenshots leave the notch out">
+			<label className="toggle-switch">
+				<input
+					type="checkbox"
+					checked={on}
+					onChange={() => {
+						setOn(!on);
+						saveSetting("bloom-notch-hide-from-capture", String(!on));
+					}}
+				/>
+				<span className="slider"></span>
+			</label>
+		</SettingRow>
+	);
+}
 
 function RowSizes({ saveSetting }: { saveSetting: (key: string, value: string | null) => Promise<boolean> }) {
 	const [sizes, setSizes] = useState<Record<string, number>>(() =>
@@ -339,6 +360,8 @@ export function NotchTab({
 						</SettingRow>
 
 						<OpenSizeRow saveSetting={saveSetting} />
+
+						<HideFromCaptureRow saveSetting={saveSetting} />
 
 						<SettingRow icon={Wand2} label="Run Setup Again" desc="Size the notch with a live preview and set your name again">
 							<button type="button" className="setting-button" onClick={() => window.dispatchEvent(new Event("run-setup"))}>
