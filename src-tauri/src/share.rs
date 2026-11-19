@@ -378,6 +378,9 @@ pub enum Event {
     },
 }
 
+/// The answer to someone who isn't (or is no longer) paired.
+const NOT_PAIRED: &str = "not-paired";
+
 /// Limits per send (.grill/shelf-share.md).
 pub const MAX_SEND: u64 = 250 * 1024 * 1024;
 pub const MAX_FILES: usize = 1000;
@@ -846,14 +849,51 @@ impl Share {
     pub fn tell_live(&self, id: &str, on: bool) -> Result<(), String> {
         let mut ch = self.connect(id)?;
         ch.send_json(&serde_json::json!({ "t": "live-notice", "on": on }))?;
+        let reply = ch.recv_json()?;
+        self.check_reply(id, &ch.peer_name, &reply)
+    }
+
+    /// Tells `id` this side removed them, so they remove this side too.
+    pub fn tell_unpaired(&self, id: &str) -> Result<(), String> {
+        let mut ch = self.connect(id)?;
+        ch.send_json(&serde_json::json!({ "t": "unpair" }))?;
         ch.recv_json().map(|_| ())
     }
 
+    /// An answer other than "ok" as an error. "Not paired" means they removed
+    /// this side while it was away: remove them here too.
+    fn check_reply(&self, id: &str, name: &str, reply: &serde_json::Value) -> Result<(), String> {
+        if reply["t"] == "ok" {
+            return Ok(());
+        }
+        if reply["why"] == NOT_PAIRED {
+            self.forget(id);
+            return Err(format!("{name} removed you. Pair again to send."));
+        }
+        Err(reply["why"]
+            .as_str()
+            .unwrap_or("They couldn't take it")
+            .to_string())
+    }
+
+    /// Removes `id` here only (see [`Share::tell_unpaired`] for their side).
     pub fn unpair(&self, id: &str) {
+        self.forget(id);
+    }
+
+    fn forget(&self, id: &str) {
         self.trusted.lock().unwrap().retain(|p| p.id != id);
         self.save_trusted();
         let live: Vec<String> = self.live().into_iter().filter(|x| x != id).collect();
         self.set_live(&live);
+        {
+            let mut live_in = self.live_in.lock().unwrap();
+            live_in.retain(|x| x != id);
+            let _ = std::fs::write(
+                self.cfg.dir.join("live-in.json"),
+                serde_json::to_vec(&*live_in).unwrap_or_default(),
+            );
+        }
         (self.events)(Event::PeersChanged);
     }
 
@@ -1190,7 +1230,19 @@ impl Share {
                 ch.send_json(&serde_json::json!({ "t": if ok { "pair-ok" } else { "pair-no" } }))
             }
             // Everything else is for trusted people only.
-            _ if !self.is_trusted(&ch.peer_key) => Err("Not paired".into()),
+            // (said, so a PC we removed while it was offline drops us too).
+            _ if !self.is_trusted(&ch.peer_key) => {
+                let _ = ch.send_json(&serde_json::json!({ "t": "no", "why": NOT_PAIRED }));
+                Err("Not paired".into())
+            }
+            Some("unpair") => {
+                self.forget(&ch.peer_id);
+                (self.events)(Event::Notice(format!(
+                    "{} removed you from their paired devices",
+                    ch.peer_name
+                )));
+                ch.send_json(&serde_json::json!({ "t": "ok" }))
+            }
             Some("live-notice") => {
                 let on = msg["on"].as_bool().unwrap_or(false);
                 {
@@ -1276,12 +1328,7 @@ impl Share {
         )?;
         ch.set_timeout(Duration::from_secs(30));
         let reply = ch.recv_json()?;
-        if reply["t"] != "ok" {
-            return Err(reply["why"]
-                .as_str()
-                .unwrap_or("They couldn't take it")
-                .to_string());
-        }
+        self.check_reply(id, &ch.peer_name, &reply)?;
         let mut done = texts.iter().map(|t| t.len() as u64).sum::<u64>();
         progress(done, total);
         let mut buf = vec![0u8; CHUNK];
@@ -1704,6 +1751,26 @@ mod tests {
     }
 
     #[test]
+    fn removing_someone_removes_you_on_their_side_too() {
+        // Told at once.
+        let (a, b, _rx) = paired("unpair-told");
+        a.unpair(b.id());
+        a.tell_unpaired(b.id()).unwrap();
+        assert!(b.trusted.lock().unwrap().is_empty());
+        // Or the next time they try to send.
+        let (a, b, _rx) = paired("unpair-later");
+        introduce(&b, &a);
+        b.seen.lock().unwrap().get_mut(a.id()).unwrap().addr =
+            SocketAddr::from(([127, 0, 0, 1], a.tcp_port));
+        a.unpair(b.id());
+        assert!(b
+            .send(a.id(), &[Item::Text("hi".into())], |_, _| {})
+            .unwrap_err()
+            .contains("removed you"));
+        assert!(b.trusted.lock().unwrap().is_empty());
+    }
+
+    #[test]
     fn the_other_side_is_told_about_live() {
         let (a, b, rx) = paired("livetell");
         a.tell_live(b.id(), true).unwrap();
@@ -1795,7 +1862,8 @@ mod tests {
         let mut ch = a.connect(b.id()).unwrap();
         ch.send_json(&serde_json::json!({ "t": "send" })).unwrap();
         ch.set_timeout(Duration::from_secs(3));
-        // b drops the connection without answering.
+        // b says so (a then drops b too) and hangs up.
+        assert_eq!(ch.recv_json().unwrap()["why"], NOT_PAIRED);
         assert!(ch.recv().is_err());
     }
 }

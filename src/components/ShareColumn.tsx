@@ -353,7 +353,7 @@ export function ShareColumn({
 									</button>
 								</>
 							) : (
-								<button type="button" className="clip-share-remove" title="You'd need to pair again to send to them" onClick={() => setRemoving(p.id)}>
+								<button type="button" className="clip-share-remove" title="Removes you on their side too; pair again to share" onClick={() => setRemoving(p.id)}>
 									Remove
 								</button>
 							)}

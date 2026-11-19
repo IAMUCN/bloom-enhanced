@@ -217,7 +217,13 @@ pub fn share_answer(id: String, accept: bool) -> Result<(), String> {
 
 #[tauri::command]
 pub fn share_unpair(id: String) -> Result<(), String> {
-    share()?.unpair(&id);
+    let s = share()?.clone();
+    s.unpair(&id);
+    // Their side drops this PC too; if they're away, they find out on their
+    // next send ("X removed you").
+    std::thread::spawn(move || {
+        let _ = s.tell_unpaired(&id);
+    });
     Ok(())
 }
 
