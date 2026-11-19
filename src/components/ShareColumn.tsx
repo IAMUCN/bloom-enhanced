@@ -5,7 +5,7 @@ import { listen } from "@tauri-apps/api/event";
 import { ArrowLeft, Check, LogOut, Plus, Radio, Settings2, TriangleAlert, UserPlus, Users, X } from "lucide-react";
 
 type Peer = { id: string; name: string; trusted: boolean; online: boolean };
-type Request = { id: string; name: string; code: number };
+type Request = { id: string; name: string; code?: number; missed?: boolean };
 type Member = { id: string; name: string };
 type Group = { gid: string; name: string; members: Member[] };
 type Invite = { gid: string; name: string; from?: string };
@@ -593,10 +593,29 @@ export function ShareColumn({
 								if (Math.abs(e.deltaY) > Math.abs(e.deltaX)) e.currentTarget.scrollLeft += e.deltaY;
 							}}
 						>
-							{requests.map((r) => (
+							{requests.map((r) =>
+								r.missed ? (
+									// Ran out while the notch was hidden (full screen): ask back.
+									<div key={`req${r.id}`} className="clip-share-chip ask" title={`${r.name} asked to pair while you were busy`}>
+										<span className="clip-share-name">{r.name} wanted to pair</span>
+										<button
+											type="button"
+											className="clip-share-accept"
+											onClick={() => {
+												answer(r, false);
+												pair({ id: r.id, name: r.name } as Peer);
+											}}
+										>
+											Pair back
+										</button>
+										<button type="button" className="clip-share-forget show" aria-label="Dismiss" title="Dismiss" onClick={() => answer(r, false)}>
+											<X size={10} />
+										</button>
+									</div>
+								) : (
 								<div key={`req${r.id}`} className="clip-share-chip ask" title={`Accept only if ${r.name} shows the same code`}>
 									<span className="clip-share-name">
-										{r.name} wants to pair · <b>{code4(r.code)}</b>
+										{r.name} wants to pair · <b>{code4(r.code ?? 0)}</b>
 									</span>
 									<button type="button" className="clip-share-accept" onClick={() => answer(r, true)}>
 										Accept
@@ -605,7 +624,8 @@ export function ShareColumn({
 										<X size={10} />
 									</button>
 								</div>
-							))}
+							)
+							)}
 							{invites.map((inv) => {
 								const reply = (join: boolean) => {
 									setInvites((all) => all.filter((x) => x.gid !== inv.gid));

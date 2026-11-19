@@ -190,14 +190,20 @@ pub async fn share_pair(app: AppHandle, id: String) -> Result<(), String> {
     .map_err(|e| e.to_string())?
 }
 
-/// Pairing requests waiting for an answer (shown when the column opens).
+/// Pairing requests waiting for an answer (shown when the column opens),
+/// then the ones that ran out unseen (`missed`, no code: pair back instead).
 #[tauri::command]
 pub fn share_requests() -> Result<Vec<serde_json::Value>, String> {
-    Ok(share()?
+    let s = share()?;
+    let waiting = s
         .requests()
         .into_iter()
-        .map(|(id, name, code)| serde_json::json!({ "id": id, "name": name, "code": code }))
-        .collect())
+        .map(|(id, name, code)| serde_json::json!({ "id": id, "name": name, "code": code }));
+    let missed = s
+        .missed()
+        .into_iter()
+        .map(|(id, name)| serde_json::json!({ "id": id, "name": name, "missed": true }));
+    Ok(waiting.chain(missed).collect())
 }
 
 #[tauri::command]

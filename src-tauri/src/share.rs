@@ -26,6 +26,38 @@ use std::path::{Path, PathBuf};
 use std::sync::{mpsc, Arc, Mutex};
 use std::time::{Duration, Instant};
 
+/// This PC's IPv4 addresses with their masks, without loopback and
+/// link-local (169.254, an adapter with no network).
+fn local_nets() -> Vec<(Ipv4Addr, Ipv4Addr)> {
+    use windows::Win32::NetworkManagement::IpHelper::{GetIpAddrTable, MIB_IPADDRTABLE};
+    let mut size = 0u32;
+    // SAFETY: the first call only reports the size; the second fills a
+    // buffer of that size (u32-aligned, as MIB_IPADDRTABLE needs).
+    unsafe {
+        GetIpAddrTable(None, &mut size, false);
+        let mut buf = vec![0u32; (size as usize).div_ceil(4).max(1)];
+        let table = buf.as_mut_ptr().cast::<MIB_IPADDRTABLE>();
+        if GetIpAddrTable(Some(table), &mut size, false) != 0 {
+            return Vec::new();
+        }
+        let rows =
+            std::slice::from_raw_parts((*table).table.as_ptr(), (*table).dwNumEntries as usize);
+        rows.iter()
+            .map(|r| {
+                (
+                    Ipv4Addr::from(r.dwAddr.to_ne_bytes()),
+                    Ipv4Addr::from(r.dwMask.to_ne_bytes()),
+                )
+            })
+            .filter(|(a, _)| !a.is_loopback() && !a.is_link_local() && !a.is_unspecified())
+            .collect()
+    }
+}
+
+fn subnet_broadcast(addr: Ipv4Addr, mask: Ipv4Addr) -> Ipv4Addr {
+    Ipv4Addr::from(u32::from(addr) | !u32::from(mask))
+}
+
 /// Discovery group and port (the dev peer listens on DEV_PORT so it can run
 /// next to the app on one PC).
 pub const GROUP: Ipv4Addr = Ipv4Addr::new(239, 255, 71, 17);
@@ -521,6 +553,10 @@ pub struct Share {
     last_query: Mutex<Instant>,
     /// Pairing requests waiting for an answer: id → (answer, name, code).
     pending: Mutex<HashMap<String, Pending>>,
+    /// Requests that ran out unanswered (e.g. while a full-screen app hid the
+    /// notch, by choice): id → name, shown as "X wanted to pair" until
+    /// paired or dismissed. Kept until quit.
+    missed: Mutex<HashMap<String, String>>,
     events: Box<dyn Fn(Event) + Send + Sync>,
 }
 
@@ -533,10 +569,9 @@ impl Share {
         let listener = TcpListener::bind(("0.0.0.0", 0)).map_err(|e| e.to_string())?;
         let tcp_port = listener.local_addr().map_err(|e| e.to_string())?.port();
         let udp = UdpSocket::bind(("0.0.0.0", cfg.listen_port)).map_err(|e| e.to_string())?;
-        // ponytail: joins the group on the default interface only; PCs with
-        // VPN/virtual adapters may need a join per interface.
         let _ = udp.join_multicast_v4(&GROUP, &Ipv4Addr::UNSPECIFIED);
         let _ = udp.set_multicast_loop_v4(true);
+        let _ = udp.set_broadcast(true);
         let trusted = std::fs::read(cfg.dir.join("trusted.json"))
             .ok()
             .and_then(|b| serde_json::from_slice(&b).ok())
@@ -568,6 +603,7 @@ impl Share {
             seen: Mutex::new(HashMap::new()),
             last_query: Mutex::new(Instant::now()),
             pending: Mutex::new(HashMap::new()),
+            missed: Mutex::new(HashMap::new()),
             events: Box::new(events),
         });
         let s = share.clone();
@@ -613,9 +649,23 @@ impl Share {
             .into_bytes()
     }
 
+    /// Multicast goes out on Windows' default adapter only, which on a PC
+    /// with Ethernet, a hotspot or a VPN is often not the Wi-Fi. So also join
+    /// the group and send a subnet broadcast on every adapter (re-done on each
+    /// announce, so adapters that came up later are covered).
     fn announce(&self, t: &str) {
+        let nets = local_nets();
+        for (addr, _) in &nets {
+            let _ = self.udp.join_multicast_v4(&GROUP, addr);
+        }
+        let msg = self.datagram(t);
         for port in &self.cfg.announce_ports {
-            let _ = self.udp.send_to(&self.datagram(t), (GROUP, *port));
+            let _ = self.udp.send_to(&msg, (GROUP, *port));
+            for (addr, mask) in &nets {
+                let _ = self
+                    .udp
+                    .send_to(&msg, (subnet_broadcast(*addr, *mask), *port));
+            }
         }
     }
 
@@ -725,6 +775,7 @@ impl Share {
 
     /// The answer to a pairing request shown on this side.
     pub fn answer(&self, id: &str, accept: bool) {
+        self.missed.lock().unwrap().remove(id);
         if let Some((tx, ..)) = self.pending.lock().unwrap().remove(id) {
             let _ = tx.send(accept);
         }
@@ -737,6 +788,14 @@ impl Share {
             .unwrap()
             .iter()
             .map(|(id, (_, name, code))| (id.clone(), name.clone(), *code))
+            .collect()
+    }
+
+    /// Requests that ran out unanswered: (id, name).
+    pub fn missed(&self) -> Vec<(String, String)> {
+        let m = self.missed.lock().unwrap();
+        m.iter()
+            .map(|(id, name)| (id.clone(), name.clone()))
             .collect()
     }
 
@@ -1049,6 +1108,7 @@ impl Share {
     }
 
     fn trust(&self, ch: &Channel) {
+        self.missed.lock().unwrap().remove(&ch.peer_id);
         {
             let mut trusted = self.trusted.lock().unwrap();
             trusted.retain(|p| p.id != ch.peer_id);
@@ -1087,8 +1147,17 @@ impl Share {
                     name: ch.peer_name.clone(),
                     code: ch.code,
                 });
-                let ok = self.cfg.auto_accept || rx.recv_timeout(PAIR_WAIT).unwrap_or(false);
+                let answer = if self.cfg.auto_accept {
+                    Ok(true)
+                } else {
+                    rx.recv_timeout(PAIR_WAIT)
+                };
+                let ok = answer.unwrap_or(false);
                 self.pending.lock().unwrap().remove(&ch.peer_id);
+                if answer.is_err() && !ok {
+                    let mut missed = self.missed.lock().unwrap();
+                    missed.insert(ch.peer_id.clone(), ch.peer_name.clone());
+                }
                 if ok {
                     self.trust(&ch);
                 }
@@ -1587,6 +1656,20 @@ mod tests {
         );
         a.unpair(b.id());
         assert!(a.live().is_empty(), "unpairing stops live sending");
+    }
+
+    #[test]
+    fn broadcast_address_per_subnet() {
+        let b = |a: [u8; 4], m: [u8; 4]| subnet_broadcast(a.into(), m.into());
+        assert_eq!(
+            b([192, 168, 31, 27], [255, 255, 255, 0]),
+            Ipv4Addr::new(192, 168, 31, 255)
+        );
+        assert_eq!(
+            b([10, 1, 2, 3], [255, 255, 0, 0]),
+            Ipv4Addr::new(10, 1, 255, 255)
+        );
+        assert!(local_nets().iter().all(|(a, _)| !a.is_loopback()));
     }
 
     /// Points `a` at `b`'s real port, as discovery would.

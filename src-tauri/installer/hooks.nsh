@@ -13,5 +13,11 @@
     CreateDirectory "$APPDATA\com.ucnindustries.lotusnotch"
     FileOpen $0 "$APPDATA\com.ucnindustries.lotusnotch\setup-again" w
     FileClose $0
+    ; Shelf sharing needs incoming LAN traffic. Windows' own first-run prompt
+    ; is easy to miss (or answer for Public only, or Cancel = a Block rule that
+    ; wins over any Allow), so replace this app's rules with one Allow for
+    ; Private networks. Needs admin: one UAC prompt; declining only leaves
+    ; sharing to Windows' prompt.
+    ExecShell "runas" "$SYSDIR\cmd.exe" '/c netsh advfirewall firewall delete rule name=all program="$INSTDIR\${MAINBINARYNAME}.exe" & netsh advfirewall firewall add rule name="LotusNotch sharing" dir=in action=allow program="$INSTDIR\${MAINBINARYNAME}.exe" profile=private enable=yes' SW_HIDE
   ${EndIf}
 !macroend
