@@ -3,7 +3,7 @@ import { panelZoom, parsePanelOrder } from "../src/notchLayout";
 
 test("each panel draws at its own base zoom", () => {
 	expect(panelZoom("command-center")).toBe(1);
-	expect(panelZoom("clipboard")).toBe(1.3);
+	expect(panelZoom("clipboard")).toBe(1);
 	expect(panelZoom("calendar")).toBe(1);
 });
 

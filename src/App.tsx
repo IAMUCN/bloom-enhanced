@@ -3806,8 +3806,9 @@ function App() {
 		}
 		// The Command Center's height: opening a list moves nothing.
 		if (quickList) return isOpen ? 36 + ccBodyHeight(ccTiles) : 300;
-		// 300 × the clipboard's 1.3 base keeps it inside the notch window.
-		if (bloomMode === "clipboard") return 300;
+		// The Shelf is tall, so more of the history fits (inside the notch
+		// window, commands.rs: 600 × the notch's sizes).
+		if (bloomMode === "clipboard") return 520;
 		if (bloomMode === "status") return 36;
 		if (isMusicMode && isOpen) {
 			const hasProgressBar = (mediaInfo.duration_ms ?? 0) > 0;

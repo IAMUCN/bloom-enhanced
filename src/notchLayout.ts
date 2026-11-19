@@ -9,10 +9,11 @@ export const MAX_SCALE = 1.5;
 
 export type SizedPanel = "calendar" | "command-center" | "clipboard" | "devices" | "music" | "shelf";
 
-/** What 100% means per panel: the clipboard shelf is drawn 30% larger
- *  than its original layout. (The Wi-Fi / Bluetooth lists zoom only their
- *  own content, QuickPanel.css: a notch-wide zoom moves the tab bar.) */
-const PANEL_BASE: Partial<Record<SizedPanel, number>> = { clipboard: 1.3 };
+/** What 100% means per panel. None zooms the whole notch any more: the
+ *  Shelf and the Wi-Fi / Bluetooth lists zoom only their own content
+ *  (ClipboardPanel.css, QuickPanel.css), so the notch keeps the same width
+ *  as every tool and the tab bar doesn't move. */
+const PANEL_BASE: Partial<Record<SizedPanel, number>> = {};
 
 /** A panel's zoom. */
 export const panelZoom = (panel: SizedPanel) => PANEL_BASE[panel] ?? 1;

@@ -468,6 +468,29 @@ pub async fn change_dock_mode(app: AppHandle, mode: String) {
     }
 }
 
+/// Spans the notch window over the primary monitor's width, tall enough for
+/// the tallest page (the Shelf) at the notch's sizes. Run at start, on a
+/// notch mode change and when a notch size changes.
+pub fn resize_notch_window(app: &AppHandle) {
+    let Some(main_win) = app.get_webview_window("main") else {
+        return;
+    };
+    if let Ok(Some(monitor)) = main_win.primary_monitor() {
+        let m_pos = monitor.position();
+        let m_size = monitor.size();
+        let scale = monitor.scale_factor();
+        let bloom_scale = crate::utils::get_surface_scale(app, "bloom-notch-scale");
+        // The window region keeps everything outside the notch click-through.
+        let open_scale = crate::utils::get_setting_str(app, "bloom-notch-open-scale")
+            .and_then(|s| s.parse::<f64>().ok())
+            .unwrap_or(1.0)
+            .clamp(0.8, 1.25);
+        let target_height = (600.0 * bloom_scale * open_scale.max(1.0) * scale) as u32;
+        let _ = main_win.set_position(tauri::PhysicalPosition::new(m_pos.x, m_pos.y));
+        let _ = main_win.set_size(tauri::PhysicalSize::new(m_size.width, target_height));
+    }
+}
+
 #[tauri::command]
 pub async fn change_notch_mode(app: AppHandle) {
     if let Some(main_win) = app.get_webview_window("main") {
@@ -485,16 +508,7 @@ pub async fn change_notch_mode(app: AppHandle) {
                 re_assert_topmost(hwnd);
             }
         });
-        // Reposition window to span the full primary monitor so CSS justify-content:center works
-        if let Ok(Some(monitor)) = main_win.primary_monitor() {
-            let m_pos = monitor.position();
-            let m_size = monitor.size();
-            let scale = monitor.scale_factor();
-            let bloom_scale = crate::utils::get_surface_scale(&app, "bloom-notch-scale");
-            let target_height = (420.0 * bloom_scale * scale) as u32;
-            let _ = main_win.set_position(tauri::PhysicalPosition::new(m_pos.x, m_pos.y));
-            let _ = main_win.set_size(tauri::PhysicalSize::new(m_size.width, target_height));
-        }
+        resize_notch_window(&app);
 
         let current = CURRENT_NOTCH_OVERLAP.load(Ordering::Relaxed);
         if current != -1 {
@@ -3382,6 +3396,12 @@ pub fn save_setting(app: AppHandle, key: String, value: serde_json::Value) -> Re
     }
     if crate::utils::SCALE_KEYS.contains(&key.as_str()) {
         re_register_appbars(&app, &settings);
+    }
+    if matches!(
+        key.as_str(),
+        "bloom-scale" | "bloom-notch-scale" | "bloom-notch-open-scale"
+    ) {
+        resize_notch_window(&app);
     }
     Ok(())
 }

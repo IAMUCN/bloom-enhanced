@@ -3,12 +3,12 @@ import { invoke } from "@tauri-apps/api/core";
 import { listen } from "@tauri-apps/api/event";
 import { openUrl } from "@tauri-apps/plugin-opener";
 import { startDrag } from "@crabnebula/tauri-plugin-drag";
-import { ArrowLeft, Copy, Download, Eraser, Image, Inbox, LayoutGrid, Layers, Link, ListChecks, Pin, Search, Share2, Shapes, Trash2, Type, Ungroup, X } from "lucide-react";
+import { ArrowLeft, Copy, Download, Eraser, Image, Inbox, LayoutGrid, Layers, Link, ListChecks, Pin, Search, Shapes, Trash2, Type, Ungroup, X } from "lucide-react";
 import { releaseTextKeyboard } from "../hooks/useTextInputKeyboard";
 import { useClipboardSettings } from "../hooks/useClipboardSettings";
 import { clipSounds } from "../clipboardSounds";
 import { ClipTile } from "./ClipTile";
-import { ShareColumn, openShareMenu, sharePeerAt } from "./ShareColumn";
+import { ShareColumn, sharePeerAt } from "./ShareColumn";
 import {
 	CLEAR_WINDOWS,
 	CLIP_FILTERS,
@@ -418,18 +418,6 @@ export function ClipboardPanel({ dragIcon, dropEvent, onDragStart, onDragEnd, dr
 							</button>
 						);
 					})}
-					<span className="clip-filters-gap" />
-					<button
-						className="clip-share-open"
-						title="Share: pair, live clipboard, groups"
-						aria-label="Share"
-						onClick={(e) => {
-							e.stopPropagation();
-							openShareMenu();
-						}}
-					>
-						<Share2 size={14} />
-					</button>
 				</div>
 			)}
 

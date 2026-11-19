@@ -536,8 +536,14 @@
    pairing, live clipboard and groups open as a sheet over the history. */
 .clip-panel.clip-notch,
 .clip-panel.clip-edge {
-	flex-direction: row;
-	gap: 8px;
+	flex-direction: column;
+	gap: 6px;
+}
+
+/* The Shelf zooms only its content (130 %), like the Wi-Fi / Bluetooth
+   lists: the notch itself keeps every tool's width (notchLayout.ts). */
+.clip-panel > * {
+	zoom: 1.3;
 }
 
 .clip-main {
@@ -577,30 +583,56 @@
 	cursor: pointer;
 }
 
+/* The share bar at the bottom of the Shelf (notch and edge). */
 .clip-share {
 	flex: none;
 	display: flex;
 	flex-direction: column;
 	gap: 6px;
-	min-height: 0;
-	padding-left: 8px;
-	border-left: 1px solid rgba(255, 255, 255, 0.08);
+	padding-top: 7px;
+	border-top: 1px solid rgba(255, 255, 255, 0.08);
 	font-size: 11px;
 }
 
-.clip-share.notch {
-	width: 112px;
-}
-
-.clip-share.edge {
-	width: 92px;
-}
-
+/* People and groups as chips, wrapping; two rows, then it scrolls. */
 .clip-share-people {
-	flex: 1;
-	min-height: 0;
+	display: flex;
+	flex-wrap: wrap;
+	gap: 4px;
+	max-height: 64px;
 	overflow-y: auto;
 	scrollbar-width: none;
+}
+
+.clip-share .clip-share-person {
+	width: auto;
+	max-width: 170px;
+	min-height: 28px;
+	padding: 2px 8px;
+	background: rgba(255, 255, 255, 0.07);
+}
+
+.clip-share-actions {
+	display: flex;
+	align-items: center;
+	gap: 6px;
+}
+
+.clip-share-actions .clip-share-hint {
+	flex: 1;
+	min-width: 0;
+	overflow: hidden;
+	text-overflow: ellipsis;
+	white-space: nowrap;
+}
+
+.clip-share-menu-wrap {
+	position: relative;
+}
+
+.clip-share-btn.share {
+	background: rgba(10, 132, 255, 0.2);
+	color: #64b5ff;
 }
 
 .clip-share-banner {
@@ -615,8 +647,8 @@
 /* The menu under the Share icon. */
 .clip-share-menu {
 	position: absolute;
-	top: 66px;
-	right: 12px;
+	bottom: calc(100% + 6px);
+	left: 0;
 	z-index: 8;
 	display: flex;
 	flex-direction: column;
