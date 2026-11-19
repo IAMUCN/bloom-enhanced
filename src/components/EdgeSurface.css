@@ -10,7 +10,16 @@
    pixel off a curve that should meet it. Every piece therefore paints 1px
    beyond its box and is clipped back to its exact shape, which puts all the
    visible edges on the same unrounded geometry. */
+/* The flares' size: 13px, smaller for a thinner surface (the Minimal notch's
+   idle bar sets 5px). Registered so it can animate between them. */
+@property --flare {
+	syntax: "<length>";
+	inherits: true;
+	initial-value: 13px;
+}
+
 .edge-surface {
+	transition: --flare 0.3s ease;
 	--surface-solid: rgb(from var(--surface-bg) r g b / 1);
 	position: absolute;
 	inset: 0;
@@ -24,14 +33,14 @@
 /* Reach over the flares, along the edge. */
 .edge-surface--top,
 .edge-surface--bottom {
-	left: -13px;
-	right: -13px;
+	left: calc(-1 * var(--flare));
+	right: calc(-1 * var(--flare));
 }
 
 .edge-surface--left,
 .edge-surface--right {
-	top: -13px;
-	bottom: -13px;
+	top: calc(-1 * var(--flare));
+	bottom: calc(-1 * var(--flare));
 }
 
 /* The pill, with the parent's (possibly animated) corner radii. */
@@ -48,17 +57,17 @@
 
 .edge-surface--top::before,
 .edge-surface--bottom::before {
-	left: 13px;
-	right: 13px;
+	left: var(--flare);
+	right: var(--flare);
 }
 
 .edge-surface--left::before,
 .edge-surface--right::before {
-	top: 13px;
-	bottom: 13px;
+	top: var(--flare);
+	bottom: var(--flare);
 }
 
-/* Each flare is a 13px concave curve plus 1px that overlaps the pill. The
+/* Each flare is a --flare (13px) concave curve plus 1px that overlaps the pill. The
    curve is a cubic whose handles reach past a circle's (10px instead of
    7.2px), so it eases into the screen edge and the pill's side instead of
    meeting them with a crease. One shape per axis, mirrored per corner. */
@@ -77,13 +86,13 @@
 /* Drawn as the top edge's left flare. */
 .edge-surface--top .edge-surface-flare,
 .edge-surface--bottom .edge-surface-flare {
-	width: 14px;
-	height: 13px;
+	width: calc(var(--flare) + 1px);
+	height: var(--flare);
 	clip-path: shape(
 		from 0 0,
-		curve to 13px 13px with 10px 0 / 13px 3px,
-		line to 14px 13px,
-		line to 14px 0,
+		curve to var(--flare) var(--flare) with calc(var(--flare) * 0.77) 0 / var(--flare) calc(var(--flare) * 0.23),
+		line to calc(var(--flare) + 1px) var(--flare),
+		line to calc(var(--flare) + 1px) 0,
 		close
 	);
 }
@@ -91,13 +100,13 @@
 /* Drawn as the left edge's top flare. */
 .edge-surface--left .edge-surface-flare,
 .edge-surface--right .edge-surface-flare {
-	width: 13px;
-	height: 14px;
+	width: var(--flare);
+	height: calc(var(--flare) + 1px);
 	clip-path: shape(
 		from 0 0,
-		curve to 13px 13px with 0 10px / 3px 13px,
-		line to 13px 14px,
-		line to 0 14px,
+		curve to var(--flare) var(--flare) with 0 calc(var(--flare) * 0.77) / calc(var(--flare) * 0.23) var(--flare),
+		line to var(--flare) calc(var(--flare) + 1px),
+		line to 0 calc(var(--flare) + 1px),
 		close
 	);
 }

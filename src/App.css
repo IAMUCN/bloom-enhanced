@@ -73,6 +73,11 @@ img {
 	visibility: hidden;
 }
 
+/* The idle bar is 8px tall: its flares shrink with it (13px would dwarf it). */
+.bloom.minimal-idle {
+	--flare: 5px;
+}
+
 .bloom.expanded {
 	--notch-bg: var(--bloom-bg-expanded, rgba(0, 0, 0, 0.92));
 }

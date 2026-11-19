@@ -1077,10 +1077,12 @@ fn set_shelf_open(app: &AppHandle, side: ShelfSide, open: bool) {
                 ((560.0 * scale) as i32).min(mw * 9 / 10),
                 ((380.0 * scale) as i32).min(mh * 4 / 5),
             ),
-            // Narrow and tall, with room for the share section at the bottom.
+            // Narrow, about two thirds of the screen at most (it was nearly
+            // the full height); the clips scroll and the people row stays at
+            // the bottom.
             _ => (
                 (320.0 * scale) as i32,
-                ((780.0 * scale) as i32).min(mh * 88 / 100),
+                ((520.0 * scale) as i32).min(mh * 2 / 3),
             ),
         };
         let (x, y) = match side {
