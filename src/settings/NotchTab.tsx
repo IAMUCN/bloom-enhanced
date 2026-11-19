@@ -363,7 +363,7 @@ export function NotchTab({
 
 						<HideFromCaptureRow saveSetting={saveSetting} />
 
-						<SettingRow icon={Wand2} label="Run Setup Again" desc="Size the notch with a live preview and set your name again">
+						<SettingRow icon={Wand2} label="Run Setup Again" desc="Pick your modules, then size the notch and dock with a live preview">
 							<button type="button" className="setting-button" onClick={() => window.dispatchEvent(new Event("run-setup"))}>
 								Start
 							</button>

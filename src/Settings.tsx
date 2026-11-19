@@ -31,7 +31,7 @@ import {
 } from "./settings/index";
 import type { SettingsTab } from "./settings/index";
 import { useAnnouncement } from "./hooks/useAnnouncement";
-import { Setup } from "./settings/Setup";
+import { Setup, type SetupModules } from "./settings/Setup";
 import { ToolsTab } from "./settings/ToolsTab";
 import { ShortcutsTab } from "./settings/ShortcutsTab";
 import { useSettingsSync } from "./hooks/useSettingsSync";
@@ -194,7 +194,7 @@ function SettingsApp() {
 					? String(settings.clipboardEnabled)
 					: localStorage.getItem(k)
 		) + parseEnabledTools(localStorage.getItem("bloom-tools-enabled")).length;
-	// First run: name, notch size and "Pick your tools", once (bloom-setup-done).
+	// First run: modules, their sizes, your name, "Pick your tools", once (bloom-setup-done).
 	const [setup, setSetup] = useState(
 		() => localStorage.getItem("bloom-setup-done") !== "true" || localStorage.getItem("bloom-tools-picked") !== "true"
 	);
@@ -240,7 +240,15 @@ function SettingsApp() {
 
 	return (
 		<div className="settings-container" style={{ zoom: settings.scale }}>
-			{setup && <Setup saveSetting={settings.saveSetting} onDone={() => setSetup(false)} />}
+			{setup && (
+				<Setup
+					saveSetting={settings.saveSetting}
+					onDone={() => setSetup(false)}
+					modules={modules as SetupModules}
+					dockScale={settings.dockScale}
+					onDockScale={settings.handleDockScaleChange}
+				/>
+			)}
 			<div className="title-bar" data-tauri-drag-region>
 				<span className="title-text" data-tauri-drag-region>
 					Settings

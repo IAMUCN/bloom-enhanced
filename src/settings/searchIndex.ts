@@ -52,7 +52,7 @@ export const SETTINGS_INDEX: SettingEntry[] = [
 		["Notch Size", "Size of the notch only; the dock keeps its own"],
 		["Open Size", "How big the notch is when it's open, on top of Notch Size"],
 		["Hide From Recordings", "Screen recordings, shares and screenshots leave the notch out"],
-		["Run Setup Again", "Size the notch with a live preview and set your name again"],
+		["Run Setup Again", "Pick your modules, then size the notch and dock with a live preview"],
 		["Favourite", "The tool the notch opens on; off = the tool you used last. Pick it with the star in Tools"],
 		["Quick Return", "Come back within a few minutes and the notch reopens where you left off"],
 		["Music Mode", "Interactive live music widget"],

@@ -2636,11 +2636,7 @@ button.shortcut-icon:hover {
 	outline-offset: 2px;
 }
 
-/* First-run setup: name and notch size (settings/Setup.tsx). */
-.pick-tools.setup {
-	width: min(520px, calc(100% - 32px));
-}
-
+/* First-run setup controls (settings/Setup.tsx). */
 .setup-input {
 	height: 40px;
 	padding: 0 14px;
@@ -2691,13 +2687,6 @@ button.shortcut-icon:hover {
 	border-color: var(--accent-color, #0a84ff);
 }
 
-/* Setup sits low, out of the way of the notch it previews at the top. */
-.setup-backdrop {
-	place-items: end center;
-	padding-bottom: 48px;
-	box-sizing: border-box;
-}
-
 .setup-steps {
 	font-size: 12px;
 	opacity: 0.6;
@@ -2718,4 +2707,237 @@ button.shortcut-icon:hover {
 
 .setting-button:hover {
 	background: rgba(255, 255, 255, 0.12);
+}
+
+/* First-run setup (settings/Setup.tsx): a white screen (the window is
+   maximized meanwhile) so the real notch at the top and the dock at the
+   bottom are the live preview. Black on white, the accent only for "on". */
+.setup-screen {
+	--setup-ink: #111;
+	--setup-muted: rgba(17, 17, 17, 0.56);
+	--setup-line: rgba(17, 17, 17, 0.12);
+	position: fixed;
+	inset: 0;
+	z-index: 1000;
+	display: grid;
+	place-items: center;
+	padding: 140px 16px 96px;
+	box-sizing: border-box;
+	overflow-y: auto;
+	background: #fff;
+	color: var(--setup-ink);
+	color-scheme: light;
+}
+
+.setup-panel {
+	width: min(480px, 100%);
+	display: flex;
+	flex-direction: column;
+	gap: 14px;
+}
+
+.setup-panel.wide {
+	width: min(920px, 100%);
+}
+
+.setup-panel h1 {
+	margin: 0;
+	font-size: 28px;
+	font-weight: 650;
+	letter-spacing: -0.02em;
+	line-height: 1.1;
+}
+
+.setup-panel p {
+	margin: 0;
+	max-width: 56ch;
+	font-size: 14px;
+	line-height: 1.5;
+	color: var(--setup-muted);
+}
+
+.setup-panel .setup-steps {
+	color: var(--setup-muted);
+	opacity: 1;
+}
+
+.setup-panel .setup-input {
+	border-color: var(--setup-line);
+	color: var(--setup-ink);
+}
+
+.setup-panel .pick-tools-actions {
+	margin-top: 10px;
+}
+
+.setup-modules {
+	display: grid;
+	grid-template-columns: repeat(4, 1fr);
+	gap: 12px;
+	margin-top: 6px;
+}
+
+@media (max-width: 760px) {
+	.setup-modules {
+		grid-template-columns: repeat(2, 1fr);
+	}
+}
+
+.setup-module {
+	display: flex;
+	flex-direction: column;
+	gap: 6px;
+	padding: 12px 12px 14px;
+	border: 1px solid var(--setup-line);
+	border-radius: 14px;
+	background: #fff;
+	color: inherit;
+	font: inherit;
+	text-align: left;
+	cursor: pointer;
+	transition:
+		border-color 160ms ease,
+		box-shadow 160ms ease,
+		transform 100ms ease-out;
+}
+
+.setup-module:hover {
+	border-color: rgba(17, 17, 17, 0.28);
+}
+
+.setup-module:active {
+	transform: scale(0.98);
+}
+
+.setup-module.on {
+	border-color: var(--bloom-accent, #0a84ff);
+	box-shadow: 0 0 0 1px var(--bloom-accent, #0a84ff);
+}
+
+.setup-module:focus-visible {
+	outline: 2px solid var(--bloom-accent, #0a84ff);
+	outline-offset: 2px;
+}
+
+.setup-module-name {
+	display: flex;
+	align-items: center;
+	justify-content: space-between;
+	margin-top: 4px;
+	font-size: 15px;
+	font-weight: 600;
+}
+
+.setup-module-check {
+	display: grid;
+	place-items: center;
+	width: 20px;
+	height: 20px;
+	border-radius: 50%;
+	border: 1.5px solid var(--setup-line);
+	color: #fff;
+}
+
+.setup-module.on .setup-module-check {
+	border-color: var(--bloom-accent, #0a84ff);
+	background: var(--bloom-accent, #0a84ff);
+}
+
+.setup-module-what {
+	font-size: 12.5px;
+	line-height: 1.45;
+	color: var(--setup-muted);
+}
+
+/* The small pictures: a screen with the module drawn in black. */
+.setup-art {
+	position: relative;
+	height: 92px;
+	border-radius: 9px;
+	background: #f2f2f4;
+	overflow: hidden;
+}
+
+.setup-art i {
+	position: absolute;
+	display: block;
+	background: #111;
+}
+
+.setup-module:not(.on) .setup-art i {
+	opacity: 0.35;
+}
+
+.setup-art-notch i:nth-child(1) {
+	top: 0;
+	left: 50%;
+	width: 64px;
+	height: 16px;
+	margin-left: -32px;
+	border-radius: 0 0 9px 9px;
+}
+
+.setup-art-notch i:nth-child(n + 2),
+.setup-art-files i:nth-child(n + 2) {
+	display: none;
+}
+
+.setup-art-dock i {
+	bottom: 6px;
+	width: 14px;
+	height: 14px;
+	border-radius: 4px;
+}
+
+.setup-art-dock i:nth-child(1) {
+	left: calc(50% - 25px);
+}
+.setup-art-dock i:nth-child(2) {
+	left: calc(50% - 7px);
+}
+.setup-art-dock i:nth-child(3) {
+	left: calc(50% + 11px);
+}
+
+.setup-art-clipboard i:nth-child(1) {
+	top: 0;
+	left: 50%;
+	width: 120px;
+	height: 58px;
+	margin-left: -60px;
+	border-radius: 0 0 12px 12px;
+}
+
+.setup-art-clipboard i:nth-child(2),
+.setup-art-clipboard i:nth-child(3) {
+	top: 14px;
+	width: 30px;
+	height: 30px;
+	border-radius: 6px;
+	background: #f2f2f4;
+}
+
+.setup-art-clipboard i:nth-child(2) {
+	left: calc(50% - 40px);
+}
+.setup-art-clipboard i:nth-child(3) {
+	left: calc(50% - 4px);
+}
+
+.setup-art-files i:nth-child(1) {
+	top: 50%;
+	left: 50%;
+	width: 62px;
+	height: 62px;
+	margin: -31px 0 0 -31px;
+	border-radius: 50%;
+	background: none;
+	border: 12px solid #111;
+	box-sizing: border-box;
+}
+
+@media (prefers-reduced-motion: reduce) {
+	.setup-module {
+		transition: none;
+	}
 }
