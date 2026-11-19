@@ -50,6 +50,7 @@ export const SETTINGS_INDEX: SettingEntry[] = [
 		["Peek Delay", "How long to rest on the top edge before it shows"],
 		["Style", "Notch, floating pill or minimal bar"],
 		["Notch Size", "Size of the notch only; the dock keeps its own"],
+		["Open Size", "How big the notch is when it's open, on top of Notch Size"],
 		["Favourite", "The tool the notch opens on; off = the tool you used last. Pick it with the star in Tools"],
 		["Quick Return", "Come back within a few minutes and the notch reopens where you left off"],
 		["Music Mode", "Interactive live music widget"],

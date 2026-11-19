@@ -709,6 +709,14 @@ function App() {
 	const [eventPeek, setEventPeek] = useState(false);
 	const eventPeekTimeoutRef = useRef<any>(null);
 	const updatePulseTimerRef = useRef<any>(null);
+	// First-run setup's live preview (Settings › setup): the notch stays shown,
+	// closed or open, while its size sliders move.
+	const [setupPreview, setSetupPreview] = useState<"closed" | "open" | null>(null);
+	// Extra size for the open notch only (`bloom-notch-open-scale`).
+	const [openScale, setOpenScale] = useState(() => {
+		const v = parseFloat(localStorage.getItem("bloom-notch-open-scale") ?? "1");
+		return Number.isFinite(v) ? Math.min(1.25, Math.max(0.8, v)) : 1;
+	});
 	const triggerEventPeek = useCallback((duration = 3000) => {
 		setEventPeek(true);
 		if (eventPeekTimeoutRef.current) clearTimeout(eventPeekTimeoutRef.current);
@@ -948,6 +956,7 @@ function App() {
 		!timerShowing &&
 		!startupAnimating &&
 		!deviceAlertOnScreen &&
+		!setupPreview &&
 		((notchMode === "smart" && isOverlapped && interactionState === "none" && !eventPeek) ||
 			(notchMode === "peek" && interactionState === "none" && !eventPeek));
 
@@ -1559,6 +1568,10 @@ function App() {
 			"bloom-media-layout": setMediaLayout,
 			"bloom-scale": setGlobalScale,
 			"bloom-notch-scale": setNotchScale,
+			"bloom-notch-open-scale": (v: unknown) => {
+				const n = parseFloat(String(v));
+				setOpenScale(Number.isFinite(n) ? Math.min(1.25, Math.max(0.8, n)) : 1);
+			},
 			"bloom-notch-style": (v: unknown) => setNotchStyle(asNotchStyle(v)),
 			"bloom-notch-panel-order": (v: unknown) => setPanelOrder(parsePanelOrder(v)),
 			"bloom-notch-time-size": (v: unknown) => setTimeSize(sizeOf(v)),
@@ -2620,6 +2633,25 @@ function App() {
 		// eslint-disable-next-line react-hooks/exhaustive-deps
 	}, []);
 
+	// Setup's live preview: hold the notch closed (showing the time) or open
+	// on the Command Center while its size is chosen; null lets it go.
+	useEffect(() => {
+		if (windowLabel !== "main") return;
+		const off = listen<"closed" | "open" | null>("setup-preview", (e) => {
+			const state = e.payload;
+			setSetupPreview(state);
+			notchPinnedRef.current = state === "open";
+			if (state === "open") {
+				setIsOpen(true);
+				setBloomMode("command-center");
+			} else {
+				setIsOpen(false);
+				setBloomMode("status");
+			}
+		});
+		return () => void off.then((f) => f());
+	}, [windowLabel]);
+
 	// In peek mode, briefly show the notch when a new track starts or playback
 	// resumes. The notch itself never switches views for media; the collapsed
 	// pill follows the live-activity rule below.
@@ -3474,7 +3506,7 @@ function App() {
 					? "music"
 					: null;
 	const panelZoomNow = sizedPanel && isExpanded && isVisible && !isHidden ? panelZoom(sizedPanel) : 1;
-	const pillZoom = scale * panelZoomNow;
+	const pillZoom = scale * panelZoomNow * (isOpen ? openScale : 1);
 	// The floating pill style sits 6px below the edge (see pillTargetY).
 	const pillGap = notchStyle === "pill" ? 6 : 0;
 

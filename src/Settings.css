@@ -2690,3 +2690,15 @@ button.shortcut-icon:hover {
 .setting-text-input:focus-visible {
 	border-color: var(--accent-color, #0a84ff);
 }
+
+/* Setup sits low, out of the way of the notch it previews at the top. */
+.setup-backdrop {
+	place-items: end center;
+	padding-bottom: 48px;
+	box-sizing: border-box;
+}
+
+.setup-steps {
+	font-size: 12px;
+	opacity: 0.6;
+}

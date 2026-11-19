@@ -336,6 +336,8 @@ export function NotchTab({
 								label="notch size"
 							/>
 						</SettingRow>
+
+						<OpenSizeRow saveSetting={saveSetting} />
 					</div>
 
 					<div className="setting-group-label">Opening</div>
@@ -530,5 +532,29 @@ export function NotchTab({
 				</>
 			)}
 		</>
+	);
+}
+
+/** The open notch's own extra size (`bloom-notch-open-scale`, 80–125 %),
+ *  on top of Notch Size; also set in the first-run setup. */
+function OpenSizeRow({ saveSetting }: { saveSetting: (key: string, value: string | null) => Promise<boolean> }) {
+	const [value, setValue] = useState(() => {
+		const v = parseFloat(localStorage.getItem("bloom-notch-open-scale") ?? "1");
+		return Number.isFinite(v) ? Math.min(1.25, Math.max(0.8, v)) : 1;
+	});
+	return (
+		<SettingRow icon={Maximize2} label="Open Size" desc="How big the notch is when it's open, on top of Notch Size">
+			<ScaleStepper
+				value={value}
+				min={0.8}
+				max={1.25}
+				stepSize={0.05}
+				onChange={(v) => {
+					setValue(v);
+					saveSetting("bloom-notch-open-scale", v.toFixed(2));
+				}}
+				label="open notch size"
+			/>
+		</SettingRow>
 	);
 }
