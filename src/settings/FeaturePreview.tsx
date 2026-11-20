@@ -17,6 +17,7 @@ import type { useSettings } from "./useSettings";
 import type { SettingsTab } from "./types";
 import { PreviewMediaPlayer } from "./PreviewMediaPlayer";
 import { PreviewDock } from "./PreviewDock";
+import { RadialPreview, type RadialScene } from "./RadialPreview";
 import { ClipboardPreview, type ClipScene } from "./ClipboardPreview";
 import "../App.css";
 import "../Dock.css";
@@ -30,7 +31,8 @@ type Feature =
 	| "device"
 	| "music"
 	| "dock"
-	| ClipScene;
+	| ClipScene
+	| RadialScene;
 
 const FEATURES: Partial<Record<SettingsTab, { id: Feature; label: string; description: string }[]>> = {
 	general: [
@@ -54,6 +56,12 @@ const FEATURES: Partial<Record<SettingsTab, { id: Feature; label: string; descri
 		{ id: "music", label: "Music", description: "Music controls appear when a player is active." }
 	],
 	dock: [{ id: "dock", label: "Dock", description: "The dock rises from the bottom edge." }],
+	files: [
+		{ id: "r-trigger", label: "Trigger", description: "The key that opens the menu and switches between its menus." },
+		{ id: "r-drag", label: "Drag", description: "Drag a file or selected text, tap the key, let go on an option." },
+		{ id: "r-double", label: "Double press", description: "With files selected, press the key twice within the time you set." },
+		{ id: "r-progress", label: "Progress", description: "Where a job's percentage and result show, and for how long." }
+	],
 	clipboard: [
 		{ id: "clip-shelf", label: "Shelf", description: "Copied items as tiles; several files copied together fan out as one stack." },
 		{ id: "clip-rich", label: "Rich text", description: "Formatted copies carry a Rich tag and paste back with their formatting." },
@@ -424,7 +432,19 @@ export function FeaturePreview({ tab, settings, focus }: FeaturePreviewProps) {
 				"Copy Indicator": "clip-indicator"
 			}
 		};
-		const scene = next[tab]?.[label];
+		const filesScene: Feature | undefined =
+			tab === "files"
+				? label.startsWith("Trigger")
+					? "r-trigger"
+					: label.startsWith("Drag")
+						? "r-drag"
+						: label.startsWith("Double")
+							? "r-double"
+							: /^(Show Progress|Progress Effect|Result)/.test(label)
+								? "r-progress"
+								: undefined
+				: undefined;
+		const scene = filesScene ?? next[tab]?.[label];
 		if (scene) {
 			setFeature(scene);
 			setReplay((n) => n + 1);
@@ -496,6 +516,7 @@ export function FeaturePreview({ tab, settings, focus }: FeaturePreviewProps) {
 						)}
 						{tab === "appearance" && <PreviewDock settings={settings} revealed={revealed} />}
 						{tab === "dock" && <PreviewDock settings={settings} revealed={revealed} />}
+						{tab === "files" && <RadialPreview scene={selected.id as RadialScene} />}
 						{tab === "clipboard" && <ClipboardPreview scene={selected.id as ClipScene} />}
 					</div>
 					<p className="feature-preview-description">
