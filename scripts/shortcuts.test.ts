@@ -9,7 +9,7 @@ test("default shortcuts match the Rust side (shortcuts.rs)", () => {
 	expect(pairs).toEqual(SHORTCUT_DEFAULTS);
 });
 
-test("recording keeps to Ctrl+Alt (+Shift) + a key", () => {
+test("recording takes Ctrl and/or Alt (+Shift) + a key", () => {
 	const ev = (code: string, mods: Partial<{ ctrlKey: boolean; altKey: boolean; shiftKey: boolean; metaKey: boolean }>) => ({
 		key: "",
 		code,
@@ -21,7 +21,10 @@ test("recording keeps to Ctrl+Alt (+Shift) + a key", () => {
 	});
 	expect(chordFromEvent(ev("KeyL", { ctrlKey: true, altKey: true }))).toBe("Ctrl+Alt+L");
 	expect(chordFromEvent(ev("Digit3", { ctrlKey: true, altKey: true, shiftKey: true }))).toBe("Ctrl+Alt+Shift+3");
-	expect(chordFromEvent(ev("KeyL", { ctrlKey: true }))).toBeNull();
+	expect(chordFromEvent(ev("KeyL", { ctrlKey: true }))).toBe("Ctrl+L");
+	expect(chordFromEvent(ev("KeyL", { altKey: true, shiftKey: true }))).toBe("Alt+Shift+L");
+	expect(chordFromEvent(ev("KeyL", { shiftKey: true }))).toBeNull();
+	expect(chordFromEvent({ ...ev("KeyL", { ctrlKey: true, altKey: true }), getModifierState: () => true })).toBeNull(); // AltGr
 	expect(chordFromEvent(ev("ControlLeft", { ctrlKey: true, altKey: true }))).toBeNull();
 });
 

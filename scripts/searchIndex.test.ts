@@ -1,14 +1,12 @@
 import { expect, test } from "bun:test";
 import { readFileSync } from "node:fs";
 import { SETTINGS_INDEX, searchSettings } from "../src/settings/searchIndex";
-import { SHORTCUT_ACTIONS } from "../src/shortcuts";
 
 const FILES: Record<string, string> = {
 	general: "GeneralTab",
 	appearance: "AppearanceTab",
 	notch: "NotchTab",
 	tools: "ToolsTab",
-	shortcuts: "ShortcutsTab",
 	dock: "DockTab",
 	clipboard: "ClipboardTab",
 	files: "FilesTab",
@@ -17,17 +15,15 @@ const FILES: Record<string, string> = {
 
 test("every searchable setting still exists on its page", () => {
 	for (const entry of SETTINGS_INDEX) {
-		const source = readFileSync(`src/settings/${FILES[entry.tab]}.tsx`, "utf8") + (entry.tab === "tools" ? readFileSync("src/settings/MusicOptions.tsx", "utf8") : "");
+		const source = readFileSync(`src/settings/${FILES[entry.tab]}.tsx`, "utf8") + (entry.tab === "tools" ? readFileSync("src/settings/MusicOptions.tsx", "utf8") + readFileSync("src/settings/ShortcutRow.tsx", "utf8") : "");
 		// Labels made from lists elsewhere (panel and row sizes, the tools).
-		const extra = entry.tab === "shortcuts" ? readFileSync("src/shortcuts.ts", "utf8") + readFileSync("src/tools.ts", "utf8") + readFileSync("src/components/CommandCenter.tsx", "utf8") : entry.tab === "notch" || entry.tab === "tools" ? readFileSync("src/notchLayout.ts", "utf8") + readFileSync("src/tools.ts", "utf8") : "";
+		const extra = entry.tab === "notch" || entry.tab === "tools" ? readFileSync("src/notchLayout.ts", "utf8") + readFileSync("src/tools.ts", "utf8") : "";
 		// Rows shared by several pages carry their own label.
 		const shared = readFileSync("src/settings/HideFromCaptureRow.tsx", "utf8");
 		expect(`${entry.tab}: ${entry.match ?? entry.label}`).toBe(
 			source.includes(entry.match ?? entry.label) ||
 				extra.includes(entry.label) ||
-				(shared.includes(entry.label) && source.includes("<HideFromCaptureRow")) ||
-				// Shortcut rows are made from the action list.
-				(entry.tab === "shortcuts" && SHORTCUT_ACTIONS.some((a) => a.label === entry.label))
+				(shared.includes(entry.label) && source.includes("<HideFromCaptureRow"))
 				? `${entry.tab}: ${entry.match ?? entry.label}`
 				: "missing"
 		);

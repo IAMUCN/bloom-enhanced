@@ -28,6 +28,7 @@ const NOTCH_MODES = [
 	]
 ] as const;
 import { ScaleStepper } from "./ScaleStepper";
+import { ShortcutRow } from "./ShortcutRow";
 import { Choice } from "./Choice";
 import { NOTCH_STYLES, type NotchStyle } from "../notchLayout";
 import { EXTRA_TOOLS, TOOLS } from "../tools";
@@ -286,7 +287,7 @@ export function NotchTab({
 						<SettingRow
 							icon={CloudSun}
 							label="Weather Status"
-							desc={cityName || "Auto-detect location"}
+							desc={weatherEnabled ? `Shows the temperature beside the clock for ${cityName || "your detected location"}. Switch off to hide it` : "Off: no temperature beside the clock"}
 						>
 							<div className="weather-controls">
 								<div className="unit-toggle-minimal" onClick={toggleTempUnit}>
@@ -356,12 +357,12 @@ export function NotchTab({
 
 					<div className="setting-group-label">Clock Bar</div>
 					<div className="setting-group">
-						<details className="settings-disclosure settings-disclosure-standalone">
-							<summary>
+						<div className="settings-disclosure-standalone widgets-open">
+							<div className="widgets-heading">
 								Choose status widgets <span>Arrange what appears beside the clock</span>
-							</summary>
+							</div>
 							<StatusWidgetConfig value={statusWidgets} onChange={handleWidgetsChange} />
-						</details>
+						</div>
 						<RowSizes saveSetting={saveSetting} />
 					</div>
 					</>
@@ -408,6 +409,19 @@ export function NotchTab({
 						<OpenOnRows saveSetting={saveSetting} />
 
 						<OpeningRows saveSetting={saveSetting} />
+					</div>
+
+					<div className="setting-group-label">Shortcuts</div>
+					<div className="setting-group">
+						<ShortcutRow action="notch" label="Open or close the notch" desc="Works anywhere; press Backspace while setting to clear it" />
+						<details className="settings-disclosure">
+							<summary>
+								More <span>Jump to tab 1–9 by position (Shift counts from the end)</span>
+							</summary>
+							{Array.from({ length: 9 }, (_, i) => (
+								<ShortcutRow key={i} action={`tool-${i + 1}`} label={`Tab ${i + 1}`} />
+							))}
+						</details>
 					</div>
 
 					</>

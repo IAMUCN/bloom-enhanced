@@ -143,7 +143,7 @@ function OverlayApp() {
 						transition={{ duration: 0.3 }}
 					>
 						<motion.img
-							src="/bloom.png"
+							src="/lotusnotch.png"
 							className="splash-logo"
 							draggable={false}
 							initial={{ scale: 0, opacity: 0, rotate: 0 }}

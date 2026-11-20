@@ -3018,3 +3018,6 @@ button.shortcut-icon:hover {
 .settings-main section > .setting-group-label:first-child { margin-top: 0; margin-bottom: 8px; line-height: 16px; }
 /* The preview card's top edge = the first settings card's top edge (title 16px + 8px gap). */
 .settings-aside { margin-top: 24px; }
+
+.widgets-heading { padding: 12px 14px 4px; font-size: var(--fs-body); font-weight: 600; }
+.widgets-heading span { margin-left: 8px; font-weight: 400; font-size: var(--fs-small); color: var(--text-muted); }

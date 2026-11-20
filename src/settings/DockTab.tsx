@@ -80,7 +80,7 @@ function DrivePicker({
 }
 
 const START_ICON_PRESETS = [
-	{ key: "default", src: "/bloom.png", label: "Bloom" },
+	{ key: "default", src: "/lotusnotch.png", label: "LotusNotch" },
 	{ key: "bloom-colorful", src: "/bloom-colorful.png", label: "Colorful" },
 	{ key: "bloom-golden", src: "/bloom-golden.png", label: "Golden" },
 	{ key: "bloom-biscuit", src: "/bloom-biscuit.png", label: "Orange" },
@@ -270,7 +270,7 @@ export function DockTab({
 							</label>
 						</SettingRow>
 
-						<SettingRow icon={Circle} label="Icon Only" desc="Remove icon background and padding">
+						<SettingRow icon={Circle} label="Icon Only" desc="Draw app icons bare, without the rounded tile behind each one, so the dock looks lighter">
 							<label className="toggle-switch">
 								<input type="checkbox" checked={dockIconOnly} onChange={toggleDockIconOnly} />
 								<span className="slider"></span>

@@ -32,18 +32,35 @@ export const SHORTCUT_ACTIONS: ShortcutAction[] = [
 	{ id: "mic", label: "Mute or unmute the microphone", group: "Meeting" }
 ];
 
-/** A key press while recording → "Ctrl+Alt+K"; null while only modifiers
- *  are down or the chord leaves the Ctrl+Alt scheme. */
-export function chordFromEvent(e: { key: string; code: string; ctrlKey: boolean; altKey: boolean; shiftKey: boolean; metaKey: boolean }): string | null {
-	if (!e.ctrlKey || !e.altKey || e.metaKey) return null;
+/** A key press while recording → "Ctrl+Alt+Shift+K". Needs Ctrl or Alt (Shift
+ *  alone would break typing); null while only modifiers are down, for AltGr
+ *  (it types €, @…) or Win. */
+export function chordFromEvent(e: {
+	key: string;
+	code: string;
+	ctrlKey: boolean;
+	altKey: boolean;
+	shiftKey: boolean;
+	metaKey: boolean;
+	getModifierState?: (k: string) => boolean;
+}): string | null {
+	if ((!e.ctrlKey && !e.altKey) || e.metaKey || e.getModifierState?.("AltGraph")) return null;
 	let key: string | null = null;
 	if (/^Key[A-Z]$/.test(e.code)) key = e.code.slice(3);
 	else if (/^Digit[0-9]$/.test(e.code)) key = e.code.slice(5);
 	else if (/^F([1-9]|1[0-9]|2[0-4])$/.test(e.code)) key = e.code;
 	else if (e.code === "Space") key = "Space";
 	if (!key) return null;
-	return `Ctrl+Alt+${e.shiftKey ? "Shift+" : ""}${key}`;
+	return [e.ctrlKey && "Ctrl", e.altKey && "Alt", e.shiftKey && "Shift", key].filter(Boolean).join("+");
 }
+
+/** Actions that live on a tool's own page, besides "open this tool". */
+export const TOOL_EXTRA_ACTIONS: Record<string, { id: string; label: string }[]> = {
+	snip: [{ id: "snip", label: "Snip a region" }],
+	ocr: [{ id: "ocr", label: "Read text (OCR)" }],
+	picker: [{ id: "picker", label: "Pick a colour" }],
+	mirror: [{ id: "mic", label: "Mute or unmute the microphone" }]
+};
 
 /** Another action already using this chord. */
 export function conflictOf(saved: Record<string, string>, action: string, chord: string): ShortcutAction | null {

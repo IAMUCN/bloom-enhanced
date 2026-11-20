@@ -99,7 +99,7 @@ export function ClipboardPreview({ scene }: { scene: ClipScene }) {
 			return (
 				<div className="clip-preview clip-preview-center">
 					{(["copy", "pop", "delete"] as const).map((name) => (
-						<button key={name} className="clip-preview-btn" disabled={!o.sounds} onClick={() => clipSounds[name]()}>
+						<button key={name} className="clip-preview-btn" onClick={() => clipSounds[name]()}>
 							<Volume2 size={12} /> {name === "copy" ? "Copy" : name === "pop" ? "Pin / group" : "Delete"}
 						</button>
 					))}

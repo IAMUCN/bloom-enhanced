@@ -18,6 +18,8 @@ import {
 } from "../tools";
 import { CC_BY_ID, CC_DEFAULT, CC_MAX_ICONS, CC_TILES, ccIsWide, parseCcTiles, type CcTileId } from "../components/CommandCenter";
 import { NOTCH_PANEL_ORDER } from "../notchLayout";
+import { ShortcutRow } from "./ShortcutRow";
+import { TOOL_EXTRA_ACTIONS } from "../shortcuts";
 import { MusicOptions, type MusicOptionsProps } from "./MusicOptions";
 
 type Save = (key: string, value: string | null) => Promise<boolean>;
@@ -112,7 +114,7 @@ export function ToolsTab(props: ToolsTabProps) {
 	};
 	const locked = (id: string) =>
 		(id === "command-center" || id === "calendar" || id === "devices") && lastPanel(isOn(id));
-	const hasPage = (id: string) => id === "command-center" || id === "music" || id === "calendar" || id === "clipboard" || id in EXTRA_BY_ID;
+	const hasPage = (_id: string) => true;
 
 	if (page) {
 		const tool = all.find((t) => t.id === page);
@@ -261,6 +263,17 @@ function ToolPage(props: ToolsTabProps & { tool: Tool }) {
 							<CcTilePicker saveSetting={saveSetting} />
 						</div>
 					</div>
+					<div className="setting-group-label">Tile shortcuts</div>
+					<div className="setting-group">
+						<details className="settings-disclosure">
+							<summary>
+								Set a key for a quick setting <span>Wi-Fi, Bluetooth, Do not disturb…</span>
+							</summary>
+							{CC_TILES.map(([id, label]) => (
+								<ShortcutRow key={id} action={`tile:${id}`} label={label} />
+							))}
+						</details>
+					</div>
 				</>
 			)}
 
@@ -277,6 +290,14 @@ function ToolPage(props: ToolsTabProps & { tool: Tool }) {
 					</div>
 				</>
 			)}
+
+			<div className="setting-group-label">Shortcut</div>
+			<div className="setting-group">
+				<ShortcutRow action={`tool:${tool.id}`} label="Open this tool" desc="Opens the notch on {tool.label}" />
+				{(TOOL_EXTRA_ACTIONS[tool.id] ?? []).map((a) => (
+					<ShortcutRow key={a.id} action={a.id} label={a.label} />
+				))}
+			</div>
 
 			{tool.id === "music" && <MusicOptions {...props} />}
 

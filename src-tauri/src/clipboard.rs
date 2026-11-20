@@ -1064,11 +1064,11 @@ static EDGE_SINCE: AtomicU64 = AtomicU64::new(0);
 const FLICK_PX_PER_MS: f64 = 1.0;
 
 /// The quick-move speed in px/ms: `bloom-clipboard-edge-speed` (px per
-/// second, 300-3000, Settings › Shelf), else [`FLICK_PX_PER_MS`].
+/// second, 300-8000, Settings › Shelf), else [`FLICK_PX_PER_MS`].
 fn flick_speed() -> f64 {
     setting("bloom-clipboard-edge-speed")
         .and_then(|v| v.parse::<f64>().ok())
-        .map(|v| v.clamp(300.0, 3000.0) / 1000.0)
+        .map(|v| v.clamp(300.0, 8000.0) / 1000.0)
         .unwrap_or(FLICK_PX_PER_MS)
 }
 const FLICK_WINDOW_MS: u64 = 150;

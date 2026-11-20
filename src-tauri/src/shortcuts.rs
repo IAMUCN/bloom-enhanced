@@ -1,6 +1,6 @@
-//! Global keyboard shortcuts (`bloom-shortcuts`, scheme by Fable,
-//! 2026-11-15): every chord is Ctrl + LEFT Alt (+ Shift) + a key, matched in
-//! the low-level keyboard hook (services.rs). RegisterHotKey can't tell the
+//! Global keyboard shortcuts (`bloom-shortcuts`): a chord is Ctrl and/or LEFT
+//! Alt (+ Shift) + a key, matched in the low-level keyboard hook
+//! (services.rs). RegisterHotKey can't tell the
 //! Alt keys apart, and AltGr is Left Ctrl + Right Alt: matching only the left
 //! Alt keeps AltGr typing (€, @, ń…) working on European keyboards.
 //!
@@ -34,6 +34,8 @@ const DEFAULTS: &[(&str, &str)] = &[
 
 #[derive(Clone, Debug, PartialEq)]
 struct Binding {
+    ctrl: bool,
+    alt: bool,
     shift: bool,
     vk: u16,
     action: String,
@@ -43,24 +45,25 @@ static BINDINGS: Mutex<Vec<Binding>> = Mutex::new(Vec::new());
 /// Settings is recording a shortcut: let every key through.
 static PAUSED: AtomicBool = AtomicBool::new(false);
 
-/// "Ctrl+Alt+N", "Ctrl+Alt+Shift+F5" → (shift, virtual key). Only the
-/// Ctrl+Alt scheme is accepted.
-fn parse(chord: &str) -> Option<(bool, u16)> {
+/// "Ctrl+Alt+N", "Alt+C", "Ctrl+Shift+F5" → (ctrl, alt, shift, virtual key).
+/// Needs Ctrl or Alt (Shift alone would break typing); nothing else is accepted.
+fn parse(chord: &str) -> Option<(bool, bool, bool, u16)> {
     let parts: Vec<String> = chord
         .split('+')
         .map(|p| p.trim().to_ascii_lowercase())
         .collect();
     let (key, mods) = parts.split_last()?;
-    if !mods.iter().any(|m| m == "ctrl") || !mods.iter().any(|m| m == "alt") {
-        return None;
-    }
     if mods
         .iter()
         .any(|m| !matches!(m.as_str(), "ctrl" | "alt" | "shift"))
     {
         return None;
     }
-    let shift = mods.iter().any(|m| m == "shift");
+    let has = |n: &str| mods.iter().any(|m| m == n);
+    let (ctrl, alt, shift) = (has("ctrl"), has("alt"), has("shift"));
+    if !ctrl && !alt {
+        return None;
+    }
     let vk = match key.as_str() {
         k if k.len() == 1 && k.chars().all(|c| c.is_ascii_alphanumeric()) => {
             k.to_ascii_uppercase().as_bytes()[0] as u16
@@ -74,7 +77,7 @@ fn parse(chord: &str) -> Option<(bool, u16)> {
         "/" | "slash" => 0xBF,
         _ => return None,
     };
-    Some((shift, vk))
+    Some((ctrl, alt, shift, vk))
 }
 
 /// Defaults overlaid with the saved map (a JSON object action → chord).
@@ -96,7 +99,13 @@ fn effective(saved: Option<&str>) -> Vec<Binding> {
     actions
         .into_iter()
         .filter_map(|(action, chord)| {
-            parse(&chord).map(|(shift, vk)| Binding { shift, vk, action })
+            parse(&chord).map(|(ctrl, alt, shift, vk)| Binding {
+                ctrl,
+                alt,
+                shift,
+                vk,
+                action,
+            })
         })
         .collect()
 }
@@ -143,14 +152,14 @@ pub fn on_key_down(vk: u16) -> bool {
         return false;
     }
     let down = |k: u16| unsafe { (GetAsyncKeyState(k as i32) as u16 & 0x8000) != 0 };
-    // AltGr (Right Alt) never fires a shortcut.
-    if !down(VK_CONTROL.0) || !down(VK_LMENU.0) || down(VK_RMENU.0) {
+    // AltGr (Right Alt, which Windows also reports as Ctrl) never fires one.
+    if down(VK_RMENU.0) {
         return false;
     }
-    let shift = down(VK_SHIFT.0);
+    let (ctrl, alt, shift) = (down(VK_CONTROL.0), down(VK_LMENU.0), down(VK_SHIFT.0));
     let action = BINDINGS.lock().ok().and_then(|b| {
         b.iter()
-            .find(|x| x.vk == vk && x.shift == shift)
+            .find(|x| x.vk == vk && x.ctrl == ctrl && x.alt == alt && x.shift == shift)
             .map(|x| x.action.clone())
     });
     let Some(action) = action else {
@@ -326,10 +335,15 @@ mod tests {
 
     #[test]
     fn chords() {
-        assert_eq!(parse("Ctrl+Alt+N"), Some((false, b'N' as u16)));
-        assert_eq!(parse("ctrl+alt+shift+5"), Some((true, b'5' as u16)));
-        assert_eq!(parse("Ctrl+Alt+F5"), Some((false, 0x74)));
-        assert_eq!(parse("Alt+C"), None); // not the Ctrl+Alt scheme
+        assert_eq!(parse("Ctrl+Alt+N"), Some((true, true, false, b'N' as u16)));
+        assert_eq!(
+            parse("ctrl+alt+shift+5"),
+            Some((true, true, true, b'5' as u16))
+        );
+        assert_eq!(parse("Alt+C"), Some((false, true, false, b'C' as u16)));
+        assert_eq!(parse("Ctrl+Shift+F5"), Some((true, false, true, 0x74)));
+        assert_eq!(parse("Shift+C"), None); // Shift alone breaks typing
+        assert_eq!(parse("Ctrl+Alt+F5"), Some((true, true, false, 0x74)));
         assert_eq!(parse("Win+Ctrl+Alt+N"), None);
         assert_eq!(parse(""), None);
     }

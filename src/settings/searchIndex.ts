@@ -3,7 +3,6 @@
 // row's label starts with when the label itself changes (it holds the trigger
 // key, for example); scripts/searchIndex.test.ts checks every label still
 // exists on its page.
-import { SHORTCUT_ACTIONS } from "../shortcuts";
 import type { SettingsTab } from "./types";
 import { EXTRA_TOOLS } from "../tools";
 
@@ -30,10 +29,10 @@ export const SETTINGS_INDEX: SettingEntry[] = [
 		["Calmer Motion", "Battery saver uses shorter, simpler animations"],
 		["No Glass", "Battery saver turns off blur effects"],
 		["Keep Windows Loaded", "Settings, the radial menu and the shelf open instantly but use more memory"],
-		["Hide From Recordings", "Recordings, screen shares and screenshots leave the notch out (Privacy)"],
-		["Hide From Recordings", "Recordings, screen shares and screenshots leave the dock out (Privacy)"],
-		["Hide From Recordings", "Recordings, screen shares and screenshots leave the Shelf on a screen edge out (Privacy)"],
-		["Hide From Recordings", "Recordings, screen shares and screenshots leave the radial menu out (Privacy)"],
+		["Hide the Notch", "Recordings, screen shares and screenshots leave the notch out"],
+		["Hide the Dock", "Recordings, screen shares and screenshots leave the dock out"],
+		["Hide the Shelf", "Recordings, screen shares and screenshots leave the Shelf on a screen edge out"],
+		["Hide the Radial Menu", "Recordings, screen shares and screenshots leave the radial menu out"],
 		["Export Settings", "Save your whole setup (every preference, pinned dock apps, custom icons) to a file: a backup"],
 		["Import Settings", "Load a LotusNotch, Bloom Enhanced or Bloom settings file; applies right away"],
 		["Run Setup Again", "Pick your modules, then size the notch and dock with a live preview"],
@@ -130,11 +129,11 @@ export const SETTINGS_INDEX: SettingEntry[] = [
 		["Result Stays For", "How long the result shows (errors a bit longer, Canceled briefly)"],
 		["Your Menu", "Reorder, hide and preview the menu's options and modes"]
 	]),
-	// Settings › Shortcuts: every action (labels from src/shortcuts.ts).
-	...page(
-		"shortcuts",
-		SHORTCUT_ACTIONS.map((a) => [a.label, `Keyboard shortcut · ${a.group}`])
-	),
+	// Shortcuts live where the thing they trigger is set.
+	...page("notch", [
+		["Open or close the notch", "Keyboard shortcut for the notch, and for tabs 1 to 9"]
+	]),
+	...page("tools", [["Open this tool", "Keyboard shortcut for each tool, on its own page (Tools › the tool)"]]),
 	...page("about", [
 		["Auto Update", "Update automatically on startup"],
 		["Check for Updates", "See if a newer LotusNotch is available"],

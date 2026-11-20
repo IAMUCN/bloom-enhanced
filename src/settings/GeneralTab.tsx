@@ -6,9 +6,9 @@ import { HideFromCaptureRow } from "./HideFromCaptureRow";
 
 type Pauses = { visualizer: boolean; motion: boolean; glass: boolean };
 const PAUSES: [keyof Pauses, typeof Leaf, string, string][] = [
-	["visualizer", AudioLines, "Pause Visualizer", "Stops listening to audio for the music bars"],
-	["motion", Sparkles, "Calmer Motion", "Shorter, simpler animations in the notch"],
-	["glass", Droplets, "No Glass", "Turns off blur effects"]
+	["visualizer", AudioLines, "Pause Visualizer", "The music bars stop listening to your audio"],
+	["motion", Sparkles, "Calmer Motion", "Notch animations become shorter and simpler"],
+	["glass", Droplets, "No Glass", "Blur and glass effects are turned off"]
 ];
 
 /** Battery saver: when it turns on (`bloom-battery-saver`: off, on battery,
@@ -71,6 +71,7 @@ function BatterySaver({ saveSetting }: { saveSetting: (key: string, value: strin
 						/>
 					</SettingRow>
 				)}
+				{mode !== "off" && <p className="radial-hint">When Battery saver is on, the options below are paused or switched off. Turn off the ones you want to keep.</p>}
 				{mode !== "off" &&
 					PAUSES.map(([key, icon, label, desc], i) => (
 						<SettingRow key={key} icon={icon} label={label} desc={desc} divider={i < PAUSES.length - 1}>
@@ -180,12 +181,12 @@ export function GeneralTab({
 				</SettingRow>
 			</div>
 
-			<div className="setting-group-label">Privacy</div>
+			<div className="setting-group-label">Privacy: leave out of recordings, screen shares and screenshots</div>
 			<div className="setting-group">
-				<HideFromCaptureRow settingKey="bloom-notch-hide-from-capture" byDefault what="the notch (and the Shelf inside it)" />
-				<HideFromCaptureRow settingKey="bloom-dock-hide-from-capture" byDefault={false} what="the dock" />
-				<HideFromCaptureRow settingKey="bloom-clipboard-hide-from-capture" byDefault={false} what="the Shelf on a screen edge (in the notch it follows the notch)" />
-				<HideFromCaptureRow settingKey="bloom-files-hide-from-capture" byDefault what="the radial menu" />
+				<HideFromCaptureRow label="Hide the Notch" settingKey="bloom-notch-hide-from-capture" byDefault what="the notch (and the Shelf inside it)" />
+				<HideFromCaptureRow label="Hide the Dock" settingKey="bloom-dock-hide-from-capture" byDefault={false} what="the dock" />
+				<HideFromCaptureRow label="Hide the Shelf" settingKey="bloom-clipboard-hide-from-capture" byDefault={false} what="the Shelf on a screen edge (in the notch it follows the notch)" />
+				<HideFromCaptureRow label="Hide the Radial Menu" settingKey="bloom-files-hide-from-capture" byDefault what="the radial menu" />
 			</div>
 
 			<div className="setting-group-label">Backup &amp; Setup</div>

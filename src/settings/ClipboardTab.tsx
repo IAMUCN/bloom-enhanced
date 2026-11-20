@@ -119,7 +119,7 @@ function EdgeOpenRow({ saveSetting }: { saveSetting: (key: string, value: string
 				<input
 					type="range"
 					min="300"
-					max="3000"
+					max="8000"
 					step="100"
 					value={speed}
 					onChange={(e) => {

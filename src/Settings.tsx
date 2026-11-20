@@ -20,7 +20,6 @@ import {
 	Orbit,
 	Search,
 	RotateCcw,
-	Keyboard
 } from "lucide-react";
 import {
 	useSettings,
@@ -37,9 +36,7 @@ import { useAnnouncement } from "./hooks/useAnnouncement";
 import { Setup, type SetupModules } from "./settings/Setup";
 import { Choice } from "./settings/Choice";
 import { ToolsTab } from "./settings/ToolsTab";
-import { ShortcutsTab } from "./settings/ShortcutsTab";
 import { useSettingsSync } from "./hooks/useSettingsSync";
-import { MAX_TABS, builtInTabCount, parseEnabledTools } from "./tools";
 import { initTheme } from "./theme";
 import { FeaturePreview, hasPreview } from "./settings/FeaturePreview";
 import { searchSettings, type SettingEntry } from "./settings/searchIndex";
@@ -53,15 +50,14 @@ type NavItem = { id: SettingsTab; label: string; icon: typeof Settings2; sub?: b
  *  each module on its own, then the app-wide pages. About sits at the foot. */
 const NAV: NavItem[][] = [
 	[
-		{ id: "notch", label: "Notch", icon: PanelTop }
-	],
-	[{ id: "dock", label: "Dock", icon: PanelBottom }],
-	[{ id: "clipboard", label: "Shelf", icon: ClipboardList }],
-	[{ id: "files", label: "Radial Menu", icon: Orbit }],
-	[
 		{ id: "general", label: "General", icon: Settings2 },
-		{ id: "shortcuts", label: "Shortcuts", icon: Keyboard },
 		{ id: "appearance", label: "Appearance", icon: Palette }
+	],
+	[
+		{ id: "notch", label: "Notch", icon: PanelTop },
+		{ id: "dock", label: "Dock", icon: PanelBottom },
+		{ id: "clipboard", label: "Shelf", icon: ClipboardList },
+		{ id: "files", label: "Radial Menu", icon: Orbit }
 	]
 ];
 const TABS: NavItem[] = [...NAV.flat(), { id: "tools", label: "Notch", icon: LayoutGrid }, { id: "about", label: "About", icon: Info }];
@@ -71,7 +67,6 @@ const TAB_COPY: Record<SettingsTab, string> = {
 	appearance: "Theme, size and motion for every part of LotusNotch.",
 	notch: "How the notch looks, when and how it opens, and the tools in its tab bar.",
 	tools: "The tools in the notch's tab bar, in their order.",
-	shortcuts: "Keys for the notch, every tool and every quick setting.",
 	dock: "The taskbar replacement at the bottom of the screen.",
 	clipboard: "Everything you copy, kept on this PC.",
 	files: "Convert and act on files from a ring around the pointer.",
@@ -195,14 +190,6 @@ function SettingsApp() {
 	};
 	// The tool page open inside Tools (null = the list).
 	const [toolPage, setToolPage] = useState<string | null>(null);
-	const tabCount =
-		builtInTabCount((k) =>
-			k === "bloom-clipboard-position"
-				? settings.clipboardPosition
-				: k === "bloom-clipboard-enabled"
-					? String(settings.clipboardEnabled)
-					: localStorage.getItem(k)
-		) + parseEnabledTools(localStorage.getItem("bloom-tools-enabled")).length;
 	// First run: modules, their sizes, your name, "Pick your tools", once (bloom-setup-done).
 	const [setup, setSetup] = useState(
 		() => localStorage.getItem("bloom-setup-done") !== "true" || localStorage.getItem("bloom-tools-picked") !== "true"
@@ -371,7 +358,7 @@ function SettingsApp() {
 					if (label) setPreviewFocus(activeTab + ":" + label + ":" + Date.now());
 				}} onClickCapture={(event) => {
 					const label = (event.target as HTMLElement).closest(".setting-item")?.querySelector(".setting-label")?.textContent;
-					if (label === "Start Menu Icon" || label === "Weather Status") {
+					if (label) {
 						setPreviewFocus(activeTab + ":" + label + ":" + Date.now());
 					}
 				}}>
@@ -434,7 +421,7 @@ function SettingsApp() {
 									<div className="notch-segments">
 										<Choice
 											value={shown === "tools" ? "tools" : notchSeg}
-											options={[["look", "Look"], ["open", "Opening"], ["tools", `Tools · ${tabCount}/${MAX_TABS}`]] as const}
+											options={[["look", "Look"], ["open", "Opening"], ["tools", "Tools"]] as const}
 											onChange={(v) => {
 												if (v === "tools") setActiveTab("tools");
 												else {
@@ -656,11 +643,6 @@ function SettingsApp() {
 								page={toolPage}
 								setPage={setToolPage}
 							/>
-						</section>
-					)}
-					{shown === "shortcuts" && (
-						<section data-tab="shortcuts">
-							<ShortcutsTab saveSetting={settings.saveSetting} />
 						</section>
 					)}
 					{shown === "about" && (

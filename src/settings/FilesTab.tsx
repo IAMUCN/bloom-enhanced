@@ -149,6 +149,7 @@ export function FilesTab({ saveSetting }: { saveSetting: (key: string, value: st
 		<>
 			<div className="setting-group-label">Opening</div>
 			<div className="setting-group">
+				<p className="radial-hint">{`Files selected in Explorer or on the desktop: press ${keyName} twice. Dragging a file or text: press ${keyName} once.`}</p>
 				{enabled && (
 					<>
 						<SettingRow icon={Keyboard} label="Trigger Key" desc={`Tap it while dragging, or press it twice with files selected; it also switches menus`}>
