@@ -2977,3 +2977,5 @@ button.shortcut-icon:hover {
 }
 .shelf-live .qp { top: 0; height: 100%; padding: 12px 12px 10px; border-radius: inherit; }
 .settings-aside .feature-preview-stage:has(.shelf-live) { height: 400px; align-items: stretch; justify-content: flex-start; }
+
+.notch-segments { margin: -6px 0 16px; }

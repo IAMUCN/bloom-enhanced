@@ -1,4 +1,4 @@
-import { Palette, Droplet, Contrast, Droplets, Sun, Maximize2, Sparkles } from "lucide-react";
+import { Monitor, Palette, Droplet, Contrast, Droplets, Sun, Maximize2, Sparkles } from "lucide-react";
 import { useState } from "react";
 import { invoke } from "@tauri-apps/api/core";
 import { SettingRow } from "./SettingRow";
@@ -19,6 +19,29 @@ const MOTION = [
 	["on", "On", "Springy, lively motion in the notch, dock and menus"],
 	["off", "Off", "No movement; changes just appear"]
 ] as const;
+
+/** The Settings window's own look (`bloom-settings-theme`): Light or Dark only.
+ *  Unset = what Windows uses. */
+function SettingsWindowRow() {
+	const [value, setValue] = useState(
+		() => localStorage.getItem("bloom-settings-theme") ?? (window.matchMedia("(prefers-color-scheme: light)").matches ? "light" : "dark")
+	);
+	return (
+		<SettingRow icon={Monitor} label="Settings Window" desc="Light or dark, for this window only; the notch, dock and shelf keep their theme below">
+			<Choice
+				value={value}
+				options={[["light", "Light"], ["dark", "Dark"]] as const}
+				onChange={(v) => {
+					setValue(v);
+					localStorage.setItem("bloom-settings-theme", v);
+					invoke("save_setting", { key: "bloom-settings-theme", value: v }).catch(() => {});
+					window.dispatchEvent(new Event("settings-theme-changed"));
+				}}
+				label="Settings window theme"
+			/>
+		</SettingRow>
+	);
+}
 
 function AnimationsRow() {
 	const [value, setValue] = useState(() => (localStorage.getItem("bloom-motion") === "off" ? "off" : "on"));
@@ -72,7 +95,12 @@ export function AppearanceTab({
 
 	return (
 		<>
-			<div className="setting-group-label">Theme</div>
+			<div className="setting-group-label">Settings Window</div>
+			<div className="setting-group">
+				<SettingsWindowRow />
+			</div>
+
+			<div className="setting-group-label">Notch, Dock &amp; Shelf Theme</div>
 			<div className="setting-group">
 				<SettingRow
 					icon={Palette}

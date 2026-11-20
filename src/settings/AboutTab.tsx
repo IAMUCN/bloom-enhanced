@@ -1,4 +1,4 @@
-import { Download, RefreshCw, FileDown, Upload } from "lucide-react";
+import { Download, RefreshCw } from "lucide-react";
 import { openUrl } from "@tauri-apps/plugin-opener";
 import { GithubIcon } from "../icons";
 import { SettingRow } from "./SettingRow";
@@ -20,10 +20,6 @@ interface AboutTabProps {
 	updateVersion: string;
 	checkForUpdates: () => void;
 	installUpdate: () => void;
-	exportStatus: string;
-	importStatus: string;
-	handleExportSettings: () => void;
-	handleImportSettings: () => void;
 }
 
 export function AboutTab({
@@ -33,11 +29,7 @@ export function AboutTab({
 	updateStatus,
 	updateVersion,
 	checkForUpdates,
-	installUpdate,
-	exportStatus,
-	importStatus,
-	handleExportSettings,
-	handleImportSettings
+	installUpdate
 }: AboutTabProps) {
 	const getUpdateLabel = () => {
 		switch (updateStatus) {
@@ -62,20 +54,6 @@ export function AboutTab({
 		updateStatus === "available"
 			? "Click to install and restart"
 			: `Currently running v${appVersion}`;
-
-	const getExportLabel = () => {
-		if (exportStatus === "exporting") return "Exporting...";
-		if (exportStatus === "success") return "Exported!";
-		if (exportStatus === "error") return "Export failed. Try again.";
-		return "Export Settings";
-	};
-
-	const getImportLabel = () => {
-		if (importStatus === "importing") return "Importing...";
-		if (importStatus === "success") return "Imported!";
-		if (importStatus === "error") return "Import failed. Check the file and try again.";
-		return "Import Settings";
-	};
 
 	return (
 		<div className="about-tab-container">
@@ -108,25 +86,6 @@ export function AboutTab({
 					action
 					divider={false}
 					onClick={() => (updateStatus === "available" ? installUpdate() : checkForUpdates())}
-				/>
-			</div>
-
-			<div className="setting-group-label setting-group-label--spaced">Data</div>
-			<div className="setting-group">
-				<SettingRow
-					icon={FileDown}
-					label={getExportLabel()}
-					desc="Every preference (notch, dock, shelf, radial menu…), pinned dock apps and custom icons"
-					action
-					onClick={handleExportSettings}
-				/>
-				<SettingRow
-					icon={Upload}
-					label={getImportLabel()}
-					desc="From a LotusNotch, Bloom Enhanced or Bloom settings file; applies right away"
-					action
-					divider={false}
-					onClick={handleImportSettings}
 				/>
 			</div>
 

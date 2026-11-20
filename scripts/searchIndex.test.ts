@@ -17,7 +17,7 @@ const FILES: Record<string, string> = {
 
 test("every searchable setting still exists on its page", () => {
 	for (const entry of SETTINGS_INDEX) {
-		const source = readFileSync(`src/settings/${FILES[entry.tab]}.tsx`, "utf8");
+		const source = readFileSync(`src/settings/${FILES[entry.tab]}.tsx`, "utf8") + (entry.tab === "tools" ? readFileSync("src/settings/MusicOptions.tsx", "utf8") : "");
 		// Labels made from lists elsewhere (panel and row sizes, the tools).
 		const extra = entry.tab === "shortcuts" ? readFileSync("src/shortcuts.ts", "utf8") + readFileSync("src/tools.ts", "utf8") + readFileSync("src/components/CommandCenter.tsx", "utf8") : entry.tab === "notch" || entry.tab === "tools" ? readFileSync("src/notchLayout.ts", "utf8") + readFileSync("src/tools.ts", "utf8") : "";
 		// Rows shared by several pages carry their own label.

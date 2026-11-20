@@ -21,7 +21,6 @@ import {
 	X
 } from "lucide-react";
 import { SettingRow } from "./SettingRow";
-import { HideFromCaptureRow } from "./HideFromCaptureRow";
 import { ScaleStepper } from "./ScaleStepper";
 import {
 	KNOWN_FOLDER_OPTIONS,
@@ -193,7 +192,6 @@ export function DockTab({
 			<div className="setting-group">
 				{dockEnabled && (
 					<>
-						<HideFromCaptureRow settingKey="bloom-dock-hide-from-capture" byDefault={false} what="the dock" />
 						<SettingRow
 							icon={dockMode === "fixed" ? EyeOff : Eye}
 							label="When It Shows"

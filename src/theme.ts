@@ -272,7 +272,7 @@ export function initTheme({ followSystem = false }: { followSystem?: boolean } =
 	let disposed = false;
 	const applyCurrentTheme = () =>
 		applyTheme(
-			system ? (system.matches ? "light" : "dark") : values["bloom-theme-mode"],
+			system ? (localStorage.getItem("bloom-settings-theme") ?? (system.matches ? "light" : "dark")) : values["bloom-theme-mode"],
 			values["bloom-theme-color"],
 			parseFloat(values["bloom-theme-opacity"]),
 			parseFloat(values["bloom-theme-saturation"]),

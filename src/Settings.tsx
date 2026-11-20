@@ -32,6 +32,7 @@ import {
 import type { SettingsTab } from "./settings/index";
 import { useAnnouncement } from "./hooks/useAnnouncement";
 import { Setup, type SetupModules } from "./settings/Setup";
+import { Choice } from "./settings/Choice";
 import { ToolsTab } from "./settings/ToolsTab";
 import { ShortcutsTab } from "./settings/ShortcutsTab";
 import { useSettingsSync } from "./hooks/useSettingsSync";
@@ -49,8 +50,7 @@ type NavItem = { id: SettingsTab; label: string; icon: typeof Settings2; sub?: b
  *  each module on its own, then the app-wide pages. About sits at the foot. */
 const NAV: NavItem[][] = [
 	[
-		{ id: "notch", label: "Notch", icon: PanelTop },
-		{ id: "tools", label: "Tools", icon: LayoutGrid, sub: true }
+		{ id: "notch", label: "Notch", icon: PanelTop }
 	],
 	[{ id: "dock", label: "Dock", icon: PanelBottom }],
 	[{ id: "clipboard", label: "Shelf", icon: ClipboardList }],
@@ -61,12 +61,12 @@ const NAV: NavItem[][] = [
 		{ id: "appearance", label: "Appearance", icon: Palette }
 	]
 ];
-const TABS: NavItem[] = [...NAV.flat(), { id: "about", label: "About", icon: Info }];
+const TABS: NavItem[] = [...NAV.flat(), { id: "tools", label: "Notch", icon: LayoutGrid }, { id: "about", label: "About", icon: Info }];
 
 const TAB_COPY: Record<SettingsTab, string> = {
 	general: "How LotusNotch starts, runs and saves battery.",
 	appearance: "Theme, size and motion for every part of LotusNotch.",
-	notch: "How the notch looks, opens and what its clock bar shows.",
+	notch: "How the notch looks, when and how it opens, and the tools in its tab bar.",
 	tools: "The tools in the notch's tab bar, in their order.",
 	shortcuts: "Keys for the notch, every tool and every quick setting.",
 	dock: "The taskbar replacement at the bottom of the screen.",
@@ -74,6 +74,9 @@ const TAB_COPY: Record<SettingsTab, string> = {
 	files: "Convert and act on files from a ring around the pointer.",
 	about: "Version, updates and your settings data."
 };
+
+/** Notch rows that live under the Opening segment. */
+const OPENING_ROWS = ["When It Shows", "Peek Delay", "Open On", "Hover Delay", "Favourite", "Quick Return"];
 
 /** Keys each page's "Reset this page" puts back to defaults. */
 const PAGE_KEYS: Partial<Record<SettingsTab, string[]>> = {
@@ -124,18 +127,21 @@ function rowFor(root: HTMLElement | null, hit: SettingEntry): HTMLElement | null
 function SettingsApp() {
 	const [activeTab, setActiveTab] = useState<SettingsTab>("general");
 	const [previewFocus, setPreviewFocus] = useState("");
+	const [notchSeg, setNotchSeg] = useState<"look" | "open">("look");
 	const contentRef = useRef<HTMLDivElement>(null);
 	const searchRef = useRef<HTMLInputElement>(null);
 	const [query, setQuery] = useState("");
 	// While searching no page shows; the results do. Only the page shown is
 	// loaded; search reads the list of every setting (searchIndex.ts).
 	const shown = query.trim() ? null : activeTab;
+	const head: SettingsTab = shown === "tools" ? "notch" : (shown ?? activeTab);
 	const pageName = (tab: SettingsTab) => TABS.find((t) => t.id === tab)?.label ?? "";
 	const hits = searchSettings(query, pageName);
 
 	const jumpTo = (hit: SettingEntry) => {
 		setQuery("");
 		setActiveTab(hit.tab);
+		if (hit.tab === "notch") setNotchSeg(OPENING_ROWS.includes(hit.label) ? "open" : "look");
 		// The page renders first; a row that only shows while its feature is on
 		// may not be there, and the page simply opens.
 		setTimeout(() => {
@@ -206,9 +212,15 @@ function SettingsApp() {
 		return () => window.removeEventListener("run-setup", again);
 	}, []);
 
+	const [themeTick, setThemeTick] = useState(0);
+	useEffect(() => {
+		const again = () => setThemeTick((n) => n + 1);
+		window.addEventListener("settings-theme-changed", again);
+		return () => window.removeEventListener("settings-theme-changed", again);
+	}, []);
 	useEffect(() => {
 		return initTheme({ followSystem: true });
-	}, []);
+	}, [themeTick]);
 
 	useEffect(() => {
 		const preventContext = (e: MouseEvent) => e.preventDefault();
@@ -374,29 +386,40 @@ function SettingsApp() {
 							<>
 								<header className="settings-page-heading">
 									<div>
-										<h1>{TABS.find((tab) => tab.id === shown)?.label}</h1>
-										<p>{TAB_COPY[shown]}</p>
+										<h1>{TABS.find((tab) => tab.id === head)?.label}</h1>
+										<p>{TAB_COPY[head]}</p>
 									</div>
-									{modules[shown] && (
-										<label className="toggle-switch settings-master" title={`Turn ${TABS.find((t) => t.id === shown)?.label} on or off`}>
+									{modules[head] && (
+										<label className="toggle-switch settings-master" title={`Turn ${TABS.find((t) => t.id === head)?.label} on or off`}>
 											<input
 												type="checkbox"
-												checked={modules[shown]!.on}
-												onChange={modules[shown]!.toggle}
-												aria-label={`${TABS.find((t) => t.id === shown)?.label} on`}
+												checked={modules[head]!.on}
+												onChange={modules[head]!.toggle}
+												aria-label={`${TABS.find((t) => t.id === head)?.label} on`}
 											/>
 											<span className="slider"></span>
 										</label>
 									)}
-									{shown === "tools" && (
-										<span className={`settings-count${tabCount >= MAX_TABS ? " full" : ""}`} title="Tools in the tab bar">
-											{tabCount} / {MAX_TABS}
-										</span>
-									)}
 								</header>
-								{modules[shown] && !modules[shown]!.on && (
+								{head === "notch" && (!modules.notch || modules.notch.on) && (
+									<div className="notch-segments">
+										<Choice
+											value={shown === "tools" ? "tools" : notchSeg}
+											options={[["look", "Look"], ["open", "Opening"], ["tools", `Tools · ${tabCount}/${MAX_TABS}`]] as const}
+											onChange={(v) => {
+												if (v === "tools") setActiveTab("tools");
+												else {
+													setNotchSeg(v as "look" | "open");
+													setActiveTab("notch");
+												}
+											}}
+											label="Notch page"
+										/>
+									</div>
+								)}
+								{modules[head] && !modules[head]!.on && (
 									<p className="settings-module-off">
-										{TABS.find((t) => t.id === shown)?.label} is off. Turn it on above to change its settings.
+										{TABS.find((t) => t.id === head)?.label} is off. Turn it on above to change its settings.
 									</p>
 								)}
 							</>
@@ -436,6 +459,10 @@ function SettingsApp() {
 								restartBloom={settings.restartBloom}
 								resetToDefaults={settings.resetToDefaults}
 								quitBloom={settings.quitBloom}
+								exportStatus={settings.exportStatus}
+								importStatus={settings.importStatus}
+								handleExportSettings={settings.handleExportSettings}
+								handleImportSettings={settings.handleImportSettings}
 								saveSetting={settings.saveSetting}
 							/>
 						</section>
@@ -462,23 +489,12 @@ function SettingsApp() {
 						<section data-tab="notch">
 							<NotchTab
 								saveSetting={settings.saveSetting}
+								section={notchSeg}
 								notchEnabled={settings.notchEnabled}
 								notchMode={settings.notchMode}
 								setNotchModeValue={settings.setNotchModeValue}
 								notchEdgeDelay={settings.notchEdgeDelay}
 								handleNotchEdgeDelayChange={settings.handleNotchEdgeDelayChange}
-								musicModeEnabled={settings.musicModeEnabled}
-								toggleMusicMode={settings.toggleMusicMode}
-								musicCompactNotch={settings.musicCompactNotch}
-								toggleMusicCompactNotch={settings.toggleMusicCompactNotch}
-								shelfPersist={settings.shelfPersist}
-								toggleShelfPersist={settings.toggleShelfPersist}
-								mediaLayout={settings.mediaLayout}
-								toggleMediaLayout={settings.toggleMediaLayout}
-								mediaAmbienceEnabled={settings.mediaAmbienceEnabled}
-								toggleAmbience={settings.toggleAmbience}
-								mediaCompactGlowEnabled={settings.mediaCompactGlowEnabled}
-								toggleCompactGlow={settings.toggleCompactGlow}
 								weatherEnabled={settings.weatherEnabled}
 								toggleWeather={settings.toggleWeather}
 								tempUnitFahrenheit={settings.tempUnitFahrenheit}
@@ -560,6 +576,8 @@ function SettingsApp() {
 								changeShortcut={settings.changeClipboardShortcut}
 								saveSetting={settings.saveSetting}
 								notchOn={settings.notchEnabled}
+								shelfPersist={settings.shelfPersist}
+								toggleShelfPersist={settings.toggleShelfPersist}
 							/>
 						</section>
 					)}
@@ -581,6 +599,14 @@ function SettingsApp() {
 								musicModeEnabled={settings.musicModeEnabled}
 								toggleMusicMode={settings.toggleMusicMode}
 								enabledPanelCount={settings.enabledPanelCount}
+								musicCompactNotch={settings.musicCompactNotch}
+								toggleMusicCompactNotch={settings.toggleMusicCompactNotch}
+								mediaLayout={settings.mediaLayout}
+								toggleMediaLayout={settings.toggleMediaLayout}
+								mediaAmbienceEnabled={settings.mediaAmbienceEnabled}
+								toggleAmbience={settings.toggleAmbience}
+								mediaCompactGlowEnabled={settings.mediaCompactGlowEnabled}
+								toggleCompactGlow={settings.toggleCompactGlow}
 								timerSoundEnabled={settings.timerSoundEnabled}
 								toggleTimerSound={settings.toggleTimerSound}
 								openShelf={() => setActiveTab("clipboard")}
@@ -606,10 +632,6 @@ function SettingsApp() {
 								updateVersion={settings.updateVersion}
 								checkForUpdates={settings.checkForUpdates}
 								installUpdate={settings.installUpdate}
-								exportStatus={settings.exportStatus}
-								importStatus={settings.importStatus}
-								handleExportSettings={settings.handleExportSettings}
-								handleImportSettings={settings.handleImportSettings}
 							/>
 						</section>
 					)}

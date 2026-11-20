@@ -9,7 +9,6 @@ import { ScaleStepper } from "./ScaleStepper";
 import { Choice } from "./Choice";
 import { PROGRESS_STYLES, asProgressStyle } from "../components/ProgressEffect";
 import { SettingRow } from "./SettingRow";
-import { HideFromCaptureRow } from "./HideFromCaptureRow";
 
 const TRIGGER_KEYS = [
 	["shift", "Shift"],
@@ -152,7 +151,6 @@ export function FilesTab({ saveSetting }: { saveSetting: (key: string, value: st
 			<div className="setting-group">
 				{enabled && (
 					<>
-						<HideFromCaptureRow settingKey="bloom-files-hide-from-capture" byDefault what="the radial menu" />
 						<SettingRow icon={Keyboard} label="Trigger Key" desc={`Tap it while dragging, or press it twice with files selected; it also switches menus`}>
 							<Choice
 								value={triggerKey}

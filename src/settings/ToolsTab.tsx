@@ -18,6 +18,7 @@ import {
 } from "../tools";
 import { CC_BY_ID, CC_DEFAULT, CC_MAX_ICONS, CC_TILES, ccIsWide, parseCcTiles, type CcTileId } from "../components/CommandCenter";
 import { NOTCH_PANEL_ORDER } from "../notchLayout";
+import { MusicOptions, type MusicOptionsProps } from "./MusicOptions";
 
 type Save = (key: string, value: string | null) => Promise<boolean>;
 
@@ -31,7 +32,7 @@ const BUILT_IN_DESC: Record<ToolId, string> = {
 };
 const BUILT_IN: ToolId[] = ["command-center", "music", "calendar", "devices", "clipboard"];
 
-interface ToolsTabProps {
+interface ToolsTabProps extends MusicOptionsProps {
 	saveSetting: Save;
 	calendarEnabled: boolean;
 	toggleCalendar: () => void;
@@ -39,8 +40,6 @@ interface ToolsTabProps {
 	toggleControlsPanel: () => void;
 	devicesPanelEnabled: boolean;
 	toggleDevicesPanel: () => void;
-	musicModeEnabled: boolean;
-	toggleMusicMode: () => void;
 	enabledPanelCount: number;
 	timerSoundEnabled: boolean;
 	toggleTimerSound: () => void;
@@ -113,7 +112,7 @@ export function ToolsTab(props: ToolsTabProps) {
 	};
 	const locked = (id: string) =>
 		(id === "command-center" || id === "calendar" || id === "devices") && lastPanel(isOn(id));
-	const hasPage = (id: string) => id === "command-center" || id === "calendar" || id === "clipboard" || id in EXTRA_BY_ID;
+	const hasPage = (id: string) => id === "command-center" || id === "music" || id === "calendar" || id === "clipboard" || id in EXTRA_BY_ID;
 
 	if (page) {
 		const tool = all.find((t) => t.id === page);
@@ -226,7 +225,8 @@ export function ToolsTab(props: ToolsTabProps) {
 }
 
 /** A tool's own page: back to Tools, then its options. */
-function ToolPage({ tool, setPage, saveSetting, timerSoundEnabled, toggleTimerSound, calendarEnabled }: ToolsTabProps & { tool: Tool }) {
+function ToolPage(props: ToolsTabProps & { tool: Tool }) {
+	const { tool, setPage, saveSetting, timerSoundEnabled, toggleTimerSound, calendarEnabled } = props;
 	const extra = tool.id in EXTRA_BY_ID ? EXTRA_BY_ID[tool.id as ExtraToolId] : null;
 	const Icon = tool.icon;
 	const erase = async () => {
@@ -277,6 +277,8 @@ function ToolPage({ tool, setPage, saveSetting, timerSoundEnabled, toggleTimerSo
 					</div>
 				</>
 			)}
+
+			{tool.id === "music" && <MusicOptions {...props} />}
 
 			{tool.id === "stopwatch" && <TimerDisplayRow saveSetting={saveSetting} />}
 

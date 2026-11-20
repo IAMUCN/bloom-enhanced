@@ -17,6 +17,7 @@ import {
 	MousePointer2,
 	Network,
 	PanelLeft,
+	Archive,
 	StickyNote,
 	Timer,
 	Trash2,
@@ -24,7 +25,6 @@ import {
 } from "lucide-react";
 import { useClipboardSettings } from "../hooks/useClipboardSettings";
 import { SettingRow } from "./SettingRow";
-import { HideFromCaptureRow } from "./HideFromCaptureRow";
 import { Choice } from "./Choice";
 import { ScaleStepper } from "./ScaleStepper";
 
@@ -48,6 +48,8 @@ interface ClipboardTabProps {
 	saveSetting: (key: string, value: string | null) => Promise<boolean>;
 	/** The notch is on; without it the "notch" position is the top edge. */
 	notchOn: boolean;
+	shelfPersist: boolean;
+	toggleShelfPersist: () => void;
 }
 
 // Optional Edge-Drop features, each on by default and switchable here.
@@ -187,7 +189,9 @@ export function ClipboardTab({
 	shortcut,
 	changeShortcut,
 	saveSetting,
-	notchOn
+	notchOn,
+	shelfPersist,
+	toggleShelfPersist
 }: ClipboardTabProps) {
 	const options = useClipboardSettings();
 	const [monitors, setMonitors] = useState<string[]>([]);
@@ -243,7 +247,12 @@ export function ClipboardTab({
 				<>
 					<div className="setting-group-label">Shelf</div>
 					<div className="setting-group">
-						<HideFromCaptureRow settingKey="bloom-clipboard-hide-from-capture" byDefault={false} what="the Shelf on a screen edge (in the notch it follows the notch)" />
+						<SettingRow icon={Archive} label="Keep Items" desc="Keep items dropped on the notch shelf after LotusNotch closes">
+							<label className="toggle-switch">
+								<input type="checkbox" checked={shelfPersist} onChange={toggleShelfPersist} />
+								<span className="slider"></span>
+							</label>
+						</SettingRow>
 						<SettingRow
 							icon={PanelLeft}
 							label="Position"

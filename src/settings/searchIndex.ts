@@ -30,6 +30,13 @@ export const SETTINGS_INDEX: SettingEntry[] = [
 		["Calmer Motion", "Battery saver uses shorter, simpler animations"],
 		["No Glass", "Battery saver turns off blur effects"],
 		["Keep Windows Loaded", "Settings, the radial menu and the shelf open instantly but use more memory"],
+		["Hide From Recordings", "Recordings, screen shares and screenshots leave the notch out (Privacy)"],
+		["Hide From Recordings", "Recordings, screen shares and screenshots leave the dock out (Privacy)"],
+		["Hide From Recordings", "Recordings, screen shares and screenshots leave the Shelf on a screen edge out (Privacy)"],
+		["Hide From Recordings", "Recordings, screen shares and screenshots leave the radial menu out (Privacy)"],
+		["Export Settings", "Save your whole setup (every preference, pinned dock apps, custom icons) to a file: a backup"],
+		["Import Settings", "Load a LotusNotch, Bloom Enhanced or Bloom settings file; applies right away"],
+		["Run Setup Again", "Pick your modules, then size the notch and dock with a live preview"],
 		["Reset to Defaults", "Restore all settings and restart LotusNotch"],
 		["Restart LotusNotch", "Reinitialize all components"],
 		["Quit LotusNotch", "Exit application completely"]
@@ -51,16 +58,8 @@ export const SETTINGS_INDEX: SettingEntry[] = [
 		["Style", "Notch, floating pill or minimal bar"],
 		["Notch Size", "Size of the notch only; the dock keeps its own"],
 		["Open Size", "How big the notch is when it's open, on top of Notch Size"],
-		["Hide From Recordings", "Recordings, screen shares and screenshots leave the notch out"],
-		["Run Setup Again", "Pick your modules, then size the notch and dock with a live preview"],
 		["Favourite", "The tool the notch opens on; off = the tool you used last. Pick it with the star in Tools"],
 		["Quick Return", "Come back within a few minutes and the notch reopens where you left off"],
-		["Music Mode", "Interactive live music widget"],
-		["Compact Mode", "Show visualizer & artwork when collapsed"],
-		["Media Layout", "Choose expanded player style"],
-		["Ambient Glow", "Colored glow behind expanded album art"],
-		["Compact Glow", "Glow around collapsed thumbnail"],
-		["Keep Items", "Keep shelf items after LotusNotch closes"],
 		["Weather Status", "Weather beside the clock, for your city or detected location"],
 		["Choose status widgets", "Arrange what appears beside the clock"],
 		["Time Size", "The clock in the middle"],
@@ -71,6 +70,11 @@ export const SETTINGS_INDEX: SettingEntry[] = [
 	...page("tools", [
 		["In your notch", "Turn tools on or off and drag them into the tab bar's order, up to 15", "In your notch"],
 		["Tiles", "Command Center quick settings: Wi-Fi, Bluetooth, Do not disturb, Night light, Energy saver, Airplane mode, Mobile hotspot, Live captions, Studio effects, Cast, Project"],
+		["Music Mode", "Media tool: interactive live music widget"],
+		["Compact Mode", "Media tool: show visualizer & artwork when collapsed"],
+		["Media Layout", "Media tool: choose expanded player style"],
+		["Ambient Glow", "Media tool: colored glow behind expanded album art"],
+		["Compact Glow", "Media tool: glow around collapsed thumbnail"],
 		["Timer Sound", "Play a chime when the timer finishes"],
 		["Countdown", "How a running Timer shows on the closed notch: time, edge light, both or off"],
 		["Erase Data", "Delete what a tool has saved on this PC"]
@@ -80,7 +84,6 @@ export const SETTINGS_INDEX: SettingEntry[] = [
 		EXTRA_TOOLS.map((t) => [t.label, `${t.desc} (Tools)`])
 	),
 	...page("dock", [
-		["Hide From Recordings", "Recordings, screen shares and screenshots leave the dock out"],
 		["When It Shows", "Fixed, Smart or Peek: when the dock is on screen"],
 		["Peek Delay", "How long to rest on the bottom edge before it shows"],
 		["Dock Size", "Size of the dock only; the notch keeps its own"],
@@ -96,10 +99,10 @@ export const SETTINGS_INDEX: SettingEntry[] = [
 		["Start Menu Icon", "The picture on the dock's Start button"]
 	]),
 	...page("clipboard", [
+		["Keep Items", "Keep items dropped on the notch shelf after LotusNotch closes"],
 		["How It Opens", "Throw the pointer at the edge, or rest it there (left or right edge)"],
 		["Quick Move Speed", "How fast the pointer must reach the edge to open the shelf"],
 		["Sharing Port", "Change it if another app uses it (the same on every PC)"],
-		["Hide From Recordings", "Recordings, screen shares and screenshots leave the Shelf on a screen edge out"],
 		["Incognito", "Pause recording; nothing copied meanwhile is kept"],
 		["Your Name", "Shown only to people you share your Shelf with"],
 		["Position", "In the notch, or a shelf on the left, right or top screen edge"],
@@ -118,7 +121,6 @@ export const SETTINGS_INDEX: SettingEntry[] = [
 		["Clear History", "Delete every unpinned item now"]
 	]),
 	...page("files", [
-		["Hide From Recordings", "Recordings, screen shares and screenshots leave the radial menu out"],
 		["Trigger Key", "Shift, Ctrl or Alt opens the menu and switches its modes"],
 		["Drag, Then Tap", "While dragging files or text, tap the trigger key to open the menu", "Drag, Then Tap"],
 		["Double Press on Selected Files", "With files selected in File Explorer, press the trigger key twice", "Double "],
@@ -136,8 +138,6 @@ export const SETTINGS_INDEX: SettingEntry[] = [
 	...page("about", [
 		["Auto Update", "Update automatically on startup"],
 		["Check for Updates", "See if a newer LotusNotch is available"],
-		["Export Settings", "Save every preference, pinned dock apps and custom icons to a file"],
-		["Import Settings", "Load preferences from a LotusNotch, Bloom Enhanced or Bloom settings file"],
 		["Built On", "Bloom, Edge-Drop and OrbitDrop, with links to their GitHub pages"]
 	])
 ];

@@ -1,7 +1,8 @@
 import { useState } from "react";
-import { Power, Download, Clock, BatteryWarning, RefreshCw, RotateCcw, LogOut, Gauge, Leaf, AudioLines, Sparkles, Droplets } from "lucide-react";
+import { Power, Download, Clock, BatteryWarning, RefreshCw, RotateCcw, LogOut, FileDown, Upload, Wand2, Gauge, Leaf, AudioLines, Sparkles, Droplets } from "lucide-react";
 import { Choice } from "./Choice";
 import { SettingRow } from "./SettingRow";
+import { HideFromCaptureRow } from "./HideFromCaptureRow";
 
 type Pauses = { visualizer: boolean; motion: boolean; glass: boolean };
 const PAUSES: [keyof Pauses, typeof Leaf, string, string][] = [
@@ -104,6 +105,10 @@ interface GeneralTabProps {
 	restartBloom: () => void;
 	resetToDefaults: () => void;
 	quitBloom: () => void;
+	exportStatus: string;
+	importStatus: string;
+	handleExportSettings: () => void;
+	handleImportSettings: () => void;
 	saveSetting: (key: string, value: string | null) => Promise<boolean>;
 }
 
@@ -119,6 +124,10 @@ export function GeneralTab({
 	restartBloom,
 	resetToDefaults,
 	quitBloom,
+	exportStatus,
+	importStatus,
+	handleExportSettings,
+	handleImportSettings,
 	saveSetting
 }: GeneralTabProps) {
 	// Settings, the radial menu and the edge shelf exist only while used,
@@ -168,6 +177,37 @@ export function GeneralTab({
 						onChange={(e) => handleThresholdChange(parseInt(e.target.value))}
 						className="settings-slider"
 					/>
+				</SettingRow>
+			</div>
+
+			<div className="setting-group-label">Privacy</div>
+			<div className="setting-group">
+				<HideFromCaptureRow settingKey="bloom-notch-hide-from-capture" byDefault what="the notch (and the Shelf inside it)" />
+				<HideFromCaptureRow settingKey="bloom-dock-hide-from-capture" byDefault={false} what="the dock" />
+				<HideFromCaptureRow settingKey="bloom-clipboard-hide-from-capture" byDefault={false} what="the Shelf on a screen edge (in the notch it follows the notch)" />
+				<HideFromCaptureRow settingKey="bloom-files-hide-from-capture" byDefault what="the radial menu" />
+			</div>
+
+			<div className="setting-group-label">Backup &amp; Setup</div>
+			<div className="setting-group">
+				<SettingRow
+					icon={FileDown}
+					label={exportStatus === "exporting" ? "Exporting..." : exportStatus === "success" ? "Exported!" : exportStatus === "error" ? "Export failed. Try again." : "Export Settings"}
+					desc="Save your whole setup (every preference, pinned dock apps, custom icons) to a file"
+					action
+					onClick={handleExportSettings}
+				/>
+				<SettingRow
+					icon={Upload}
+					label={importStatus === "importing" ? "Importing..." : importStatus === "success" ? "Imported!" : importStatus === "error" ? "Import failed. Check the file and try again." : "Import Settings"}
+					desc="Load a LotusNotch, Bloom Enhanced or Bloom settings file; applies right away"
+					action
+					onClick={handleImportSettings}
+				/>
+				<SettingRow icon={Wand2} label="Run Setup Again" desc="Pick your modules, then size the notch and dock with a live preview" divider={false}>
+					<button type="button" className="setting-button" onClick={() => window.dispatchEvent(new Event("run-setup"))}>
+						Start
+					</button>
 				</SettingRow>
 			</div>
 

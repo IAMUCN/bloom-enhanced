@@ -1,14 +1,7 @@
 import {
-	Wand2,
 	PanelTop,
-	Music,
-	Minimize2,
-	LayoutList,
-	Sparkles,
-	Circle,
 	CloudSun,
 	Timer,
-	Archive,
 	Maximize2,
 	X,
 	Clock,
@@ -35,7 +28,6 @@ const NOTCH_MODES = [
 	]
 ] as const;
 import { ScaleStepper } from "./ScaleStepper";
-import { HideFromCaptureRow } from "./HideFromCaptureRow";
 import { Choice } from "./Choice";
 import { NOTCH_STYLES, type NotchStyle } from "../notchLayout";
 import { EXTRA_TOOLS, TOOLS } from "../tools";
@@ -193,18 +185,6 @@ interface NotchTabProps {
 	setNotchModeValue: (mode: string) => void;
 	notchEdgeDelay: number;
 	handleNotchEdgeDelayChange: (val: number) => void;
-	musicModeEnabled: boolean;
-	toggleMusicMode: () => void;
-	musicCompactNotch: boolean;
-	toggleMusicCompactNotch: () => void;
-	shelfPersist: boolean;
-	toggleShelfPersist: () => void;
-	mediaLayout: "classic" | "compact";
-	toggleMediaLayout: (layout: "classic" | "compact") => void;
-	mediaAmbienceEnabled: boolean;
-	toggleAmbience: () => void;
-	mediaCompactGlowEnabled: boolean;
-	toggleCompactGlow: () => void;
 	weatherEnabled: boolean;
 	toggleWeather: () => void;
 	tempUnitFahrenheit: boolean;
@@ -225,6 +205,7 @@ interface NotchTabProps {
 	handleWidgetsChange: (config: WidgetConfig) => void;
 	notchScale: number;
 	handleNotchScaleChange: (val: number) => void;
+	section: "look" | "open";
 	notchStyle: NotchStyle;
 	handleNotchStyleChange: (style: NotchStyle) => void;
 	saveSetting: (key: string, value: string | null) => Promise<boolean>;
@@ -236,18 +217,6 @@ export function NotchTab({
 	setNotchModeValue,
 	notchEdgeDelay,
 	handleNotchEdgeDelayChange,
-	musicModeEnabled,
-	toggleMusicMode,
-	musicCompactNotch,
-	toggleMusicCompactNotch,
-	shelfPersist,
-	toggleShelfPersist,
-	mediaLayout,
-	toggleMediaLayout,
-	mediaAmbienceEnabled,
-	toggleAmbience,
-	mediaCompactGlowEnabled,
-	toggleCompactGlow,
 	weatherEnabled,
 	toggleWeather,
 	tempUnitFahrenheit,
@@ -265,49 +234,17 @@ export function NotchTab({
 	handleNotchScaleChange,
 	notchStyle,
 	handleNotchStyleChange,
+	section,
 	saveSetting
 }: NotchTabProps) {
 	return (
 		<>
 			{notchEnabled && (
 				<>
+					{section === "look" && (
+					<>
 					<div className="setting-group-label">Shape</div>
 					<div className="setting-group">
-						<SettingRow
-							icon={PanelTop}
-							label="When It Shows"
-							desc={NOTCH_MODES.find(([m]) => m === notchMode)?.[2] ?? NOTCH_MODES[0][2]}
-						>
-							<Choice
-								value={notchMode}
-								options={NOTCH_MODES.map(([mode, name]) => [mode, name] as const)}
-								onChange={setNotchModeValue}
-								label="When the notch shows"
-							/>
-						</SettingRow>
-
-						{notchMode !== "fixed" && (
-							<SettingRow
-								icon={Timer}
-								label="Peek Delay"
-								desc={
-									notchEdgeDelay === 0
-										? "How long to rest on the top edge before it shows: instantly"
-										: `How long to rest on the top edge before it shows: ${notchEdgeDelay}ms`
-								}
-							>
-								<input
-									type="range"
-									min="0"
-									max="800"
-									step="50"
-									value={notchEdgeDelay}
-									onChange={(e) => handleNotchEdgeDelayChange(parseInt(e.target.value))}
-									className="settings-slider"
-								/>
-							</SettingRow>
-						)}
-
 						<SettingRow
 							icon={PanelTop}
 							label="Style"
@@ -341,119 +278,7 @@ export function NotchTab({
 
 						<OpenSizeRow saveSetting={saveSetting} />
 
-						<HideFromCaptureRow settingKey="bloom-notch-hide-from-capture" byDefault what="the notch (and the Shelf inside it)" />
 
-						<SettingRow icon={Wand2} label="Run Setup Again" desc="Pick your modules, then size the notch and dock with a live preview">
-							<button type="button" className="setting-button" onClick={() => window.dispatchEvent(new Event("run-setup"))}>
-								Start
-							</button>
-						</SettingRow>
-					</div>
-
-					<div className="setting-group-label">Opening</div>
-					<div className="setting-group">
-						<OpenOnRows saveSetting={saveSetting} />
-
-						<OpeningRows saveSetting={saveSetting} />
-					</div>
-
-					<div className="setting-group-label">Now Playing</div>
-					<div className="setting-group">
-						<SettingRow icon={Music} label="Music Mode" desc="Interactive live music widget">
-							<label className="toggle-switch">
-								<input type="checkbox" checked={musicModeEnabled} onChange={toggleMusicMode} />
-								<span className="slider"></span>
-							</label>
-						</SettingRow>
-
-						{musicModeEnabled && (
-							<details className="settings-disclosure">
-								<summary>
-									Music options <span>Layout and visual effects</span>
-								</summary>
-								<SettingRow
-									icon={Minimize2}
-									label="Compact Mode"
-									desc="Show visualizer & artwork when collapsed"
-								>
-									<label className="toggle-switch">
-										<input
-											type="checkbox"
-											checked={musicCompactNotch}
-											onChange={toggleMusicCompactNotch}
-										/>
-										<span className="slider"></span>
-									</label>
-								</SettingRow>
-
-								<SettingRow
-									icon={LayoutList}
-									label="Media Layout"
-									desc="Choose expanded player style"
-								>
-									<div className="unit-toggle-minimal wide">
-										<span
-											className={mediaLayout === "classic" ? "active" : ""}
-											onClick={() => toggleMediaLayout("classic")}
-										>
-											Classic
-										</span>
-										<span
-											className={mediaLayout === "compact" ? "active" : ""}
-											onClick={() => toggleMediaLayout("compact")}
-										>
-											Compact
-										</span>
-									</div>
-								</SettingRow>
-
-								<SettingRow
-									icon={Sparkles}
-									label="Ambient Glow"
-									desc="Colored glow behind expanded album art"
-								>
-									<label className="toggle-switch">
-										<input
-											type="checkbox"
-											checked={mediaAmbienceEnabled}
-											onChange={toggleAmbience}
-										/>
-										<span className="slider"></span>
-									</label>
-								</SettingRow>
-
-								<SettingRow
-									icon={Circle}
-									label="Compact Glow"
-									desc="Glow around collapsed thumbnail"
-									divider={false}
-								>
-									<label className="toggle-switch">
-										<input
-											type="checkbox"
-											checked={mediaCompactGlowEnabled}
-											onChange={toggleCompactGlow}
-										/>
-										<span className="slider"></span>
-									</label>
-								</SettingRow>
-							</details>
-						)}
-					</div>
-
-					<div className="setting-group-label">Drop Shelf</div>
-					<div className="setting-group">
-						<SettingRow
-							icon={Archive}
-							label="Keep Items"
-							desc="Keep shelf items after LotusNotch closes"
-							divider={false}
-						>
-							<label className="toggle-switch">
-								<input type="checkbox" checked={shelfPersist} onChange={toggleShelfPersist} />
-								<span className="slider"></span>
-							</label>
-						</SettingRow>
 					</div>
 
 					<div className="setting-group-label">Weather</div>
@@ -539,6 +364,54 @@ export function NotchTab({
 						</details>
 						<RowSizes saveSetting={saveSetting} />
 					</div>
+					</>
+					)}
+					{section === "open" && (
+					<>
+					<div className="setting-group-label">Opening</div>
+					<div className="setting-group">
+						<SettingRow
+							icon={PanelTop}
+							label="When It Shows"
+							desc={NOTCH_MODES.find(([m]) => m === notchMode)?.[2] ?? NOTCH_MODES[0][2]}
+						>
+							<Choice
+								value={notchMode}
+								options={NOTCH_MODES.map(([mode, name]) => [mode, name] as const)}
+								onChange={setNotchModeValue}
+								label="When the notch shows"
+							/>
+						</SettingRow>
+
+						{notchMode !== "fixed" && (
+							<SettingRow
+								icon={Timer}
+								label="Peek Delay"
+								desc={
+									notchEdgeDelay === 0
+										? "How long to rest on the top edge before it shows: instantly"
+										: `How long to rest on the top edge before it shows: ${notchEdgeDelay}ms`
+								}
+							>
+								<input
+									type="range"
+									min="0"
+									max="800"
+									step="50"
+									value={notchEdgeDelay}
+									onChange={(e) => handleNotchEdgeDelayChange(parseInt(e.target.value))}
+									className="settings-slider"
+								/>
+							</SettingRow>
+						)}
+
+						<OpenOnRows saveSetting={saveSetting} />
+
+						<OpeningRows saveSetting={saveSetting} />
+					</div>
+
+					</>
+					)}
 				</>
 			)}
 		</>
