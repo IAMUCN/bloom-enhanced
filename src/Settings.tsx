@@ -326,7 +326,6 @@ function SettingsApp() {
 						{NAV.map((part, i) => (
 							<div key={i} className="settings-nav-part">
 								{part.map(({ id, label, icon: Icon, sub }) => {
-									const module = modules[id];
 									return (
 										<button
 											key={id}
@@ -342,12 +341,6 @@ function SettingsApp() {
 												<Icon size={16} strokeWidth={1.75} />
 											</span>
 											<span className="sidebar-tab-label">{label}</span>
-											{module && (
-												<span
-													className={`sidebar-module-dot${module.on ? " on" : ""}`}
-													title={module.on ? `${label} is on` : `${label} is off`}
-												/>
-											)}
 										</button>
 									);
 								})}

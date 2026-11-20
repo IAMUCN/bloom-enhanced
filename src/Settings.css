@@ -3015,5 +3015,6 @@ button.shortcut-icon:hover {
 .title-controls { display: flex; gap: 8px; -webkit-app-region: no-drag; }
 
 /* The first group title and the preview card start on the same line. */
-.settings-main section > .setting-group-label:first-child { margin-top: 0; }
-.settings-aside { padding-top: 0; }
+.settings-main section > .setting-group-label:first-child { margin-top: 0; margin-bottom: 8px; line-height: 16px; }
+/* The preview card's top edge = the first settings card's top edge (title 16px + 8px gap). */
+.settings-aside { margin-top: 24px; }
