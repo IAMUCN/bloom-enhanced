@@ -3009,3 +3009,5 @@ button.shortcut-icon:hover {
 .rp-pointer span { padding: 2px 8px; border-radius: 99px; background: rgba(0,0,0,.75); margin-top: 12px; }
 .rp-pointer span.ok { background: #1e9e55; }
 .settings-aside .feature-preview-stage:has(.rp-stage) { height: 260px; }
+
+.setting-group > .setting-divider:last-child { display: none; }

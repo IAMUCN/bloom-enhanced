@@ -200,49 +200,16 @@ export function ClipboardTab({
 			.then((list) => setMonitors(list.map((m) => m.name).filter((n): n is string => !!n)))
 			.catch(() => {});
 	}, []);
+	const featureRow = ([option, key, icon, label, desc]: (typeof FEATURE_TOGGLES)[number], i: number, all: readonly unknown[]) => (
+		<SettingRow key={key} icon={icon} label={label} desc={desc} divider={i < all.length - 1}>
+			<label className="toggle-switch">
+				<input type="checkbox" checked={options[option]} onChange={() => saveSetting(key, String(!options[option]))} />
+				<span className="slider"></span>
+			</label>
+		</SettingRow>
+	);
 	return (
 		<>
-			<div className="setting-group-label">Clipboard</div>
-			<div className="setting-group">
-				{enabled && (
-					<SettingRow
-						icon={EyeOff}
-						label="Incognito"
-						desc="Pause recording; nothing copied meanwhile is kept"
-						divider={false}
-					>
-						<label className="toggle-switch">
-							<input type="checkbox" checked={incognito} onChange={toggleIncognito} />
-							<span className="slider"></span>
-						</label>
-					</SettingRow>
-				)}
-			</div>
-
-			{enabled && (
-				<>
-					<div className="setting-group-label">Sharing</div>
-					<div className="setting-group">
-						<SettingRow icon={UserRound} label="Your Name" desc="Shown only to people you share your Shelf with" divider={false}>
-							<input
-								className="setting-text-input"
-								defaultValue={localStorage.getItem("bloom-share-name") ?? ""}
-								maxLength={48}
-								placeholder="Your name"
-								aria-label="Your name"
-								onBlur={(e) => {
-									const name = e.target.value.trim();
-									if (name === (localStorage.getItem("bloom-share-name") ?? "")) return;
-									saveSetting("bloom-share-name", name);
-									if (name) invoke("share_set_name", { name }).catch(() => {});
-								}}
-							/>
-						</SettingRow>
-						<SharePortRow saveSetting={saveSetting} />
-					</div>
-				</>
-			)}
-
 			{enabled && (
 				<>
 					<div className="setting-group-label">Shelf</div>
@@ -340,24 +307,13 @@ export function ClipboardTab({
 				<>
 					<div className="setting-group-label">Features</div>
 					<div className="setting-group">
-						{FEATURE_TOGGLES.map(([option, key, icon, label, desc], i) => (
-							<SettingRow
-								key={key}
-								icon={icon}
-								label={label}
-								desc={desc}
-								divider={i < FEATURE_TOGGLES.length - 1}
-							>
-								<label className="toggle-switch">
-									<input
-										type="checkbox"
-										checked={options[option]}
-										onChange={() => saveSetting(key, String(!options[option]))}
-									/>
-									<span className="slider"></span>
-								</label>
-							</SettingRow>
-						))}
+						{FEATURE_TOGGLES.slice(0, 4).map(featureRow)}
+						<details className="settings-disclosure">
+							<summary>
+								More <span>Sounds and the Copied badge</span>
+							</summary>
+							{FEATURE_TOGGLES.slice(4).map(featureRow)}
+						</details>
 					</div>
 				</>
 			)}
@@ -398,6 +354,47 @@ export function ClipboardTab({
 					onClick={clearHistory}
 				/>
 			</div>
+			<div className="setting-group-label">Privacy</div>
+			<div className="setting-group">
+				{enabled && (
+					<SettingRow
+						icon={EyeOff}
+						label="Incognito"
+						desc="Pause recording; nothing copied meanwhile is kept"
+						divider={false}
+					>
+						<label className="toggle-switch">
+							<input type="checkbox" checked={incognito} onChange={toggleIncognito} />
+							<span className="slider"></span>
+						</label>
+					</SettingRow>
+				)}
+			</div>
+
+			{enabled && (
+				<>
+					<div className="setting-group-label">Sharing</div>
+					<div className="setting-group">
+						<SettingRow icon={UserRound} label="Your Name" desc="Shown only to people you share your Shelf with" divider={false}>
+							<input
+								className="setting-text-input"
+								defaultValue={localStorage.getItem("bloom-share-name") ?? ""}
+								maxLength={48}
+								placeholder="Your name"
+								aria-label="Your name"
+								onBlur={(e) => {
+									const name = e.target.value.trim();
+									if (name === (localStorage.getItem("bloom-share-name") ?? "")) return;
+									saveSetting("bloom-share-name", name);
+									if (name) invoke("share_set_name", { name }).catch(() => {});
+								}}
+							/>
+						</SettingRow>
+						<SharePortRow saveSetting={saveSetting} />
+					</div>
+				</>
+			)}
+
 		</>
 	);
 }

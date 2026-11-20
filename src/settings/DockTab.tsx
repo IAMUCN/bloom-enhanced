@@ -237,6 +237,28 @@ export function DockTab({
 							</SettingRow>
 						)}
 
+						{dockMode === "fixed" && (
+							<SettingRow
+								icon={Maximize2}
+								label="Adaptive Mode"
+								desc="Stretch to full width when a window is maximized"
+								divider={false}
+							>
+								<label className="toggle-switch">
+									<input type="checkbox" checked={dockAdaptive} onChange={toggleDockAdaptive} />
+									<span className="slider"></span>
+								</label>
+							</SettingRow>
+						)}
+
+						</>
+				)}
+			</div>
+
+			<div className="setting-group-label">Look</div>
+			<div className="setting-group">
+				{dockEnabled && (
+					<>
 						<SettingRow icon={Maximize2} label="Dock Size" desc="Size of the dock only; the notch keeps its own">
 							<ScaleStepper value={dockScale} onChange={handleDockScaleChange} label="dock size" />
 						</SettingRow>
@@ -270,6 +292,14 @@ export function DockTab({
 							</label>
 						</SettingRow>
 
+						</>
+				)}
+			</div>
+
+			<div className="setting-group-label">Buttons</div>
+			<div className="setting-group">
+				{dockEnabled && (
+					<>
 						<SettingRow icon={Copy} label="Task View" desc="Show the Task View button beside Start">
 							<label className="toggle-switch">
 								<input type="checkbox" checked={dockTaskView} onChange={toggleDockTaskView} />
@@ -293,20 +323,15 @@ export function DockTab({
 							</label>
 						</SettingRow>
 
-						{dockMode === "fixed" && (
-							<SettingRow
-								icon={Maximize2}
-								label="Adaptive Mode"
-								desc="Stretch to full width when a window is maximized"
-								divider={false}
-							>
-								<label className="toggle-switch">
-									<input type="checkbox" checked={dockAdaptive} onChange={toggleDockAdaptive} />
-									<span className="slider"></span>
-								</label>
-							</SettingRow>
-						)}
 
+						</>
+				)}
+			</div>
+
+			<div className="setting-group-label">Extras</div>
+			<div className="setting-group">
+				{dockEnabled && (
+					<>
 						<SettingRow
 							icon={LayoutPanelLeft}
 							label="Dock Extras"
