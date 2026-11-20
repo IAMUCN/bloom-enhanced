@@ -3,6 +3,8 @@
 import { useEffect, useState } from "react";
 import { ClipboardCheck, Layers, Volume2 } from "lucide-react";
 import { ClipTile } from "../components/ClipTile";
+import { ClipboardPanel } from "../components/ClipboardPanel";
+import { EdgeSurface } from "../components/EdgeSurface";
 import { useClipboardSettings } from "../hooks/useClipboardSettings";
 import { clipSounds } from "../clipboardSounds";
 import type { ClipItem } from "../clipboardModel";
@@ -68,7 +70,13 @@ export function ClipboardPreview({ scene }: { scene: ClipScene }) {
 
 	switch (scene) {
 		case "clip-shelf":
-			return grid([SAMPLES.text, SAMPLES.stack, SAMPLES.link, SAMPLES.color].map((it) => tile(it)));
+			// The real shelf (your own history), not a mock. ponytail: it also reads the live clipboard.
+			return (
+				<div className="clipshelf left open shelf-live">
+					<EdgeSurface edge="left" />
+					<ClipboardPanel dragIcon={null} dropEvent="clipshelf-drag-drop" layout="edge" onDragStart={() => {}} onDragEnd={() => {}} />
+				</div>
+			);
 		case "clip-rich":
 			return grid([tile(SAMPLES.rich), tile(SAMPLES.text)]);
 		case "clip-links":

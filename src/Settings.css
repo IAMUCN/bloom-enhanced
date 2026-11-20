@@ -2968,3 +2968,12 @@ button.shortcut-icon:hover {
 .settings-aside .feature-preview { margin-bottom: 0; }
 .settings-aside .feature-preview-stage { height: 220px; }
 .settings-aside .feature-preview-stage:has(.settings-preview-player) { height: 240px; }
+
+/* Shelf preview = the real shelf (ClipShelf.css is a separate window; scoped copy). */
+.shelf-live {
+	--surface-bg: var(--bloom-bg-expanded, rgba(0, 0, 0, 0.92));
+	position: relative; isolation: isolate; width: 100%; height: 100%;
+	border-radius: 0 18px 18px 0; color: var(--bloom-text, white);
+}
+.shelf-live .qp { top: 0; height: 100%; padding: 12px 12px 10px; border-radius: inherit; }
+.settings-aside .feature-preview-stage:has(.shelf-live) { height: 400px; align-items: stretch; justify-content: flex-start; }
