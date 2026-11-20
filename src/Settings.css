@@ -3013,3 +3013,7 @@ button.shortcut-icon:hover {
 .setting-group > .setting-divider:last-child { display: none; }
 
 .title-controls { display: flex; gap: 8px; -webkit-app-region: no-drag; }
+
+/* The first group title and the preview card start on the same line. */
+.settings-main section > .setting-group-label:first-child { margin-top: 0; }
+.settings-aside { padding-top: 0; }
