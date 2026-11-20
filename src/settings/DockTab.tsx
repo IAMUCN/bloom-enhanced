@@ -188,7 +188,7 @@ export function DockTab({
 
 	return (
 		<>
-			<div className="setting-group-label">Dock</div>
+			<div className="setting-group-label">Showing</div>
 			<div className="setting-group">
 				{dockEnabled && (
 					<>

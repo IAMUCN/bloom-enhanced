@@ -3011,3 +3011,5 @@ button.shortcut-icon:hover {
 .settings-aside .feature-preview-stage:has(.rp-stage) { height: 260px; }
 
 .setting-group > .setting-divider:last-child { display: none; }
+
+.title-controls { display: flex; gap: 8px; -webkit-app-region: no-drag; }

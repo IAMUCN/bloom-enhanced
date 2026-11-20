@@ -213,9 +213,13 @@ export function GeneralTab({
 
 			<BatterySaver saveSetting={saveSetting} />
 
-			<div className="setting-group-label">Performance</div>
+			<div className="setting-group-label">Advanced</div>
 			<div className="setting-group">
-				<SettingRow
+				<details className="settings-disclosure">
+					<summary>
+						More <span>Memory and speed</span>
+					</summary>
+					<SettingRow
 					icon={Gauge}
 					label="Keep Windows Loaded"
 					desc={
@@ -237,6 +241,7 @@ export function GeneralTab({
 						<span className="slider"></span>
 					</label>
 				</SettingRow>
+				</details>
 			</div>
 
 			<div className="setting-group-label">App</div>

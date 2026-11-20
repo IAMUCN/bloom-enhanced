@@ -2,10 +2,13 @@ import { StrictMode, useState, useEffect, useRef } from "react";
 import { createRoot } from "react-dom/client";
 import { getCurrentWebviewWindow } from "@tauri-apps/api/webviewWindow";
 import { Effect } from "@tauri-apps/api/window";
+import { LogicalSize } from "@tauri-apps/api/dpi";
 import { invoke } from "@tauri-apps/api/core";
 import { openUrl } from "@tauri-apps/plugin-opener";
 import {
 	X,
+	Minus,
+	Square,
 	Settings2,
 	Palette,
 	PanelTop,
@@ -212,6 +215,27 @@ function SettingsApp() {
 		return () => window.removeEventListener("run-setup", again);
 	}, []);
 
+	// Remember the window size (not while maximized).
+	useEffect(() => {
+		try {
+			const saved = JSON.parse(localStorage.getItem("bloom-settings-size") ?? "null");
+			if (saved?.w >= 880 && saved?.h >= 600) appWindow.setSize(new LogicalSize(saved.w, saved.h)).catch(() => {});
+		} catch {}
+		let timer = 0;
+		const un = appWindow.onResized(() => {
+			window.clearTimeout(timer);
+			timer = window.setTimeout(async () => {
+				if (await appWindow.isMaximized().catch(() => true)) return;
+				const [size, f] = await Promise.all([appWindow.innerSize(), appWindow.scaleFactor()]);
+				localStorage.setItem("bloom-settings-size", JSON.stringify({ w: Math.round(size.width / f), h: Math.round(size.height / f) }));
+			}, 400);
+		});
+		return () => {
+			window.clearTimeout(timer);
+			un.then((fn) => fn());
+		};
+	}, []);
+
 	const [themeTick, setThemeTick] = useState(0);
 	useEffect(() => {
 		const again = () => setThemeTick((n) => n + 1);
@@ -265,9 +289,17 @@ function SettingsApp() {
 				<span className="title-text" data-tauri-drag-region>
 					Settings
 				</span>
-				<button className="close-btn" onClick={handleClose} title="Close Settings">
-					<X size={12} strokeWidth={1.5} className="close-btn-icon" />
-				</button>
+				<div className="title-controls">
+					<button className="close-btn" onClick={() => appWindow.minimize().catch(() => {})} title="Minimize" aria-label="Minimize">
+						<Minus size={12} strokeWidth={1.75} className="close-btn-icon" />
+					</button>
+					<button className="close-btn" onClick={() => appWindow.toggleMaximize().catch(() => {})} title="Maximize" aria-label="Maximize or restore">
+						<Square size={10} strokeWidth={1.75} className="close-btn-icon" />
+					</button>
+					<button className="close-btn" onClick={handleClose} title="Close Settings" aria-label="Close Settings">
+						<X size={12} strokeWidth={1.5} className="close-btn-icon" />
+					</button>
+				</div>
 			</div>
 
 			<div className="settings-body">
@@ -283,6 +315,10 @@ function SettingsApp() {
 							onChange={(e) => setQuery(e.target.value)}
 							onKeyDown={(e) => {
 								if (e.key === "Enter" && hits[0]) jumpTo(hits[0]);
+									if (e.key === "ArrowDown") {
+										e.preventDefault();
+										contentRef.current?.querySelector<HTMLElement>(".search-result")?.focus();
+									}
 							}}
 						/>
 					</label>
@@ -425,7 +461,19 @@ function SettingsApp() {
 							</>
 						)
 					) : (
-						<div className="settings-search-results" role="list">
+						<div
+							className="settings-search-results"
+							role="list"
+							onKeyDown={(e) => {
+								if (e.key !== "ArrowDown" && e.key !== "ArrowUp") return;
+								e.preventDefault();
+								const items = Array.from(e.currentTarget.querySelectorAll<HTMLElement>(".search-result"));
+								const at = items.indexOf(document.activeElement as HTMLElement);
+								const next = items[at + (e.key === "ArrowDown" ? 1 : -1)];
+								if (next) next.focus();
+								else if (e.key === "ArrowUp") searchRef.current?.focus();
+							}}
+						>
 							<div className="settings-page-heading">
 								<h1>Search</h1>
 								<p>

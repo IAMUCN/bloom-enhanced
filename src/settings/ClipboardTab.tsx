@@ -212,7 +212,7 @@ export function ClipboardTab({
 		<>
 			{enabled && (
 				<>
-					<div className="setting-group-label">Shelf</div>
+					<div className="setting-group-label">Position &amp; Opening</div>
 					<div className="setting-group">
 						<SettingRow icon={Archive} label="Keep Items" desc="Keep items dropped on the notch shelf after LotusNotch closes">
 							<label className="toggle-switch">

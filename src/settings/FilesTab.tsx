@@ -147,7 +147,7 @@ export function FilesTab({ saveSetting }: { saveSetting: (key: string, value: st
 
 	return (
 		<>
-			<div className="setting-group-label">Radial Menu</div>
+			<div className="setting-group-label">Opening</div>
 			<div className="setting-group">
 				{enabled && (
 					<>
