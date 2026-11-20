@@ -37,7 +37,7 @@ import { ShortcutsTab } from "./settings/ShortcutsTab";
 import { useSettingsSync } from "./hooks/useSettingsSync";
 import { MAX_TABS, builtInTabCount, parseEnabledTools } from "./tools";
 import { initTheme } from "./theme";
-import { FeaturePreview } from "./settings/FeaturePreview";
+import { FeaturePreview, hasPreview } from "./settings/FeaturePreview";
 import { searchSettings, type SettingEntry } from "./settings/searchIndex";
 import "./Settings.css";
 
@@ -322,7 +322,7 @@ function SettingsApp() {
 					</button>
 				</div>
 
-				<div className="settings-content" ref={contentRef} onChangeCapture={(event) => {
+				<div className={`settings-content${shown && hasPreview(shown) && (!modules[shown] || modules[shown]!.on) ? " has-preview" : ""}`} ref={contentRef} onChangeCapture={(event) => {
 					const target = event.target as HTMLElement;
 					const row = target.closest(".setting-item");
 					let label = row?.querySelector(".setting-label")?.textContent;
@@ -399,9 +399,6 @@ function SettingsApp() {
 										{TABS.find((t) => t.id === shown)?.label} is off. Turn it on above to change its settings.
 									</p>
 								)}
-								{(!modules[shown] || modules[shown]!.on) && (
-									<FeaturePreview tab={shown} settings={settings} focus={previewFocus} />
-								)}
 							</>
 						)
 					) : (
@@ -423,6 +420,8 @@ function SettingsApp() {
 							))}
 						</div>
 					)}
+					<div className={`settings-split${shown && hasPreview(shown) && (!modules[shown] || modules[shown]!.on) ? " with-preview" : ""}`}>
+					<div className="settings-main">
 					{shown === "general" && (
 						<section data-tab="general">
 							<GeneralTab
@@ -614,6 +613,13 @@ function SettingsApp() {
 							/>
 						</section>
 					)}
+					</div>
+					{shown && hasPreview(shown) && (!modules[shown] || modules[shown]!.on) && (
+						<aside className="settings-aside">
+							<FeaturePreview tab={shown} settings={settings} focus={previewFocus} />
+						</aside>
+					)}
+					</div>
 					{shown && PAGE_KEYS[shown] && (
 						<div className="settings-page-reset">
 							<button

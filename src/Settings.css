@@ -2952,3 +2952,19 @@ button.shortcut-icon:hover {
 		transition: none;
 	}
 }
+
+/* Round 2: settings left, live preview right (sticky), full window width. */
+.settings-content.has-preview > * { max-width: 1120px; }
+.settings-split { display: block; }
+.settings-split.with-preview {
+	display: grid;
+	grid-template-columns: minmax(0, 11fr) minmax(300px, 9fr);
+	gap: 28px;
+	align-items: start;
+}
+.settings-main { min-width: 0; max-width: 720px; margin: 0 auto; width: 100%; }
+.settings-split.with-preview .settings-main { margin: 0; }
+.settings-aside { position: sticky; top: 0; min-width: 0; }
+.settings-aside .feature-preview { margin-bottom: 0; }
+.settings-aside .feature-preview-stage { height: 220px; }
+.settings-aside .feature-preview-stage:has(.settings-preview-player) { height: 240px; }

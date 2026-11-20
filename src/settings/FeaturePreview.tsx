@@ -4,7 +4,6 @@ import {
 	ArrowUpDown,
 	BatteryFull,
 	BatteryWarning,
-	ChevronDown,
 	CloudSun,
 	Cpu,
 	HardDrive,
@@ -65,6 +64,8 @@ const FEATURES: Partial<Record<SettingsTab, { id: Feature; label: string; descri
 		{ id: "clip-indicator", label: "Indicator", description: "The notch briefly widens to say Copied." }
 	]
 };
+
+export const hasPreview = (tab: SettingsTab) => !!FEATURES[tab];
 
 interface FeaturePreviewProps {
 	tab: SettingsTab;
@@ -350,7 +351,7 @@ export function FeaturePreview({ tab, settings, focus }: FeaturePreviewProps) {
 	const choices = FEATURES[tab];
 	const [feature, setFeature] = useState<Feature>("clock");
 	const [replay, setReplay] = useState(0);
-	const [expanded, setExpanded] = useState(false);
+	const expanded = true; // always open: the preview lives in its own pane
 	const [revealed, setRevealed] = useState(false);
 	const previousWidgets = useRef(settings.statusWidgets);
 
@@ -442,7 +443,7 @@ export function FeaturePreview({ tab, settings, focus }: FeaturePreviewProps) {
 	const selected = choices.find((choice) => choice.id === feature) ?? choices[0];
 
 	return (
-		<section className={`feature-preview${expanded ? "" : " collapsed"}`} aria-label="Feature preview">
+		<section className="feature-preview" aria-label="Feature preview">
 			<div className="feature-preview-heading">
 				<h2>Preview</h2>
 				<div className="feature-preview-actions">
@@ -456,15 +457,6 @@ export function FeaturePreview({ tab, settings, focus }: FeaturePreviewProps) {
 							<RotateCcw size={14} />
 						</button>
 					)}
-					<button
-						type="button"
-						onClick={() => setExpanded((open) => !open)}
-						aria-expanded={expanded}
-						aria-label={expanded ? "Hide preview" : "Show preview"}
-						title={expanded ? "Hide preview" : "Show preview"}
-					>
-						<ChevronDown size={16} />
-					</button>
 				</div>
 			</div>
 			{expanded && (

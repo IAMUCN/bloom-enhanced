@@ -1,0 +1,218 @@
+# Progress — LotusNotch (currently named Bloom Enhanced 0.1.0)
+
+Last updated: 2026-11-15. Code branch **`main`** = `548410c` = origin/main
+(old phase branches merged and deleted 2026-11-15; from now on branches are
+kept, merged into `main` after approval, then pushed).
+**Update this file at the end of every grilling phase and every work round.**
+
+## ▶ Where we are right now
+
+**▶ SETTINGS REDESIGN ROUND 2 (2026-11-20, user decisions, locked):** full rethink, not a rearrange.
+- Sidebar (kept, left): **4 modules = Notch, Dock, Shelf, Radial Menu**; Tools move INTO Notch (Notch › Tools); **Shortcuts = own category** (the notch-open shortcut also shown in Notch); General, Appearance, About stay as app-level block.
+- Every option audited: remove duplicates, broken or redundant ones. Rarely used → "More/Advanced" fold.
+- Every setting that changes something visible gets a **live preview**; the page uses the FULL window (content + preview side by side, room for animations), not a narrow list.
+- Settings theme = **light/dark only** (black & white; follows Windows).
+- Each of the 9 tools gets its own options page. Search jumps to the row and flashes it. **Export/Import settings = essential** (backup of a setup).
+- Skills installed globally for this: ui-ux-pro-max, web-design-guidelines, ux-heuristics (plus impeccable, frontend-design, taste already). Build in phases, commit each.
+- **Confirmed 5/5 (11-20):** Appearance for notch/dock/shelf stays AS IS; only the Settings WINDOW gets Dark/Light (no colour themes). Hide-from-recordings → General › Privacy. Export/Import → General › Backup. Music+glows → Media tool page. Preview pane right 45% sticky. Spec: vault `Settings Redesign R2.md`. Branch `feature/settings-r2` (cut from feature/shelf-share, which holds unmerged work). Phases 1 Shell · 2 Notch+Tools · 3 Dock+Shelf · 4 Radial+General+Appearance+About · 5 Search/keyboard.
+- **Phase 1 (shell) code done, committed on feature/settings-r2:** preview now always open in a sticky right pane (two columns, wide window). Sidebar regroup + Tools-under-Notch + Backup/Privacy moves are in phases 2–4. Waiting for the user to look at it. NEXT: phase 2 Notch + 9 tool pages.
+- Resume: phase A = audit of every setting (list in vault note), then layout shell.
+
+**▶ RESUME POINT (2026-11-20, 03:00) — read this first.** Branch `feature/shelf-share`, latest commit `9d2018b`, nothing merged/pushed.
+- Done today (all gates pass, user has NOT verified yet): white-box diagnostics 9a26653 · Calendar today-panel, no timer ba8a926 · OCR Clear + 7-day expiry e6c4f03 · units even + power modes (AC/DC saved, Balanced check, slider) b1b0981 · Mirror mic leak + big camera 3d8f6bb · grace margin + Mirror centred 3edb376 + real fix 437aea9 (tested live) · deadlines eabb2cb · in-notch date picker 9d2018b.
+- Waiting on the user: verify list of the last reply (grace margin, Reminders date picker, Calendar click-a-day deadline); possible stray click during the grace test.
+- Open bug: **white boxes beside the pill.** Ruled out: window losing layered mode (log), blur-behind. Next: when user says "boxes now" during `bun run tauri dev`, capture the page via CDP port 9333 (scratchpad shot2.ts) to tell page paint from window surface.
+- Next work (user's order): **Settings redesign → RAM usage.** Later: radial recipes; v2.0 internet sharing + Bluetooth; remove dead calendar-timer engine (ponytail note in App.tsx); user tunes Quick Move Speed default; merge to main on approval.
+
+**Track: product development, 8 phases.** Docs: `S:\INFO VAULT\BLOOM ENHANCED\Product Development\`
+(hub `00 Process.md`). Grill logs (the decisions + reasons): `.grill/` in this repo.
+
+| Phase | Status | Read |
+|---|---|---|
+| 01 Competitor Research | ✅ done | `01 Competitor Research.md` |
+| 02 Product Definition | ✅ **locked**, do not re-grill | `02 Product Definition.md`, `.grill/phase-02-product-definition.md` |
+| 03 Codebase Audit | 🟡 method locked; **data being collected** | `03 Codebase Audit.md`, `.grill/phase-03-codebase-audit.md` |
+| 04 Technical Architecture | 🟡 locked except **A vs B** (needs perf data) and sharing server | `04 Technical Architecture.md`, `.grill/phase-04-technical-architecture.md` |
+| 05 UI/UX Design | ✅ **grilling done** (design work itself comes after all grilling) | `05 UI-UX Design.md`, `.grill/phase-05-ui-ux-design.md` |
+| 06 Development | ✅ **grilled** | `06 Development.md`, `.grill/phase-06-development.md` |
+| 07 Optimization & QA | ✅ **locked** | `07 Optimization & QA.md`, `.grill/phase-07-optimization-qa.md` |
+| 08 Release | ✅ **locked** | `08 Open-source Release.md`, `.grill/phase-08-open-source-release.md` |
+
+**▶ Resume point (2026-11-15, morning): TOOL TEST LOOP running.** The user tests one tool at a time and gives feedback; Claude fixes, commits on `release/0.2`, and logs the round in the vault note `Product Development/Tool Test Loop.md` (▶ marks the tool being tested; move ▶ when the user says it passes). Rounds 1–2 done (R2: one open width 580 px, tab bar scrolls, Command Center wide Wi-Fi/BT + 5-column icon tiles + pinned sliders with wheel; UX consulted with Fable), R3: FigCraft page "3a Command Center (edit me)" (designs/scripts/p_command_center.py) is the reference the user edits; app matches it; real switches for Night light (CloudStore blob), Airplane (IRadioManager COM), Hotspot (TetheringManager), Nearby sharing (CDP registry), Live captions (process). R4 (user edited 3a default frame): pills without names, rows of 7, **16 tiles fixed** (Wi-Fi + Bluetooth + max 14 round), no scroll; app matches. User order: **UI first, then functionality**. R5: tiles 48 px, Wi-Fi/BT list keeps notch size (zoom 1.3 "quick-list"), micro-animations + BloomTip hover name (Fable spec), tab bar max 15 (MAX_TABS), spanning the Command Center edges. R7: Esc two levels, Battery tile removed, Dock mode hidden without dock + mode captions, Energy saver real switch (ESBATTTHRESHOLD 100, previous kept in HKCU\Software\LotusNotch). Restart fails only in tauri dev. R8: Esc hook reads NOTCH_OPEN (no swap) so stepping back keeps Esc working; CC + tab bar 16 px side margins; picker greys Dock mode when the dock is off. Asked user: apply the usage-ranked default tile order? R9: CC tile order (user drag order kept, parseCcTiles), slider scaleX, Settings window 1040×720 min 880×600. **Plan approved with changes (see vault plan note):** vault `Tool Merge & Settings Plan.md` (22 tabs → 8 tools: Command Center, Media, Day, Shelf, Capture, Launcher, Calculator, System; Settings phases 1 Shell → 2 Pattern → 3 Tools page → 4 Merges → 5 Polish). R10 (e5c3700 + 0331868): Animations setting (bloom-motion; user's Windows Animation effects is OFF, which disabled all motion), usage-ranked default tiles, overlays REMOVED, Settings phases 1–3 DONE. R11 (95db64a): Apple spring motion (src/motion.ts), Animations On by default, Peek+shortcut fix (isHidden ignores open), wheel walks all tabs, Media tab + "Nothing's playing", Tools reads real Shelf position. R12: shortcuts 642e981 (shortcuts.rs, Ctrl+LEFT Alt via the keyboard hook, Settings › Shortcuts after General, hover names show keys), merges 60562ea (Capture, Notes, Launcher, Calculator, System as segmented tools; old ids migrate). Skills installed globally: emilkowalski apple-design, improve-animations, review-animations, choreograph, animation-vocabulary; diffusionstudio/lottie (text-to-lottie); nutlope/hallmark; senlindesign/taste-skill. R13 (137a679, 95d0789): calendar fit, Timer tool, digits/tab-bar wheel, Fable tool fixes (copy via Tauri, ring, monitor, picker). R14 (28682f8, latest): Devices/Clipboard offset fix, TIME'S UP, monitor restyle, Mirror (replaces Meeting; output switch via PolicyConfig), Teleprompter (WDA_EXCLUDEFROMCAPTURE), Game strip v1 (GPU PDH). ⏳ check chime sound. ⏳ Later: bigger content in every tool page; edge light must follow the notch's curved top flares. ⏳ Later (approved): FPS admin helper (elevated once, ETW frame events) for the Game strip. R15 (0602146 + opening rules). R16–R18 (up to e1f5723): Timer bigger, countdown centred. R19 (ad9312f): Capture tab parts centred. R20: Fable functionality audit; fixes committed (timer false ring, Pomodoro ring, Teleprompter pin, auto-close 15 s, Energy saver, captions, mic eConsole, keep-awake race, PDH leak). R21 (d746b60): notch hidden from snips (WDA_EXCLUDEFROMCAPTURE until the clipboard changes), Snip + Record only, OCR one step (ocr_snip → ocr-result), picker crosshair/live/delete, Mirror bigger. Waiting: user choice on Teleprompter Space-to-pause. **R22 Shelf Share (branch `feature/shelf-share`, grill log `.grill/shelf-share.md`):** step 1 share column (ca796f2), step 2 pairing (LAN discovery, signed+encrypted channel, 4-digit code; dev peer `cargo run --example share_peer`). step 3 Share with… DONE (send/receive, limits, %, cleanup, Received filter). step 4 live clipboard DONE (6d20f46). step 5 groups DONE (e4d7755). ALL 5 STEPS BUILT on `feature/shelf-share` + R23 edge fixes (9d94406) + R24 icon filters/Share menu/people sidebar, first-run name + notch size, Esc fix (dd606df); test installer built for the user's friend test. R25: same-width Shelf, share bar at bottom, setup preview + lotus outline, dark installer, open-jiggle and close-before-Share fixes. LATER (user): notch open/close animations + outlines; test/fix sharing; conversion animation; context-wise Radial Menu; Settings redesign, waiting for the user's test on the real notch. Not built yet: the Public-network notice (Windows firewall blocks sharing on Public Wi-Fi; planned message + button to the setting), display name setting (uses the PC name), v2 internet (server ⛔ grill). User said: Claude implements and tests what it can. Open: Nearby registry may not apply live, Reminders custom time, shortcut feedback. R15: openingTool() Quick return → Favourite → last → CC; Mirror v2; Teleprompter paste; Game glance. **Next: Day (Calendar + To-dos + Reminders + Stopwatch + Mirror camera/mic/speaker check; Meeting → tile), Devices into System, Command Center tiles for Power / Keep awake / Mic, in-notch keyboard navigation + Ctrl cheat sheet, live activity feedback for shortcuts.** Then: **Next: phase 4 merges** Capture → Calculator → Launcher → Notes (Note+Snippets; Shelf stays separate) → System → Day (Today·Month·Focus + "Mirror" camera/mic/speaker check). Then phase 5 polish. Proposed next: system tray view in the notch (reuse get_tray_apps / activate_tray_icon / show_tray_context_menu). R6: Wi-Fi/BT list zooms only its content (no notch zoom → tab bar stays). Open question: the Shelf (clipboard) tab still uses a notch-wide 1.3 zoom, so the tab bar likely shifts there too. Chime hook fixed (~/.claude/play-sound.ps1 pointed at the old PC user). Waiting for the user to re-check the Command Center UI. Width stays 580 for now (user: they will decide widths later; clock + tab bar must stay put by code). ⏳ Later (user): polish the tool-switch transition (Fable: crossfade body 100 ms out / 160 ms in with 8 px rise while height animates 220 ms ease-out). Earlier state: **IMPLEMENTATION RUN DONE, waiting for the user's review and opinion.** The user
+said: implement everything with Claude's recommendations, they verify and
+change things one by one after waking; **ask the user's opinion after all
+tools are implemented**. Work happens on branch `release/0.2` (from `main`,
+with `fix/taskbar-and-quit` merged in); nothing merged into `main` or pushed
+until the user approves. Track every step in "Implementation run" below.
+
+### Implementation run (branch `release/0.2`, nothing merged/pushed)
+1. ✅ Fix queue 1–2 (taskbar after kill, quit panic): 34a2a66 (merged in from `fix/taskbar-and-quit`)
+2. ✅ Fix 3 Inter bundled, no Google Fonts (also Settings + Dock use Inter): 8b3b552
+3. ✅ Fix 4 mouse hook: reinstall once per silent episode (log showed 1/s bursts while input went to elevated windows): c318eaf
+4. ✅ Fix 5 memory after radial jobs: heap compact + working-set trim at job end: 0696ec7
+5. ✅ Fix 6 GPU +80 MB: SVG drop-shadow filter → static box-shadow: 5690102
+6. ✅ Rename to LotusNotch: 71f08d0 (ID com.ucnindustries.lotusnotch with one-time copy of Bloom Enhanced/Bloom data; placeholder lotus icon; README WIP note; Inter+Lucide credits; exe stays bloom.exe) · 0693df8 removed Bloom's hourly announcement fetch from bloom.sehaz.space (privacy)
+7. [~] Done so far: tab bar 437e488 · Smart Start + favourite = Command Center 9a84251 · Esc closes 6aeb0e4 · Open On click/hover + delay f8f0863 · one Notch Size (Panel Sizes removed) a3767eb. Then: notch shortcut Ctrl+Alt+N 9871db0 · Settings › Notch › Tools list (cards, colour, switch, drag order) f6b941c · first-run Pick your tools 555c4af. ✅ step done. Original item: Tool system + notch redesign (tab bar, size grid, Smart start, click/hover/hotkey, Esc), Settings Tools grid + tool pages, first-run Pick your tools
+8. ✅ Battery saver c12926e (+ visualizer capture off until wanted 4ece7ca) · progress effects (Edge light default, Center out, Bar, Glow only, Off) see git log. Per-tool shortcuts: deferred to the tools that need them (0.3+: OCR, snip, colour picker, timer)
+9. ✅ Theme re-skin: Black default (solid), Graphite theme, Settings follows Windows light/dark, accent #0A84FF, flat dock tiles, Inter everywhere (shelf + radial pick up the tokens). Full Dock/Shelf/Radial redesign stays ⛔ for later.
+10. [~] Tools 0.3 → 0.7: c14ac3a framework (lazy ToolHost, per-tool data file, Settings › More Tools with Erase data, picker presets) + 16 tools: Snip & record, Colour picker, Quick note, To-dos, Reminders, Stopwatch & Pomodoro, Calculator, Unit converter, System monitor, Power modes, Meeting (mic mute), Keep awake, Emoji, Multi-launch, Snippets, App launcher.
+    Held back (needs the user): QR code (needs a library; adding packages is blocked while the user is away) · Lens search (uploads a screenshot to a search engine: privacy call) · Font detector (needs an online service or ML model) · Audio output switch (no public Windows API) · Notifications list + calendar Events (need package identity = Microsoft Store build) · Game strip FPS (needs ETW/PresentMon, big) · Sharing 0.6 (big; server decision taken: none by default) · Draw on screen + Voice memo (next in line). OCR ✅ added after (Windows OCR on the clipboard snip).
+11. ⏳ **Ask the user's opinion on everything** (implementation run ended 2026-11-15; 22 commits on `release/0.2`, all gates green, nothing merged/pushed). Questions for the user: the held-back tools above; the decisions table below; then merge `release/0.2` → `main`.
+
+### Decided by Claude for the user to review (recommendation taken; options kept)
+| Topic | Taken | Other options |
+|---|---|---|
+| Command Center R2 (Fable consult, 2026-11-15) | Taken: 580 px open width for all tools; wide Wi-Fi/BT 2-up; icon tiles 5 columns, scroll after 3 rows; sliders side by side; wheel ±2 % / ±5 %; ↗ badge on launcher tiles; 12 default tiles. **Not taken:** Fable's "right half opens the Windows flyout" (user asked for the list: ours is kept); custom 400 ms tooltip (native hover title used); tab-bar fade edges | Fixed 720 width; 4 columns |
+| Command Center tiles (2026-11-15) | 3-column tiles like the design; 22 tiles to choose from in Settings › Notch › Command Center (`bloom-cc-tiles`); **default 6**: Wi-Fi, Bluetooth, Do not disturb, Night light, Energy saver, Airplane mode. Fixed order (no drag). Only Wi-Fi/Bluetooth/Dock mode/Notch mode switch directly; others open the Windows page/flyout (no public API). The old circle row (tray, Task Manager, notifications, settings, restart) became optional tiles, off by default | Drag to reorder; private Windows APIs for real toggles (Night light registry blob, hotspot via TetheringManager: possible later) |
+| Notch effects catalogue (was ⛔ grill) | Styles: **Edge light** (default, fills along the outline), **Center out** (light from the middle travelling outwards, the user's idea), **Bar** (thin bar under the notch), **Glow only**, **Off**. Moments: job progress, done (green glow), failed (red glow), copied (brief text), Battery saver on (leaf). One setting "Progress effect" (segments) | Per-moment effect choice; more styles (rainbow, pulse loop: rejected, no loops at rest) |
+| Sharing server (was ⛔ grill, 0.6) | **No server by default**: LAN Nearby + code/QR pairing; internet transfer only via an optional self-hosted relay the user enters; LAN visibility default **Trusted only** | Public relay run by us (costs money, against promises); DHT/hole punching (complex, unreliable) |
+| Architecture A vs B (04) | **B: suspend hidden surfaces first** (smaller change, measurable); revisit A with perf data | A: one WebView for everything (big refactor) |
+| Design placeholders | Logo = Lucide flower-2 · tool colours as in Foundations · notch sizes W 440/580/720 × H 180/260/360 | — |
+| Executable name | Stays `bloom.exe` for now | Rename to `lotusnotch.exe` (touches updater, autostart, CI artifacts) |
+| Bloom announcements | Removed the hourly fetch from Bloom's author's server | Keep it; host our own announcements file |
+| Notch shortcut default | Ctrl+Alt+N (changeable / off) | Alt+Space (clashes with window menu / PowerToys Run), Win+N (Windows notifications) |
+| First-run Skip | Keeps the tools as they are | Skip = Minimal preset (locked in 05; would switch off tools for people coming from Bloom Enhanced) |
+| Presets (0.2 tools) | Student/Developer: Command Center, Media, Calendar, Shelf · Designer: CC, Media, Shelf · Minimal: CC, Media · Everything: all | — |
+| Tools page in Settings | A reorderable list of tool cards (switch + colour) | A wrapping grid (drag-reorder in a grid needs another library) |
+| Settings theme | Follows Windows light/dark; Appearance previews therefore show Settings' theme | Settings follows the user's theme |
+| Theme defaults | New installs: solid black (opacity 1); existing users keep their opacity | Force opacity 1 for everyone |
+| QR code | Held back: needs a library (package install blocked while the user was away) | Write a QR encoder by hand (~300 lines) |
+| Tool data | One JSON file per tool in `<app config>/tools/`; Erase data deletes it | localStorage (not erasable from Settings, lost on WebView reset) |
+| OCR flow | Snip with Windows Snipping Tool → "Read text" reads the clipboard image with Windows OCR (on device) | Own region-select overlay (new window) |
+| Snip & record | Windows' own Snipping Tool (ms-screenclip) | Own capture + recorder (big, more RAM) |
+| Git | All 0.2 work on `release/0.2`; small commits per step | One branch per tool (too many open branches for a solo night run) |
+
+### Autonomous run (done)
+1. ✅ Fix 1 + Fix 2 on branch `fix/taskbar-and-quit`, commit 34a2a66 (gates green, **not merged/pushed**). Watchdog now starts via a launcher that exits (orphaned, detached, breakaway from job) so "End task" on the process tree no longer kills it; RunEvent::Exit restores only if the marker still exists (the late restore during teardown caused the tao panic). Needs the user to verify.
+2. ✅ Inter 4.1 installed for the user (18 static styles, user fonts; OFL).
+3. ✅ Design built in FigCraft: `S:\PROJECTS\Klyro-desktop\LotusNotch-Design.figcraft` (project root as asked; git-excluded). 14 pages: Cover · 1 Foundations (colours, 34 tool colours, type, spacing, radius, 9-size grid) · 2 Notch shell (10 closed states incl. edge light, glow, battery saver; tab bar; opening rules) · 3 Tools 0.2 (Command Center, Media, Calendar & Timer, Devices, Shelf tab, Pick your tools) · 4a–4e Tools 0.3–0.7 (one panel per tool; 0.6 Sharing marked DRAFT ⛔) · 5 Dock · 6 Shelf · 7 Radial Menu (re-skins) · 8 Settings (dark + light: Tools grid, tool page) · 9 Motion prototypes (3 flows: open/tab/close with springs; edge-light progress → glow → still; "Copied" toast). PNG previews in `designs/previews/`, build scripts in `designs/scripts/` (README there). The `/mcp` link was down, so Claude drove `figcraft-cli mcp --attach 7979` directly.
+   Placeholders to confirm: lotus logo = Lucide "flower-2"; tool colours; notch sizes (W 440/580/720 × H 180/260/360).
+   Not designed (⛔ grill first): notch effects catalogue, Sharing server.
+
+**User's working order (2026-11-15):** finish ALL grilling first (05, then
+06–08). Then run the process in order on the decisions: **design in FigCraft
+(fresh file) → user approves → implement (fix queue first, then 0.2) → check.**
+
+## Decisions in one glance (details in the files above)
+
+- **Name:** LotusNotch, "the dynamic notch for Windows" (rename = first 0.2 task).
+- **Users:** developers + students working in groups, heavy file conversion.
+- **Promises:** Windows 11 only · no account · no telemetry · no paid services
+  · every tool switchable, off = 0 MB / 0 CPU · no release dates (quality).
+- **Releases:** 0.2 Foundation → 0.3 File power → 0.4 Productivity → 0.5
+  System → 0.6 Sharing → 0.7 Extras → 0.8+ Optional → 1.0 Launch.
+- **Notch:** top tab bar (NotchPixel style), Click default / Hover option /
+  shortcut, Smart start (live → last within 5 min → favourite = Command
+  Center), Battery saver (user picks when + what pauses).
+- **Architecture:** stay on Tauri/WebView2; one WebView (A) or suspend hidden
+  (B) by data; no native UI before 1.0; idle < 100 MB = post-1.0 goal; tool
+  contract; Windows events + one shared heartbeat; crash = taskbar back in 1 s,
+  restart once, stop after 2 crashes / 5 min.
+- **Metric:** Windows Task Manager "Memory" (private working set). TMOG shows
+  ~2× (shared memory): the "800 MB" was that, not a leak.
+- **Distribution:** GitHub now (public repo + "Work in progress" README note), winget at 1.0, Microsoft Store later; free
+  authorship (publisher, checksums, update signatures), SignPath later; no
+  paid signing.
+- **Success:** 1,000 stars + 2,000 downloads + active issue tracker.
+- **Design (05, grilling):** solid black default, Glass opt-in theme (off in Battery saver); colour per tool + user accent for selection; size grid (9 sizes, W S/M/L × H S/M/L, chosen per tool); one Notch Size, per-page Panel Sizes removed (maybe after 1.0); monitors: notch on main display / chosen display / "Follow my mouse", dock chosen separately, shelf own choice, never one notch per monitor; motion lively but event-only (still at rest; progress/glow/edge light on moments; no confetti; respects Windows animation setting); first run = "Pick your tools" with presets (Student, Developer, Designer, Minimal, Everything; skip = Minimal); themes 0.2 = Black + Graphite (Settings follows Windows light/dark), Light/Glass/soft in 0.7; Settings sidebar General · Appearance · Notch (Tools grid → tool pages) · Dock · Shelf · Radial Menu · Overlays · About, every tool page on/off · preview · options · Advanced · Reset · Erase data; accessibility standard in the tool contract (hotkey opens, Esc closes, arrows/Tab, screen-reader names, contrast, Windows motion + text scaling); design files in `designs/` (git-excluded); designs + motion prototypes made in FigCraft (start "FigCraft (MCP Enabled)", then /mcp reconnect figcraft) and approved before code.
+- **Development (06, grilling):** test on dev each round; release-candidate installer + perf recorder for a few days per batch before shipping; git = branch from `main` per piece of work → merge into `main` after approval → push; never delete branches; automate every check (gates + CI, tool-contract test, accessibility checks, code review before approval); perf recorder only in dev/RC builds, never in releases; user checks look/feel/behaviour only.
+- **QA (07, locked):** ship gate per batch (memory ≤ 5 % worse than last release, peaks ≤ 600 MB, idle CPU ≤ 1 %, no RC crash, taskbar survives kill/crash, tool contract, accessibility, modules alone, user sign-off); automated report per RC; red blocks unless user overrides non-critical with a reason. Test sheet per RC on own PC: scaling 100–200 %, battery/saver, light/dark, native + 1366×768; multi-monitor only when a release touches monitor code; solo, no outside testers; RC runs 1 day (0.x) / 7 days incl. battery + memory-creep check (1.0); Battery saver ≥ 20 % less energy, tested only when its code changes; modules-alone: auto test of 15 combos + 4 manual; taskbar: double-click PASS/FAIL script per RC; RC report in vault `RC reports/RC-0.x.md`; own Windows build only, stable-build bugs via Issues (`win-build`).
+- **Release (08, locked):** no announcements before 1.0, one big launch at 1.0; repo public with WIP note; release notes = 3–5 plain "What's new" bullets (Claude writes, user approves) + automatic list, same bullets in the update prompt; README pictures only after 1.0 (user records from Claude's shot list); updates ask by default (silent auto-update opt-in); Dependabot security alerts only, libraries bumped once per release, 4 old dependabot branches untouched; Issues (bug/feature templates) + Discussions open, pull requests not accepted.
+- **Sharing (0.6):** LAN Nearby + code/QR trusted pairing + groups; internet
+  code transfer, nothing stored, no public server by default.
+  **⛔ Grill the server question again before building it.**
+- **⛔ Remind later: Dock, Shelf, Radial Menu** get only a token re-skin in
+  0.2; in the last phase touching them, remind the user they need a full
+  redesign + RAM/implementation review (they're Rust + WebView, not C++).
+  Edge shelf: taller and narrower.
+- **⛔ Grill again later: notch effects.** Default progress = edge light + hover
+  details + one result glow; the user wants more user-selectable effects (light
+  from the middle travelling outwards, others). Grill the full effects
+  catalogue before building effects in 0.2 (`05 UI-UX Design.md`).
+
+## Data being collected (no action needed until the user says so)
+
+- **Perf test build** installed by the user (commit 548410c, `--features
+  perf-recorder`) → `%LOCALAPPDATA%\com.ucnindustries.bloomenhanced\perf\perf-<date>.csv`
+  every 30 s + on changes. Installer: `S:\PROJECTS\bloom-enhanced-releases\0.1.0-perftest\`.
+  After the audit, reinstall `S:\PROJECTS\bloom-enhanced-releases\0.1.0\` to remove it.
+- **Leak log** (2026-11-15 00:26, 14 h): `Product Development\03 audit data\leak-log-2026-11-15.csv`.
+- When the user reports a few days of use incl. ≥ 1 h on battery: analyse the
+  CSVs → fill `03 Codebase Audit.md` → decide A vs B (Phase 04).
+
+## Fix queue (implement after grilling; fix-now class)
+
+1. **Taskbar stays hidden after Bloom is killed**: the `--taskbar-watchdog`
+   must restore it within 1 s however Bloom dies.
+2. **Panic on every quit**: `tao` runner.rs:371 "cannot move state from
+   Destroyed", logged right after "exit restoring native taskbar".
+3. (0.2) **Bundle the Inter font** — today CSS loads it from fonts.googleapis.com (IP leak, breaks offline); Lucide icons stay.
+4. (0.2) Mouse hook dropped 2,111× in 16 days (slow work on the hook thread).
+5. (0.2) Memory held ~7 min after radial-menu jobs: free buffers at job end.
+
+## Waiting on the user
+
+- Verify lists never answered: windows on demand (f6dd59e), About/identity
+  (09622ff, 7e8abce), export/import (7f45dff), search index (bd1d261), 0.1.0
+  installer. (The user has been running 0.1.0 daily for ~20 days without
+  reporting problems with these.)
+- Folder rename `S:\PROJECTS\Klyro-desktop` → `S:\PROJECTS\bloom-enhanced`
+  (now superseded by the LotusNotch rename in 0.2).
+- First GitHub release needs repo secret `TAURI_SIGNING_PRIVATE_KEY`.
+
+## Done (code)
+
+- Phases 1–3 of the original plan: audit, dock/notch fixes, Shelf (clipboard).
+- Radial menu (OrbitDrop-style): convert / tools / actions, PDF merge + split
+  by ranges, Office → PDF, browser drags → Downloads.
+- Settings: no dropdowns, search, reset per page, keyboard, export/import v2.
+- Performance: windows on demand, Keep Windows Loaded, installer 7 MB.
+- Identity: Bloom Enhanced 0.1.0, app ID com.ucnindustries.bloomenhanced,
+  credits, README, notices, own update key; release in
+  `S:\PROJECTS\bloom-enhanced-releases\0.1.0\`.
+- Perf recorder for testing builds (548410c).
+
+## R26 (2026-11-19) — resume point
+- ✅ Share closing fixed for real (`dde3b38`), found live in the dev build: NOTCH_RECT was measured mid-spring (129 px of 496) and the open flag is off while the Shelf shows on hover. The hit test now unions the clickable region box (`state::NOTCH_REGION`). Stays interactive down to y=525.
+- 🧪 Sharing UX prototype for the user to decide on: https://claude.ai/artifact/JN2SxmxRm15mijd45YnCeT
+  (Pair + Live icons at the right of the filter row, paired people chips at the bottom (scrollable), Share/Live buttons removed, name asked at first Pair if skipped).
+- ⏳ Waiting on the user: live status A (dot + words, recommended) / B (dot) / C (faded chip); Group inside Pair or its own icon; same layout on edge Shelf?
+- Next: build the chosen design into ShareColumn.tsx/ClipboardPanel; the name prompt goes in with it.
+- ✅ R26b built (see commit "feat(shelf): sharing as decided"): decisions locked: live status = green/gray dot only (no "seen ago"); names only, no avatars; ring replaces the dot while sending; people row scrolls sideways (wheel + drag-edge autoscroll); Pair/Groups/Live icons top right; Groups = send to several, Live = who gets my copies (separate); same layout on edge Shelf; pair requests + invites in the people row with Accept/Join; name asked at Pair if missing (also Settings › Shelf › Sharing › Your Name).
+- Dev tip: `WEBVIEW2_ADDITIONAL_BROWSER_ARGUMENTS=--remote-debugging-port=9333 bun run tauri dev` + scratchpad `cdp.ts` evaluates JS in the notch page (live layout checks).
+- Next: user tests R26b with a second PC; then the later list.
+- ✅ People row no longer flashes the hint on open (cached list).
+- ✅ FIXED (re-layer on resize, main.rs on_window_event): notch closes on the way to the people row. Root cause: layered window hit-tested at its 420 px creation size.
+  Old notes: Found live (CDP + WindowFromPoint scan, display 100%): the notch window takes the mouse only down to y≈410 although its region (GetWindowRgnBox) is 677..1243 × 0..522 and the Shelf draws to 500; below, Windows routes the mouse to the window behind (Settings), the page gets mouseout(null) → closes. Not the Rust hit test (no click-through flip), not the region, not DPI. Next: restart dev build (needs memory; it was reaped), test WM_NCHITTEST / layered alpha (e.g. what the root Tauri window returns at y>410, tao undecorated hit-test), and window height history (resize_notch_window).
+- ✅ Hide nearby people from the Pair list (localStorage bloom-share-hidden); Forget paired people via x on hover.
+- Next: user tests on second PC.
+- ✅ Pair › Paired devices (Remove + confirm) › Pair a new device (scan). No x on bottom-row chips.
+- ✅ Shift+1–9 opens tabs from the end (tool-end-N). Next: Shelf functionality (user to say which part first).
+- ✅ Keyboard model (de85e76+): nothing focused by default (Launcher autoFocus removed); Tab → first text field of the open tab; Esc in a field → leave it, next Esc closes.
+- ✅ Esc in a notch text box works (page handles Esc when the notch has the keyboard; hook skips then).
+- ✅ Sharing end-to-end on one PC vs the scriptable test peer (`cargo run --example share_peer`, stdin: peers | pair <name> | send <name> <text> | file <name> <path> | live <name> <text>): all flows pass; 6 bugs fixed (see commit "sharing fixes from an end-to-end run").
+- ❓ Open: a pair request while a full-screen (or maximized, dock replaces taskbar) window is in front: notch stays hidden, request waits unseen (1 min). Ask user.
+- Next: two-laptop test (Wi-Fi, firewall, Private network); public-network notice; v2 internet.
+
+- 2026-11-19: test installer built from 0f07643 for the two-laptop share test: `src-tauri/src-tauri/target/size-build/release/bundle/nsis/LotusNotch_0.1.0_x64-setup.exe`. Waiting on the user's two-laptop results.
+- 2026-11-19 two-laptop test #1: PCs didn't see each other. Causes: firewall rules for the app were Public-only (Wi-Fi is Private), and multicast went out on the default adapter only (this PC has 2 Ethernet + hotspot + Wi-Fi). Fixed in 63fba0c (broadcast + join on every adapter; installer adds a Private Allow rule via UAC). Decision: pair request never shows the notch over full screen; it stays as "X wanted to pair · Pair back". New installer built (same path). **Resume: wait for two-laptop test #2.**
+
+## Task queue 2026-11-19 (after two-laptop test: pairing + files work)
+1 Public networks too · 2 Bluetooth PAN (link-local) now, full BT fallback = grill · 3 centre pairing card · 4 "From X" colour · 5 drag-to-person keeps notch open with status · 6 both sides told (Live on/off, paired, group) · 7 unpair one-sided (ask) · 8 hide notch+teleprompter from recording · 9 Shift conflicts (Photoshop): toggles in Command Center · 10 setup redesign (pick modules, preview, per-module config).
+- 2026-11-19 queue done except 2 (full Bluetooth fallback: grill) and 7 (unpair one-sided: asked user, recommended "removing unpairs both sides"): c461654 any network + stay open while sending + "From X" blue + Live/paired notices both sides + centred row; 0a8ddb7 Hide From Recordings (bloom-notch-hide-from-capture) + untitled chrome windows; 3405ff9 radial skips creative apps' Shift+drag + Radial menu CC tile; 6ba0416 setup redesign (modules first, white screen). Installer rebuilt. **Resume: user verifies; answer on unpair; grill Bluetooth fallback.**
+- 2026-11-19 65d7f72: removing someone removes you on their side too (told at once, or on their next send). Bluetooth fallback moved to **v2** (with internet sharing). Open: Snipping Tool (Win+Shift+R › Window) shows LotusNotch's notch window (T-shaped region: top strip + pill, window 1920x567) and the dock as pickable windows; notch already hides when Snipping Tool is detected (services.rs apply_capture_ui_state, ≤550 ms scan) — likely too late for its window list. Waiting on the user's check before fixing.
+- 2026-11-19: Snipping Tool cause found (probe: notch still shown 300 ms after Win+Shift+R, hidden by 1.5 s; Snipping Tool lists windows first). Fix: hide on Snipping Tool's first window create (services.rs window_change_event_proc). Shelf tiles user-select none. User builds installers themselves now (command in context.md).
+- 2026-11-19: Hide From Recordings per module (notch on, dock off, shelf off, radial on); notch-off also skips the Snipping Tool hide (was why screenshots never showed it); removal notice red. Probe: notch now gone <60 ms after Win+Shift+R in dev. Open: user's "white box around the notch" — asked for a screenshot.
+- 2026-11-19 decision (user): **sharing over the internet is a version 2.0 feature** (with the Bluetooth fallback). v1 = local network only.
+- 2026-11-19: white boxes beside the closed pill (flare corners) = window briefly un-layered by refresh_layered on every resize (region + non-layered = opaque). Fix: layer at full screen size at startup (hidden), re-layer only on growth past the biggest size + RedrawWindow. User to confirm white gone AND the people row still reachable (the 84400af hover fix).
+- 2026-11-19 8d97b1b: Minimal notch flares scale (--flare 5px on the idle bar); edge Shelf left/right ≤ 2/3 screen height. User: white box gone. **Order from user: finish Shelf fixes → Radial Menu → Settings → RAM usage.** Resume: wait for the user's check of 8d97b1b, then Radial Menu.
+- 2026-11-19 <latest>: sharing port 47917 (was 53317 = LocalSend) + Sharing Port setting; exe renamed LotusNotch.exe (mainBinaryName); fixed-mode idle fade to 45% after 10 s; edge shelf 286x580 base. Style (notch/pill/minimal) and behaviour (fixed/smart/peek) were already separate settings: any combination works.
+- 2026-11-20 43d15d4 (window surface cleared on erase → white boxes; tool error boundary; fade 40%), <edge> edge Shelf reliability: watchdog re-check while resting at edge, band middle 2/3, real full screen via SHQueryUserNotificationState, dwell 150 ms. Competitor notes: Edge-Drop (3 px band, 40 ms dwell + user delay, 16 ms poll near edge, 250 ms close grace, configurable zone height/offset, seam-aware arming on multi-monitor, real fullscreen via SHQueryUserNotificationState); Yoink (shelf appears on drag toward edge / on any drag); Dropover (shake gesture, shortcut). Possible next: user setting for open delay and band size (Edge-Drop has both).
+- 2026-11-20: side shelf opens on a quick move (≥1 px/ms over 150 ms, then 60 ms at the edge); slow arrival doesn't; dragging always rests-to-open; setting bloom-clipboard-edge-open (flick/rest). Threshold may need tuning from the user's feel.
+- 2026-11-20 db47f6a Quick Move Speed slider (user picks the default). **Radial Menu decisions locked** (.grill/radial-menu-v2.md): add PDF tools (compress, rotate pages, PDF→images), image tools (invert, resize to size, crop square, strip metadata), selected-text actions (case, word count, web search, save .txt); context by file type only; keep 3 rings + Shift. No video/audio. **Resume: implement radial items, then Settings, then RAM.**
+- 2026-11-20: LATER (user): radial menu chained actions/recipes (several options in one let-go). Logged in .grill/radial-menu-v2.md.
+- 2026-11-20: radial items built (PDF compress/rotate, image resize/square/invert/no details, text upper/lower/count/search/save). PDF→images already existed in Convert. Next: user verifies, then Settings, then RAM.
+- 2026-11-20: Settings › Radial Menu designer filtered per drag kind (Images/PDFs/Other files/Text) so previews match the wheel; all options reachable (test).
+- 2026-11-20 round: 9a26653 white-box evidence (log notch_not_layered in diagnostics.log; dev WebView2 port 9333); ba8a926 Day = calendar + today panel (no timer); e6c4f03 OCR Clear + 7-day expiry, picker 7-day, snips restore Hide From Recordings; b1b0981 units even boxes, power modes saved per AC/DC + Balanced-plan check + slider UI; 3d8f6bb mic leak fix + Mirror layout (XL height) = 3d8f6bb. Open: white box root cause (waiting for it to recur with the log/port).
+- 2026-11-20: 3edb376 open-notch 40px grace + Mirror rows centred; eabb2cb deadlines (Calendar click-a-day + Reminders list, tools/deadlines.json).
+- 2026-11-20 437aea9 grace margin really works (framer onHoverEnd closed it; tested live 20px stays/80px closes); 9d2018b deadline day picker in the notch (Reminders XL). White boxes: diagnostics show the window never un-layered when the user saw them; blur-behind test showed nothing → both ruled out. Next time: user says "boxes now" while tauri dev runs → inspect page via CDP port 9333 (scratchpad shot2.ts).
