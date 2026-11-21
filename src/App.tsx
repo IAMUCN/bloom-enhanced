@@ -428,6 +428,8 @@ interface DeviceAlert {
 	buds?: BudsBattery | null;
 	// A USB device, which has no list to open when the alert is clicked.
 	usb?: boolean;
+	// A USB drive: clicking the alert opens it in File Explorer.
+	disk?: boolean;
 	// Changes on every alert, so the drawing replays its animation.
 	runId: number;
 }
@@ -2649,7 +2651,8 @@ function App() {
 				name,
 				connected: payload.connected,
 				battery: null,
-				usb: true
+				usb: true,
+				disk: payload.class === "disk"
 			});
 		};
 		const unlistenUsb = listen<UsbConnection>("usb-connection", showWired);
@@ -4757,11 +4760,15 @@ function App() {
 									{bloomMode === "device" && deviceAlert && (
 										<motion.div
 											className="device-alert"
+											title={deviceAlert.disk && deviceAlert.connected ? "Open in File Explorer" : undefined}
+											style={deviceAlert.disk && deviceAlert.connected ? { cursor: "pointer" } : undefined}
 											onClick={(e) => {
 												e.stopPropagation();
 												const usb = deviceAlert.usb;
+												const openDrive = deviceAlert.disk && deviceAlert.connected;
 												deviceAlertQueueRef.current = [];
 												setDeviceAlert(null);
+												if (openDrive) invoke("open_new_drive").catch(() => {});
 												// Bluetooth devices open their list; USB ones
 												// have none, so the click just dismisses.
 												if (usb) return;

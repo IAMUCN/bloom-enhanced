@@ -11,7 +11,7 @@
 
 use serde::Serialize;
 use std::collections::HashMap;
-use std::sync::atomic::{AtomicBool, Ordering};
+use std::sync::atomic::{AtomicBool, AtomicU32, Ordering};
 use std::sync::mpsc::{channel, Sender};
 use std::sync::{Arc, Mutex, OnceLock};
 use std::time::Duration;
@@ -32,6 +32,52 @@ const MACHINE_CONTAINER: GUID = GUID::from_u128(0x00000000_0000_0000_ffff_ffffff
 const DISK_SELECTOR: &str = "System.Devices.InterfaceClassGuid:=\"{53f56307-b6bf-11d0-94f2-00a0c91efb8b}\" AND System.Devices.InterfaceEnabled:=System.StructuredQueryType.Boolean#True";
 /// How long arrivals are gathered before they're reported.
 const GATHER: Duration = Duration::from_millis(700);
+
+/// Drive letters (a bit per letter) that were there when the last drive left
+/// or the app started: a drive that is new since then is the one just plugged in.
+static KNOWN_DRIVES: AtomicU32 = AtomicU32::new(0);
+
+fn drives_now() -> u32 {
+    unsafe { windows::Win32::Storage::FileSystem::GetLogicalDrives() }
+}
+
+/// The drive letter of the USB drive plugged in last: a letter that is new
+/// since the last drive left (removable first, then any fixed-type one, which
+/// is how an external hard disk reports), else the last removable drive.
+fn newest_drive() -> Option<char> {
+    use windows::core::PCWSTR;
+    use windows::Win32::Storage::FileSystem::GetDriveTypeW;
+    let now = drives_now();
+    let fresh = now & !KNOWN_DRIVES.load(Ordering::Relaxed);
+    let kind = |slot: u32| {
+        let root: Vec<u16> = format!("{}:\\", (b'A' + slot as u8) as char)
+            .encode_utf16()
+            .chain(Some(0))
+            .collect();
+        unsafe { GetDriveTypeW(PCWSTR(root.as_ptr())) }
+    };
+    let pick = |mask: u32, accept: &[u32]| {
+        (0..26u32)
+            .rev()
+            .find(|&slot| mask & (1 << slot) != 0 && accept.contains(&kind(slot)))
+    };
+    pick(fresh, &[2, 3])
+        .or_else(|| pick(now, &[2]))
+        .map(|slot| (b'A' + slot as u8) as char)
+}
+
+/// Opens File Explorer on the USB drive that was just plugged in, with the
+/// drive selected (the notch's device alert, when it's clicked).
+#[tauri::command]
+pub fn open_new_drive() -> Result<(), String> {
+    let letter = newest_drive().ok_or("No USB drive found")?;
+    KNOWN_DRIVES.store(drives_now(), Ordering::Relaxed);
+    std::process::Command::new("explorer.exe")
+        .arg(format!("/select,{letter}:\\"))
+        .spawn()
+        .map(|_| ())
+        .map_err(|e| e.to_string())
+}
 
 /// A USB device plugged in or removed, as sent in `usb-connection`.
 #[derive(Clone, Debug, PartialEq, Serialize)]
@@ -261,6 +307,7 @@ fn watch(selector: &HSTRING, watch: Arc<Watch>) -> windows::core::Result<DeviceW
 /// `usb-connection` when one is plugged in or removed.
 pub fn setup_usb_notifications(app: AppHandle) {
     let _ = APP.set(app);
+    KNOWN_DRIVES.store(drives_now(), Ordering::Relaxed);
     std::thread::spawn(|| {
         unsafe {
             let _ = CoInitializeEx(None, COINIT_MULTITHREADED);
@@ -272,6 +319,9 @@ pub fn setup_usb_notifications(app: AppHandle) {
                 let mut batch = vec![first];
                 batch.extend(rx.try_iter());
                 for change in pick(batch) {
+                    if change.class == "disk" && !change.connected {
+                        KNOWN_DRIVES.store(drives_now(), Ordering::Relaxed);
+                    }
                     if let Some(app) = APP.get() {
                         let _ = app.emit("usb-connection", change);
                     }

@@ -335,6 +335,7 @@ fn main() {
             bluetooth::bluetooth_unpair,
             bluetooth::bluetooth_refresh_buds,
             usb::usb_list_devices,
+            usb::open_new_drive,
             jack::jack_list_devices
         ])
         .setup(|app| {
