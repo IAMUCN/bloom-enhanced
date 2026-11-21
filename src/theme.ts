@@ -119,6 +119,7 @@ export async function applyTheme(
 ) {
 	const revision = ++themeRevision;
 	const root = document.documentElement;
+	root.style.setProperty("--user-accent", userAccent());
 
 	if (opacity === undefined || opacity === null) {
 		const cachedOpacity = localStorage.getItem("bloom-theme-opacity");
@@ -145,7 +146,7 @@ export async function applyTheme(
 		root.style.setProperty("--bloom-text-muted", "rgba(28, 28, 30, 0.65)");
 		root.style.setProperty("--bloom-border", "rgba(0, 0, 0, 0.12)");
 		root.style.setProperty("--bloom-group-bg", "rgba(0, 0, 0, 0.04)");
-		root.style.setProperty("--bloom-accent", "#007aff");
+		root.style.setProperty("--bloom-accent", userAccent());
 		root.style.setProperty("--bloom-scrollbar-thumb", "rgba(0, 0, 0, 0.15)");
 		root.classList.add("light-mode");
 		root.classList.remove("dark-mode");
@@ -240,7 +241,7 @@ export async function applyTheme(
 		root.style.setProperty("--bloom-text-muted", "rgba(255, 255, 255, 0.6)");
 		root.style.setProperty("--bloom-border", "rgba(255, 255, 255, 0.1)");
 		root.style.setProperty("--bloom-group-bg", "rgba(255, 255, 255, 0.04)");
-		root.style.setProperty("--bloom-accent", "#0a84ff");
+		root.style.setProperty("--bloom-accent", userAccent());
 		root.style.setProperty("--bloom-scrollbar-thumb", "rgba(255, 255, 255, 0.1)");
 		root.classList.add("dark-mode");
 		root.classList.remove("light-mode");
@@ -249,9 +250,13 @@ export async function applyTheme(
 	}
 }
 
+const userAccent = () => localStorage.getItem("bloom-accent") || "#6a55ff";
+
 const THEME_DEFAULTS: Record<string, string> = {
 	"bloom-theme-mode": "dark",
 	"bloom-theme-color": "#007aff",
+	// The accent: progress light, active states, the Settings window (user can change it).
+	"bloom-accent": "#6a55ff",
 	// Solid black by default (design: Glass is opt-in).
 	"bloom-theme-opacity": "1",
 	"bloom-theme-saturation": "0.5",

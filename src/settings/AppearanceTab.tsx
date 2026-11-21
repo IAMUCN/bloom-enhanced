@@ -22,6 +22,30 @@ const MOTION = [
 
 /** The Settings window's own look (`bloom-settings-theme`): Light or Dark only.
  *  Unset = what Windows uses. */
+const ACCENTS = ["#6a55ff", "#0a84ff", "#14b8a6", "#22c55e", "#f59e0b", "#ec4899", "#ef4444"];
+const DEFAULT_ACCENT = ACCENTS[0];
+
+/** The accent colour (`bloom-accent`): progress light, active states, the Settings window. */
+function AccentRow() {
+	const [value, setValue] = useState(() => localStorage.getItem("bloom-accent") || DEFAULT_ACCENT);
+	const pick = (v: string) => {
+		setValue(v);
+		localStorage.setItem("bloom-accent", v);
+		invoke("save_setting", { key: "bloom-accent", value: v }).catch(() => {});
+		window.dispatchEvent(new Event("settings-theme-changed"));
+	};
+	return (
+		<SettingRow icon={Palette} label="Accent Colour" desc="Shows on the notch's progress light, active buttons and this window">
+			<div className="accent-swatches">
+				{ACCENTS.map((c) => (
+					<button key={c} type="button" className={`accent-swatch${c === value ? " on" : ""}`} style={{ background: c }} aria-label={`Accent ${c}`} aria-pressed={c === value} onClick={() => pick(c)} />
+				))}
+				<input type="color" value={value} onChange={(e) => pick(e.target.value)} className="color-picker-input" aria-label="Custom accent colour" />
+			</div>
+		</SettingRow>
+	);
+}
+
 function SettingsWindowRow() {
 	const [value, setValue] = useState(
 		() => localStorage.getItem("bloom-settings-theme") ?? (window.matchMedia("(prefers-color-scheme: light)").matches ? "light" : "dark")
@@ -95,6 +119,11 @@ export function AppearanceTab({
 
 	return (
 		<>
+			<div className="setting-group-label">Accent</div>
+			<div className="setting-group">
+				<AccentRow />
+			</div>
+
 			<div className="setting-group-label">Settings Window</div>
 			<div className="setting-group">
 				<SettingsWindowRow />

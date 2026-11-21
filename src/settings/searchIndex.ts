@@ -41,6 +41,7 @@ export const SETTINGS_INDEX: SettingEntry[] = [
 		["Quit LotusNotch", "Exit application completely"]
 	]),
 	...page("appearance", [
+		["Accent Colour", "Shows on the notch's progress light, active buttons and the Settings window"],
 		["Theme Mode", "Dark, light, a custom colour or your Windows accent"],
 		["Animations", "On or off: springy motion in the notch, dock and menus"],
 		["Custom Theme Color", "Choose layout background color"],

@@ -2574,7 +2574,7 @@ button.tools-card-open:hover {
 
 .shortcut-record.recording {
 	border-color: var(--bloom-accent, #0a84ff);
-	background: rgba(10, 132, 255, 0.1);
+	background: color-mix(in srgb, var(--bloom-accent, #6a55ff) 12%, transparent);
 }
 
 .shortcut-listening {
@@ -3031,14 +3031,14 @@ button.shortcut-icon:hover {
 	--v2-card: #131525;
 	--v2-card2: #191b30;
 	--v2-elev: #20223a;
-	--v2-accent: #5945ff;
-	--v2-accent2: #806bff;
-	--v2-grad: linear-gradient(135deg, #4a3cf0 0%, #6a55ff 100%);
+	--v2-accent: var(--user-accent, #6a55ff);
+	--v2-accent2: color-mix(in srgb, var(--v2-accent) 68%, #fff);
+	--v2-grad: linear-gradient(135deg, color-mix(in srgb, var(--v2-accent) 82%, #000) 0%, var(--v2-accent) 100%);
 	--v2-text: #f4f4fa;
 	--v2-text2: #a3a6bd;
 	--v2-muted: #777b94;
 	--v2-border: rgba(150, 145, 210, 0.14);
-	--v2-glow: rgba(89, 69, 255, 0.35);
+	--v2-glow: color-mix(in srgb, var(--v2-accent) 35%, transparent);
 	--bloom-bg: var(--v2-bg);
 	--bg-color: var(--v2-bg);
 	--bloom-text: var(--v2-text);
@@ -3049,10 +3049,11 @@ button.shortcut-icon:hover {
 	--bloom-group-bg: var(--v2-card);
 	--group-bg: var(--v2-card);
 	--bloom-accent: var(--v2-accent);
+	--accent-color: var(--v2-accent);
 	--bloom-scrollbar-thumb: rgba(150, 145, 210, 0.22);
 	background:
-		radial-gradient(900px 500px at 78% -10%, rgba(89, 69, 255, 0.14), transparent 60%),
-		radial-gradient(700px 500px at 0% 110%, rgba(89, 69, 255, 0.16), transparent 60%),
+		radial-gradient(900px 500px at 78% -10%, color-mix(in srgb, var(--v2-accent) 14%, transparent), transparent 60%),
+		radial-gradient(700px 500px at 0% 110%, color-mix(in srgb, var(--v2-accent) 16%, transparent), transparent 60%),
 		var(--v2-bg);
 	backdrop-filter: none;
 	-webkit-backdrop-filter: none;
@@ -3067,10 +3068,10 @@ button.shortcut-icon:hover {
 	--v2-text: #14152b;
 	--v2-text2: #55587a;
 	--v2-muted: #7a7d9a;
-	--v2-border: rgba(89, 69, 255, 0.14);
-	--v2-glow: rgba(89, 69, 255, 0.22);
+	--v2-border: color-mix(in srgb, var(--v2-accent) 14%, transparent);
+	--v2-glow: color-mix(in srgb, var(--v2-accent) 22%, transparent);
 	background:
-		radial-gradient(900px 500px at 78% -10%, rgba(89, 69, 255, 0.08), transparent 60%),
+		radial-gradient(900px 500px at 78% -10%, color-mix(in srgb, var(--v2-accent) 8%, transparent), transparent 60%),
 		var(--v2-bg);
 }
 
@@ -3080,7 +3081,7 @@ button.shortcut-icon:hover {
 	padding: 14px 12px;
 	gap: 6px;
 	background:
-		radial-gradient(260px 220px at 0% 100%, rgba(89, 69, 255, 0.28), transparent 70%),
+		radial-gradient(260px 220px at 0% 100%, color-mix(in srgb, var(--v2-accent) 28%, transparent), transparent 70%),
 		var(--v2-side);
 	border-right: 1px solid var(--v2-border);
 }
@@ -3223,7 +3224,7 @@ button.shortcut-icon:hover {
 	border: 1px solid var(--v2-border);
 	border-radius: 16px;
 	background:
-		radial-gradient(420px 220px at 70% 120%, rgba(106, 85, 255, 0.55), transparent 70%),
+		radial-gradient(420px 220px at 70% 120%, color-mix(in srgb, var(--v2-accent) 55%, transparent), transparent 70%),
 		linear-gradient(160deg, #0f1126 0%, #151245 100%);
 }
 .settings-container .feature-preview-description { color: var(--v2-text2); }
@@ -3239,3 +3240,7 @@ button.shortcut-icon:hover {
 .settings-container .search-result { background: var(--v2-card); border: 1px solid var(--v2-border); border-radius: 14px; }
 .settings-container .search-result:hover,
 .settings-container .search-result:focus-visible { background: var(--v2-card2); border-color: var(--v2-accent2); }
+
+.accent-swatches { display: flex; align-items: center; gap: 8px; }
+.accent-swatch { width: 24px; height: 24px; border-radius: 50%; border: 2px solid transparent; padding: 0; cursor: pointer; box-shadow: inset 0 0 0 1px rgba(255,255,255,.25); }
+.accent-swatch.on { border-color: var(--v2-text); }

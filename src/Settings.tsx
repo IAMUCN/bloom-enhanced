@@ -84,7 +84,7 @@ const PAGE_KEYS: Partial<Record<SettingsTab, string[]>> = {
 		"bloom-low-battery-threshold",
 		"bloom-keep-windows-loaded"
 	],
-	appearance: ["bloom-theme-", "bloom-scale"],
+	appearance: ["bloom-theme-", "bloom-scale", "bloom-accent"],
 	notch: [
 		"bloom-notch-",
 		"bloom-calendar-",
