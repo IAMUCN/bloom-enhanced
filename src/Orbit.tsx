@@ -203,6 +203,8 @@ function Orbit() {
 
 	const finish = useCallback(
 		(text: string, result: Result) => {
+			// After a cancel nothing else may report: no failure over "Canceled".
+			if (cancelledJob.current && result !== "canceled") return;
 			setPhase({ kind: "done", text, result });
 			if (!state.current.inNotch) shrink();
 			const s = state.current.seconds;
@@ -333,6 +335,7 @@ function Orbit() {
 				const next = { paths: e.payload.paths };
 				setInput(next);
 				state.current.input = next;
+				cancelledJob.current = false;
 				state.current.chain = [];
 				setChain([]);
 				setChainNote(null);

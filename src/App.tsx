@@ -1167,7 +1167,11 @@ function App() {
 	const [progressStyle, setProgressStyle] = useState(() => asProgressStyle(localStorage.getItem("bloom-progress-effect")));
 	useEffect(() => {
 		if (windowLabel !== "main") return;
+		let canceledAt = 0;
 		const unlisten = listen<OrbitStatus>("orbit-status", (e) => {
+			// A failure reported right after "Canceled" is the job stopping, not a real failure.
+			if (e.payload?.result === "canceled") canceledAt = Date.now();
+			else if (e.payload?.result === "failed" && Date.now() - canceledAt < 3000) return;
 			setFileStatus(e.payload);
 			// Stays on screen until the job ends (Smart and Peek modes too).
 			if (e.payload) {
