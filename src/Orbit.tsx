@@ -31,7 +31,7 @@ import {
 	type OrbitResult,
 	type OrbitStatus
 } from "./orbitOps";
-import { chainAfter, chainStep, chainValid, makesFiles, opLabel } from "./orbitOps";
+import { chainAfter, chainStep, chainValid, makesFiles, opById, opLabel } from "./orbitOps";
 import { ORBIT_ICONS } from "./orbitIcons";
 import { useSettingsSync } from "./hooks/useSettingsSync";
 import { initTheme } from "./theme";
@@ -350,7 +350,8 @@ function Orbit() {
 				const after = chainAfter(state.current.input, next) ?? state.current.input;
 				setMode(hasInput(after) ? (modesFor(after, state.current.layout)[0] ?? "convert") : "convert");
 			}),
-			// The chain key: add the hovered option to the chain, or (over the hub) take the last one off.
+			// The chain key is let go: on an option it joins the chain; in the middle it
+			// runs the chain as it is. (Backspace takes the last step back.)
 			listen("orbit-add", () => {
 				if (phaseRef.current.kind !== "wheel") return;
 				const { input, mode, layout, chain } = state.current;
@@ -367,7 +368,11 @@ function Orbit() {
 					setMode(hasInput(after) ? (modesFor(after, layout)[0] ?? "convert") : "convert");
 				};
 				if (at === HUB) {
-					if (chain.length) setTo(chain.slice(0, -1));
+					const last = chain.length ? opById(chain[chain.length - 1]) : undefined;
+					if (last) {
+						state.current.chain = chain.slice(0, -1);
+						run(last, input);
+					}
 					return;
 				}
 				const op = list[at];

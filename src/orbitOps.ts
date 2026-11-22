@@ -172,6 +172,12 @@ const entryOf = (id: string) => {
 	}
 };
 
+/** An option by id (typed argument ignored), as the menu lists it. */
+export const opById = (id: string): OrbitOp | undefined => {
+	const e = entryOf(id);
+	return e && { id: e.id, label: e.label, icon: e.icon, progress: e.progress };
+};
+
 /** The label of an option id (a typed argument after a colon is ignored). */
 export const opLabel = (id: string) => entryOf(id)?.label ?? id;
 

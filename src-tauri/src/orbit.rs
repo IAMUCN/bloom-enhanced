@@ -332,6 +332,7 @@ fn detector(app: AppHandle) {
     }
     let (mut shift, mut escape, mut button, mut add, mut back) =
         (false, false, false, false, false);
+    let mut add_armed = false;
     loop {
         let vk_trigger = match setting("bloom-files-key").as_deref() {
             Some("ctrl") => 0x11u16,
@@ -375,6 +376,7 @@ fn detector(app: AppHandle) {
             }
         }
         if !armed && open == 0 {
+            add_armed = false;
             (shift, escape, button, add, back) = (
                 is_down(vk_trigger),
                 is_down(VK_ESCAPE),
@@ -387,10 +389,17 @@ fn detector(app: AppHandle) {
         }
         let (now_shift, now_escape, now_button) =
             (is_down(vk_trigger), is_down(VK_ESCAPE), drag_button_down());
-        // Key down only: a held key must not repeat the step.
+        // The chain key works like the mouse button of a drag: hold it, move to
+        // an option and let go on it. Only a press made while the wheel was open counts.
         let now_add = is_down(vk_add);
-        if now_add && !add && open != 0 && !RUNNING.load(Ordering::Relaxed) {
-            let _ = app.emit_to("orbit", "orbit-add", ());
+        if now_add && !add && open != 0 {
+            add_armed = true;
+        }
+        if !now_add && add && add_armed {
+            add_armed = false;
+            if open != 0 && !RUNNING.load(Ordering::Relaxed) {
+                let _ = app.emit_to("orbit", "orbit-add", ());
+            }
         }
         // Backspace: take the last step off the chain.
         let now_back = is_down(0x08);
