@@ -479,8 +479,8 @@ function Orbit() {
 								animate={{ rotate: 0, opacity: 1, scale: hover === i ? 1.06 : 1 }}
 								transition={{
 									...SPRING,
-									rotate: { type: "spring", stiffness: 140, damping: 9, delay: i * 0.04 },
-									opacity: { delay: i * 0.04, duration: 0.2 }
+									rotate: { type: "spring", stiffness: 420, damping: 17, delay: i * 0.025 },
+									opacity: { delay: i * 0.025, duration: 0.12 }
 								}}
 							>
 								{ops.length === 1 ? (
