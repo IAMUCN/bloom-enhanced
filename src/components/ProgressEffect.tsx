@@ -19,22 +19,28 @@ export const COPY_EFFECTS = [
 	["off", "Off"]
 ] as const;
 
+/** A chosen colour as the effect's light (empty = the accent). */
+const tint = (c: string | null): React.CSSProperties | undefined =>
+	c ? ({ "--fx-1": c, "--fx-2": `color-mix(in srgb, ${c}, #ff4fd8 55%)`, color: c } as React.CSSProperties) : undefined;
+
 /** What the closed notch draws while "Copied" shows (Settings › Shelf › Copy
  *  Effect): one lap of light, a neon flash or a soft glow, in the chosen
  *  colour (default: the accent). Read from localStorage when it appears. */
-export function CopyEffect() {
+export function CopyEffect({ full }: { full?: boolean }) {
 	const effect = localStorage.getItem("bloom-copy-effect") ?? "beam";
 	if (effect === "off") return null;
-	const c = localStorage.getItem("bloom-copy-color");
-	const style = c
-		? ({ "--fx-1": c, "--fx-2": `color-mix(in srgb, ${c}, #ff4fd8 55%)`, color: c } as React.CSSProperties)
-		: undefined;
-	return <div className={`progress-beam copy-${effect}${effect === "beam" ? " fx-beam fast" : ""}`} style={style} aria-hidden />;
+	return (
+		<div
+			className={`progress-beam copy-${effect}${effect === "beam" ? " fx-beam fast" : ""}${full ? " full" : ""}`}
+			style={tint(localStorage.getItem("bloom-copy-color"))}
+			aria-hidden
+		/>
+	);
 }
 
 /** Lotus signature while the notch is open (Settings › Notch › Open Effect). */
-export function LotusSignature() {
-	return localStorage.getItem("bloom-open-effect") === "off" ? null : <div className="notch-lotus" aria-hidden />;
+export function LotusSignature({ full }: { full?: boolean }) {
+	return localStorage.getItem("bloom-open-effect") === "off" ? null : <div className={`notch-lotus${full ? " full" : ""}`} aria-hidden />;
 }
 
 export const asProgressStyle = (v: unknown): ProgressStyle =>
@@ -50,11 +56,14 @@ export const asProgressStyle = (v: unknown): ProgressStyle =>
 export function ProgressEffect({
 	style,
 	percent,
-	result
+	result,
+	full
 }: {
 	style: ProgressStyle;
 	percent: number | null;
 	result?: string | null;
+	/** A floating pill: the light runs round the top too (an attached notch is flush with the screen). */
+	full?: boolean;
 }) {
 	if (style === "off") return null;
 	const p = Math.max(0, Math.min(100, percent ?? 0));
@@ -63,15 +72,17 @@ export function ProgressEffect({
 		style === "center"
 			? `linear-gradient(to right, transparent ${50 - p / 2}%, #000 ${50 - p / 2}%, #000 ${50 + p / 2}%, transparent ${50 + p / 2}%)`
 			: `linear-gradient(to right, #000 ${p}%, transparent ${p}%)`;
+	const f = full ? " full" : "";
+	const colour = tint(localStorage.getItem("bloom-progress-color"));
 	return (
 		<>
-			{running && style === "beam" && <div className="progress-beam fx-beam" aria-hidden />}
-				{running && style !== "bar" && style !== "beam" && (
-				<div className="progress-edge" style={{ maskImage: mask, WebkitMaskImage: mask }} aria-hidden />
+			{running && style === "beam" && <div className={`progress-beam fx-beam${f}`} style={colour} aria-hidden />}
+			{running && style !== "bar" && style !== "beam" && (
+				<div className={`progress-edge${f}`} style={{ ...colour, maskImage: mask, WebkitMaskImage: mask }} aria-hidden />
 			)}
-			{running && style === "bar" && <div className="progress-bar" style={{ width: `${p}%` }} aria-hidden />}
+			{running && style === "bar" && <div className="progress-bar" style={{ ...colour, width: `${p}%` }} aria-hidden />}
 			{result && result !== "canceled" && (
-				<div className={`progress-glow ${result === "ok" ? "ok" : "failed"}`} aria-hidden />
+				<div className={`progress-glow ${result === "ok" ? "ok" : "failed"}${f}`} aria-hidden />
 			)}
 		</>
 	);

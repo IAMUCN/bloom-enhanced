@@ -7,6 +7,7 @@ import { DRAG_KINDS, MODE_LABEL, opsForKind, ordered, parseLayout, type DragKind
 import { ORBIT_ICONS } from "../orbitIcons";
 import { ScaleStepper } from "./ScaleStepper";
 import { Choice } from "./Choice";
+import { ColourRow } from "./ColourRow";
 import { PROGRESS_STYLES, asProgressStyle } from "../components/ProgressEffect";
 import { SettingRow } from "./SettingRow";
 
@@ -242,6 +243,9 @@ export function FilesTab({ saveSetting }: { saveSetting: (key: string, value: st
 									label="Progress effect"
 								/>
 							</SettingRow>
+						)}
+						{statusAt === "notch" && s["bloom-progress-effect"] !== "off" && s["bloom-progress-effect"] !== "glow" && (
+							<ColourRow storeKey="bloom-progress-color" label="Progress Colour" desc="The light that shows progress; the result still glows green or red" />
 						)}
 						<SettingRow icon={Timer} label="Result Stays For" desc="How long the result shows (errors a bit longer, Canceled briefly)" divider={false}>
 							<ScaleStepper

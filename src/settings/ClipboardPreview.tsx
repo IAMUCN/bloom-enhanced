@@ -9,6 +9,7 @@ import { useClipboardSettings } from "../hooks/useClipboardSettings";
 import { clipSounds } from "../clipboardSounds";
 import type { ClipItem } from "../clipboardModel";
 import "../components/ClipboardPanel.css";
+import { CopyEffect } from "../components/ProgressEffect";
 
 export type ClipScene = "clip-shelf" | "clip-rich" | "clip-links" | "clip-notes" | "clip-select" | "clip-sounds" | "clip-indicator";
 
@@ -44,6 +45,7 @@ const SAMPLES = {
 export function ClipboardPreview({ scene }: { scene: ClipScene }) {
 	const o = useClipboardSettings();
 	const [copied, setCopied] = useState(false);
+	const floating = localStorage.getItem("bloom-notch-style") === "pill";
 	useEffect(() => {
 		if (scene !== "clip-indicator") return;
 		const timer = window.setInterval(() => setCopied((c) => !c), 1400);
@@ -108,9 +110,10 @@ export function ClipboardPreview({ scene }: { scene: ClipScene }) {
 		case "clip-indicator":
 			return (
 				<div className="clip-preview clip-preview-center">
-					<div className={`clip-preview-pill ${o.copyIndicator && copied ? "wide" : ""}`}>
+					<div className={`clip-preview-pill ${o.copyIndicator && copied ? "wide" : ""}${floating ? " floating" : ""}`} style={{ position: "relative" }}>
 						{o.copyIndicator && copied && (
 							<>
+								<CopyEffect full={floating} />
 								<ClipboardCheck size={14} /> Copied
 							</>
 						)}

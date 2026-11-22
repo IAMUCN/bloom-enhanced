@@ -4157,10 +4157,10 @@ function App() {
 						<NotchOutline width={pillTargetWidth} height={pillTargetHeight} radius={minimalIdle ? 4 : isCalendarMode ? 28 : 18} flares={attachedToEdge} />
 					)}
 					{fileStatus && !isOpen && (
-						<ProgressEffect style={progressStyle} percent={fileStatus.percent} result={fileStatus.result} />
+						<ProgressEffect style={progressStyle} percent={fileStatus.percent} result={fileStatus.result} full={!attachedToEdge} />
 					)}
-					{showCopyPulse && !fileStatus && !isOpen && <CopyEffect />}
-					{isOpen && <LotusSignature />}
+					{showCopyPulse && !fileStatus && !isOpen && <CopyEffect full={!attachedToEdge} />}
+					{isOpen && <LotusSignature full={!attachedToEdge} />}
 					{toolTimer && !fileStatus && !isOpen && (timerDisplay === "edge" || timerDisplay === "both") && (
 						<ProgressEffect style="edge" percent={((toolTimer.total - toolTimer.left) / toolTimer.total) * 100} />
 					)}

@@ -58,6 +58,7 @@ export function RadialPreview({ scene }: { scene: RadialScene }) {
 	const notchOn = on("bloom-notch-enabled");
 	const atNotch = notchOn && localStorage.getItem("bloom-files-status-at") === "notch";
 	const effect = asProgressStyle(localStorage.getItem("bloom-progress-effect"));
+	const floating = localStorage.getItem("bloom-notch-style") === "pill";
 	const cycle = scene === "r-progress" ? 2600 + seconds * 1000 : 4200;
 	const t = useLoop(cycle);
 
@@ -125,8 +126,8 @@ export function RadialPreview({ scene }: { scene: RadialScene }) {
 	return (
 		<div className="rp-stage">
 			{atNotch ? (
-				<div className="rp-notch">
-					<ProgressEffect style={effect} percent={pct} result={done ? "ok" : null} />
+				<div className={`rp-notch${floating ? " floating" : ""}`}>
+					<ProgressEffect style={effect} percent={pct} result={done ? "ok" : null} full={floating} />
 					<span>{done ? "Done" : `${Math.round(pct)}%`}</span>
 				</div>
 			) : (

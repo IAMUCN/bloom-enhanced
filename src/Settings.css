@@ -3270,3 +3270,23 @@ button.shortcut-icon:hover {
 .settings-container .seg-btn {
 	white-space: nowrap;
 }
+
+/* Preview switcher: equal, single-line buttons in an even grid. */
+.settings-container .feature-preview-switcher {
+	display: grid;
+	grid-template-columns: repeat(auto-fit, minmax(92px, 1fr));
+	gap: 6px;
+}
+.settings-container .feature-preview-switcher button {
+	height: 30px;
+	padding: 0 10px;
+	white-space: nowrap;
+	overflow: hidden;
+	text-overflow: ellipsis;
+	text-align: center;
+}
+
+.ep-notch { position: relative; width: 250px; height: 92px; border-radius: 0 0 26px 26px; background: #000; color: #fff; display: flex; align-items: center; justify-content: center; font-size: 12px; font-weight: 600; overflow: hidden; box-shadow: 0 0 0 1px rgba(255,255,255,.08); }
+.ep-notch.floating { border-radius: 26px; }
+.rp-notch.floating { border-radius: 19px; }
+.clip-preview-pill.floating { border-radius: 16px; margin-top: 0; }

@@ -4,8 +4,8 @@
 .progress-edge {
 	position: absolute;
 	inset: 0;
-	border: 2px solid var(--bloom-accent, #0a84ff);
-	border-top: none;
+	border: 2px solid var(--fx-1, var(--bloom-accent, #0a84ff));
+	border-top-style: var(--fx-top, none);
 	border-radius: inherit;
 	pointer-events: none;
 	z-index: 3;
@@ -46,7 +46,7 @@
 	bottom: 0;
 	height: 3px;
 	border-radius: 999px;
-	background: var(--bloom-accent, #0a84ff);
+	background: var(--fx-1, var(--bloom-accent, #0a84ff));
 	pointer-events: none;
 	z-index: 3;
 	transition: width 0.3s linear;
@@ -60,7 +60,7 @@
 	pointer-events: none;
 	z-index: 3;
 	border: 1.5px solid currentColor;
-	border-top: none;
+	border-top-style: var(--fx-top, none);
 	animation: progress-glow 1.2s ease-out forwards;
 }
 
@@ -101,7 +101,7 @@
 /* Copy effects. Only opacity animates (cheap); the glow is a static shadow. */
 .progress-beam.copy-neon {
 	border: 2px solid var(--fx-1, var(--bloom-accent, #6a55ff));
-	border-top: none;
+	border-top-style: var(--fx-top, none);
 	box-shadow: 0 0 7px var(--fx-1, var(--bloom-accent, #6a55ff)), inset 0 0 9px var(--fx-1, var(--bloom-accent, #6a55ff));
 	animation: copy-flash 1.2s linear 1 both;
 }
@@ -109,7 +109,7 @@
 .progress-beam.copy-glow {
 	color: var(--fx-1, var(--bloom-accent, #6a55ff));
 	border: 1.5px solid currentColor;
-	border-top: none;
+	border-top-style: var(--fx-top, none);
 	animation: progress-glow 1.4s ease-out 1 both;
 }
 
@@ -132,7 +132,7 @@
 	position: absolute;
 	inset: 0;
 	border: 2.5px solid var(--bloom-accent, #6a55ff);
-	border-top: none;
+	border-top-style: var(--fx-top, none);
 	border-radius: inherit;
 	pointer-events: none;
 	z-index: 3;
@@ -151,4 +151,9 @@
 
 :root.fx-off .notch-lotus {
 	display: none;
+}
+
+/* A floating pill has an edge all round; an attached notch is flush at the top. */
+.full {
+	--fx-top: solid;
 }
