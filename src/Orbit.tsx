@@ -49,9 +49,6 @@ const BLOOM = {
 	scale: { duration: 0.32, ease: [0.3, 1.45, 0.5, 1] as const },
 	opacity: { duration: 0.2 }
 };
-/** The slices turn in from -14 degrees and fade up in 140 ms, on every open and menu switch. */
-const SWITCH_IN = { rotate: -14, opacity: 0.15 };
-const SWITCH = { duration: 0.28, ease: "easeOut" } as const;
 /** OrbitDrop's confirmed pick: the wheel pops to 104% and fades in 90 ms. */
 const POP_MS = 140;
 const SPRING = { type: "spring", stiffness: 480, damping: 24 } as const;
@@ -465,9 +462,6 @@ function Orbit() {
 				<motion.g
 					key={`${mode}|${ops.length}`}
 					style={ORIGIN}
-					initial={animSwitch ? SWITCH_IN : false}
-					animate={{ rotate: 0, opacity: 1 }}
-					transition={SWITCH}
 				>
 					{ops.map((op, i) => {
 						const mid = -90 + i * step;
@@ -480,9 +474,14 @@ function Orbit() {
 								key={op.id}
 								className={`orbit-slice${hover === i ? " hover" : ""}`}
 								style={ORIGIN}
-								initial={false}
-								animate={{ opacity: 1, scale: hover === i ? 1.06 : 1 }}
-								transition={{ ...SPRING, opacity: { delay: i * 0.025, duration: 0.15 } }}
+								// Each slice swings in on its own, past its place and back, one after another.
+								initial={animSwitch ? { rotate: -22, opacity: 0 } : false}
+								animate={{ rotate: 0, opacity: 1, scale: hover === i ? 1.06 : 1 }}
+								transition={{
+									...SPRING,
+									rotate: { type: "spring", stiffness: 140, damping: 9, delay: i * 0.04 },
+									opacity: { delay: i * 0.04, duration: 0.2 }
+								}}
 							>
 								{ops.length === 1 ? (
 									<path d={`${slicePath(-90, 89.99)} ${slicePath(90, 269.99)}`} />
