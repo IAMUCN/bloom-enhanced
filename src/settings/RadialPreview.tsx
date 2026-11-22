@@ -38,7 +38,7 @@ function Ring({ open, hub, pick }: { open: boolean; hub: string; pick?: number }
 		return `M${p(56, a0)} A56 56 0 0 1 ${p(56, a1)} L${p(26, a1)} A26 26 0 0 0 ${p(26, a0)}Z`;
 	};
 	return (
-		<svg width="120" height="120" className="rp-ring" style={{ opacity: open ? 1 : 0 }}>
+		<svg width="120" height="120" className="rp-ring" style={{ opacity: open ? 1 : 0, transform: `scale(${open ? 1 : 0.5})` }}>
 			{[0, 1, 2, 3, 4, 5].map((i) => (
 				<path key={i} d={wedge(i)} className={pick === i ? "pick" : ""} />
 			))}
