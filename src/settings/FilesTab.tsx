@@ -216,7 +216,7 @@ export function FilesTab({ saveSetting }: { saveSetting: (key: string, value: st
 					<div className="setting-group">
 						{(
 							[
-								["bloom-files-anim-open", "Opening", "The menu grows in from 40% with a small bounce"],
+								["bloom-files-anim-open", "Opening", "The circle grows in from 40% with a small bounce each time the menu opens or changes"],
 								["bloom-files-anim-switch", "Switching Menu", "The options turn in when the trigger key or the centre changes the menu"],
 								["bloom-files-anim-close", "Picking An Option", "A quick pop and fade when you let go on an option"]
 							] as const

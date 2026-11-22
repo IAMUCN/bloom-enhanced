@@ -49,7 +49,7 @@ const BLOOM = {
 	scale: { duration: 0.17, ease: [0.3, 1.45, 0.5, 1] as const },
 	opacity: { duration: 0.11 }
 };
-/** Changing menu: only the slices turn in from -14 degrees and fade up, 140 ms. */
+/** The slices turn in from -14 degrees and fade up in 140 ms, on every open and menu switch. */
 const SWITCH_IN = { rotate: -14, opacity: 0.15 };
 const SWITCH = { duration: 0.14, ease: "easeOut" } as const;
 /** OrbitDrop's confirmed pick: the wheel pops to 104% and fades in 90 ms. */
@@ -115,8 +115,9 @@ function Orbit() {
 	const inNotch =
 		raw["bloom-files-status-at"] === "notch" && raw["bloom-notch-enabled"] !== false && raw["bloom-notch-enabled"] !== "false";
 	const seconds = Number(raw["bloom-files-status-seconds"]) || 2;
-	// Set when the menu is switched (not opened): the slices then animate in.
-	const switchAnim = useRef(false);
+	// Bumped on every open and menu switch: the whole wheel is made again, so the
+	// disc grows in and the slices turn in each time (OrbitDrop).
+	const [bloomKey, setBloomKey] = useState(0);
 	const phaseRef = useRef(phase);
 	phaseRef.current = phase;
 	const state = useRef({ input, mode, layout, inNotch, seconds });
@@ -165,7 +166,7 @@ function Orbit() {
 
 	const cycle = useCallback(() => {
 		const list = modesNow();
-		switchAnim.current = true;
+		setBloomKey((k) => k + 1);
 		setMode((m) => list[(list.indexOf(m) + 1) % list.length] ?? m);
 		setHover(HUB);
 	}, [modesNow]);
@@ -291,7 +292,7 @@ function Orbit() {
 				state.current.input = next;
 				setMode(modesNow()[0] ?? "convert");
 				setHover(HUB);
-				switchAnim.current = false;
+				setBloomKey((k) => k + 1);
 				setPopping(false);
 				setPhase({ kind: "wheel" });
 			}),
@@ -442,6 +443,7 @@ function Orbit() {
 	const count = input.paths.length;
 	return (
 		<motion.div
+			key={bloomKey}
 			className="orbit"
 			initial={animOpen ? { scale: 0.4, opacity: 0 } : false}
 			animate={popping ? { scale: 1.04, opacity: 0 } : { scale: 1, opacity: 1 }}
@@ -463,7 +465,7 @@ function Orbit() {
 				<motion.g
 					key={`${mode}|${ops.length}`}
 					style={ORIGIN}
-					initial={switchAnim.current && animSwitch ? SWITCH_IN : false}
+					initial={animSwitch ? SWITCH_IN : false}
 					animate={{ rotate: 0, opacity: 1 }}
 					transition={SWITCH}
 				>
