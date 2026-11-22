@@ -12,6 +12,26 @@ export const PROGRESS_STYLES: readonly (readonly [ProgressStyle, string])[] = [
 	["off", "Off"]
 ];
 
+export const COPY_EFFECTS = [
+	["beam", "Beam"],
+	["neon", "Neon"],
+	["glow", "Glow"],
+	["off", "Off"]
+] as const;
+
+/** What the closed notch draws while "Copied" shows (Settings › Shelf › Copy
+ *  Effect): one lap of light, a neon flash or a soft glow, in the chosen
+ *  colour (default: the accent). Read from localStorage when it appears. */
+export function CopyEffect() {
+	const effect = localStorage.getItem("bloom-copy-effect") ?? "beam";
+	if (effect === "off") return null;
+	const c = localStorage.getItem("bloom-copy-color");
+	const style = c
+		? ({ "--fx-1": c, "--fx-2": `color-mix(in srgb, ${c}, #ff4fd8 55%)`, color: c } as React.CSSProperties)
+		: undefined;
+	return <div className={`progress-beam copy-${effect}${effect === "beam" ? " fx-beam fast" : ""}`} style={style} aria-hidden />;
+}
+
 export const asProgressStyle = (v: unknown): ProgressStyle =>
 	PROGRESS_STYLES.some(([s]) => s === v) ? (v as ProgressStyle) : "edge";
 

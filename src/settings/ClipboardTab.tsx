@@ -25,6 +25,7 @@ import {
 } from "lucide-react";
 import { useClipboardSettings } from "../hooks/useClipboardSettings";
 import { SettingRow } from "./SettingRow";
+import { CopyEffectRows } from "./CopyEffectRows";
 import { Choice } from "./Choice";
 import { ScaleStepper } from "./ScaleStepper";
 
@@ -314,6 +315,15 @@ export function ClipboardTab({
 							</summary>
 							{FEATURE_TOGGLES.slice(4).map(featureRow)}
 						</details>
+					</div>
+				</>
+			)}
+
+			{enabled && options.copyIndicator && (
+				<>
+					<div className="setting-group-label">Copy Effect</div>
+					<div className="setting-group">
+						<CopyEffectRows />
 					</div>
 				</>
 			)}

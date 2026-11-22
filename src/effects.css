@@ -137,12 +137,17 @@
 	filter: blur(22px);
 	opacity: 0.5;
 	transform: scale(1.04);
-	animation: fx-spin 6s linear infinite;
-	transition: opacity 0.4s;
+	/* Opacity only: a spinning gradient under a blur repaints every frame. */
+	animation: fx-pulse 3.5s ease-in-out infinite alternate;
 }
 
-.fx-card:hover::before {
-	opacity: 0.8;
+@keyframes fx-pulse {
+	from {
+		opacity: 0.35;
+	}
+	to {
+		opacity: 0.65;
+	}
 }
 
 :root.fx-off .fx-beam::after,

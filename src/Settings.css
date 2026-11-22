@@ -3250,3 +3250,23 @@ button.shortcut-icon:hover {
 .accent-swatches { display: flex; align-items: center; gap: 8px; }
 .accent-swatch { width: 24px; height: 24px; border-radius: 50%; border: 2px solid transparent; padding: 0; cursor: pointer; box-shadow: inset 0 0 0 1px rgba(255,255,255,.25); }
 .accent-swatch.on { border-color: var(--v2-text); }
+
+/* Many options never squeeze the label: the text keeps at least 200px and
+   the control drops to its own line (right-aligned) when there is no room. */
+.settings-container .setting-item {
+	flex-wrap: wrap;
+	gap: 8px 12px;
+}
+.settings-container .setting-item > .setting-info {
+	flex: 1 1 200px;
+	min-width: 200px;
+}
+.settings-container .setting-item > .scale-button-container {
+	margin-left: auto;
+	max-width: 100%;
+	flex-wrap: wrap;
+	justify-content: flex-end;
+}
+.settings-container .seg-btn {
+	white-space: nowrap;
+}

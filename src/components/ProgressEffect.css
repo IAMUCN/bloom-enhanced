@@ -97,3 +97,30 @@
 		opacity: 0.85;
 	}
 }
+
+/* Copy effects. Only opacity animates (cheap); the glow is a static shadow. */
+.progress-beam.copy-neon {
+	border: 2px solid var(--fx-1, var(--bloom-accent, #6a55ff));
+	border-top: none;
+	box-shadow: 0 0 7px var(--fx-1, var(--bloom-accent, #6a55ff)), inset 0 0 9px var(--fx-1, var(--bloom-accent, #6a55ff));
+	animation: copy-flash 1.2s linear 1 both;
+}
+
+.progress-beam.copy-glow {
+	color: var(--fx-1, var(--bloom-accent, #6a55ff));
+	border: 1.5px solid currentColor;
+	border-top: none;
+	animation: progress-glow 1.4s ease-out 1 both;
+}
+
+@keyframes copy-flash {
+	0%, 18%, 34% { opacity: 0; }
+	10%, 26%, 44%, 60% { opacity: 1; }
+	52% { opacity: 0.55; }
+	100% { opacity: 0; }
+}
+
+:root.fx-off .progress-beam.copy-neon,
+:root.fx-off .progress-beam.copy-glow {
+	animation: none;
+}

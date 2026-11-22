@@ -38,7 +38,7 @@ import { useAnnouncement } from "./hooks/useAnnouncement";
 import { NotchTabBar } from "./components/NotchTabBar";
 import { BloomTip } from "./components/BloomTip";
 import { BODY_VARIANTS, CC_EXIT, LIST_MOTION, LIVELY, bodyMotion } from "./motion";
-import { ProgressEffect, asProgressStyle } from "./components/ProgressEffect";
+import { CopyEffect, ProgressEffect, asProgressStyle } from "./components/ProgressEffect";
 import { EXTRA_BY_ID, GRID_H, MAX_TABS, OPEN_WIDTH, TAB_BAR_HEIGHT, openingTool, pomodoroLength, orderTabs, TOOLS, parseEnabledTools, type ExtraToolId, type Tool } from "./tools";
 import { SEGMENT_BAR_HEIGHT, ToolHost, showPart } from "./notchTools/ToolHost";
 import { CommandCenter, ccBodyHeight, parseCcTiles, type CcTileId, type CcTileState } from "./components/CommandCenter";
@@ -4159,7 +4159,7 @@ function App() {
 					{fileStatus && !isOpen && (
 						<ProgressEffect style={progressStyle} percent={fileStatus.percent} result={fileStatus.result} />
 					)}
-					{showCopyPulse && !fileStatus && !isOpen && <div className="progress-beam fx-beam fast" aria-hidden />}
+					{showCopyPulse && !fileStatus && !isOpen && <CopyEffect />}
 					{toolTimer && !fileStatus && !isOpen && (timerDisplay === "edge" || timerDisplay === "both") && (
 						<ProgressEffect style="edge" percent={((toolTimer.total - toolTimer.left) / toolTimer.total) * 100} />
 					)}

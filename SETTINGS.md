@@ -128,6 +128,8 @@ Edit `settings.json` with any text editor while Bloom is running. Changes are ap
 | `bloom-clipboard-notes` | `"true"` / `"false"` | `"true"` | Allow a note or #tags on items. Noted items are kept through cleanup and found by search. |
 | `bloom-clipboard-multi-select` | `"true"` / `"false"` | `"true"` | Ctrl-click or the select button picks several items to group, copy, pin or delete. |
 | `bloom-clipboard-sounds` | `"true"` / `"false"` | `"true"` | Short synthesized sounds for copy, pin/group and delete in the panel. |
+| `bloom-copy-effect` | `"beam"` / `"neon"` / `"glow"` / `"off"` | `"beam"` | The light on the closed notch's edge with "Copied" (Shelf › Copy Effect). |
+| `bloom-copy-color` | hex or `""` | `""` | Its colour; empty follows the accent. |
 | `bloom-clipboard-copy-indicator` | `"true"` / `"false"` | `"true"` | The notch briefly shows "Copied" when something is recorded. |
 
 ### Files
