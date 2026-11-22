@@ -12,9 +12,23 @@
 	transition: mask-image 0.3s linear, -webkit-mask-image 0.3s linear;
 }
 
-/* The copy pulse: one quick lap while "Copied" shows. */
-.progress-beam.fast {
-	--fx-t: 0.8s;
+/* The copy pulse: exactly one lap, then gone. */
+.progress-beam.fast::after {
+	animation: fx-lap 1.2s ease-in-out 1 both;
+}
+
+@keyframes fx-lap {
+	from {
+		--fx-a: 0deg;
+		opacity: 1;
+	}
+	85% {
+		opacity: 1;
+	}
+	to {
+		--fx-a: 360deg;
+		opacity: 0;
+	}
 }
 
 .progress-beam {
