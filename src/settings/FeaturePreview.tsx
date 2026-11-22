@@ -63,7 +63,9 @@ const FEATURES: Partial<Record<SettingsTab, { id: Feature; label: string; descri
 		{ id: "r-trigger", label: "Trigger", description: "The key that opens the menu and switches between its menus." },
 		{ id: "r-drag", label: "Drag", description: "Drag a file or selected text, tap the key, let go on an option." },
 		{ id: "r-double", label: "Double press", description: "With files selected, press the key twice within the time you set." },
-		{ id: "r-progress", label: "Progress", description: "Where a job's percentage and result show, and for how long." }
+		{ id: "r-progress", label: "Progress", description: "Where a job's percentage and result show, and for how long." },
+		{ id: "r-anim", label: "Animation", description: "How the menu opens, changes and closes; each part has its own switch, and one speed." },
+		{ id: "r-chain", label: "Chains", description: "Do several options in one go: Invert an image, then make it a PDF." }
 	],
 	clipboard: [
 		{ id: "clip-shelf", label: "Shelf", description: "Copied items as tiles; several files copied together fan out as one stack." },
@@ -448,7 +450,11 @@ export function FeaturePreview({ tab, settings, focus }: FeaturePreviewProps) {
 							? "r-double"
 							: /^(Show Progress|Progress Effect|Progress Colour|Result)/.test(label)
 								? "r-progress"
-								: undefined
+								: /^(Opening|Switching|Picking|Animation)/.test(label)
+									? "r-anim"
+									: /^Chain/.test(label)
+										? "r-chain"
+										: undefined
 				: undefined;
 		const scene = filesScene ?? next[tab]?.[label];
 		if (scene) {

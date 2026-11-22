@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState } from "react";
 import { AnimatePresence, Reorder, motion } from "framer-motion";
 import { invoke } from "@tauri-apps/api/core";
-import { ArrowBigUp, ChevronRight, EyeOff, GripVertical, Hand, Keyboard, MapPin, Sparkles, Timer, Zap } from "lucide-react";
+import { ArrowBigUp, ChevronRight, Link2, EyeOff, GripVertical, Hand, Keyboard, MapPin, Sparkles, Timer, Zap } from "lucide-react";
 import { useSettingsSync } from "../hooks/useSettingsSync";
 import { DRAG_KINDS, MODE_LABEL, opsForKind, ordered, parseLayout, type DragKind, type OrbitLayout, type OrbitMode, type OrbitOp } from "../orbitOps";
 import { ORBIT_ICONS } from "../orbitIcons";
@@ -102,6 +102,7 @@ export function FilesTab({ saveSetting }: { saveSetting: (key: string, value: st
 				"bloom-files-anim-open",
 				"bloom-files-anim-switch",
 				"bloom-files-anim-close",
+				"bloom-files-anim-speed",
 				"bloom-notch-enabled",
 				...KEYS
 			].map((k) => [k, keep(k)])
@@ -122,6 +123,8 @@ export function FilesTab({ saveSetting }: { saveSetting: (key: string, value: st
 	const statusAt = notchOn && s["bloom-files-status-at"] === "notch" ? "notch" : "pointer";
 	const triggerKey = TRIGGER_KEYS.some(([k]) => k === s["bloom-files-key"]) ? String(s["bloom-files-key"]) : "shift";
 	const keyName = TRIGGER_KEYS.find(([k]) => k === triggerKey)?.[1] ?? "Shift";
+	// The key that adds an option to a chain (the other one when Ctrl is the trigger).
+	const chainKey = keyName === "Ctrl" ? "Shift" : "Ctrl";
 
 	// The layout is edited locally while dragging and saved when a drag ends.
 	const saved = parseLayout(s["bloom-files-hidden"], s["bloom-files-order"], s["bloom-files-mode-order"]);
@@ -153,7 +156,7 @@ export function FilesTab({ saveSetting }: { saveSetting: (key: string, value: st
 		<>
 			<div className="setting-group-label">Opening</div>
 			<div className="setting-group">
-				<p className="radial-hint">{`Files selected in Explorer or on the desktop: press ${keyName} twice. Dragging a file or text: press ${keyName} once. To chain options (invert, then PDF), hold ${keyName === "Ctrl" ? "Shift" : "Ctrl"}, move to one and let go on it to add it. Let go of the mouse (or the key) in the middle or anywhere off the options, or click or drop on an option, to run all the steps. Backspace takes the last step back; Esc drops them all.`}</p>
+				<p className="radial-hint">{`Files selected in Explorer or on the desktop: press ${keyName} twice. Dragging a file or text: press ${keyName} once. To do several options in one go, see Chain Actions below.`}</p>
 				{enabled && (
 					<>
 						<SettingRow icon={Keyboard} label="Trigger Key" desc={`Tap it while dragging, or press it twice with files selected; it also switches menus`}>
@@ -228,6 +231,41 @@ export function FilesTab({ saveSetting }: { saveSetting: (key: string, value: st
 								</label>
 							</SettingRow>
 						))}
+						<SettingRow icon={Zap} label="Animation Speed" desc="How fast the menu opens, changes and closes" divider={false}>
+							<Choice
+								value={(["slow", "normal", "fast"] as const).find((v) => v === s["bloom-files-anim-speed"]) ?? "normal"}
+								options={[["slow", "Slow"], ["normal", "Normal"], ["fast", "Fast"]] as const}
+								onChange={(v) => save("bloom-files-anim-speed", v)}
+								label="Animation speed"
+							/>
+						</SettingRow>
+					</div>
+
+					<div className="setting-group-label">Chain Actions</div>
+					<div className="setting-group">
+						<SettingRow icon={Link2} label="Chain Actions" desc="Do several options in one go, for example Invert an image and make it a PDF" divider={false}>
+							<span />
+						</SettingRow>
+						<div className="radial-explain">
+							<ol>
+								<li>Open the menu as usual.</li>
+								<li>
+									Hold <b>{chainKey}</b>, move to the first option and <b>let go</b> on it: it joins the chain. The notch and a small tag by the pointer show the chain.
+								</li>
+								<li>
+									Press <b>{keyName}</b> to switch menu, hold <b>{chainKey}</b>, move to the next option and let go. Add as many as you like.
+								</li>
+								<li>
+									To run them: <b>let go of the mouse</b> (or {chainKey}) in the middle of the menu, or click or drop on one more option. Every step runs in order, and only the last result stays.
+								</li>
+							</ol>
+							<p>
+								<b>Backspace</b> takes the last step back. <b>Esc</b> drops the chain, or cancels a running job (the notch flashes red).
+							</p>
+							<p>
+								The menu only lists options that fit what the steps before will make. If something can't follow, it says "Cannot perform the action" and nothing runs. Resize can sit anywhere in a chain; Split and Extract can only be last, so click them to run. Text can be upper-cased, then saved as .txt, then zipped or copied by path.
+							</p>
+						</div>
 					</div>
 
 					<div className="setting-group-label">Progress</div>
