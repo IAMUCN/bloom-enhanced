@@ -1,4 +1,4 @@
-import { Download, RefreshCw } from "lucide-react";
+import { Download, RefreshCw, Bug, UserRound } from "lucide-react";
 import { openUrl } from "@tauri-apps/plugin-opener";
 import { GithubIcon } from "../icons";
 import { SettingRow } from "./SettingRow";
@@ -11,6 +11,14 @@ const CREDITS = [
 ] as const;
 
 const AUTHOR_URL = "https://github.com/IAMUCN";
+const REPO_URL = "https://github.com/IAMUCN/bloom-enhanced";
+
+/** Where to find the code, report a problem or reach the author. */
+const LINKS = [
+	[GithubIcon, "Source code", "github.com/IAMUCN/bloom-enhanced", REPO_URL],
+	[Bug, "Report a problem or suggest something", "Open an issue on GitHub", `${REPO_URL}/issues`],
+	[UserRound, "Contact", "IAMUCN on GitHub", AUTHOR_URL]
+] as const;
 
 interface AboutTabProps {
 	appVersion: string;
@@ -87,6 +95,13 @@ export function AboutTab({
 					divider={false}
 					onClick={() => (updateStatus === "available" ? installUpdate() : checkForUpdates())}
 				/>
+			</div>
+
+			<div className="setting-group-label setting-group-label--spaced">Links</div>
+			<div className="setting-group">
+				{LINKS.map(([icon, label, desc, url], i) => (
+					<SettingRow key={label} icon={icon} label={label} desc={desc} action divider={i < LINKS.length - 1} onClick={() => openUrl(url)} />
+				))}
 			</div>
 
 			<div className="setting-group-label setting-group-label--spaced">Built On</div>
