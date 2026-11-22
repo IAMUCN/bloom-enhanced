@@ -114,9 +114,11 @@ export function AboutTab({
 			</div>
 
 			<div className="setting-group-label setting-group-label--spaced">Contact</div>
-			<div className="setting-group">
-				{CONTACTS.map(([icon, label, desc, url], i) => (
-					<SettingRow key={label} icon={icon} label={label} desc={desc} action divider={i < CONTACTS.length - 1} onClick={() => openUrl(url)} />
+			<div className="about-contacts">
+				{CONTACTS.map(([Icon, label, desc, url]) => (
+					<button key={label} className="about-contact" title={`${label}: ${desc}`} aria-label={label} onClick={() => openUrl(url)}>
+						<Icon size={20} strokeWidth={1.6} />
+					</button>
 				))}
 			</div>
 
