@@ -14,7 +14,7 @@ export function OpenEffectPreview() {
 	return (
 		<div className="rp-stage">
 			<div className={`ep-notch${floating ? " floating" : ""}`}>
-				<LotusSignature key={lap} full={floating} />
+				<LotusSignature key={lap} full={floating} shape={{ width: 250, height: 92, radius: 26, flares: !floating }} />
 				<span>Open</span>
 			</div>
 			<p className="rp-cap">The lotus lights the edge it crosses each time the notch opens.</p>

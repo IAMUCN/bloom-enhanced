@@ -113,7 +113,7 @@ export function ClipboardPreview({ scene }: { scene: ClipScene }) {
 					<div className={`clip-preview-pill ${o.copyIndicator && copied ? "wide" : ""}${floating ? " floating" : ""}`} style={{ position: "relative" }}>
 						{o.copyIndicator && copied && (
 							<>
-								<CopyEffect full={floating} />
+								<CopyEffect full={floating} shape={{ width: 200, height: 32, radius: 14, flares: !floating }} />
 								<ClipboardCheck size={14} /> Copied
 							</>
 						)}

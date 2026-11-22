@@ -38,7 +38,7 @@ function Ring({ open, hub, pick }: { open: boolean; hub: string; pick?: number }
 		return `M${p(56, a0)} A56 56 0 0 1 ${p(56, a1)} L${p(26, a1)} A26 26 0 0 0 ${p(26, a0)}Z`;
 	};
 	return (
-		<svg width="120" height="120" className="rp-ring" style={{ opacity: open ? 1 : 0, transform: `scale(${open ? 1 : 0.6})` }}>
+		<svg width="120" height="120" className="rp-ring" style={{ opacity: open ? 1 : 0 }}>
 			{[0, 1, 2, 3, 4, 5].map((i) => (
 				<path key={i} d={wedge(i)} className={pick === i ? "pick" : ""} />
 			))}
@@ -63,15 +63,16 @@ export function RadialPreview({ scene }: { scene: RadialScene }) {
 	const t = useLoop(cycle);
 
 	if (scene === "r-trigger") {
-		const open = between(t, 0.2, 0.95);
-		const second = t > 0.6;
+		// Two quick presses open it (one while dragging); one more switches menus.
+		const open = between(t, 0.34, 0.95);
+		const second = t > 0.72;
 		return (
 			<div className="rp-stage">
 				<div className="rp-row">
-					<Key name={key} down={between(t, 0.15, 0.3) || between(t, 0.55, 0.68)} />
+					<Key name={key} down={between(t, 0.12, 0.2) || between(t, 0.25, 0.33) || between(t, 0.66, 0.74)} />
 				</div>
 				<Ring open={open} hub={MENUS[second ? 1 : 0]} />
-				<p className="rp-cap">{`Tap ${key} to open the menu; tap it again to switch menus.`}</p>
+				<p className="rp-cap">{`Press ${key} twice with files selected (once while dragging) to open the menu; press it once to switch menus.`}</p>
 			</div>
 		);
 	}
@@ -127,7 +128,7 @@ export function RadialPreview({ scene }: { scene: RadialScene }) {
 		<div className="rp-stage">
 			{atNotch ? (
 				<div className={`rp-notch${floating ? " floating" : ""}`}>
-					<ProgressEffect style={effect} percent={pct} result={done ? "ok" : null} full={floating} />
+					<ProgressEffect style={effect} percent={pct} result={done ? "ok" : null} full={floating} shape={{ width: 170, height: 38, radius: 18, flares: !floating }} />
 					<span>{done ? "Done" : `${Math.round(pct)}%`}</span>
 				</div>
 			) : (

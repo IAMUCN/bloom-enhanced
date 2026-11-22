@@ -410,7 +410,7 @@ function Orbit() {
 	return (
 		<motion.div
 			className="orbit"
-			initial={{ scale: 0.5, opacity: 0, rotate: -30 }}
+			initial={false}
 			animate={{ scale: 1, opacity: 1, rotate: 0 }}
 			transition={SPRING}
 		>
@@ -430,7 +430,7 @@ function Orbit() {
 				<motion.g
 					key={`${mode}|${ops.length}`}
 					style={ORIGIN}
-					initial={{ rotate: -40, scale: 0.85 }}
+					initial={false}
 					animate={{ rotate: 0, scale: 1 }}
 					transition={SPRING}
 				>
@@ -445,7 +445,7 @@ function Orbit() {
 								key={op.id}
 								className={`orbit-slice${hover === i ? " hover" : ""}`}
 								style={ORIGIN}
-								initial={{ opacity: 0, scale: 0.6 }}
+								initial={false}
 								animate={{ opacity: 1, scale: hover === i ? 1.06 : 1 }}
 								transition={{ ...SPRING, opacity: { delay: i * 0.025, duration: 0.15 } }}
 							>
@@ -561,7 +561,7 @@ function PickRing({
 	const { value, note, bad } = check(text);
 	const step = 360 / Math.max(1, presets.length);
 	return (
-		<motion.div className="orbit" initial={{ scale: 0.5, opacity: 0, rotate: 30 }} animate={{ scale: 1, opacity: 1, rotate: 0 }} transition={SPRING}>
+		<motion.div className="orbit" initial={false} animate={{ scale: 1, opacity: 1, rotate: 0 }} transition={SPRING}>
 			<svg
 				width={SIZE}
 				height={SIZE}
@@ -582,7 +582,7 @@ function PickRing({
 							key={p.label}
 							className={`orbit-slice${hover === i ? " hover" : ""}`}
 							style={ORIGIN}
-							initial={{ opacity: 0, scale: 0.6 }}
+							initial={false}
 							animate={{ opacity: 1, scale: hover === i ? 1.06 : 1 }}
 							transition={{ ...SPRING, opacity: { delay: i * 0.03, duration: 0.15 } }}
 						>

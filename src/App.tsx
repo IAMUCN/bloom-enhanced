@@ -3774,6 +3774,8 @@ function App() {
 				? 39.1
 				: 30.6;
 	const pillTargetHeight = !isReady ? 34 : getDynamicHeight();
+	// The notch's real outline, for the effects that run along it.
+	const fxShape = { width: pillTargetWidth, height: pillTargetHeight, radius: minimalIdle ? 4 : isCalendarMode ? 28 : 18, flares: attachedToEdge };
 	// Shadow and the edge flares beside the pill.
 	pillTargetRef.current = notchPillBox(
 		window.innerWidth,
@@ -4158,10 +4160,10 @@ function App() {
 						<NotchOutline width={pillTargetWidth} height={pillTargetHeight} radius={minimalIdle ? 4 : isCalendarMode ? 28 : 18} flares={attachedToEdge} />
 					)}
 					{fileStatus && !isOpen && (
-						<ProgressEffect style={progressStyle} percent={fileStatus.percent} result={fileStatus.result} full={!attachedToEdge} />
+						<ProgressEffect style={progressStyle} percent={fileStatus.percent} result={fileStatus.result} full={!attachedToEdge} shape={fxShape} />
 					)}
-					{showCopyPulse && !fileStatus && !isOpen && <CopyEffect full={!attachedToEdge} />}
-					{isOpen && <LotusSignature full={!attachedToEdge} />}
+					{showCopyPulse && !fileStatus && !isOpen && <CopyEffect full={!attachedToEdge} shape={fxShape} />}
+					{isOpen && <LotusSignature full={!attachedToEdge} shape={fxShape} />}
 					{toolTimer && !fileStatus && !isOpen && (timerDisplay === "edge" || timerDisplay === "both") && (
 						<ProgressEffect style="edge" percent={((toolTimer.total - toolTimer.left) / toolTimer.total) * 100} />
 					)}

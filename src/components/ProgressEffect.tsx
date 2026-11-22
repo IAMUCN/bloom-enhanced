@@ -1,5 +1,6 @@
 import "../effects.css";
 import "./ProgressEffect.css";
+import { NotchFx, type NotchShape } from "./NotchFx";
 
 export type ProgressStyle = "edge" | "center" | "bar" | "beam" | "glow" | "off";
 
@@ -26,9 +27,10 @@ const tint = (c: string | null): React.CSSProperties | undefined =>
 /** What the closed notch draws while "Copied" shows (Settings › Shelf › Copy
  *  Effect): one lap of light, a neon flash or a soft glow, in the chosen
  *  colour (default: the accent). Read from localStorage when it appears. */
-export function CopyEffect({ full }: { full?: boolean }) {
+export function CopyEffect({ full, shape }: { full?: boolean; shape?: NotchShape }) {
 	const effect = localStorage.getItem("bloom-copy-effect") ?? "beam";
 	if (effect === "off") return null;
+	if (shape) return <NotchFx kind={effect as "beam" | "neon" | "glow"} shape={shape} colour={localStorage.getItem("bloom-copy-color")} />;
 	return (
 		<div
 			className={`progress-beam copy-${effect}${effect === "beam" ? " fx-beam fast" : ""}${full ? " full" : ""}`}
@@ -39,8 +41,9 @@ export function CopyEffect({ full }: { full?: boolean }) {
 }
 
 /** Lotus signature while the notch is open (Settings › Notch › Open Effect). */
-export function LotusSignature({ full }: { full?: boolean }) {
-	return localStorage.getItem("bloom-open-effect") === "off" ? null : <div className={`notch-lotus${full ? " full" : ""}`} aria-hidden />;
+export function LotusSignature({ full, shape }: { full?: boolean; shape?: NotchShape }) {
+	if (localStorage.getItem("bloom-open-effect") === "off") return null;
+	return shape ? <NotchFx kind="lotus" shape={shape} /> : <div className={`notch-lotus${full ? " full" : ""}`} aria-hidden />;
 }
 
 export const asProgressStyle = (v: unknown): ProgressStyle =>
@@ -57,13 +60,16 @@ export function ProgressEffect({
 	style,
 	percent,
 	result,
-	full
+	full,
+	shape
 }: {
 	style: ProgressStyle;
 	percent: number | null;
 	result?: string | null;
 	/** A floating pill: the light runs round the top too (an attached notch is flush with the screen). */
 	full?: boolean;
+	/** The notch's real outline: the light follows it (curves and flares). */
+	shape?: NotchShape;
 }) {
 	if (style === "off") return null;
 	const p = Math.max(0, Math.min(100, percent ?? 0));
@@ -73,7 +79,19 @@ export function ProgressEffect({
 			? `linear-gradient(to right, transparent ${50 - p / 2}%, #000 ${50 - p / 2}%, #000 ${50 + p / 2}%, transparent ${50 + p / 2}%)`
 			: `linear-gradient(to right, #000 ${p}%, transparent ${p}%)`;
 	const f = full ? " full" : "";
-	const colour = tint(localStorage.getItem("bloom-progress-color"));
+	const raw = localStorage.getItem("bloom-progress-color");
+	const colour = tint(raw);
+	if (shape) {
+		const resultColour = result === "ok" ? "#30d158" : "#ff453a";
+		return (
+			<>
+				{running && style === "beam" && <NotchFx kind="beam-loop" shape={shape} colour={raw} />}
+				{running && (style === "edge" || style === "center") && <NotchFx kind={style} shape={shape} colour={raw} percent={p} />}
+				{running && style === "bar" && <div className="progress-bar" style={{ ...colour, width: `${p}%` }} aria-hidden />}
+				{result && result !== "canceled" && <NotchFx key={result} kind="glow" shape={shape} colour={resultColour} />}
+			</>
+		);
+	}
 	return (
 		<>
 			{running && style === "beam" && <div className={`progress-beam fx-beam${f}`} style={colour} aria-hidden />}
