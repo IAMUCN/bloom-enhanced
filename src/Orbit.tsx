@@ -51,6 +51,8 @@ const BLOOM = {
 };
 /** OrbitDrop's confirmed pick: the wheel pops to 104% and fades in 90 ms. */
 const POP_MS = 140;
+/** Slices start one after another, but the whole wave lasts 90 ms however many there are. */
+const lag = (i: number, n: number) => (n > 1 ? (i / (n - 1)) * 0.09 : 0);
 const SPRING = { type: "spring", stiffness: 480, damping: 24 } as const;
 const ORIGIN = { transformOrigin: `${C}px ${C}px`, transformBox: "view-box" } as const;
 
@@ -475,12 +477,12 @@ function Orbit() {
 								className={`orbit-slice${hover === i ? " hover" : ""}`}
 								style={ORIGIN}
 								// Each slice swings in on its own, past its place and back, one after another.
-								initial={animSwitch ? { rotate: -22, opacity: 0 } : false}
+								initial={animSwitch ? { rotate: -16, opacity: 0 } : false}
 								animate={{ rotate: 0, opacity: 1, scale: hover === i ? 1.06 : 1 }}
 								transition={{
 									...SPRING,
-									rotate: { type: "spring", stiffness: 420, damping: 17, delay: i * 0.025 },
-									opacity: { delay: i * 0.025, duration: 0.12 }
+									rotate: { type: "spring", stiffness: 420, damping: 22, delay: lag(i, ops.length) },
+									opacity: { delay: lag(i, ops.length), duration: 0.12 }
 								}}
 							>
 								{ops.length === 1 ? (
