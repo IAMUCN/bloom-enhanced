@@ -88,7 +88,7 @@ export function ProgressEffect({
 				{running && style === "beam" && <NotchFx kind="beam-loop" shape={shape} colour={raw} />}
 				{running && (style === "edge" || style === "center") && <NotchFx kind={style} shape={shape} colour={raw} percent={p} />}
 				{running && style === "bar" && <div className="progress-bar" style={{ ...colour, width: `${p}%` }} aria-hidden />}
-				{result && result !== "canceled" && <NotchFx key={result} kind="glow" shape={shape} colour={resultColour} />}
+				{result && <NotchFx key={result} kind="glow" shape={shape} colour={resultColour} />}
 			</>
 		);
 	}
@@ -99,7 +99,7 @@ export function ProgressEffect({
 				<div className={`progress-edge${f}`} style={{ ...colour, maskImage: mask, WebkitMaskImage: mask }} aria-hidden />
 			)}
 			{running && style === "bar" && <div className="progress-bar" style={{ ...colour, width: `${p}%` }} aria-hidden />}
-			{result && result !== "canceled" && (
+			{result && (
 				<div className={`progress-glow ${result === "ok" ? "ok" : "failed"}${f}`} aria-hidden />
 			)}
 		</>
