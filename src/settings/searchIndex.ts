@@ -131,6 +131,7 @@ export const SETTINGS_INDEX: SettingEntry[] = [
 		["Show Progress", "Where the percentage and the result appear: pointer or notch"],
 		["Progress Effect", "Edge light, center out, bar, glow only or off: how a job's progress shows on the notch"],
 		["Animation Speed", "How fast the menu opens, changes and closes"],
+		["Show Chain At", "Where the chain shows while you build it: on the notch or by the pointer"],
 		["Chain Actions", "Do several options in one go, for example Invert an image and make it a PDF"],
 		["Opening", "The circle grows in from 40% with a small bounce each time the menu opens or changes"],
 		["Switching Menu", "The options turn in when the trigger key or the centre changes the menu"],

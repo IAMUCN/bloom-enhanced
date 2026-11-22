@@ -144,13 +144,18 @@ function Orbit() {
 		"bloom-files-anim-open": keep("bloom-files-anim-open"),
 		"bloom-files-anim-switch": keep("bloom-files-anim-switch"),
 		"bloom-files-anim-close": keep("bloom-files-anim-close"),
-		"bloom-files-anim-speed": keep("bloom-files-anim-speed")
+		"bloom-files-anim-speed": keep("bloom-files-anim-speed"),
+		"bloom-files-chain-at": keep("bloom-files-chain-at")
 	});
 	// Animations (Settings › Radial Menu › Menu Animation), each on by default.
 	const animOf = (key: string) => raw[key] !== false && raw[key] !== "false";
 	const animOpen = animOf("bloom-files-anim-open");
 	const animSwitch = animOf("bloom-files-anim-switch");
 	const animClose = animOf("bloom-files-anim-close");
+	// Where the chain shows while it is built: on the notch or by the cursor, never both.
+	const chainOnNotch = raw["bloom-files-chain-at"] !== "cursor" && raw["bloom-notch-enabled"] !== false && raw["bloom-notch-enabled"] !== "false";
+	const chainOnNotchRef = useRef(chainOnNotch);
+	chainOnNotchRef.current = chainOnNotch;
 	const speed = (SPEEDS as Record<string, number>)[String(raw["bloom-files-anim-speed"])] ?? 1;
 	const T = timing(speed);
 	const popMsRef = useRef(T.pop);
@@ -187,10 +192,10 @@ function Orbit() {
 
 	// The chain being built shows on the notch ("Invert › PDF ›") while the wheel is open.
 	useEffect(() => {
-		if (!state.current.inNotch || phase.kind !== "wheel") return;
+		if (!chainOnNotchRef.current || phase.kind !== "wheel") return;
 		const status: OrbitStatus = chain.length ? { text: `${chain.map(opLabel).join(" › ")} ›`, percent: null, result: null } : null;
 		emitTo("main", "orbit-status", status).catch(() => {});
-	}, [chain, phase.kind]);
+	}, [chain, phase.kind, chainOnNotch]);
 
 	// The status goes to the notch instead: this window steps out of the way.
 	useEffect(() => {
@@ -654,7 +659,7 @@ function Orbit() {
 					</motion.div>
 				</foreignObject>
 			</svg>
-			{chain.length > 0 && ptr && (
+			{chain.length > 0 && ptr && !chainOnNotch && (
 				<span
 					className="orbit-tag"
 					style={{ top: Math.min(SIZE - 22, ptr.y + 14), ...(ptr.x > C ? { right: SIZE - ptr.x + 12 } : { left: ptr.x + 12 }) }}

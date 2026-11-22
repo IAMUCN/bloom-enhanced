@@ -103,6 +103,7 @@ export function FilesTab({ saveSetting }: { saveSetting: (key: string, value: st
 				"bloom-files-anim-switch",
 				"bloom-files-anim-close",
 				"bloom-files-anim-speed",
+				"bloom-files-chain-at",
 				"bloom-notch-enabled",
 				...KEYS
 			].map((k) => [k, keep(k)])
@@ -245,6 +246,14 @@ export function FilesTab({ saveSetting }: { saveSetting: (key: string, value: st
 					<div className="setting-group">
 						<SettingRow icon={Link2} label="Chain Actions" desc="Do several options in one go, for example Invert an image and make it a PDF" divider={false}>
 							<span />
+						</SettingRow>
+						<SettingRow icon={MapPin} label="Show Chain At" desc="Where the chain shows while you build it: on the notch or by the pointer" divider={false}>
+							<Choice
+								value={s["bloom-files-chain-at"] === "cursor" || !notchOn ? "cursor" : "notch"}
+								options={[["notch", "Notch"], ["cursor", "Cursor"]] as const}
+								onChange={(v) => save("bloom-files-chain-at", v)}
+								label="Show chain at"
+							/>
 						</SettingRow>
 						<div className="radial-explain">
 							<ol>
