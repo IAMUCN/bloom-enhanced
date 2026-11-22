@@ -61,6 +61,7 @@ export const SETTINGS_INDEX: SettingEntry[] = [
 		["Favourite", "The tool the notch opens on; off = the tool you used last. Pick it with the star in Tools"],
 		["Quick Return", "Come back within a few minutes and the notch reopens where you left off"],
 		["Weather Status", "Weather beside the clock, for your city or detected location"],
+		["Open Effect", "When the notch opens, the lotus lights the parts of its edge it crosses"],
 		["Choose status widgets", "Arrange what appears beside the clock"],
 		["Time Size", "The clock in the middle"],
 		["Left Icons", "Widgets left of the clock"],

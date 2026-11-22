@@ -32,6 +32,11 @@ export function CopyEffect() {
 	return <div className={`progress-beam copy-${effect}${effect === "beam" ? " fx-beam fast" : ""}`} style={style} aria-hidden />;
 }
 
+/** Lotus signature while the notch is open (Settings › Notch › Open Effect). */
+export function LotusSignature() {
+	return localStorage.getItem("bloom-open-effect") === "off" ? null : <div className="notch-lotus" aria-hidden />;
+}
+
 export const asProgressStyle = (v: unknown): ProgressStyle =>
 	PROGRESS_STYLES.some(([s]) => s === v) ? (v as ProgressStyle) : "edge";
 

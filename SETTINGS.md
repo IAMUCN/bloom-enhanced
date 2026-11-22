@@ -130,6 +130,7 @@ Edit `settings.json` with any text editor while Bloom is running. Changes are ap
 | `bloom-clipboard-sounds` | `"true"` / `"false"` | `"true"` | Short synthesized sounds for copy, pin/group and delete in the panel. |
 | `bloom-copy-effect` | `"beam"` / `"neon"` / `"glow"` / `"off"` | `"beam"` | The light on the closed notch's edge with "Copied" (Shelf › Copy Effect). |
 | `bloom-copy-color` | hex or `""` | `""` | Its colour; empty follows the accent. |
+| `bloom-open-effect` | `"lotus"` / `"off"` | `"lotus"` | The lotus signature lights the notch edge when it opens. |
 | `bloom-clipboard-copy-indicator` | `"true"` / `"false"` | `"true"` | The notch briefly shows "Copied" when something is recorded. |
 
 ### Files

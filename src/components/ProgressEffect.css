@@ -124,3 +124,31 @@
 :root.fx-off .progress-beam.copy-glow {
 	animation: none;
 }
+
+/* The lotus signature: when the notch opens, the lotus outline (a mask, drawn
+   so its middle sits on the bottom edge) lights only the stretches of the
+   border it crosses. One lap of opacity, then still. */
+.notch-lotus {
+	position: absolute;
+	inset: 0;
+	border: 2.5px solid var(--bloom-accent, #6a55ff);
+	border-top: none;
+	border-radius: inherit;
+	pointer-events: none;
+	z-index: 3;
+	opacity: 0;
+	-webkit-mask: url("data:image/svg+xml,%3Csvg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 200 120%22 fill=%22none%22 stroke=%22%23000%22 stroke-width=%227%22 stroke-linejoin=%22round%22%3E%3Cpath d=%22M100 112C70 92 72 40 100 6C128 40 130 92 100 112Z%22/%3E%3Cpath d=%22M92 112C50 104 34 64 42 22C74 36 92 70 92 112Z%22/%3E%3Cpath d=%22M108 112C150 104 166 64 158 22C126 36 108 70 108 112Z%22/%3E%3Cpath d=%22M84 112C30 116 4 92 4 56C40 62 76 78 84 112Z%22/%3E%3Cpath d=%22M116 112C170 116 196 92 196 56C160 62 124 78 116 112Z%22/%3E%3C/svg%3E") 50% calc(100% + 75px) / auto 150px no-repeat;
+	mask: url("data:image/svg+xml,%3Csvg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 200 120%22 fill=%22none%22 stroke=%22%23000%22 stroke-width=%227%22 stroke-linejoin=%22round%22%3E%3Cpath d=%22M100 112C70 92 72 40 100 6C128 40 130 92 100 112Z%22/%3E%3Cpath d=%22M92 112C50 104 34 64 42 22C74 36 92 70 92 112Z%22/%3E%3Cpath d=%22M108 112C150 104 166 64 158 22C126 36 108 70 108 112Z%22/%3E%3Cpath d=%22M84 112C30 116 4 92 4 56C40 62 76 78 84 112Z%22/%3E%3Cpath d=%22M116 112C170 116 196 92 196 56C160 62 124 78 116 112Z%22/%3E%3C/svg%3E") 50% calc(100% + 75px) / auto 150px no-repeat;
+	animation: lotus-lit 1.5s ease-out 0.15s 1 both;
+}
+
+@keyframes lotus-lit {
+	0% { opacity: 0; }
+	25% { opacity: 1; }
+	60% { opacity: 1; }
+	100% { opacity: 0; }
+}
+
+:root.fx-off .notch-lotus {
+	display: none;
+}

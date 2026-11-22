@@ -8,7 +8,8 @@ import {
 	PanelLeft,
 	PanelRight,
 	Star,
-	History
+	History,
+	Sparkles
 } from "lucide-react";
 import { useState } from "react";
 import { SettingRow } from "./SettingRow";
@@ -238,6 +239,7 @@ export function NotchTab({
 	section,
 	saveSetting
 }: NotchTabProps) {
+	const [openEffect, setOpenEffect] = useState(() => (localStorage.getItem("bloom-open-effect") === "off" ? "off" : "lotus"));
 	return (
 		<>
 			{notchEnabled && (
@@ -364,6 +366,21 @@ export function NotchTab({
 							<StatusWidgetConfig value={statusWidgets} onChange={handleWidgetsChange} />
 						</div>
 						<RowSizes saveSetting={saveSetting} />
+					</div>
+
+					<div className="setting-group-label">Effects</div>
+					<div className="setting-group">
+						<SettingRow icon={Sparkles} label="Open Effect" desc="When the notch opens, the lotus lights the parts of its edge it crosses">
+							<Choice
+								value={openEffect}
+								options={[["lotus", "Lotus"], ["off", "Off"]] as const}
+								onChange={(v) => {
+									setOpenEffect(v);
+									saveSetting("bloom-open-effect", v);
+								}}
+								label="Open effect"
+							/>
+						</SettingRow>
 					</div>
 					</>
 					)}
