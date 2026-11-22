@@ -219,7 +219,7 @@ function Orbit() {
 	}, []);
 
 	const run = useCallback(
-		async (op: OrbitOp, input: OrbitInput) => {
+		async (op: OrbitOp, input: OrbitInput, steps: string[] = state.current.chain) => {
 			if (animCloseRef.current && phaseRef.current.kind === "wheel") {
 				setPopping(true);
 				await new Promise((done) => setTimeout(done, POP_MS));
@@ -227,7 +227,7 @@ function Orbit() {
 			}
 			// Dragged text: copying it is what records it, so it lands in the
 			// shelf once and is also on the clipboard.
-			const ids = [...state.current.chain, op.id];
+			const ids = [...steps, op.id];
 			if (!chainValid(input, ids)) {
 				setPopping(false);
 				flash("Cannot perform the action");
@@ -236,7 +236,7 @@ function Orbit() {
 			if (input.text) {
 				// Text chains: the upper/lower steps are applied in turn, then the last option acts.
 				let t = input.text;
-				for (const id of state.current.chain) t = id === "text.upper" ? t.toUpperCase() : id === "text.lower" ? t.toLowerCase() : t;
+				for (const id of steps) t = id === "text.upper" ? t.toUpperCase() : id === "text.lower" ? t.toLowerCase() : t;
 				try {
 					if (op.id === "text.upper") {
 						await writeText(t.toUpperCase());
@@ -321,8 +321,8 @@ function Orbit() {
 			const { chain } = state.current;
 			const last = chain.length ? opById(chain[chain.length - 1]) : undefined;
 			if (!last) return false;
-			state.current.chain = chain.slice(0, -1);
-			run(last, input);
+			// The steps are passed along: re-rendering would reset state.current.chain.
+			run(last, input, chain.slice(0, -1));
 			return true;
 		};
 		const offs = [
