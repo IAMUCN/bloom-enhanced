@@ -3320,32 +3320,12 @@ button.shortcut-icon:hover {
 .radial-explain li { margin: 3px 0; }
 .radial-explain b { color: var(--bloom-text, inherit); font-weight: 600; }
 
-/* About: everything centred; contacts are icons only. */
-.about-tab-container {
-	text-align: center;
-}
-
-.about-tab-container .setting-group-label {
-	text-align: center;
-	margin-left: 0;
-	margin-right: 0;
-}
-
-.about-tab-container .setting-item {
-	justify-content: center;
-	text-align: center;
-}
-
-.about-tab-container .setting-info {
-	flex: 0 1 auto;
-	align-items: center;
-}
-
+/* About: contacts are icons only. */
 .about-contacts {
 	display: flex;
-	justify-content: center;
 	flex-wrap: wrap;
 	gap: 12px;
+	padding: 0 6px;
 }
 
 .about-contact {
@@ -3364,11 +3344,4 @@ button.shortcut-icon:hover {
 .about-contact:hover {
 	transform: translateY(-2px);
 	color: var(--bloom-accent, #6a55ff);
-}
-
-/* The other pages sit at the left; About is centred in the window. */
-.settings-content.settings-content > section[data-tab="about"] {
-	max-width: 720px;
-	margin-left: auto;
-	margin-right: auto;
 }
