@@ -330,7 +330,8 @@ fn detector(app: AppHandle) {
             0,
         );
     }
-    let (mut shift, mut escape, mut button, mut add) = (false, false, false, false);
+    let (mut shift, mut escape, mut button, mut add, mut back) =
+        (false, false, false, false, false);
     loop {
         let vk_trigger = match setting("bloom-files-key").as_deref() {
             Some("ctrl") => 0x11u16,
@@ -369,16 +370,17 @@ fn detector(app: AppHandle) {
             let paths = explorer_selection();
             if !paths.is_empty() {
                 open_wheel(&app, paths, BY_SHORTCUT);
-                (shift, escape, button, add) = (false, false, false, false);
+                (shift, escape, button, add, back) = (false, false, false, false, false);
                 continue;
             }
         }
         if !armed && open == 0 {
-            (shift, escape, button, add) = (
+            (shift, escape, button, add, back) = (
                 is_down(vk_trigger),
                 is_down(VK_ESCAPE),
                 drag_button_down(),
                 is_down(vk_add),
+                is_down(0x08),
             );
             wait(if shift_held { 15 } else { 50 });
             continue;
@@ -389,6 +391,11 @@ fn detector(app: AppHandle) {
         let now_add = is_down(vk_add);
         if now_add && !add && open != 0 && !RUNNING.load(Ordering::Relaxed) {
             let _ = app.emit_to("orbit", "orbit-add", ());
+        }
+        // Backspace: take the last step off the chain.
+        let now_back = is_down(0x08);
+        if now_back && !back && open != 0 && !RUNNING.load(Ordering::Relaxed) {
+            let _ = app.emit_to("orbit", "orbit-back", ());
         }
         if now_shift && !shift {
             if open != 0 {
@@ -421,7 +428,7 @@ fn detector(app: AppHandle) {
         {
             close_wheel(&app);
         }
-        (shift, escape, button, add) = (now_shift, now_escape, now_button, now_add);
+        (shift, escape, button, add, back) = (now_shift, now_escape, now_button, now_add, now_back);
         wait(15);
     }
 }
@@ -1114,6 +1121,33 @@ fn pdf_pages(path: &Path, ext: &str) -> Result<Vec<Vec<u8>>, String> {
                 .and_then(|img| jpeg_bytes(&img, 92))
         })
         .collect()
+}
+
+/// Invert or grayscale a PDF: its pages are drawn, changed and put back
+/// together as a PDF of pictures (text stops being selectable).
+fn pdf_filter(path: &Path, invert: bool) -> Result<PathBuf, String> {
+    let pages = pdf_pages(path, "png")?;
+    if pages.is_empty() {
+        return Err("The PDF has no pages.".into());
+    }
+    let mut out = Vec::new();
+    for (i, png) in pages.iter().enumerate() {
+        canceled()?;
+        progress(0.8 + 0.2 * i as f64 / pages.len() as f64);
+        let mut img = image::load_from_memory(png).map_err(|e| e.to_string())?;
+        if invert {
+            img.invert();
+        } else {
+            img = image::DynamicImage::ImageRgba8(img.grayscale().to_rgba8());
+        }
+        out.push(pdf_page(&img)?);
+    }
+    save_bytes(
+        path,
+        "pdf",
+        Some(if invert { "inverted" } else { "grayscale" }),
+        &pdf_from_jpegs(&out),
+    )
 }
 
 fn convert_pdf(path: &Path, ext: &str) -> Result<PathBuf, String> {
@@ -1838,6 +1872,8 @@ fn run(app: &AppHandle, op: &str, paths: &[PathBuf]) -> Vec<Outcome> {
             ["tool", "image", "resize"] => image_tool(path, &format!("resize-{arg}")),
             ["tool", "image", tool] => image_tool(path, tool),
             ["tool", "archive", "extract"] => extract_zip(path),
+            ["tool", "pdf", "invert"] => pdf_filter(path, true),
+            ["tool", "pdf", "grayscale"] => pdf_filter(path, false),
             ["tool", "pdf", "split"] => split_pdf(path, arg),
             ["tool", "pdf", "compress"] => compress_pdf(path),
             ["tool", "pdf", "rotate-right"] => rotate_pdf(path, 90),

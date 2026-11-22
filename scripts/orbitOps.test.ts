@@ -41,9 +41,11 @@ test("options fit every file in the set", () => {
 		"tool.pdf.split",
 		"tool.pdf.compress",
 		"tool.pdf.rotate-right",
-		"tool.pdf.rotate-left"
+		"tool.pdf.rotate-left",
+		"tool.pdf.invert",
+		"tool.pdf.grayscale"
 	]);
-	expect(ids(files("C:\\a.pdf"), "tools")).toEqual(["tool.pdf.split", "tool.pdf.compress", "tool.pdf.rotate-right", "tool.pdf.rotate-left"]);
+	expect(ids(files("C:\\a.pdf"), "tools")).toEqual(["tool.pdf.split", "tool.pdf.compress", "tool.pdf.rotate-right", "tool.pdf.rotate-left", "tool.pdf.invert", "tool.pdf.grayscale"]);
 	expect(ids(files("C:\\a.png", "C:\\b.png"), "tools")).not.toContain("tool.pdf.merge");
 	expect(ids(files("C:\\a.png"), "actions")).toContain("action.wallpaper");
 	expect(ids(files("C:\\a.png", "C:\\b.png"), "actions")).not.toContain("action.wallpaper");
@@ -126,9 +128,13 @@ test("chains: each step lists what fits the files made so far", () => {
 	const afterPdf = chainAfter(png, ["convert.pdf"])!;
 	expect(ids(afterPdf, "tools")).toContain("tool.pdf.compress");
 	expect(ids(afterPdf, "tools")).not.toContain("tool.image.invert");
-	// Several images into one PDF; a PDF cannot be inverted.
+	// Several images into one PDF, then invert that PDF (PDFs can be inverted now).
+	expect(chainValid(files("C:\a.png", "C:\b.png"), ["tool.image.pdf-combine", "tool.pdf.invert"])).toBe(true);
+	expect(chainValid(files("C:\a.png", "C:\b.png"), ["tool.image.invert", "tool.image.pdf-combine"])).toBe(true);
+	// Image invert still does not take a PDF.
 	expect(chainAfter(files("C:\a.png", "C:\b.png"), ["tool.image.pdf-combine"])?.paths.length).toBe(1);
 	expect(chainValid(files("C:\r.pdf"), ["tool.image.invert"])).toBe(false);
+	expect(chainValid(files("C:\r.pdf"), ["tool.pdf.invert"])).toBe(true);
 	expect(chainValid(png, ["convert.pdf", "tool.image.invert"])).toBe(false);
 	// Copy path leaves the file as it is, so the image can still be converted.
 	expect(chainValid(png, ["action.copy-path", "convert.webp"])).toBe(true);

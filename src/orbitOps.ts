@@ -93,6 +93,9 @@ export const CATALOG: Record<OrbitMode, Entry[]> = {
 		{ id: "tool.pdf.compress", label: "Compress", icon: "FileDown", progress: "Compressing the PDF", fits: pdfs },
 		{ id: "tool.pdf.rotate-right", label: "Rotate right", icon: "RotateCw", progress: "Rotating pages", fits: pdfs },
 		{ id: "tool.pdf.rotate-left", label: "Rotate left", icon: "RotateCcw", progress: "Rotating pages", fits: pdfs },
+		// The pages are drawn, changed and put back as a PDF of pictures.
+		{ id: "tool.pdf.invert", label: "Invert", icon: "SunMoon", progress: "Inverting the PDF", fits: pdfs },
+		{ id: "tool.pdf.grayscale", label: "Grayscale", icon: "Contrast", progress: "Making the PDF grayscale", fits: pdfs },
 		{ id: "tool.image.rotate-right", label: "Rotate right", icon: "RotateCw", progress: "Rotating", fits: images },
 		{ id: "tool.image.rotate-left", label: "Rotate left", icon: "RotateCcw", progress: "Rotating", fits: images },
 		{ id: "tool.image.flip", label: "Flip", icon: "FlipHorizontal2", progress: "Flipping", fits: images },

@@ -339,6 +339,17 @@ function Orbit() {
 			listen("orbit-shift", () => {
 				if (phaseRef.current.kind === "wheel") cycle();
 			}),
+			// Backspace: one step back.
+			listen("orbit-back", () => {
+				if (phaseRef.current.kind !== "wheel" || !state.current.chain.length) return;
+				const next = state.current.chain.slice(0, -1);
+				state.current.chain = next;
+				setChain(next);
+				setHover(HUB);
+				setBloomKey((k) => k + 1);
+				const after = chainAfter(state.current.input, next) ?? state.current.input;
+				setMode(hasInput(after) ? (modesFor(after, state.current.layout)[0] ?? "convert") : "convert");
+			}),
 			// The chain key: add the hovered option to the chain, or (over the hub) take the last one off.
 			listen("orbit-add", () => {
 				if (phaseRef.current.kind !== "wheel") return;
