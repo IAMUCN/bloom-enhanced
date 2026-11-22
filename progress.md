@@ -7,6 +7,19 @@ kept, merged into `main` after approval, then pushed).
 
 ## ▶ Where we are right now
 
+**▶ RESUME POINT (2026-11-22, end of the effects + radial session). Branch `feature/settings-r2` (NOT merged into `main`, NOT pushed: waits for the user).**
+Done this session (all committed, waiting for the user's verify unless marked ✅):
+- Effects: `src/effects.css` + `NotchFx.tsx` (light along the notch's real outline), copy effect options (Beam/Neon/Glow + colour) ✅, lotus signature on open + Open Effect option, progress colour, Sharing/Paired effects (flash, highlight, ripple, rolling digits), cancel = red flash ✅, setup card glow, Notch "Recommended" badge on setup.
+- Radial Menu: OrbitDrop-style open/switch/pick animations (3 options) ✅, per-slice bounce ✅, **action chains** ✅ (hold Ctrl, move to an option, let go = add; let go in the middle or off the options = run; Backspace = one step back; chain shown on the notch; PDF Invert/Grayscale added so Merge → Invert works).
+- RAM step 1: overlay window on demand (see "Effects + RAM" below).
+- Settings: rows no longer squeeze labels, preview switcher even grid, previews for open/copy effect.
+**What is left (in the user's order):**
+1. User verifies on the real app: Settings v2 skin (light + dark + first-run), accent live change, shortcuts, window controls/size memory, Shelf preview, Weather toggle, Dock Start icon, USB click (restart), splash/update screen after the overlay change, effects on a floating pill notch.
+2. **RAM comparison = the selling point (next version):** the user runs the OLD build and installs the CURRENT one; Claude measures both (Bloom process tree only, private working set, idle + in use) and reports the saving. More RAM work after: dock window on demand when the Dock module is off, GPU process flags.
+3. Merge `feature/settings-r2` into `main` + push, only when the user approves (then tag if releasing).
+4. Optional/offered, not built: group captions + page-title icon tile from the v2 reference; different on/off cue for modules (sidebar dots removed); pointer tag for chains; text→file chains and Resize/Split mid-chain; speed setting for radial animations; effect previews for the radial animation switches; Spinning Border Button / Spotlight / Liquid Metal (skipped for RAM).
+5. Later list (unchanged): radial recipes, v2.0 internet sharing + Bluetooth (⛔ grill the server first), remove the dead calendar-timer engine, tune Quick Move Speed default, collect reference images for the other Settings pages.
+
 **▶ SETTINGS REDESIGN ROUND 2 (2026-11-20, user decisions, locked):** full rethink, not a rearrange.
 - Sidebar (kept, left): **4 modules = Notch, Dock, Shelf, Radial Menu**; Tools move INTO Notch (Notch › Tools); **Shortcuts = own category** (the notch-open shortcut also shown in Notch); General, Appearance, About stay as app-level block.
 - Every option audited: remove duplicates, broken or redundant ones. Rarely used → "More/Advanced" fold.
