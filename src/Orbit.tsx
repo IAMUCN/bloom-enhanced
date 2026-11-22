@@ -52,6 +52,8 @@ const BLOOM = {
 /** Changing menu: only the slices turn in from -14 degrees and fade up, 140 ms. */
 const SWITCH_IN = { rotate: -14, opacity: 0.15 };
 const SWITCH = { duration: 0.14, ease: "easeOut" } as const;
+/** OrbitDrop's confirmed pick: the wheel pops to 104% and fades in 90 ms. */
+const POP_MS = 90;
 const SPRING = { type: "spring", stiffness: 480, damping: 24 } as const;
 const ORIGIN = { transformOrigin: `${C}px ${C}px`, transformBox: "view-box" } as const;
 
@@ -133,8 +135,20 @@ function Orbit() {
 		"bloom-files-mode-order": keep("bloom-files-mode-order"),
 		"bloom-files-status-at": keep("bloom-files-status-at"),
 		"bloom-notch-enabled": keep("bloom-notch-enabled"),
-		"bloom-files-status-seconds": keep("bloom-files-status-seconds")
+		"bloom-files-status-seconds": keep("bloom-files-status-seconds"),
+		"bloom-files-anim-open": keep("bloom-files-anim-open"),
+		"bloom-files-anim-switch": keep("bloom-files-anim-switch"),
+		"bloom-files-anim-close": keep("bloom-files-anim-close")
 	});
+	// Animations (Settings › Radial Menu › Menu Animation), each on by default.
+	const animOf = (key: string) => raw[key] !== false && raw[key] !== "false";
+	const animOpen = animOf("bloom-files-anim-open");
+	const animSwitch = animOf("bloom-files-anim-switch");
+	const animClose = animOf("bloom-files-anim-close");
+	const animCloseRef = useRef(animClose);
+	animCloseRef.current = animClose;
+	// A confirmed pick: the wheel pops (grows 4%) and fades for 90 ms before the job starts.
+	const [popping, setPopping] = useState(false);
 
 	/** Modes for the current input; before a drag has entered, every mode. */
 	const modesNow = useCallback(() => {
@@ -182,6 +196,11 @@ function Orbit() {
 
 	const run = useCallback(
 		async (op: OrbitOp, input: OrbitInput) => {
+			if (animCloseRef.current && phaseRef.current.kind === "wheel") {
+				setPopping(true);
+				await new Promise((done) => setTimeout(done, POP_MS));
+				setPopping(false);
+			}
 			// Dragged text: copying it is what records it, so it lands in the
 			// shelf once and is also on the clipboard.
 			if (input.text) {
@@ -273,6 +292,7 @@ function Orbit() {
 				setMode(modesNow()[0] ?? "convert");
 				setHover(HUB);
 				switchAnim.current = false;
+				setPopping(false);
 				setPhase({ kind: "wheel" });
 			}),
 			listen("orbit-canceled", () => {
@@ -423,9 +443,9 @@ function Orbit() {
 	return (
 		<motion.div
 			className="orbit"
-			initial={{ scale: 0.4, opacity: 0 }}
-			animate={{ scale: 1, opacity: 1 }}
-			transition={BLOOM}
+			initial={animOpen ? { scale: 0.4, opacity: 0 } : false}
+			animate={popping ? { scale: 1.04, opacity: 0 } : { scale: 1, opacity: 1 }}
+			transition={popping ? { duration: POP_MS / 1000, ease: "easeIn" } : BLOOM}
 		>
 			<svg
 				width={SIZE}
@@ -443,7 +463,7 @@ function Orbit() {
 				<motion.g
 					key={`${mode}|${ops.length}`}
 					style={ORIGIN}
-					initial={switchAnim.current ? SWITCH_IN : false}
+					initial={switchAnim.current && animSwitch ? SWITCH_IN : false}
 					animate={{ rotate: 0, opacity: 1 }}
 					transition={SWITCH}
 				>
@@ -574,7 +594,7 @@ function PickRing({
 	const { value, note, bad } = check(text);
 	const step = 360 / Math.max(1, presets.length);
 	return (
-		<motion.div className="orbit" initial={{ scale: 0.4, opacity: 0 }} animate={{ scale: 1, opacity: 1 }} transition={BLOOM}>
+		<motion.div className="orbit" initial={localStorage.getItem("bloom-files-anim-open") === "false" ? false : { scale: 0.4, opacity: 0 }} animate={{ scale: 1, opacity: 1 }} transition={BLOOM}>
 			<svg
 				width={SIZE}
 				height={SIZE}

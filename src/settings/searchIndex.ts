@@ -130,6 +130,9 @@ export const SETTINGS_INDEX: SettingEntry[] = [
 		["Double Press Speed", "The most time between the two presses", "Double "],
 		["Show Progress", "Where the percentage and the result appear: pointer or notch"],
 		["Progress Effect", "Edge light, center out, bar, glow only or off: how a job's progress shows on the notch"],
+		["Opening", "The menu grows in from 40% with a small bounce"],
+		["Switching Menu", "The options turn in when the trigger key or the centre changes the menu"],
+		["Picking An Option", "A quick pop and fade when you let go on an option"],
 		["Progress Colour", "The light that shows progress; the result still glows green or red"],
 		["Result Stays For", "How long the result shows (errors a bit longer, Canceled briefly)"],
 		["Your Menu", "Reorder, hide and preview the menu's options and modes"]

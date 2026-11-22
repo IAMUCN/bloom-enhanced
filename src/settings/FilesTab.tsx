@@ -99,6 +99,9 @@ export function FilesTab({ saveSetting }: { saveSetting: (key: string, value: st
 				"bloom-files-key",
 				"bloom-files-status-at",
 				"bloom-files-status-seconds",
+				"bloom-files-anim-open",
+				"bloom-files-anim-switch",
+				"bloom-files-anim-close",
 				"bloom-notch-enabled",
 				...KEYS
 			].map((k) => [k, keep(k)])
@@ -209,6 +212,24 @@ export function FilesTab({ saveSetting }: { saveSetting: (key: string, value: st
 
 			{enabled && (
 				<>
+					<div className="setting-group-label">Menu Animation</div>
+					<div className="setting-group">
+						{(
+							[
+								["bloom-files-anim-open", "Opening", "The menu grows in from 40% with a small bounce"],
+								["bloom-files-anim-switch", "Switching Menu", "The options turn in when the trigger key or the centre changes the menu"],
+								["bloom-files-anim-close", "Picking An Option", "A quick pop and fade when you let go on an option"]
+							] as const
+						).map(([key, label, desc], i, all) => (
+							<SettingRow key={key} icon={Sparkles} label={label} desc={desc} divider={i < all.length - 1}>
+								<label className="toggle-switch">
+									<input type="checkbox" checked={s[key] !== "false" && s[key] !== false} onChange={() => save(key, String(s[key] === "false" || s[key] === false))} />
+									<span className="slider"></span>
+								</label>
+							</SettingRow>
+						))}
+					</div>
+
 					<div className="setting-group-label">Progress</div>
 					<div className="setting-group">
 						<SettingRow
