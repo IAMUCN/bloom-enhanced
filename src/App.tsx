@@ -4159,6 +4159,7 @@ function App() {
 					{fileStatus && !isOpen && (
 						<ProgressEffect style={progressStyle} percent={fileStatus.percent} result={fileStatus.result} />
 					)}
+					{showCopyPulse && !fileStatus && !isOpen && <div className="progress-beam fx-beam fast" aria-hidden />}
 					{toolTimer && !fileStatus && !isOpen && (timerDisplay === "edge" || timerDisplay === "both") && (
 						<ProgressEffect style="edge" percent={((toolTimer.total - toolTimer.left) / toolTimer.total) * 100} />
 					)}

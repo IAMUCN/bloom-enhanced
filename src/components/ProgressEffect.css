@@ -12,6 +12,11 @@
 	transition: mask-image 0.3s linear, -webkit-mask-image 0.3s linear;
 }
 
+/* The copy pulse: one quick lap while "Copied" shows. */
+.progress-beam.fast {
+	--fx-t: 0.8s;
+}
+
 .progress-beam {
 	position: absolute;
 	inset: 0;
