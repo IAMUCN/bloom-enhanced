@@ -260,3 +260,36 @@
 :root.fx-off .roll-d {
 	animation: none;
 }
+
+/* One lap, then gone (the Shelf opening). */
+.fx-beam.fx-once::after {
+	animation: fx-once-lap 1.8s ease-in-out 1 both, fx-hue 1.8s ease-in-out 1 both;
+}
+
+@keyframes fx-once-lap {
+	from {
+		--fx-a: 0deg;
+		opacity: 1;
+	}
+	80% {
+		opacity: 1;
+	}
+	to {
+		--fx-a: 360deg;
+		opacity: 0;
+	}
+}
+
+.fx-beam.shelf-beam {
+	position: absolute;
+	inset: 0;
+	z-index: 9;
+	--fx-w: 2px;
+	border-radius: inherit;
+	pointer-events: none;
+}
+
+:root.fx-off .fx-beam.fx-once::after {
+	animation: none;
+	opacity: 0;
+}

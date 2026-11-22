@@ -117,6 +117,7 @@ export const SETTINGS_INDEX: SettingEntry[] = [
 		["Multi-Select", "Ctrl-click or the select button to group, copy, pin or delete several items at once"],
 		["Sound Effects", "Short sounds when you copy, pin, group or delete in the clipboard"],
 		["Copy Indicator", 'The notch shows a brief "Copied" when something is recorded'],
+		["Opening Beam", "A gradient beam runs once round the edge shelf's outline each time it opens"],
 		["Copy Effect", "Light on the notch's edge when something is copied: one lap of light, a neon flash or a soft glow"],
 		["Effect Colour", "The first swatch follows your accent colour"],
 		["History Size", "Oldest items go first; pinned items stay"],

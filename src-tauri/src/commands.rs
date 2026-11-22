@@ -1704,6 +1704,30 @@ pub fn schedule_icon_cache_save(app: AppHandle) {
     });
 }
 
+/// Files dropped on a dock icon open in that app (the app is started with the
+/// files as arguments; a running one takes them over). Apps from the Store
+/// have no path to start this way.
+#[tauri::command]
+pub fn open_files_with(app_path: String, paths: Vec<String>) -> Result<(), String> {
+    if paths.is_empty() {
+        return Ok(());
+    }
+    let mut exe = app_path;
+    if !exe.contains('\\') && !exe.contains('/') {
+        if let Some(resolved) = resolve_executable_path(&exe) {
+            exe = resolved;
+        }
+    }
+    if is_aumid_path(&exe) || exe.to_lowercase().contains("\\windowsapps\\") {
+        return Err("This app can't be given files from the dock.".into());
+    }
+    std::process::Command::new(&exe)
+        .args(&paths)
+        .spawn()
+        .map(|_| ())
+        .map_err(|e| e.to_string())
+}
+
 #[tauri::command]
 pub async fn get_app_icon(
     app: AppHandle,
@@ -1723,6 +1747,23 @@ pub async fn get_app_icon(
             use base64::Engine;
             let b64 = base64::engine::general_purpose::STANDARD.encode(&data);
             return Ok(Some(format!("data:image/png;base64,{}", b64)));
+        }
+    }
+
+    // LotusNotch's own windows (Settings...) always show the LotusNotch icon, never
+    // an old cached or extracted one.
+    if let Ok(exe) = std::env::current_exe() {
+        let same = |a: &str, b: &str| {
+            a.replace('/', "\\")
+                .eq_ignore_ascii_case(&b.replace('/', "\\"))
+        };
+        if same(&path, &exe.to_string_lossy()) {
+            use base64::Engine;
+            let png = include_bytes!("../icons/128x128@2x.png");
+            return Ok(Some(format!(
+                "data:image/png;base64,{}",
+                base64::engine::general_purpose::STANDARD.encode(png)
+            )));
         }
     }
 

@@ -9,6 +9,7 @@ import { listen } from "@tauri-apps/api/event";
 import { requestSend, sharePeerAt } from "./components/ShareColumn";
 import { ClipboardPanel } from "./components/ClipboardPanel";
 import { EdgeSurface } from "./components/EdgeSurface";
+import "./effects.css";
 import { useTextInputKeyboard, releaseTextKeyboard } from "./hooks/useTextInputKeyboard";
 import { useSettingsSync } from "./hooks/useSettingsSync";
 import { panelZoom } from "./notchLayout";
@@ -75,6 +76,8 @@ function ClipShelf() {
 			style={{ zoom: globalScale * panelZoom("clipboard") }}
 		>
 			<EdgeSurface edge={side} />
+			{/* A gradient beam runs once round the shelf's outline each time it opens. */}
+			{open && localStorage.getItem("bloom-clipboard-open-beam") !== "false" && <div className="shelf-beam fx-beam fx-once hue" aria-hidden />}
 			<ClipboardPanel
 				dragIcon={dragIcon}
 				dropEvent="clipshelf-drag-drop"

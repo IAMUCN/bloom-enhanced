@@ -164,6 +164,7 @@ fn main() {
             open_system_tray,
             set_ignore_cursor_events,
             set_window_height,
+            open_files_with,
             hide_overlay,
             show_splash_overlay,
             set_splash_fullscreen,

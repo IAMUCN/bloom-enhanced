@@ -18,6 +18,7 @@ import {
 	Network,
 	PanelLeft,
 	Archive,
+	Sparkles,
 	StickyNote,
 	Timer,
 	Trash2,
@@ -201,6 +202,7 @@ export function ClipboardTab({
 			.then((list) => setMonitors(list.map((m) => m.name).filter((n): n is string => !!n)))
 			.catch(() => {});
 	}, []);
+	const [openBeam, setOpenBeam] = useState(() => localStorage.getItem("bloom-clipboard-open-beam") !== "false");
 	const featureRow = ([option, key, icon, label, desc]: (typeof FEATURE_TOGGLES)[number], i: number, all: readonly unknown[]) => (
 		<SettingRow key={key} icon={icon} label={label} desc={desc} divider={i < all.length - 1}>
 			<label className="toggle-switch">
@@ -218,6 +220,19 @@ export function ClipboardTab({
 						<SettingRow icon={Archive} label="Keep Items" desc="Keep items dropped on the notch shelf after LotusNotch closes">
 							<label className="toggle-switch">
 								<input type="checkbox" checked={shelfPersist} onChange={toggleShelfPersist} />
+								<span className="slider"></span>
+							</label>
+						</SettingRow>
+						<SettingRow icon={Sparkles} label="Opening Beam" desc="A gradient beam runs once round the edge shelf's outline each time it opens">
+							<label className="toggle-switch">
+								<input
+									type="checkbox"
+									checked={openBeam}
+									onChange={() => {
+										setOpenBeam(!openBeam);
+										saveSetting("bloom-clipboard-open-beam", String(!openBeam));
+									}}
+								/>
 								<span className="slider"></span>
 							</label>
 						</SettingRow>

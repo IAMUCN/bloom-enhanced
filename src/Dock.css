@@ -786,3 +786,11 @@ body {
 	background: #888;
 	box-shadow: none;
 }
+
+/* A file is being dragged over this icon: it lifts and glows. */
+.file-drop-target .dock-icon-wrapper,
+.dock-icon-wrapper.file-drop-target {
+	transform: translateY(-8px) scale(1.15);
+	filter: drop-shadow(0 0 8px var(--bloom-accent, #6a55ff));
+	transition: transform 0.15s ease, filter 0.15s ease;
+}
