@@ -410,8 +410,8 @@ function Orbit() {
 	return (
 		<motion.div
 			className="orbit"
-			initial={false}
-			animate={{ scale: 1, opacity: 1, rotate: 0 }}
+			initial={{ scale: 0.5, opacity: 0 }}
+			animate={{ scale: 1, opacity: 1 }}
 			transition={SPRING}
 		>
 			<svg
@@ -561,7 +561,7 @@ function PickRing({
 	const { value, note, bad } = check(text);
 	const step = 360 / Math.max(1, presets.length);
 	return (
-		<motion.div className="orbit" initial={false} animate={{ scale: 1, opacity: 1, rotate: 0 }} transition={SPRING}>
+		<motion.div className="orbit" initial={{ scale: 0.5, opacity: 0 }} animate={{ scale: 1, opacity: 1 }} transition={SPRING}>
 			<svg
 				width={SIZE}
 				height={SIZE}
