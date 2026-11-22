@@ -43,6 +43,15 @@ const C = SIZE / 2;
 const GAP = 2.5; // degrees between slices
 const STATUS = { width: 300, height: 64 };
 // Bloom's springy micro-motion.
+/** OrbitDrop's wheel: it opens by growing from 0.4 to full size with a small
+ *  overshoot in 170 ms while fading in over 110 ms (WPF BackEase 0.3). */
+const BLOOM = {
+	scale: { duration: 0.17, ease: [0.3, 1.45, 0.5, 1] as const },
+	opacity: { duration: 0.11 }
+};
+/** Changing menu: only the slices turn in from -14 degrees and fade up, 140 ms. */
+const SWITCH_IN = { rotate: -14, opacity: 0.15 };
+const SWITCH = { duration: 0.14, ease: "easeOut" } as const;
 const SPRING = { type: "spring", stiffness: 480, damping: 24 } as const;
 const ORIGIN = { transformOrigin: `${C}px ${C}px`, transformBox: "view-box" } as const;
 
@@ -104,6 +113,8 @@ function Orbit() {
 	const inNotch =
 		raw["bloom-files-status-at"] === "notch" && raw["bloom-notch-enabled"] !== false && raw["bloom-notch-enabled"] !== "false";
 	const seconds = Number(raw["bloom-files-status-seconds"]) || 2;
+	// Set when the menu is switched (not opened): the slices then animate in.
+	const switchAnim = useRef(false);
 	const phaseRef = useRef(phase);
 	phaseRef.current = phase;
 	const state = useRef({ input, mode, layout, inNotch, seconds });
@@ -140,6 +151,7 @@ function Orbit() {
 
 	const cycle = useCallback(() => {
 		const list = modesNow();
+		switchAnim.current = true;
 		setMode((m) => list[(list.indexOf(m) + 1) % list.length] ?? m);
 		setHover(HUB);
 	}, [modesNow]);
@@ -260,6 +272,7 @@ function Orbit() {
 				state.current.input = next;
 				setMode(modesNow()[0] ?? "convert");
 				setHover(HUB);
+				switchAnim.current = false;
 				setPhase({ kind: "wheel" });
 			}),
 			listen("orbit-canceled", () => {
@@ -410,9 +423,9 @@ function Orbit() {
 	return (
 		<motion.div
 			className="orbit"
-			initial={{ scale: 0.5, opacity: 0 }}
+			initial={{ scale: 0.4, opacity: 0 }}
 			animate={{ scale: 1, opacity: 1 }}
-			transition={SPRING}
+			transition={BLOOM}
 		>
 			<svg
 				width={SIZE}
@@ -430,9 +443,9 @@ function Orbit() {
 				<motion.g
 					key={`${mode}|${ops.length}`}
 					style={ORIGIN}
-					initial={false}
-					animate={{ rotate: 0, scale: 1 }}
-					transition={SPRING}
+					initial={switchAnim.current ? SWITCH_IN : false}
+					animate={{ rotate: 0, opacity: 1 }}
+					transition={SWITCH}
 				>
 					{ops.map((op, i) => {
 						const mid = -90 + i * step;
@@ -561,7 +574,7 @@ function PickRing({
 	const { value, note, bad } = check(text);
 	const step = 360 / Math.max(1, presets.length);
 	return (
-		<motion.div className="orbit" initial={{ scale: 0.5, opacity: 0 }} animate={{ scale: 1, opacity: 1 }} transition={SPRING}>
+		<motion.div className="orbit" initial={{ scale: 0.4, opacity: 0 }} animate={{ scale: 1, opacity: 1 }} transition={BLOOM}>
 			<svg
 				width={SIZE}
 				height={SIZE}
