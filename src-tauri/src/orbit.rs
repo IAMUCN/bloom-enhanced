@@ -56,6 +56,9 @@ static APP: OnceLock<AppHandle> = OnceLock::new();
 static FILE: AtomicU32 = AtomicU32::new(0);
 static FILES: AtomicU32 = AtomicU32::new(1);
 static PERCENT: AtomicU32 = AtomicU32::new(u32::MAX);
+/// A chain of options: step `STEP` of `STEPS` is running (a single option is 0 of 1).
+static STEP: AtomicU32 = AtomicU32::new(0);
+static STEPS: AtomicU32 = AtomicU32::new(1);
 /// Shift-tap detection (keyboard hook): when Shift went down (0 = up),
 /// whether anything else happened meanwhile, and a finished clean tap.
 static SHIFT_AT: AtomicU64 = AtomicU64::new(0);
@@ -327,7 +330,7 @@ fn detector(app: AppHandle) {
             0,
         );
     }
-    let (mut shift, mut escape, mut button) = (false, false, false);
+    let (mut shift, mut escape, mut button, mut add) = (false, false, false, false);
     loop {
         let vk_trigger = match setting("bloom-files-key").as_deref() {
             Some("ctrl") => 0x11u16,
@@ -335,6 +338,9 @@ fn detector(app: AppHandle) {
             _ => 0x10,
         };
         TRIGGER_VK.store(vk_trigger as u32, Ordering::Relaxed);
+        // The key that adds the hovered option to a chain: Ctrl, or Shift when
+        // Ctrl is the trigger. Never Alt (a lone Alt opens Explorer's menu bar).
+        let vk_add: u16 = if vk_trigger == 0x11 { 0x10 } else { 0x11 };
         let mut msg = MSG::default();
         while unsafe { PeekMessageW(&mut msg, None, 0, 0, PM_REMOVE) }.as_bool() {
             unsafe { DispatchMessageW(&msg) };
@@ -363,17 +369,27 @@ fn detector(app: AppHandle) {
             let paths = explorer_selection();
             if !paths.is_empty() {
                 open_wheel(&app, paths, BY_SHORTCUT);
-                (shift, escape, button) = (false, false, false);
+                (shift, escape, button, add) = (false, false, false, false);
                 continue;
             }
         }
         if !armed && open == 0 {
-            (shift, escape, button) = (is_down(vk_trigger), is_down(VK_ESCAPE), drag_button_down());
+            (shift, escape, button, add) = (
+                is_down(vk_trigger),
+                is_down(VK_ESCAPE),
+                drag_button_down(),
+                is_down(vk_add),
+            );
             wait(if shift_held { 15 } else { 50 });
             continue;
         }
         let (now_shift, now_escape, now_button) =
             (is_down(vk_trigger), is_down(VK_ESCAPE), drag_button_down());
+        // Key down only: a held key must not repeat the step.
+        let now_add = is_down(vk_add);
+        if now_add && !add && open != 0 && !RUNNING.load(Ordering::Relaxed) {
+            let _ = app.emit_to("orbit", "orbit-add", ());
+        }
         if now_shift && !shift {
             if open != 0 {
                 let _ = app.emit_to("orbit", "orbit-shift", ());
@@ -405,7 +421,7 @@ fn detector(app: AppHandle) {
         {
             close_wheel(&app);
         }
-        (shift, escape, button) = (now_shift, now_escape, now_button);
+        (shift, escape, button, add) = (now_shift, now_escape, now_button, now_add);
         wait(15);
     }
 }
@@ -883,8 +899,9 @@ fn write_folder(
 /// percentage, only when the number changes.
 fn progress(inner: f64) {
     let files = FILES.load(Ordering::Relaxed).max(1) as f64;
-    let done = FILE.load(Ordering::Relaxed) as f64 + inner.clamp(0.0, 1.0);
-    let percent = ((done / files) * 100.0).floor() as u32;
+    let steps = STEPS.load(Ordering::Relaxed).max(1) as f64;
+    let within = (FILE.load(Ordering::Relaxed) as f64 + inner.clamp(0.0, 1.0)) / files;
+    let percent = (((STEP.load(Ordering::Relaxed) as f64 + within) / steps) * 100.0).floor() as u32;
     if PERCENT.swap(percent, Ordering::Relaxed) != percent {
         if let Some(app) = APP.get() {
             let _ = app.emit_to("orbit", "orbit-progress", percent);
@@ -1838,13 +1855,94 @@ fn run(app: &AppHandle, op: &str, paths: &[PathBuf]) -> Vec<Outcome> {
     outcomes
 }
 
+/// Options that make new files the next step works on; everything else
+/// (copy path, to shelf, zip, copy to ...) leaves the files as they are or
+/// makes a result the user keeps.
+fn is_transform(op: &str) -> bool {
+    op.starts_with("convert.") || op.starts_with("tool.")
+}
+
+/// Runs the options one after another, each on what the one before made: a
+/// transform's outputs become the next step's input, and are deleted once the
+/// chain is over (only the last result stays); an action that makes nothing
+/// (copy path) lets the files pass through. The first failing step stops the
+/// chain, deletes its leftovers and names the step.
+fn run_chain(app: &AppHandle, ops: &[String], paths: &[PathBuf]) -> Vec<Outcome> {
+    STEPS.store(ops.len().max(1) as u32, Ordering::Relaxed);
+    STEP.store(0, Ordering::Relaxed);
+    if ops.len() <= 1 {
+        return run(app, ops.first().map_or("", String::as_str), paths);
+    }
+    let mut current = paths.to_vec();
+    let mut scratch: Vec<PathBuf> = Vec::new();
+    let remove = |files: &[PathBuf]| {
+        for f in files {
+            let _ = std::fs::remove_file(f);
+        }
+    };
+    for (i, op) in ops.iter().enumerate() {
+        if CANCEL.load(Ordering::Relaxed) {
+            remove(&scratch);
+            return current
+                .iter()
+                .map(|p| Outcome {
+                    source: p.to_string_lossy().into_owned(),
+                    output: None,
+                    error: Some("Canceled".into()),
+                })
+                .collect();
+        }
+        STEP.store(i as u32, Ordering::Relaxed);
+        let mut outcomes = run(app, op, &current);
+        let outs: Vec<PathBuf> = outcomes
+            .iter()
+            .filter_map(|o| o.output.as_deref().map(PathBuf::from))
+            .collect();
+        if outcomes.iter().any(|o| o.error.is_some()) {
+            let canceled = CANCEL.load(Ordering::Relaxed);
+            let tail = op
+                .split(':')
+                .next()
+                .unwrap_or(op)
+                .rsplit('.')
+                .next()
+                .unwrap_or(op);
+            for o in outcomes.iter_mut() {
+                if let Some(e) = o.error.as_mut() {
+                    if !canceled {
+                        *e = format!("Step {} ({}): {}", i + 1, tail, e);
+                    }
+                }
+            }
+            if i + 1 < ops.len() || canceled {
+                remove(&outs);
+            }
+            remove(&scratch);
+            return outcomes;
+        }
+        if i + 1 == ops.len() {
+            remove(&scratch);
+            return outcomes;
+        }
+        if !outs.is_empty() {
+            if is_transform(op) {
+                // The previous scratch files have done their job.
+                remove(&scratch);
+                scratch = outs.clone();
+            }
+            current = outs;
+        }
+    }
+    Vec::new()
+}
+
 /// Runs a wheel option on `paths`. Progress goes to the wheel as
 /// `orbit-progress` (percent); [`orbit_cancel`] or Esc stops between files and
 /// within copies, pages and archive entries.
 #[tauri::command]
 pub async fn orbit_run(
     app: AppHandle,
-    op: String,
+    ops: Vec<String>,
     paths: Vec<String>,
 ) -> Result<Vec<Outcome>, String> {
     if !crate::utils::files_enabled() {
@@ -1862,7 +1960,10 @@ pub async fn orbit_run(
     }
     RUNNING.store(true, Ordering::Relaxed);
     let opener = app.clone();
-    let result = tauri::async_runtime::spawn_blocking(move || run(&app, &op, &paths))
+    // A chain's results sit beside the intermediates; whether to open them
+    // depends on where the files first came from.
+    let chained_from_browser = ops.len() > 1 && paths.iter().any(|p| from_browser(p));
+    let result = tauri::async_runtime::spawn_blocking(move || run_chain(&app, &ops, &paths))
         .await
         .map_err(|e| e.to_string());
     RUNNING.store(false, Ordering::Relaxed);
@@ -1872,7 +1973,10 @@ pub async fn orbit_run(
     if let Ok(outcomes) = &result {
         use tauri_plugin_opener::OpenerExt;
         for o in outcomes {
-            if let (Some(out), true) = (&o.output, from_browser(Path::new(&o.source))) {
+            if let (Some(out), true) = (
+                &o.output,
+                chained_from_browser || from_browser(Path::new(&o.source)),
+            ) {
                 let _ = opener.opener().open_path(out, None::<&str>);
             }
         }

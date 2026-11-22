@@ -143,6 +143,10 @@ body,
 }
 
 .orbit-hub-label span {
+	max-width: 98px;
+	overflow: hidden;
+	text-overflow: ellipsis;
+	white-space: nowrap;
 	font-size: 9.5px;
 	opacity: 0.6;
 }

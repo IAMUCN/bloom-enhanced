@@ -1,6 +1,8 @@
 import { expect, test } from "bun:test";
 import {
 	HUB,
+	chainAfter,
+	chainValid,
 	OUTSIDE,
 	formatRanges,
 	hitTest,
@@ -113,4 +115,29 @@ test("Settings shows each menu as it looks for one kind of drag", () => {
 		const all = new Set((["images", "pdfs", "files", "text"] as const).flatMap((k) => opsForKind(k, mode).map((o) => o.id)));
 		expect(ordered(mode).filter((o) => !all.has(o.id)).map((o) => o.id)).toEqual([]);
 	}
+});
+
+test("chains: each step lists what fits the files made so far", () => {
+	const png = files("C:\a.png");
+	// Invert a PNG, then PDF: the next options are for the image just made.
+	expect(chainValid(png, ["tool.image.invert", "convert.pdf"])).toBe(true);
+	expect(chainAfter(png, ["tool.image.invert", "convert.pdf"])?.paths.map((p) => p.split(".").pop())).toEqual(["pdf"]);
+	// After PDF, PDF tools fit and image tools do not.
+	const afterPdf = chainAfter(png, ["convert.pdf"])!;
+	expect(ids(afterPdf, "tools")).toContain("tool.pdf.compress");
+	expect(ids(afterPdf, "tools")).not.toContain("tool.image.invert");
+	// Several images into one PDF; a PDF cannot be inverted.
+	expect(chainAfter(files("C:\a.png", "C:\b.png"), ["tool.image.pdf-combine"])?.paths.length).toBe(1);
+	expect(chainValid(files("C:\r.pdf"), ["tool.image.invert"])).toBe(false);
+	expect(chainValid(png, ["convert.pdf", "tool.image.invert"])).toBe(false);
+	// Copy path leaves the file as it is, so the image can still be converted.
+	expect(chainValid(png, ["action.copy-path", "convert.webp"])).toBe(true);
+	// Split and Extract can only be last; Split cannot follow a step that made new files.
+	expect(chainValid(files("C:\r.pdf"), ["tool.pdf.split"])).toBe(true);
+	expect(chainValid(files("C:\r.pdf"), ["tool.pdf.split", "tool.pdf.compress"])).toBe(false);
+	expect(chainValid(files("C:\r.pdf"), ["tool.pdf.compress", "tool.pdf.split"])).toBe(false);
+	expect(chainValid(files("C:\r.pdf"), ["action.copy-path", "tool.pdf.split"])).toBe(true);
+	// Text: upper-case it, then search.
+	expect(chainValid({ paths: [], text: "hi" }, ["text.upper", "text.search"])).toBe(true);
+	expect(chainValid({ paths: [], text: "hi" }, ["text.count", "text.upper"])).toBe(false);
 });

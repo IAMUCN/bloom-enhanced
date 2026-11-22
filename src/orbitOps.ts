@@ -159,6 +159,87 @@ export function opsFor(input: OrbitInput, mode: OrbitMode, layout: OrbitLayout =
 		.map((op) => ({ ...op, label: entries.get(op.id)?.labelFor?.(input.paths.length) ?? op.label }));
 }
 
+// ── Chains: several options in a row (hover one and press Ctrl to add it) ──
+
+const entryOf = (id: string) => {
+	const base = id.split(":")[0];
+	for (const m of MODES) {
+		const e = CATALOG[m].find((x) => x.id === base);
+		if (e) return e;
+	}
+};
+
+/** The label of an option id (a typed argument after a colon is ignored). */
+export const opLabel = (id: string) => entryOf(id)?.label ?? id;
+
+/** Options that make new files for the next step (the others leave the files as they are). */
+export const makesFiles = (id: string) => /^(convert|tool)\./.test(id);
+
+/** The file types after an option has run on files of `exts`; null = nothing can follow it. */
+function afterStep(base: string, exts: string[]): string[] | null {
+	if (base.startsWith("convert.")) {
+		const to = base.slice(8);
+		// A PDF to images may give a folder of pages.
+		return pdfs(exts) && to !== "pdf" ? null : exts.map(() => to);
+	}
+	switch (base) {
+		case "tool.image.pdf-combine":
+		case "tool.pdf.merge":
+			return ["pdf"];
+		case "tool.image.compress":
+			return exts.map(() => "jpg");
+		case "tool.pdf.split":
+		case "tool.archive.extract":
+			return null;
+		case "action.zip":
+			return ["zip"];
+	}
+	return exts;
+}
+
+/** One more step on `input`: what the files are afterwards (an input to list
+ *  the next options for), null when it is fine but must be the last step, or
+ *  false when it cannot be done to this. `changed`: an earlier step made new
+ *  files (Split reads the page count of the real file, so it cannot follow). */
+export function chainStep(input: OrbitInput, id: string, changed = false): OrbitInput | null | false {
+	const base = id.split(":")[0];
+	const entry = entryOf(base);
+	const exts = input.paths.map(extOf);
+	if (!entry || !entry.fits(exts, input)) return false;
+	if (base === "tool.pdf.split" && changed) return false;
+	if (input.text) return ["text.count", "text.search", "text.save"].includes(base) ? null : input;
+	const out = afterStep(base, exts);
+	return out ? { paths: out.map((e, i) => `x${i}.${e}`) } : null;
+}
+
+/** What `input` is after `ids` have run (the options to show next), or null
+ *  when the chain cannot be done. */
+export function chainAfter(input: OrbitInput, ids: string[]): OrbitInput | null {
+	let cur = input;
+	let changed = false;
+	for (const id of ids) {
+		const next = chainStep(cur, id, changed);
+		if (!next) return null;
+		cur = next;
+		changed = changed || makesFiles(id);
+	}
+	return cur;
+}
+
+/** Whether the whole chain can run (its last step may be one nothing follows). */
+export function chainValid(input: OrbitInput, ids: string[]): boolean {
+	let cur = input;
+	let changed = false;
+	for (let i = 0; i < ids.length; i++) {
+		const next = chainStep(cur, ids[i], changed);
+		if (next === false) return false;
+		if (next === null) return i === ids.length - 1;
+		cur = next;
+		changed = changed || makesFiles(ids[i]);
+	}
+	return true;
+}
+
 /** What can be dragged, for Settings › Radial Menu: it shows the menu as
  *  it looks for each (the wheel only ever shows the options that fit). */
 export const DRAG_KINDS = [

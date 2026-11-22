@@ -31,6 +31,7 @@ import {
 	type OrbitResult,
 	type OrbitStatus
 } from "./orbitOps";
+import { chainAfter, chainStep, chainValid, makesFiles, opLabel } from "./orbitOps";
 import { ORBIT_ICONS } from "./orbitIcons";
 import { useSettingsSync } from "./hooks/useSettingsSync";
 import { initTheme } from "./theme";
@@ -117,10 +118,17 @@ function Orbit() {
 	// Bumped on every open and menu switch: the whole wheel is made again, so the
 	// disc grows in and the slices turn in each time (OrbitDrop).
 	const [bloomKey, setBloomKey] = useState(0);
+	// A chain: options added with Ctrl, run one after another on what the one before made.
+	const [chain, setChain] = useState<string[]>([]);
+	const [chainNote, setChainNote] = useState<string | null>(null);
 	const phaseRef = useRef(phase);
 	phaseRef.current = phase;
-	const state = useRef({ input, mode, layout, inNotch, seconds });
-	state.current = { input, mode, layout, inNotch, seconds };
+	const hoverRef = useRef(hover);
+	hoverRef.current = hover;
+	const state = useRef({ input, mode, layout, inNotch, seconds, chain });
+	state.current = { input, mode, layout, inNotch, seconds, chain };
+	/** What the options are listed for: the files after the chain so far. */
+	const viewOf = () => chainAfter(state.current.input, state.current.chain) ?? state.current.input;
 
 	useEffect(() => initTheme(), []);
 	useEffect(() => {
@@ -152,13 +160,16 @@ function Orbit() {
 
 	/** Modes for the current input; before a drag has entered, every mode. */
 	const modesNow = useCallback(() => {
-		const { input, layout } = state.current;
-		return hasInput(input) ? modesFor(input, layout) : layout.modes;
+		const { input, layout, chain } = state.current;
+		const view = chainAfter(input, chain) ?? input;
+		return hasInput(view) ? modesFor(view, layout) : layout.modes;
 	}, []);
 	const modes = modesNow();
-	const ops = opsFor(input, mode, layout);
+	const viewInput = chainAfter(input, chain) ?? input;
+	const ops = opsFor(viewInput, mode, layout);
 
 	const close = useCallback(() => {
+		setChain([]);
 		setPhase({ kind: "closed" });
 		invoke("orbit_close").catch(() => {});
 	}, []);
@@ -194,6 +205,12 @@ function Orbit() {
 		[close]
 	);
 
+	/** A short message in the hub ("Cannot perform the action"). */
+	const flash = useCallback((text: string) => {
+		setChainNote(text);
+		window.setTimeout(() => setChainNote((n) => (n === text ? null : n)), 1500);
+	}, []);
+
 	const run = useCallback(
 		async (op: OrbitOp, input: OrbitInput) => {
 			if (animCloseRef.current && phaseRef.current.kind === "wheel") {
@@ -203,8 +220,16 @@ function Orbit() {
 			}
 			// Dragged text: copying it is what records it, so it lands in the
 			// shelf once and is also on the clipboard.
+			const ids = [...state.current.chain, op.id];
+			if (!chainValid(input, ids)) {
+				setPopping(false);
+				flash("Cannot perform the action");
+				return;
+			}
 			if (input.text) {
-				const t = input.text;
+				// Text chains: the upper/lower steps are applied in turn, then the last option acts.
+				let t = input.text;
+				for (const id of state.current.chain) t = id === "text.upper" ? t.toUpperCase() : id === "text.lower" ? t.toLowerCase() : t;
 				try {
 					if (op.id === "text.upper") {
 						await writeText(t.toUpperCase());
@@ -251,7 +276,7 @@ function Orbit() {
 			let text: string;
 			let result: Result = "ok";
 			try {
-				const outcomes = await invoke<Outcome[]>("orbit_run", { op: op.id, paths: input.paths });
+				const outcomes = await invoke<Outcome[]>("orbit_run", { ops: ids, paths: input.paths });
 				// Already shown as Canceled (Esc or ×): the rest finished quietly.
 				if (phaseRef.current.kind !== "running") return;
 				const errors = outcomes.filter((o) => o.error);
@@ -268,19 +293,19 @@ function Orbit() {
 							: `${errors.length} of ${outcomes.length} failed. ${name}: ${errors[0].error}`;
 				} else if (outputs.length === 1) text = `Saved ${fileName(outputs[0])}`;
 				else if (outputs.length) text = `Saved ${outputs.length} files`;
-				else text = op.id === "action.shelf" ? "Added to the shelf and copied" : `${op.label}: done`;
+				else text = op.id === "action.shelf" ? "Added to the shelf and copied" : ids.length > 1 ? `${ids.map(opLabel).join(" › ")}: done` : `${op.label}: done`;
 			} catch (e) {
 				result = "failed";
 				text = String(e);
 			}
 			finish(text, result);
 		},
-		[finish]
+		[finish, flash]
 	);
 
 	useEffect(() => {
 		// Points arrive in physical client pixels.
-		const hitAt = (x: number, y: number, input = state.current.input) => {
+		const hitAt = (x: number, y: number, input = viewOf()) => {
 			const { mode, layout } = state.current;
 			return hitTest(x / devicePixelRatio - C, y / devicePixelRatio - C, opsFor(input, mode, layout).length);
 		};
@@ -289,6 +314,9 @@ function Orbit() {
 				const next = { paths: e.payload.paths };
 				setInput(next);
 				state.current.input = next;
+				state.current.chain = [];
+				setChain([]);
+				setChainNote(null);
 				setMode(modesNow()[0] ?? "convert");
 				setHover(HUB);
 				setBloomKey((k) => k + 1);
@@ -303,6 +331,35 @@ function Orbit() {
 			}),
 			listen("orbit-shift", () => {
 				if (phaseRef.current.kind === "wheel") cycle();
+			}),
+			// The chain key: add the hovered option to the chain, or (over the hub) take the last one off.
+			listen("orbit-add", () => {
+				if (phaseRef.current.kind !== "wheel") return;
+				const { input, mode, layout, chain } = state.current;
+				if (!hasInput(input)) return;
+				const view = chainAfter(input, chain) ?? input;
+				const list = opsFor(view, mode, layout);
+				const at = hoverRef.current;
+				const setTo = (next: string[]) => {
+					state.current.chain = next;
+					setChain(next);
+					setHover(HUB);
+					setBloomKey((k) => k + 1);
+					const after = chainAfter(input, next) ?? input;
+					setMode(hasInput(after) ? (modesFor(after, layout)[0] ?? "convert") : "convert");
+				};
+				if (at === HUB) {
+					if (chain.length) setTo(chain.slice(0, -1));
+					return;
+				}
+				const op = list[at];
+				if (!op) return;
+				if (op.id === "tool.image.resize" || op.id === "tool.pdf.split") return flash("Click it to run it last");
+				const changed = chain.some(makesFiles);
+				const next = chainStep(view, op.id, changed);
+				if (next === false) return flash("Cannot perform the action");
+				if (next === null) return flash("Click it to run it last");
+				setTo([...chain, op.id]);
 			}),
 			listen<number>("orbit-progress", (e) => {
 				const p = phaseRef.current;
@@ -327,8 +384,8 @@ function Orbit() {
 				if (phaseRef.current.kind !== "wheel") return;
 				const dropped = inputOf(e.payload);
 				const { mode, layout } = state.current;
-				const i = hitAt(e.payload.position.x, e.payload.position.y, dropped);
-				if (i >= 0) run(opsFor(dropped, mode, layout)[i], dropped);
+				const i = hitAt(e.payload.position.x, e.payload.position.y, chainAfter(dropped, state.current.chain) ?? dropped);
+				if (i >= 0) run(opsFor(chainAfter(dropped, state.current.chain) ?? dropped, mode, layout)[i], dropped);
 				else close();
 			}),
 			// The drag ended: unless it landed on an option, close.
@@ -511,7 +568,14 @@ function Orbit() {
 					>
 						<strong>{input.text ? "Text" : count ? MODE_LABEL[mode] : "Files"}</strong>
 						<span>
-							{input.text ? "Selected text" : count ? `${count} file${count > 1 ? "s" : ""}` : "Move to choose"}
+							{chainNote ??
+								(chain.length
+									? `${chain.map(opLabel).join(" › ")} ›`
+									: input.text
+										? "Selected text"
+										: count
+											? `${count} file${count > 1 ? "s" : ""}`
+											: "Move to choose")}
 						</span>
 						<div className="orbit-dots">
 							{modes.map((m) => (
