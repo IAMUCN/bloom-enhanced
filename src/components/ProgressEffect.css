@@ -12,6 +12,15 @@
 	transition: mask-image 0.3s linear, -webkit-mask-image 0.3s linear;
 }
 
+.progress-beam {
+	position: absolute;
+	inset: 0;
+	border-radius: inherit;
+	pointer-events: none;
+	z-index: 3;
+	--fx-w: 2px;
+}
+
 .progress-bar {
 	position: absolute;
 	left: 0;

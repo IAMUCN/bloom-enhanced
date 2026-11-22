@@ -2751,6 +2751,12 @@ button.shortcut-icon:hover {
 	gap: 14px;
 }
 
+.setup-panel.fx-card {
+	padding: 28px;
+	border-radius: 24px;
+	background: #fff;
+}
+
 .setup-panel.wide {
 	width: min(920px, 100%);
 }

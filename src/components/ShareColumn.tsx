@@ -549,7 +549,7 @@ export function ShareColumn({
 			<div
 				key={id}
 				data-share-peer={id}
-				className={`clip-share-chip${selected.length ? " can-send" : ""}${st?.error ? " failed" : ""}`}
+				className={`clip-share-chip${selected.length ? " can-send" : ""}${st?.error ? " failed" : ""}${busy ? " fx-beam" : ""}`}
 				title={st?.error ?? (selected.length ? `Send ${selected.length} to ${name}` : `${name} · ${online ? "online" : "offline"} · drop here to send`)}
 				onClick={() => {
 					if (!selected.length || busy) return;

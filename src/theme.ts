@@ -120,6 +120,8 @@ export async function applyTheme(
 	const revision = ++themeRevision;
 	const root = document.documentElement;
 	root.style.setProperty("--user-accent", userAccent());
+	// Animations off freezes the effects (effects.css).
+	root.classList[localStorage.getItem("bloom-motion") === "off" ? "add" : "remove"]("fx-off");
 
 	if (opacity === undefined || opacity === null) {
 		const cachedOpacity = localStorage.getItem("bloom-theme-opacity");
@@ -257,6 +259,8 @@ const THEME_DEFAULTS: Record<string, string> = {
 	"bloom-theme-color": "#007aff",
 	// The accent: progress light, active states, the Settings window (user can change it).
 	"bloom-accent": "#6a55ff",
+	// Re-applies the theme so effects freeze/resume (effects.css).
+	"bloom-motion": "on",
 	// Solid black by default (design: Glass is opt-in).
 	"bloom-theme-opacity": "1",
 	"bloom-theme-saturation": "0.5",

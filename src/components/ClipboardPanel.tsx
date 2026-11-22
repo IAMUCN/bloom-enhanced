@@ -21,6 +21,7 @@ import {
 	type ClipItem
 } from "../clipboardModel";
 import "./QuickPanel.css";
+import "../effects.css";
 import "./ClipboardPanel.css";
 
 interface ClipboardPanelProps {
@@ -283,7 +284,7 @@ export function ClipboardPanel({ dragIcon, dropEvent, onDragStart, onDragEnd, on
 				</div>
 			)}
 			<div className="clip-toolbar">
-				<div className="clip-search">
+				<div className="clip-search fx-beam hue fx-focus">
 					<Search size={12} />
 					<input
 						ref={searchRef}

@@ -1,11 +1,13 @@
+import "../effects.css";
 import "./ProgressEffect.css";
 
-export type ProgressStyle = "edge" | "center" | "bar" | "glow" | "off";
+export type ProgressStyle = "edge" | "center" | "bar" | "beam" | "glow" | "off";
 
 export const PROGRESS_STYLES: readonly (readonly [ProgressStyle, string])[] = [
 	["edge", "Edge light"],
 	["center", "Center out"],
 	["bar", "Bar"],
+	["beam", "Beam"],
 	["glow", "Glow only"],
 	["off", "Off"]
 ];
@@ -18,6 +20,7 @@ export const asProgressStyle = (v: unknown): ProgressStyle =>
  *  - edge: the outline fills with light from the left as the job runs
  *  - center: light starts in the middle and travels outwards
  *  - bar: a thin bar along the bottom
+ *  - beam: a comet of light circles the outline while the job runs
  *  - glow: no progress, only the result glow */
 export function ProgressEffect({
 	style,
@@ -37,7 +40,8 @@ export function ProgressEffect({
 			: `linear-gradient(to right, #000 ${p}%, transparent ${p}%)`;
 	return (
 		<>
-			{running && style !== "bar" && (
+			{running && style === "beam" && <div className="progress-beam fx-beam" aria-hidden />}
+				{running && style !== "bar" && style !== "beam" && (
 				<div className="progress-edge" style={{ maskImage: mask, WebkitMaskImage: mask }} aria-hidden />
 			)}
 			{running && style === "bar" && <div className="progress-bar" style={{ width: `${p}%` }} aria-hidden />}

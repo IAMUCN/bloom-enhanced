@@ -3,6 +3,7 @@ import { invoke } from "@tauri-apps/api/core";
 import { emitTo } from "@tauri-apps/api/event";
 import { getCurrentWindow } from "@tauri-apps/api/window";
 import { Check } from "lucide-react";
+import "../effects.css";
 import { PickTools } from "./PickTools";
 import { Choice } from "./Choice";
 
@@ -111,7 +112,7 @@ export function Setup({
 
 	return (
 		<div className="setup-screen" role="dialog" aria-modal="true" aria-labelledby="setup-title">
-			<div className={`setup-panel${step === "modules" ? " wide" : ""}`}>
+			<div className={`setup-panel fx-card${step === "modules" ? " wide" : ""}`}>
 				<span className="setup-steps">
 					Step {at + 1} of {steps.length}
 				</span>
