@@ -46,14 +46,14 @@ const STATUS = { width: 300, height: 64 };
 /** OrbitDrop's wheel: it opens by growing from 0.4 to full size with a small
  *  overshoot in 170 ms while fading in over 110 ms (WPF BackEase 0.3). */
 const BLOOM = {
-	scale: { duration: 0.17, ease: [0.3, 1.45, 0.5, 1] as const },
-	opacity: { duration: 0.11 }
+	scale: { duration: 0.32, ease: [0.3, 1.45, 0.5, 1] as const },
+	opacity: { duration: 0.2 }
 };
 /** The slices turn in from -14 degrees and fade up in 140 ms, on every open and menu switch. */
 const SWITCH_IN = { rotate: -14, opacity: 0.15 };
-const SWITCH = { duration: 0.14, ease: "easeOut" } as const;
+const SWITCH = { duration: 0.28, ease: "easeOut" } as const;
 /** OrbitDrop's confirmed pick: the wheel pops to 104% and fades in 90 ms. */
-const POP_MS = 90;
+const POP_MS = 140;
 const SPRING = { type: "spring", stiffness: 480, damping: 24 } as const;
 const ORIGIN = { transformOrigin: `${C}px ${C}px`, transformBox: "view-box" } as const;
 
