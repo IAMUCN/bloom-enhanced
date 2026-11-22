@@ -157,6 +157,8 @@ function Orbit() {
 	animCloseRef.current = animClose;
 	// A confirmed pick: the wheel pops (grows 4%) and fades for 90 ms before the job starts.
 	const [popping, setPopping] = useState(false);
+	// Set when the user cancels a job: whatever the job returns afterwards is not shown (no red flash).
+	const cancelledJob = useRef(false);
 
 	/** Modes for the current input; before a drag has entered, every mode. */
 	const modesNow = useCallback(() => {
@@ -278,6 +280,7 @@ function Orbit() {
 				return;
 			}
 			const picking = PICKS_FOLDER.includes(op.id);
+			cancelledJob.current = false;
 			setPhase({ kind: "running", op, percent: picking ? null : 0 });
 			if (!picking && !state.current.inNotch) shrink();
 			let text: string;
@@ -285,7 +288,7 @@ function Orbit() {
 			try {
 				const outcomes = await invoke<Outcome[]>("orbit_run", { ops: ids, paths: input.paths });
 				// Already shown as Canceled (Esc or ×): the rest finished quietly.
-				if (phaseRef.current.kind !== "running") return;
+				if (cancelledJob.current || phaseRef.current.kind !== "running") return;
 				const errors = outcomes.filter((o) => o.error);
 				const outputs = outcomes.flatMap((o) => (o.output ? [o.output] : []));
 				if (errors.length && errors.every((o) => o.error === "Canceled")) {
@@ -340,7 +343,10 @@ function Orbit() {
 				setPhase({ kind: "wheel" });
 			}),
 			listen("orbit-canceled", () => {
-				if (phaseRef.current.kind === "running") finish("Canceled", "canceled");
+				if (phaseRef.current.kind === "running") {
+					cancelledJob.current = true;
+					finish("Canceled", "canceled");
+				}
 			}),
 			listen("orbit-close", () => {
 				if (phaseRef.current.kind === "wheel" || phaseRef.current.kind === "ranges") setPhase({ kind: "closed" });
@@ -512,6 +518,7 @@ function Orbit() {
 						<button
 							title="Cancel (Esc)"
 							onClick={() => {
+								cancelledJob.current = true;
 								invoke("orbit_cancel").catch(() => {});
 								finish("Canceled", "canceled");
 							}}

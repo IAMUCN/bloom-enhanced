@@ -3290,3 +3290,15 @@ button.shortcut-icon:hover {
 .ep-notch.floating { border-radius: 26px; }
 .rp-notch.floating { border-radius: 19px; }
 .clip-preview-pill.floating { border-radius: 16px; margin-top: 0; }
+
+.setup-recommended {
+	margin-left: 8px;
+	padding: 2px 8px;
+	border-radius: 999px;
+	background: color-mix(in srgb, var(--bloom-accent, #6a55ff) 16%, transparent);
+	color: var(--bloom-accent, #6a55ff);
+	font-size: 11px;
+	font-style: normal;
+	font-weight: 600;
+	vertical-align: 1px;
+}

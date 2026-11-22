@@ -125,7 +125,13 @@ export function Setup({
 								<button key={id} type="button" className={`setup-module${on(id) ? " on" : ""}`} aria-pressed={on(id)} onClick={modules[id].toggle}>
 									<Art id={id} />
 									<span className="setup-module-name">
-										{label}
+										<span>
+
+											{label}
+
+											{id === "notch" && <em className="setup-recommended">Recommended</em>}
+
+										</span>
 										<span className="setup-module-check">{on(id) && <Check size={12} strokeWidth={3} />}</span>
 									</span>
 									<span className="setup-module-what">{what}</span>

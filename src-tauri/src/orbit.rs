@@ -2011,6 +2011,17 @@ pub async fn orbit_run(
     let result = tauri::async_runtime::spawn_blocking(move || run_chain(&app, &ops, &paths))
         .await
         .map_err(|e| e.to_string());
+    // Canceled: whatever a step reported on the way out (a half-written file...)
+    // is just "Canceled", never a failure.
+    let canceled = CANCEL.load(Ordering::Relaxed);
+    let result = result.map(|mut outcomes| {
+        if canceled {
+            for o in outcomes.iter_mut().filter(|o| o.error.is_some()) {
+                o.error = Some("Canceled".into());
+            }
+        }
+        outcomes
+    });
     RUNNING.store(false, Ordering::Relaxed);
     crate::utils::release_freed_memory();
     // Something dragged out of a browser: show the result straight away (a
