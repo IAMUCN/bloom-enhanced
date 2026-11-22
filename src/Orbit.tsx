@@ -31,6 +31,7 @@ import {
 	type OrbitResult,
 	type OrbitStatus
 } from "./orbitOps";
+import { SPEEDS, lag, timing } from "./orbitMotion";
 import { chainAfter, chainStep, chainValid, makesFiles, opById, opLabel } from "./orbitOps";
 import { ORBIT_ICONS } from "./orbitIcons";
 import { useSettingsSync } from "./hooks/useSettingsSync";
@@ -46,14 +47,8 @@ const STATUS = { width: 300, height: 64 };
 // Bloom's springy micro-motion.
 /** OrbitDrop's wheel: it opens by growing from 0.4 to full size with a small
  *  overshoot in 170 ms while fading in over 110 ms (WPF BackEase 0.3). */
-const BLOOM = {
-	scale: { duration: 0.32, ease: [0.3, 1.45, 0.5, 1] as const },
-	opacity: { duration: 0.2 }
-};
+const BLOOM = timing(1).bloom;
 /** OrbitDrop's confirmed pick: the wheel pops to 104% and fades in 90 ms. */
-const POP_MS = 140;
-/** Slices start one after another, but the whole wave lasts 90 ms however many there are. */
-const lag = (i: number, n: number) => (n > 1 ? (i / (n - 1)) * 0.09 : 0);
 const SPRING = { type: "spring", stiffness: 480, damping: 24 } as const;
 const ORIGIN = { transformOrigin: `${C}px ${C}px`, transformBox: "view-box" } as const;
 
@@ -74,7 +69,7 @@ type Phase =
 	/** Split asks which pages first; pages is null while they are counted. */
 	| { kind: "ranges"; op: OrbitOp; input: OrbitInput; pages: number | null }
 	/** Resize asks for the size first. */
-	| { kind: "size"; op: OrbitOp; input: OrbitInput }
+	| { kind: "size"; op: OrbitOp; input: OrbitInput; /** adding Resize to a chain, not running it */ add?: boolean }
 	| { kind: "done"; text: string; result: Result };
 
 const point = (r: number, deg: number) => {
@@ -121,6 +116,8 @@ function Orbit() {
 	// A chain: options added with Ctrl, run one after another on what the one before made.
 	const [chain, setChain] = useState<string[]>([]);
 	const [chainNote, setChainNote] = useState<string | null>(null);
+	// The pointer inside the wheel: the chain follows it as a small tag.
+	const [ptr, setPtr] = useState<{ x: number; y: number } | null>(null);
 	const phaseRef = useRef(phase);
 	phaseRef.current = phase;
 	const hoverRef = useRef(hover);
@@ -146,13 +143,18 @@ function Orbit() {
 		"bloom-files-status-seconds": keep("bloom-files-status-seconds"),
 		"bloom-files-anim-open": keep("bloom-files-anim-open"),
 		"bloom-files-anim-switch": keep("bloom-files-anim-switch"),
-		"bloom-files-anim-close": keep("bloom-files-anim-close")
+		"bloom-files-anim-close": keep("bloom-files-anim-close"),
+		"bloom-files-anim-speed": keep("bloom-files-anim-speed")
 	});
 	// Animations (Settings › Radial Menu › Menu Animation), each on by default.
 	const animOf = (key: string) => raw[key] !== false && raw[key] !== "false";
 	const animOpen = animOf("bloom-files-anim-open");
 	const animSwitch = animOf("bloom-files-anim-switch");
 	const animClose = animOf("bloom-files-anim-close");
+	const speed = (SPEEDS as Record<string, number>)[String(raw["bloom-files-anim-speed"])] ?? 1;
+	const T = timing(speed);
+	const popMsRef = useRef(T.pop);
+	popMsRef.current = T.pop;
 	const animCloseRef = useRef(animClose);
 	animCloseRef.current = animClose;
 	// A confirmed pick: the wheel pops (grows 4%) and fades for 90 ms before the job starts.
@@ -223,10 +225,10 @@ function Orbit() {
 	}, []);
 
 	const run = useCallback(
-		async (op: OrbitOp, input: OrbitInput, steps: string[] = state.current.chain) => {
-			if (animCloseRef.current && phaseRef.current.kind === "wheel") {
+		async (op: OrbitOp, input: OrbitInput, steps: string[] = state.current.chain, popped = false) => {
+			if (!popped && animCloseRef.current && phaseRef.current.kind === "wheel") {
 				setPopping(true);
-				await new Promise((done) => setTimeout(done, POP_MS));
+				await new Promise((done) => setTimeout(done, popMsRef.current));
 				setPopping(false);
 			}
 			// Dragged text: copying it is what records it, so it lands in the
@@ -240,8 +242,17 @@ function Orbit() {
 			if (input.text) {
 				// Text chains: the upper/lower steps are applied in turn, then the last option acts.
 				let t = input.text;
-				for (const id of steps) t = id === "text.upper" ? t.toUpperCase() : id === "text.lower" ? t.toLowerCase() : t;
+				// Save .txt in the middle: the text is saved, then the rest acts on the file.
+				const saveAt = ids.indexOf("text.save");
+				for (const id of saveAt < 0 ? steps : ids.slice(0, saveAt))
+					t = id === "text.upper" ? t.toUpperCase() : id === "text.lower" ? t.toLowerCase() : t;
 				try {
+					if (saveAt >= 0 && saveAt < ids.length - 1) {
+						const path = await invoke<string>("orbit_save_text", { text: t });
+						const rest = ids.slice(saveAt + 1);
+						const last = opById(rest[rest.length - 1]);
+						if (last) return run(last, { paths: [path] }, rest.slice(0, -1), true);
+					}
 					if (op.id === "text.upper") {
 						await writeText(t.toUpperCase());
 						finish("Copied in UPPER CASE", "ok");
@@ -391,7 +402,11 @@ function Orbit() {
 				}
 				const op = list[at];
 				if (!op) return;
-				if (op.id === "tool.image.resize" || op.id === "tool.pdf.split") return flash("Click it to run it last");
+				if (op.id === "tool.pdf.split") return flash("Click it to run it last");
+				if (op.id === "tool.image.resize") {
+					if (chainStep(view, op.id, chain.some(makesFiles)) === false) return flash("Cannot perform the action");
+					return setPhase({ kind: "size", op, input: view, add: true });
+				}
 				const changed = chain.some(makesFiles);
 				const next = chainStep(view, op.id, changed);
 				if (next === false) return flash("Cannot perform the action");
@@ -416,7 +431,10 @@ function Orbit() {
 				}
 				setHover(hitAt(e.payload.position.x, e.payload.position.y));
 			}),
-			listen<{ x: number; y: number }>("orbit-drag-over", (e) => setHover(hitAt(e.payload.x, e.payload.y))),
+			listen<{ x: number; y: number }>("orbit-drag-over", (e) => {
+				setHover(hitAt(e.payload.x, e.payload.y));
+				setPtr({ x: e.payload.x / devicePixelRatio, y: e.payload.y / devicePixelRatio });
+			}),
 			listen<DragPayload>("orbit-drag-drop", (e) => {
 				if (phaseRef.current.kind !== "wheel") return;
 				const dropped = inputOf(e.payload);
@@ -467,8 +485,17 @@ function Orbit() {
 							? { value: t, note: `Longest side ${t} px`, bad: false }
 							: { value: null, note: "A size like 1200", bad: true }
 				}
-				onPick={(px) => run({ ...phase.op, id: `${phase.op.id}:${px}` }, phase.input)}
-				onCancel={close}
+				onPick={(px) => {
+					if (!phase.add) return run({ ...phase.op, id: `${phase.op.id}:${px}` }, phase.input);
+					// Resize in the middle of a chain: it joins the chain and the wheel comes back.
+					const next = [...state.current.chain, `${phase.op.id}:${px}`];
+					state.current.chain = next;
+					setChain(next);
+					setHover(HUB);
+					setBloomKey((k) => k + 1);
+					setPhase({ kind: "wheel" });
+				}}
+				onCancel={phase.add ? () => setPhase({ kind: "wheel" }) : close}
 			/>
 		);
 
@@ -542,12 +569,15 @@ function Orbit() {
 			className="orbit"
 			initial={animOpen ? { scale: 0.4, opacity: 0 } : false}
 			animate={popping ? { scale: 1.04, opacity: 0 } : { scale: 1, opacity: 1 }}
-			transition={popping ? { duration: POP_MS / 1000, ease: "easeIn" } : BLOOM}
+			transition={popping ? { duration: T.pop / 1000, ease: "easeIn" } : T.bloom}
 		>
 			<svg
 				width={SIZE}
 				height={SIZE}
-				onPointerMove={(e) => setHover(hitTest(e.clientX - C, e.clientY - C, ops.length))}
+				onPointerMove={(e) => {
+					setHover(hitTest(e.clientX - C, e.clientY - C, ops.length));
+					if (state.current.chain.length) setPtr({ x: e.clientX, y: e.clientY });
+				}}
 				onPointerLeave={() => setHover(HUB)}
 				onClick={(e) => {
 					const i = hitTest(e.clientX - C, e.clientY - C, ops.length);
@@ -577,8 +607,8 @@ function Orbit() {
 								animate={{ rotate: 0, opacity: 1, scale: hover === i ? 1.06 : 1 }}
 								transition={{
 									...SPRING,
-									rotate: { type: "spring", stiffness: 420, damping: 22, delay: lag(i, ops.length) },
-									opacity: { delay: lag(i, ops.length), duration: 0.12 }
+									rotate: { ...T.slice, delay: lag(i, ops.length, speed) },
+									opacity: { delay: lag(i, ops.length, speed), duration: 0.12 * speed }
 								}}
 							>
 								{ops.length === 1 ? (
@@ -624,6 +654,14 @@ function Orbit() {
 					</motion.div>
 				</foreignObject>
 			</svg>
+			{chain.length > 0 && ptr && (
+				<span
+					className="orbit-tag"
+					style={{ top: Math.min(SIZE - 22, ptr.y + 14), ...(ptr.x > C ? { right: SIZE - ptr.x + 12 } : { left: ptr.x + 12 }) }}
+				>
+					{chain.map(opLabel).join(" › ")} ›
+				</span>
+			)}
 		</motion.div>
 	);
 }

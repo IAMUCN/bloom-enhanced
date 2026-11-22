@@ -146,4 +146,11 @@ test("chains: each step lists what fits the files made so far", () => {
 	// Text: upper-case it, then search.
 	expect(chainValid({ paths: [], text: "hi" }, ["text.upper", "text.search"])).toBe(true);
 	expect(chainValid({ paths: [], text: "hi" }, ["text.count", "text.upper"])).toBe(false);
+	// Text to a file: save it, then act on the .txt (copy its path, zip it).
+	expect(chainValid({ paths: [], text: "hi" }, ["text.upper", "text.save", "action.copy-path"])).toBe(true);
+	expect(chainValid({ paths: [], text: "hi" }, ["text.save", "action.zip"])).toBe(true);
+	expect(chainValid({ paths: [], text: "hi" }, ["text.save", "convert.png"])).toBe(false);
+	// Resize can sit mid-chain (its size rides after a colon).
+	expect(chainValid(files("C:\a.png"), ["tool.image.resize:1200", "convert.pdf"])).toBe(true);
+	expect(chainValid(files("C:\a.png"), ["tool.image.resize:1200", "tool.image.invert", "convert.webp"])).toBe(true);
 });

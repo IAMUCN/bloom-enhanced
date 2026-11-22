@@ -250,3 +250,20 @@ body,
 	font-weight: 600;
 	font-variant-numeric: tabular-nums;
 }
+
+/* The chain so far, following the pointer. */
+.orbit-tag {
+	position: absolute;
+	z-index: 5;
+	max-width: 190px;
+	padding: 2px 8px;
+	border-radius: 999px;
+	background: var(--bloom-accent, #6a55ff);
+	color: #fff;
+	font-size: 10.5px;
+	font-weight: 600;
+	white-space: nowrap;
+	overflow: hidden;
+	text-overflow: ellipsis;
+	pointer-events: none;
+}

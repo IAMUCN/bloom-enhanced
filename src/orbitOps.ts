@@ -179,7 +179,10 @@ export const opById = (id: string): OrbitOp | undefined => {
 };
 
 /** The label of an option id (a typed argument after a colon is ignored). */
-export const opLabel = (id: string) => entryOf(id)?.label ?? id;
+export const opLabel = (id: string) => {
+	const arg = id.split(":")[1];
+	return (entryOf(id)?.label ?? id) + (arg ? ` ${arg}` : "");
+};
 
 /** Options that make new files for the next step (the others leave the files as they are). */
 export const makesFiles = (id: string) => /^(convert|tool)\./.test(id);
@@ -216,7 +219,8 @@ export function chainStep(input: OrbitInput, id: string, changed = false): Orbit
 	const exts = input.paths.map(extOf);
 	if (!entry || !entry.fits(exts, input)) return false;
 	if (base === "tool.pdf.split" && changed) return false;
-	if (input.text) return ["text.count", "text.search", "text.save"].includes(base) ? null : input;
+	// Text: upper/lower stay text; Save .txt makes a file the next steps act on.
+	if (input.text) return base === "text.save" ? { paths: ["x.txt"] } : ["text.count", "text.search"].includes(base) ? null : input;
 	const out = afterStep(base, exts);
 	return out ? { paths: out.map((e, i) => `x${i}.${e}`) } : null;
 }
