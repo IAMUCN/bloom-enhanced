@@ -1172,7 +1172,8 @@ function App() {
 			// Stays on screen until the job ends (Smart and Peek modes too).
 			if (e.payload) {
 				setIsHovered(false);
-				if (notchMode !== "fixed") triggerEventPeek(e.payload.result ? 4000 : 600000);
+				if (notchMode !== "fixed") // A chain being built (no percent, no result) only peeks for a while.
+				if (notchMode !== "fixed") triggerEventPeek(e.payload.result ? 4000 : e.payload.percent === null ? 20000 : 600000);
 			}
 		});
 		return () => {

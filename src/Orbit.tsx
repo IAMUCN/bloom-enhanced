@@ -181,6 +181,13 @@ function Orbit() {
 		setHover(HUB);
 	}, [modesNow]);
 
+	// The chain being built shows on the notch ("Invert › PDF ›") while the wheel is open.
+	useEffect(() => {
+		if (!state.current.inNotch || phase.kind !== "wheel") return;
+		const status: OrbitStatus = chain.length ? { text: `${chain.map(opLabel).join(" › ")} ›`, percent: null, result: null } : null;
+		emitTo("main", "orbit-status", status).catch(() => {});
+	}, [chain, phase.kind]);
+
 	// The status goes to the notch instead: this window steps out of the way.
 	useEffect(() => {
 		if (!state.current.inNotch) return;
