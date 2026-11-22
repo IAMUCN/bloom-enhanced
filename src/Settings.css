@@ -3365,3 +3365,10 @@ button.shortcut-icon:hover {
 	transform: translateY(-2px);
 	color: var(--bloom-accent, #6a55ff);
 }
+
+/* The other pages sit at the left; About is centred in the window. */
+.settings-content.settings-content > section[data-tab="about"] {
+	max-width: 720px;
+	margin-left: auto;
+	margin-right: auto;
+}
