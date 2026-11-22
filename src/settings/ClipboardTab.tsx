@@ -1,19 +1,24 @@
 import { useEffect, useState } from "react";
+import { invoke } from "@tauri-apps/api/core";
 import { availableMonitors } from "@tauri-apps/api/window";
 import {
 	BellRing,
 	ClipboardCheck,
-	ClipboardList,
 	EyeOff,
+	Gauge,
 	Globe,
 	History,
 	Image,
 	Keyboard,
 	Layers,
 	ListChecks,
-	Maximize2,
+	UserRound,
 	Monitor,
+	MousePointer2,
+	Network,
 	PanelLeft,
+	Archive,
+	Sparkles,
 	StickyNote,
 	Timer,
 	Trash2,
@@ -21,12 +26,12 @@ import {
 } from "lucide-react";
 import { useClipboardSettings } from "../hooks/useClipboardSettings";
 import { SettingRow } from "./SettingRow";
+import { CopyEffectRows } from "./CopyEffectRows";
 import { Choice } from "./Choice";
 import { ScaleStepper } from "./ScaleStepper";
 
 interface ClipboardTabProps {
 	enabled: boolean;
-	toggleEnabled: () => void;
 	incognito: boolean;
 	toggleIncognito: () => void;
 	limit: number;
@@ -45,6 +50,8 @@ interface ClipboardTabProps {
 	saveSetting: (key: string, value: string | null) => Promise<boolean>;
 	/** The notch is on; without it the "notch" position is the top edge. */
 	notchOn: boolean;
+	shelfPersist: boolean;
+	toggleShelfPersist: () => void;
 }
 
 // Optional Edge-Drop features, each on by default and switchable here.
@@ -86,9 +93,88 @@ const RETENTION: [number, string][] = [
 	[720, "30 days"]
 ];
 
+/** How a side shelf opens (`bloom-clipboard-edge-open`): thrown at the edge
+ *  (default; creeping there to reach a browser's side tabs doesn't open it)
+ *  or resting there. Dragging a file to it always opens on resting. */
+function EdgeOpenRow({ saveSetting }: { saveSetting: (key: string, value: string | null) => Promise<boolean> }) {
+	const [mode, setMode] = useState(() => (localStorage.getItem("bloom-clipboard-edge-open") === "rest" ? "rest" : "flick"));
+	const [speed, setSpeed] = useState(() => Number(localStorage.getItem("bloom-clipboard-edge-speed")) || 1000);
+	return (
+		<>
+		<SettingRow
+			icon={MousePointer2}
+			label="How It Opens"
+			desc={mode === "flick" ? "Throw the pointer at the edge; moving there slowly doesn't open it" : "Rest the pointer at the edge"}
+		>
+			<Choice
+				value={mode}
+				options={[
+					["flick", "Quick move"],
+					["rest", "Rest"]
+				]}
+				onChange={(v) => (setMode(v), saveSetting("bloom-clipboard-edge-open", v))}
+				label="How the shelf opens"
+			/>
+		</SettingRow>
+		{mode === "flick" && (
+			<SettingRow icon={Gauge} label="Quick Move Speed" desc={`How fast the pointer must reach the edge: ${speed} px a second (lower opens more easily)`}>
+				<input
+					type="range"
+					min="300"
+					max="8000"
+					step="100"
+					value={speed}
+					onChange={(e) => {
+						const v = parseInt(e.target.value, 10);
+						setSpeed(v);
+						saveSetting("bloom-clipboard-edge-speed", String(v));
+					}}
+					className="settings-slider"
+					aria-label="Quick move speed"
+				/>
+			</SettingRow>
+		)}
+		</>
+	);
+}
+
+/** The port sharing listens on (`bloom-share-port`, default 47917): change it
+ *  when another app holds it. Every PC that shares together needs the same
+ *  one; it applies after a restart. */
+function SharePortRow({ saveSetting }: { saveSetting: (key: string, value: string | null) => Promise<boolean> }) {
+	const saved = localStorage.getItem("bloom-share-port") || "47917";
+	const [port, setPort] = useState(saved);
+	const [changed, setChanged] = useState(false);
+	const valid = /^\d+$/.test(port) && Number(port) >= 1024 && Number(port) <= 65535;
+	return (
+		<SettingRow icon={Network} label="Sharing Port" desc={changed ? "Restart LotusNotch to use it; use the same port on every PC" : "Change it if another app uses it (the same on every PC)"}>
+			<input
+				className="setting-text-input setting-port-input"
+				value={port}
+				inputMode="numeric"
+				maxLength={5}
+				aria-label="Sharing port"
+				aria-invalid={!valid}
+				onChange={(e) => setPort(e.target.value.replace(/\D/g, ""))}
+				onBlur={() => {
+					if (!valid) return setPort(saved);
+					if (port === saved) return;
+					saveSetting("bloom-share-port", port);
+					setChanged(true);
+				}}
+				onKeyDown={(e) => e.key === "Enter" && e.currentTarget.blur()}
+			/>
+			{changed && (
+				<button type="button" className="setting-button" onClick={() => invoke("restart_bloom").catch(() => {})}>
+					Restart
+				</button>
+			)}
+		</SettingRow>
+	);
+}
+
 export function ClipboardTab({
 	enabled,
-	toggleEnabled,
 	incognito,
 	toggleIncognito,
 	limit,
@@ -105,7 +191,9 @@ export function ClipboardTab({
 	shortcut,
 	changeShortcut,
 	saveSetting,
-	notchOn
+	notchOn,
+	shelfPersist,
+	toggleShelfPersist
 }: ClipboardTabProps) {
 	const options = useClipboardSettings();
 	const [monitors, setMonitors] = useState<string[]>([]);
@@ -114,40 +202,40 @@ export function ClipboardTab({
 			.then((list) => setMonitors(list.map((m) => m.name).filter((n): n is string => !!n)))
 			.catch(() => {});
 	}, []);
+	const [openBeam, setOpenBeam] = useState(() => localStorage.getItem("bloom-clipboard-open-beam") !== "false");
+	const featureRow = ([option, key, icon, label, desc]: (typeof FEATURE_TOGGLES)[number], i: number, all: readonly unknown[]) => (
+		<SettingRow key={key} icon={icon} label={label} desc={desc} divider={i < all.length - 1}>
+			<label className="toggle-switch">
+				<input type="checkbox" checked={options[option]} onChange={() => saveSetting(key, String(!options[option]))} />
+				<span className="slider"></span>
+			</label>
+		</SettingRow>
+	);
 	return (
 		<>
-			<div className="setting-group-label">Clipboard</div>
-			<div className="setting-group">
-				<SettingRow
-					icon={ClipboardList}
-					label="Clipboard History"
-					desc="Record what you copy and show it in the notch's Clipboard panel"
-				>
-					<label className="toggle-switch">
-						<input type="checkbox" checked={enabled} onChange={toggleEnabled} />
-						<span className="slider"></span>
-					</label>
-				</SettingRow>
-
-				{enabled && (
-					<SettingRow
-						icon={EyeOff}
-						label="Incognito"
-						desc="Pause recording; nothing copied meanwhile is kept"
-						divider={false}
-					>
-						<label className="toggle-switch">
-							<input type="checkbox" checked={incognito} onChange={toggleIncognito} />
-							<span className="slider"></span>
-						</label>
-					</SettingRow>
-				)}
-			</div>
-
 			{enabled && (
 				<>
-					<div className="setting-group-label">Shelf</div>
+					<div className="setting-group-label">Position &amp; Opening</div>
 					<div className="setting-group">
+						<SettingRow icon={Archive} label="Keep Items" desc="Keep items dropped on the notch shelf after LotusNotch closes">
+							<label className="toggle-switch">
+								<input type="checkbox" checked={shelfPersist} onChange={toggleShelfPersist} />
+								<span className="slider"></span>
+							</label>
+						</SettingRow>
+						<SettingRow icon={Sparkles} label="Opening Beam" desc="A gradient beam runs once round the edge shelf's outline each time it opens">
+							<label className="toggle-switch">
+								<input
+									type="checkbox"
+									checked={openBeam}
+									onChange={() => {
+										setOpenBeam(!openBeam);
+										saveSetting("bloom-clipboard-open-beam", String(!openBeam));
+									}}
+								/>
+								<span className="slider"></span>
+							</label>
+						</SettingRow>
 						<SettingRow
 							icon={PanelLeft}
 							label="Position"
@@ -169,19 +257,7 @@ export function ClipboardTab({
 								label="Shelf position"
 							/>
 						</SettingRow>
-
-						{position === "notch" && notchOn && (
-							<SettingRow icon={Maximize2} label="Wide in the Notch" desc="A wider Clipboard panel, so more and larger tiles fit">
-								<label className="toggle-switch">
-									<input
-										type="checkbox"
-										checked={options.notchWide}
-										onChange={() => saveSetting("bloom-clipboard-notch-wide", String(!options.notchWide))}
-									/>
-									<span className="slider"></span>
-								</label>
-							</SettingRow>
-						)}
+						{(position === "left" || position === "right") && <EdgeOpenRow saveSetting={saveSetting} />}
 
 						{(position !== "notch" || !notchOn) && monitors.length > 1 && (
 							<SettingRow icon={Monitor} label="Shelf Monitor" desc="Which screen's edge the shelf slides out of">
@@ -247,24 +323,22 @@ export function ClipboardTab({
 				<>
 					<div className="setting-group-label">Features</div>
 					<div className="setting-group">
-						{FEATURE_TOGGLES.map(([option, key, icon, label, desc], i) => (
-							<SettingRow
-								key={key}
-								icon={icon}
-								label={label}
-								desc={desc}
-								divider={i < FEATURE_TOGGLES.length - 1}
-							>
-								<label className="toggle-switch">
-									<input
-										type="checkbox"
-										checked={options[option]}
-										onChange={() => saveSetting(key, String(!options[option]))}
-									/>
-									<span className="slider"></span>
-								</label>
-							</SettingRow>
-						))}
+						{FEATURE_TOGGLES.slice(0, 4).map(featureRow)}
+						<details className="settings-disclosure">
+							<summary>
+								More <span>Sounds and the Copied badge</span>
+							</summary>
+							{FEATURE_TOGGLES.slice(4).map(featureRow)}
+						</details>
+					</div>
+				</>
+			)}
+
+			{enabled && options.copyIndicator && (
+				<>
+					<div className="setting-group-label">Copy Effect</div>
+					<div className="setting-group">
+						<CopyEffectRows />
 					</div>
 				</>
 			)}
@@ -305,6 +379,47 @@ export function ClipboardTab({
 					onClick={clearHistory}
 				/>
 			</div>
+			<div className="setting-group-label">Privacy</div>
+			<div className="setting-group">
+				{enabled && (
+					<SettingRow
+						icon={EyeOff}
+						label="Incognito"
+						desc="Pause recording; nothing copied meanwhile is kept"
+						divider={false}
+					>
+						<label className="toggle-switch">
+							<input type="checkbox" checked={incognito} onChange={toggleIncognito} />
+							<span className="slider"></span>
+						</label>
+					</SettingRow>
+				)}
+			</div>
+
+			{enabled && (
+				<>
+					<div className="setting-group-label">Sharing</div>
+					<div className="setting-group">
+						<SettingRow icon={UserRound} label="Your Name" desc="Shown only to people you share your Shelf with" divider={false}>
+							<input
+								className="setting-text-input"
+								defaultValue={localStorage.getItem("bloom-share-name") ?? ""}
+								maxLength={48}
+								placeholder="Your name"
+								aria-label="Your name"
+								onBlur={(e) => {
+									const name = e.target.value.trim();
+									if (name === (localStorage.getItem("bloom-share-name") ?? "")) return;
+									saveSetting("bloom-share-name", name);
+									if (name) invoke("share_set_name", { name }).catch(() => {});
+								}}
+							/>
+						</SettingRow>
+						<SharePortRow saveSetting={saveSetting} />
+					</div>
+				</>
+			)}
+
 		</>
 	);
 }

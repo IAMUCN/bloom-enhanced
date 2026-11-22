@@ -49,6 +49,8 @@ const pdfs = every(["pdf"]);
 /** Word and PowerPoint files: PDF through the installed Office. */
 const office = every(["doc", "docx", "rtf", "odt", "ppt", "pptx", "pps", "ppsx", "odp"]);
 const files = (exts: string[]) => exts.length > 0;
+/** Selected text dragged in (no files). */
+const text = (exts: string[], input: OrbitInput) => exts.length === 0 && !!input.text;
 
 const format = (to: string, fromPdf: boolean): Entry => ({
 	id: `convert.${to}`,
@@ -74,7 +76,9 @@ export const CATALOG: Record<OrbitMode, Entry[]> = {
 			label: "One PDF",
 			progress: "Combining into one PDF",
 			fits: (exts) => exts.length > 1 && images(exts)
-		}
+		},
+		{ id: "text.upper", label: "UPPER", icon: "CaseUpper", progress: "Copying", fits: text },
+		{ id: "text.lower", label: "lower", icon: "CaseLower", progress: "Copying", fits: text }
 	],
 	tools: [
 		{
@@ -86,16 +90,30 @@ export const CATALOG: Record<OrbitMode, Entry[]> = {
 			fits: (exts) => exts.length > 1 && exts.includes("pdf") && exts.every((e) => e === "pdf" || images([e]))
 		},
 		{ id: "tool.pdf.split", label: "Split", icon: "Scissors", progress: "Splitting into pages", fits: pdfs },
+		{ id: "tool.pdf.compress", label: "Compress", icon: "FileDown", progress: "Compressing the PDF", fits: pdfs },
+		{ id: "tool.pdf.rotate-right", label: "Rotate right", icon: "RotateCw", progress: "Rotating pages", fits: pdfs },
+		{ id: "tool.pdf.rotate-left", label: "Rotate left", icon: "RotateCcw", progress: "Rotating pages", fits: pdfs },
+		// The pages are drawn, changed and put back as a PDF of pictures.
+		{ id: "tool.pdf.invert", label: "Invert", icon: "SunMoon", progress: "Inverting the PDF", fits: pdfs },
+		{ id: "tool.pdf.grayscale", label: "Grayscale", icon: "Contrast", progress: "Making the PDF grayscale", fits: pdfs },
 		{ id: "tool.image.rotate-right", label: "Rotate right", icon: "RotateCw", progress: "Rotating", fits: images },
 		{ id: "tool.image.rotate-left", label: "Rotate left", icon: "RotateCcw", progress: "Rotating", fits: images },
 		{ id: "tool.image.flip", label: "Flip", icon: "FlipHorizontal2", progress: "Flipping", fits: images },
 		{ id: "tool.image.grayscale", label: "Grayscale", icon: "Contrast", progress: "Making grayscale", fits: images },
 		{ id: "tool.image.half", label: "Half size", icon: "Minimize2", progress: "Resizing", fits: images },
 		{ id: "tool.image.compress", label: "Compress", icon: "FileDown", progress: "Compressing", fits: images },
+		{ id: "tool.image.resize", label: "Resize", icon: "Scaling", progress: "Resizing", fits: images },
+		{ id: "tool.image.square", label: "Square", icon: "Crop", progress: "Cropping", fits: images },
+		{ id: "tool.image.invert", label: "Invert", icon: "SunMoon", progress: "Inverting", fits: images },
+		// Saving again keeps only the pixels: location and camera details go.
+		{ id: "tool.image.clean", label: "No details", icon: "EyeOff", progress: "Removing details", fits: images },
+		{ id: "text.count", label: "Word count", icon: "Hash", progress: "Counting", fits: text },
 		{ id: "tool.archive.extract", label: "Extract", icon: "FolderOpen", progress: "Extracting", fits: every(["zip"]) }
 	],
 	actions: [
 		{ id: "action.shelf", label: "To shelf", icon: "ClipboardPlus", progress: "Adding", fits: (e, i) => files(e) || !!i.text },
+		{ id: "text.search", label: "Search web", icon: "Search", progress: "Searching", fits: text },
+		{ id: "text.save", label: "Save .txt", icon: "FileText", progress: "Saving", fits: text },
 		{ id: "action.copy-path", label: "Copy path", icon: "Link", progress: "Copying", fits: files },
 		{ id: "action.copy-name", label: "Copy name", icon: "Type", progress: "Copying", fits: files },
 		{ id: "action.copy-to", label: "Copy to", icon: "Copy", progress: "Copying", fits: files },
@@ -142,6 +160,122 @@ export function opsFor(input: OrbitInput, mode: OrbitMode, layout: OrbitLayout =
 	return ordered(mode, layout)
 		.filter((op) => !layout.hidden.includes(op.id) && entries.get(op.id)?.fits(exts, input))
 		.map((op) => ({ ...op, label: entries.get(op.id)?.labelFor?.(input.paths.length) ?? op.label }));
+}
+
+// ── Chains: several options in a row (hover one and press Ctrl to add it) ──
+
+const entryOf = (id: string) => {
+	const base = id.split(":")[0];
+	for (const m of MODES) {
+		const e = CATALOG[m].find((x) => x.id === base);
+		if (e) return e;
+	}
+};
+
+/** An option by id (typed argument ignored), as the menu lists it. */
+export const opById = (id: string): OrbitOp | undefined => {
+	const e = entryOf(id);
+	return e && { id: e.id, label: e.label, icon: e.icon, progress: e.progress };
+};
+
+/** The label of an option id (a typed argument after a colon is ignored). */
+export const opLabel = (id: string) => {
+	const arg = id.split(":")[1];
+	return (entryOf(id)?.label ?? id) + (arg ? ` ${arg}` : "");
+};
+
+/** Options that make new files for the next step (the others leave the files as they are). */
+export const makesFiles = (id: string) => /^(convert|tool)\./.test(id);
+
+/** The file types after an option has run on files of `exts`; null = nothing can follow it. */
+function afterStep(base: string, exts: string[]): string[] | null {
+	if (base.startsWith("convert.")) {
+		const to = base.slice(8);
+		// A PDF to images may give a folder of pages.
+		return pdfs(exts) && to !== "pdf" ? null : exts.map(() => to);
+	}
+	switch (base) {
+		case "tool.image.pdf-combine":
+		case "tool.pdf.merge":
+			return ["pdf"];
+		case "tool.image.compress":
+			return exts.map(() => "jpg");
+		case "tool.pdf.split":
+		case "tool.archive.extract":
+			return null;
+		case "action.zip":
+			return ["zip"];
+	}
+	return exts;
+}
+
+/** One more step on `input`: what the files are afterwards (an input to list
+ *  the next options for), null when it is fine but must be the last step, or
+ *  false when it cannot be done to this. `changed`: an earlier step made new
+ *  files (Split reads the page count of the real file, so it cannot follow). */
+export function chainStep(input: OrbitInput, id: string, changed = false): OrbitInput | null | false {
+	const base = id.split(":")[0];
+	const entry = entryOf(base);
+	const exts = input.paths.map(extOf);
+	if (!entry || !entry.fits(exts, input)) return false;
+	if (base === "tool.pdf.split" && changed) return false;
+	// Text: upper/lower stay text; Save .txt makes a file the next steps act on.
+	if (input.text) return base === "text.save" ? { paths: ["x.txt"] } : ["text.count", "text.search"].includes(base) ? null : input;
+	const out = afterStep(base, exts);
+	return out ? { paths: out.map((e, i) => `x${i}.${e}`) } : null;
+}
+
+/** What `input` is after `ids` have run (the options to show next), or null
+ *  when the chain cannot be done. */
+export function chainAfter(input: OrbitInput, ids: string[]): OrbitInput | null {
+	let cur = input;
+	let changed = false;
+	for (const id of ids) {
+		const next = chainStep(cur, id, changed);
+		if (!next) return null;
+		cur = next;
+		changed = changed || makesFiles(id);
+	}
+	return cur;
+}
+
+/** Whether the whole chain can run (its last step may be one nothing follows). */
+export function chainValid(input: OrbitInput, ids: string[]): boolean {
+	let cur = input;
+	let changed = false;
+	for (let i = 0; i < ids.length; i++) {
+		const next = chainStep(cur, ids[i], changed);
+		if (next === false) return false;
+		if (next === null) return i === ids.length - 1;
+		cur = next;
+		changed = changed || makesFiles(ids[i]);
+	}
+	return true;
+}
+
+/** What can be dragged, for Settings › Radial Menu: it shows the menu as
+ *  it looks for each (the wheel only ever shows the options that fit). */
+export const DRAG_KINDS = [
+	["images", "Images"],
+	["pdfs", "PDFs"],
+	["files", "Other files"],
+	["text", "Text"]
+] as const;
+export type DragKind = (typeof DRAG_KINDS)[number][0];
+const SAMPLES: Record<DragKind, OrbitInput[]> = {
+	images: [{ paths: ["a.png"] }, { paths: ["a.png", "b.jpg"] }],
+	pdfs: [{ paths: ["a.pdf"] }, { paths: ["a.pdf", "b.pdf"] }],
+	files: [{ paths: ["a.zip"] }, { paths: ["a.docx"] }, { paths: ["a.txt", "b.mp4"] }],
+	text: [{ paths: [], text: "text" }]
+};
+
+/** Every option of `mode` that one or several files of `kind` can get, in
+ *  the user's order, hidden ones included. */
+export function opsForKind(kind: DragKind, mode: OrbitMode, layout: OrbitLayout = DEFAULT_LAYOUT): OrbitOp[] {
+	const entries = new Map(CATALOG[mode].map((e) => [e.id, e]));
+	return ordered(mode, layout).filter((op) =>
+		SAMPLES[kind].some((input) => entries.get(op.id)?.fits(input.paths.map(extOf), input))
+	);
 }
 
 /** Modes with options for `input`, in the user's Shift order. */

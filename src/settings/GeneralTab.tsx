@@ -1,6 +1,98 @@
 import { useState } from "react";
-import { Power, Download, Clock, BatteryWarning, RefreshCw, RotateCcw, LogOut, Gauge } from "lucide-react";
+import { Power, Download, Clock, BatteryWarning, RefreshCw, RotateCcw, LogOut, FileDown, Upload, Wand2, Gauge, Leaf, AudioLines, Sparkles, Droplets } from "lucide-react";
+import { Choice } from "./Choice";
 import { SettingRow } from "./SettingRow";
+import { HideFromCaptureRow } from "./HideFromCaptureRow";
+
+type Pauses = { visualizer: boolean; motion: boolean; glass: boolean };
+const PAUSES: [keyof Pauses, typeof Leaf, string, string][] = [
+	["visualizer", AudioLines, "Pause Visualizer", "The music bars stop listening to your audio"],
+	["motion", Sparkles, "Calmer Motion", "Notch animations become shorter and simpler"],
+	["glass", Droplets, "No Glass", "Blur and glass effects are turned off"]
+];
+
+/** Battery saver: when it turns on (`bloom-battery-saver`: off, on battery,
+ *  or on battery at or below `bloom-battery-saver-threshold`) and what it
+ *  pauses (`bloom-battery-saver-pauses`). A leaf shows on the notch while on. */
+function BatterySaver({ saveSetting }: { saveSetting: (key: string, value: string | null) => Promise<boolean> }) {
+	const [mode, setMode] = useState(() => localStorage.getItem("bloom-battery-saver") ?? "below");
+	const [threshold, setThreshold] = useState(
+		() => parseInt(localStorage.getItem("bloom-battery-saver-threshold") ?? "", 10) || 30
+	);
+	const [pauses, setPauses] = useState<Pauses>(() => {
+		const all = { visualizer: true, motion: true, glass: true };
+		try {
+			return { ...all, ...JSON.parse(localStorage.getItem("bloom-battery-saver-pauses") ?? "{}") };
+		} catch {
+			return all;
+		}
+	});
+	return (
+		<>
+			<div className="setting-group-label">Battery Saver</div>
+			<div className="setting-group">
+				<SettingRow
+					icon={Leaf}
+					label="Battery Saver"
+					desc={
+						mode === "off"
+							? "Never turns on"
+							: mode === "battery"
+								? "On whenever the PC runs on battery"
+								: `On when on battery at or below ${threshold}%`
+					}
+					divider={mode !== "off"}
+				>
+					<Choice
+						value={mode}
+						options={[["off", "Off"], ["battery", "On battery"], ["below", "Low battery"]] as const}
+						onChange={(v) => {
+							setMode(v);
+							saveSetting("bloom-battery-saver", v);
+						}}
+						label="When Battery saver turns on"
+					/>
+				</SettingRow>
+				{mode === "below" && (
+					<SettingRow icon={BatteryWarning} label="Turn On Below" desc={`At or below ${threshold}% on battery`}>
+						<input
+							type="range"
+							min="10"
+							max="80"
+							step="5"
+							value={threshold}
+							onChange={(e) => {
+								const v = parseInt(e.target.value, 10);
+								setThreshold(v);
+								saveSetting("bloom-battery-saver-threshold", String(v));
+							}}
+							className="settings-slider"
+							aria-label="Battery saver threshold"
+						/>
+					</SettingRow>
+				)}
+				{mode !== "off" && <p className="radial-hint">When Battery saver is on, the options below are paused or switched off. Turn off the ones you want to keep.</p>}
+				{mode !== "off" &&
+					PAUSES.map(([key, icon, label, desc], i) => (
+						<SettingRow key={key} icon={icon} label={label} desc={desc} divider={i < PAUSES.length - 1}>
+							<label className="toggle-switch">
+								<input
+									type="checkbox"
+									checked={pauses[key]}
+									onChange={() => {
+										const next = { ...pauses, [key]: !pauses[key] };
+										setPauses(next);
+										saveSetting("bloom-battery-saver-pauses", JSON.stringify(next));
+									}}
+								/>
+								<span className="slider"></span>
+							</label>
+						</SettingRow>
+					))}
+			</div>
+		</>
+	);
+}
 
 interface GeneralTabProps {
 	autostart: boolean;
@@ -14,6 +106,10 @@ interface GeneralTabProps {
 	restartBloom: () => void;
 	resetToDefaults: () => void;
 	quitBloom: () => void;
+	exportStatus: string;
+	importStatus: string;
+	handleExportSettings: () => void;
+	handleImportSettings: () => void;
 	saveSetting: (key: string, value: string | null) => Promise<boolean>;
 }
 
@@ -29,6 +125,10 @@ export function GeneralTab({
 	restartBloom,
 	resetToDefaults,
 	quitBloom,
+	exportStatus,
+	importStatus,
+	handleExportSettings,
+	handleImportSettings,
 	saveSetting
 }: GeneralTabProps) {
 	// Settings, the radial menu and the edge shelf exist only while used,
@@ -38,7 +138,7 @@ export function GeneralTab({
 		<>
 			<div className="setting-group-label">System</div>
 			<div className="setting-group">
-				<SettingRow icon={Power} label="Launch at Login" desc="Open Bloom automatically">
+				<SettingRow icon={Power} label="Launch at Login" desc="Open LotusNotch automatically">
 					<label className="toggle-switch">
 						<input type="checkbox" checked={autostart} onChange={toggleAutostart} />
 						<span className="slider"></span>
@@ -81,9 +181,46 @@ export function GeneralTab({
 				</SettingRow>
 			</div>
 
-			<div className="setting-group-label">Performance</div>
+			<div className="setting-group-label">Privacy: leave out of recordings, screen shares and screenshots</div>
+			<div className="setting-group">
+				<HideFromCaptureRow label="Hide the Notch" settingKey="bloom-notch-hide-from-capture" byDefault what="the notch (and the Shelf inside it)" />
+				<HideFromCaptureRow label="Hide the Dock" settingKey="bloom-dock-hide-from-capture" byDefault={false} what="the dock" />
+				<HideFromCaptureRow label="Hide the Shelf" settingKey="bloom-clipboard-hide-from-capture" byDefault={false} what="the Shelf on a screen edge (in the notch it follows the notch)" />
+				<HideFromCaptureRow label="Hide the Radial Menu" settingKey="bloom-files-hide-from-capture" byDefault what="the radial menu" />
+			</div>
+
+			<div className="setting-group-label">Backup &amp; Setup</div>
 			<div className="setting-group">
 				<SettingRow
+					icon={FileDown}
+					label={exportStatus === "exporting" ? "Exporting..." : exportStatus === "success" ? "Exported!" : exportStatus === "error" ? "Export failed. Try again." : "Export Settings"}
+					desc="Save your whole setup (every preference, pinned dock apps, custom icons) to a file"
+					action
+					onClick={handleExportSettings}
+				/>
+				<SettingRow
+					icon={Upload}
+					label={importStatus === "importing" ? "Importing..." : importStatus === "success" ? "Imported!" : importStatus === "error" ? "Import failed. Check the file and try again." : "Import Settings"}
+					desc="Load a LotusNotch, Bloom Enhanced or Bloom settings file; applies right away"
+					action
+					onClick={handleImportSettings}
+				/>
+				<SettingRow icon={Wand2} label="Run Setup Again" desc="Pick your modules, then size the notch and dock with a live preview" divider={false}>
+					<button type="button" className="setting-button" onClick={() => window.dispatchEvent(new Event("run-setup"))}>
+						Start
+					</button>
+				</SettingRow>
+			</div>
+
+			<BatterySaver saveSetting={saveSetting} />
+
+			<div className="setting-group-label">Advanced</div>
+			<div className="setting-group">
+				<details className="settings-disclosure">
+					<summary>
+						More <span>Memory and speed</span>
+					</summary>
+					<SettingRow
 					icon={Gauge}
 					label="Keep Windows Loaded"
 					desc={
@@ -105,6 +242,7 @@ export function GeneralTab({
 						<span className="slider"></span>
 					</label>
 				</SettingRow>
+				</details>
 			</div>
 
 			<div className="setting-group-label">App</div>
@@ -112,21 +250,21 @@ export function GeneralTab({
 				<SettingRow
 					icon={RotateCcw}
 					label="Reset to Defaults"
-					desc="Restore all settings and restart Bloom"
+					desc="Restore all settings and restart LotusNotch"
 					action
 					danger
 					onClick={resetToDefaults}
 				/>
 				<SettingRow
 					icon={RefreshCw}
-					label="Restart Bloom"
+					label="Restart LotusNotch"
 					desc="Reinitialize all components"
 					action
 					onClick={restartBloom}
 				/>
 				<SettingRow
 					icon={LogOut}
-					label="Quit Bloom"
+					label="Quit LotusNotch"
 					desc="Exit application completely"
 					action
 					danger

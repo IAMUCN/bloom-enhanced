@@ -1,11 +1,16 @@
 <div align="center">
 
-<img src="src-tauri/icons/128x128.png" width="72" alt="Bloom Enhanced" />
+<img src="src-tauri/icons/128x128.png" width="72" alt="LotusNotch" />
 
-# Bloom Enhanced
+# LotusNotch
 
-A Windows desktop that feels alive: a notch, a dock, a clipboard shelf and a
-radial file menu, in one small app.
+The dynamic notch for Windows: a notch full of switchable tools, a dock, a
+clipboard shelf and a radial file menu, in one small app. Formerly Bloom
+Enhanced.
+
+> **Work in progress.** LotusNotch is being built in the open towards 1.0.
+> Things change between versions; 1.0 is the first release meant for
+> everyone.
 
 Built on [Bloom](https://github.com/SehajveerSingh2005/bloom), with ideas from
 [Edge-Drop](https://github.com/Deepender25/Edge-Drop) and
@@ -16,7 +21,7 @@ Built on [Bloom](https://github.com/SehajveerSingh2005/bloom), with ideas from
 ---
 
 Bloom makes your Windows desktop feel alive.
-Bloom Enhanced keeps all of it, and adds the tools you reach for every day:
+LotusNotch keeps all of it, and adds the tools you reach for every day:
 everything you copy, kept on a shelf, and a ring around your pointer that
 converts and acts on files without opening an app.
 
@@ -137,13 +142,13 @@ bun run tauri dev
 You'll need [Rust](https://rustup.rs/) and [Bun](https://bun.sh/). Windows 10
 or 11.
 
-Opening Bloom Enhanced from the Start menu opens its Settings.
+Opening LotusNotch from the Start menu opens its Settings.
 
 ---
 
 ## Credits
 
-Bloom Enhanced stands on the work of three open-source projects:
+LotusNotch stands on the work of three open-source projects:
 
 | Project | By | What it brings |
 | --- | --- | --- |
@@ -162,7 +167,7 @@ Licensed under [GPLv3](LICENSE), like Bloom.
 
 <div align="center">
 
-**Bloom Enhanced** · made by [IAMUCN](https://github.com/IAMUCN)
+**LotusNotch** · made by [IAMUCN](https://github.com/IAMUCN)
 
 A product of **UCN INDUSTRIES**
 

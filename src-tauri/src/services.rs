@@ -45,7 +45,14 @@ pub fn setup_keyboard_hook(app_handle: AppHandle) {
     std::thread::spawn(move || {
         // Exiting removes the hook with the process; never touch it mid-shutdown.
         while !SHUTTING_DOWN.load(Ordering::Relaxed) {
-            let wanted = NATIVE_TASKBAR_HIDDEN.load(Ordering::Relaxed) && dock_win_number_enabled();
+            // Win+Number needs it while the dock replaces the taskbar; Esc
+            // needs it while the notch is open (so it works with the dock off
+            // and costs nothing while the notch is closed).
+            let wanted = (NATIVE_TASKBAR_HIDDEN.load(Ordering::Relaxed)
+                && dock_win_number_enabled())
+                || crate::state::NOTCH_OPEN.load(Ordering::Relaxed)
+                || crate::clipboard::shelf_open()
+                || crate::shortcuts::any();
             if wanted != (KEYBOARD_HOOK.load(Ordering::Relaxed) != 0) {
                 // A low-level hook runs on the thread that installed it, which
                 // needs a message loop, so install and remove it on the main thread.
@@ -87,15 +94,6 @@ fn dock_win_number_enabled() -> bool {
         return true;
     };
     crate::utils::get_setting_str(app, "bloom-dock-win-number-enabled")
-        .map(|v| v != "false")
-        .unwrap_or(true)
-}
-
-/// Whether one of Bloom's HUD overlays is enabled (`bloom-volume-overlay-enabled`,
-/// `bloom-brightness-overlay-enabled`). With an overlay off, the matching keys
-/// and the native flyout are left to Windows instead of being taken over.
-fn overlay_enabled(app: &AppHandle, key: &str) -> bool {
-    crate::utils::get_setting_str(app, key)
         .map(|v| v != "false")
         .unwrap_or(true)
 }
@@ -163,6 +161,14 @@ fn emit_dock_win_number(index: u8) {
     });
 }
 
+/// True while one of LotusNotch's own windows has the keyboard.
+fn foreground_is_ours() -> bool {
+    use windows::Win32::UI::WindowsAndMessaging::{GetForegroundWindow, GetWindowThreadProcessId};
+    let mut pid = 0u32;
+    unsafe { GetWindowThreadProcessId(GetForegroundWindow(), Some(&mut pid)) };
+    pid == std::process::id()
+}
+
 unsafe extern "system" fn keyboard_hook_proc(
     code: i32,
     wparam: windows::Win32::Foundation::WPARAM,
@@ -177,6 +183,46 @@ unsafe extern "system" fn keyboard_hook_proc(
         let vk_code = VIRTUAL_KEY(kb.vkCode as u16);
         let is_down = wparam.0 == WM_KEYDOWN as usize || wparam.0 == WM_SYSKEYDOWN as usize;
         let is_up = wparam.0 == WM_KEYUP as usize || wparam.0 == WM_SYSKEYUP as usize;
+
+        // Global shortcuts (Ctrl + left Alt + key, shortcuts.rs): a match is
+        // swallowed so the focused app doesn't also act on it.
+        if is_down
+            && (kb.flags.0 & LLKHF_INJECTED.0) == 0
+            && (crate::shortcuts::on_key_down(kb.vkCode as u16)
+                || crate::shortcuts::on_open_notch_digit(kb.vkCode as u16))
+        {
+            return windows::Win32::Foundation::LRESULT(1);
+        }
+
+        // Esc steps the open notch back (a list → the Command Center → closed).
+        // The key still reaches the focused app. Only read the flag: the
+        // notch reports open/closed itself (set_notch_open), and an Esc that
+        // only steps back leaves it open.
+        // While LotusNotch has the keyboard (typing in the notch), Windows
+        // doesn't call this hook; the page handles Esc itself then. Skip it
+        // here too, so one press never counts twice.
+        if is_down
+            && vk_code == windows::Win32::UI::Input::KeyboardAndMouse::VK_ESCAPE
+            && crate::state::NOTCH_OPEN.load(Ordering::Relaxed)
+            && !foreground_is_ours()
+        {
+            if let Some(app) = KEYBOARD_HOOK_APP_HANDLE.get().cloned() {
+                // Off the hook thread: a low-level hook must return quickly.
+                std::thread::spawn(move || {
+                    let _ = app.emit_to("main", "notch-escape", ());
+                });
+            }
+        }
+
+        // Esc closes an open edge Shelf (its window never takes the keyboard).
+        if is_down
+            && vk_code == windows::Win32::UI::Input::KeyboardAndMouse::VK_ESCAPE
+            && crate::clipboard::shelf_open()
+        {
+            if let Some(app) = KEYBOARD_HOOK_APP_HANDLE.get().cloned() {
+                std::thread::spawn(move || crate::clipboard::clipboard_shelf_close(app));
+            }
+        }
 
         // Only physical presses drive the Win+Number replacement; injected
         // events (our own Start taps and mask key) must not re-enter it.
@@ -330,6 +376,26 @@ unsafe extern "system" fn window_change_event_proc(
     // queue hundreds of dock rescans during slider interaction.
     if id_object != 0 || id_child != 0 {
         return;
+    }
+
+    // Snipping Tool (Win+Shift+S / R, Print Screen) lists the windows it
+    // offers in its first instant, before the throttled capture scan below
+    // has hidden the notch (it was still offered, 2026-11-19). Its first
+    // window being created is the earliest sign: hide now, and hold the scan
+    // off until its overlay is up so the scan doesn't undo this meanwhile.
+    {
+        use windows::Win32::UI::WindowsAndMessaging::{EVENT_OBJECT_CREATE, EVENT_OBJECT_SHOW};
+        if (event == EVENT_OBJECT_CREATE || event == EVENT_OBJECT_SHOW)
+            && !CAPTURE_UI_ACTIVE.load(Ordering::Relaxed)
+            && is_capture_tool_window(hwnd)
+        {
+            if let Some(app) = WINDOW_CHANGE_APP_HANDLE.get() {
+                CAPTURE_UI_ACTIVE.store(true, Ordering::Relaxed);
+                apply_capture_ui_state(app, true);
+                CAPTURE_LAST_SCAN_MS.store(now_ms() + 1500, Ordering::Relaxed);
+                CAPTURE_RECHECK.store(true, Ordering::Relaxed);
+            }
+        }
     }
 
     // A top-level window appeared/disappeared (or focus moved): capture UI
@@ -676,6 +742,11 @@ pub fn setup_audio_visualization(app_handle: AppHandle) {
             let mut prev_values = [0.1f32; NUM_BANDS];
 
             loop {
+                // Unwanted (visualizer off, Battery saver): no capture at all,
+                // just a slow check until it's wanted again.
+                while !crate::state::VISUALIZER_WANTED.load(Ordering::Relaxed) {
+                    std::thread::sleep(std::time::Duration::from_millis(500));
+                }
                 let _: Result<(), String> = (|| {
                     let enumerator: IMMDeviceEnumerator = CoCreateInstance(
                         &windows::Win32::Media::Audio::MMDeviceEnumerator,
@@ -769,6 +840,10 @@ pub fn setup_audio_visualization(app_handle: AppHandle) {
                                     }
                                 }
                             }
+                        }
+
+                        if !crate::state::VISUALIZER_WANTED.load(Ordering::Relaxed) {
+                            return Err("Visualizer paused".into());
                         }
 
                         // Skip all heavy processing if nothing is playing
@@ -996,18 +1071,6 @@ pub fn setup_system_worker(app_handle: AppHandle) -> Sender<SystemCommand> {
             let mut last_volume: f32 = -1.0;
             let mut last_muted: bool = false;
 
-            // Only hide the native flyout when Bloom's matching overlay replaces it.
-            let hide_osd = |overlay_key: &str| {
-                if !overlay_enabled(&handle_system, overlay_key) {
-                    return;
-                }
-                use windows::Win32::UI::WindowsAndMessaging::{FindWindowA, ShowWindow, SW_HIDE};
-                let class1 = windows::core::PCSTR(c"NativeHWNDHost".as_ptr() as *const u8);
-                if let Ok(hwnd1) = FindWindowA(class1, windows::core::PCSTR::null()) {
-                    let _ = ShowWindow(hwnd1, SW_HIDE);
-                }
-            };
-
             loop {
                 // Check for device change
                 if last_device_check.elapsed().as_secs() >= 2 {
@@ -1051,7 +1114,6 @@ pub fn setup_system_worker(app_handle: AppHandle) -> Sender<SystemCommand> {
                             if volume > 0.0 {
                                 let _ = aev.SetMute(false, std::ptr::null());
                             }
-                            hide_osd("bloom-volume-overlay-enabled");
                         }
                         (SystemCommand::SetVolume(_), None) => {}
                         (SystemCommand::MediaPlayPause, _) => {
@@ -1111,7 +1173,6 @@ pub fn setup_system_worker(app_handle: AppHandle) -> Sender<SystemCommand> {
                                     is_muted,
                                 },
                             );
-                            hide_osd("bloom-volume-overlay-enabled");
                         }
                     }
                 }
@@ -1711,7 +1772,10 @@ pub fn setup_system_worker(app_handle: AppHandle) -> Sender<SystemCommand> {
                 osd_sync_ticks += 1;
                 if osd_sync_ticks >= 10 {
                     osd_sync_ticks = 0;
-                    sync_native_osd(&handle_visibility);
+                    // The volume/brightness overlay was removed (2026-11-15):
+                    // Windows' own flyout shows. This also undoes a flyout
+                    // left hidden by an older version or a crashed run.
+                    set_native_osd_suppressed(false);
                 }
 
                 // Enforce native taskbar hiding (periodic check)
@@ -1897,20 +1961,6 @@ pub fn set_native_osd_suppressed(suppress: bool) {
             }
         }
     }
-}
-
-/// The volume and brightness flyouts share one host window, so it is only
-/// suppressed while Bloom replaces both. With either overlay turned off, the
-/// user asked for the native flyout and it must stay visible.
-fn sync_native_osd(app_handle: &AppHandle) {
-    let enabled = |key: &str| {
-        get_setting_str(app_handle, key)
-            .map(|v| v != "false")
-            .unwrap_or(true)
-    };
-    set_native_osd_suppressed(
-        enabled("bloom-brightness-overlay-enabled") && enabled("bloom-volume-overlay-enabled"),
-    );
 }
 
 pub fn setup_brightness_worker() {
@@ -2247,29 +2297,11 @@ unsafe extern "system" fn capture_ui_enum_proc(hwnd: HWND, lparam: LPARAM) -> BO
 
     let mut pid = 0u32;
     GetWindowThreadProcessId(hwnd, Some(&mut pid));
-    if pid != 0 && pid != std::process::id() {
-        if let Ok(handle) = OpenProcess(PROCESS_QUERY_LIMITED_INFORMATION, false, pid) {
-            let mut buf = [0u16; 512];
-            let mut len = buf.len() as u32;
-            if QueryFullProcessImageNameW(
-                handle,
-                PROCESS_NAME_WIN32,
-                windows::core::PWSTR(buf.as_mut_ptr()),
-                &mut len,
-            )
-            .is_ok()
-            {
-                let path = String::from_utf16_lossy(&buf[..len as usize]).to_lowercase();
-                let name = path.rsplit('\\').next().unwrap_or("");
-                if name == "snippingtool.exe"
-                    || name == "screenclippinghost.exe"
-                    || name == "screensketch.exe"
-                {
-                    *found = true;
-                }
-            }
-            let _ = CloseHandle(handle);
-        }
+    if pid != 0
+        && pid != std::process::id()
+        && crate::commands::process_image_path(pid).is_some_and(|p| is_capture_tool_name(&p))
+    {
+        *found = true;
     }
 
     if !*found {
@@ -2285,6 +2317,46 @@ unsafe extern "system" fn capture_ui_enum_proc(hwnd: HWND, lparam: LPARAM) -> BO
     }
 
     BOOL(1)
+}
+
+/// Settings › Notch › Hide From Recordings (`bloom-notch-hide-from-capture`).
+pub fn notch_hides_from_capture() -> bool {
+    crate::state::SETTINGS_CACHE
+        .get()
+        .and_then(|c| {
+            c.lock()
+                .ok()?
+                .get("bloom-notch-hide-from-capture")?
+                .as_str()
+                .map(|v| v != "false")
+        })
+        .unwrap_or(true)
+}
+
+fn is_capture_tool_name(path: &str) -> bool {
+    let name = path.rsplit('\\').next().unwrap_or("").to_lowercase();
+    matches!(
+        name.as_str(),
+        "snippingtool.exe" | "screenclippinghost.exe" | "screensketch.exe"
+    )
+}
+
+/// The window belongs to Snipping Tool. The last process looked up is
+/// remembered: one app creates many windows in a row.
+fn is_capture_tool_window(hwnd: HWND) -> bool {
+    static LAST: Mutex<(u32, bool)> = Mutex::new((0, false));
+    let mut pid = 0u32;
+    unsafe { GetWindowThreadProcessId(hwnd, Some(&mut pid)) };
+    if pid == 0 || pid == std::process::id() {
+        return false;
+    }
+    let mut last = LAST.lock().unwrap_or_else(|e| e.into_inner());
+    if last.0 != pid {
+        let hit = unsafe { crate::commands::process_image_path(pid) }
+            .is_some_and(|p| is_capture_tool_name(&p));
+        *last = (pid, hit);
+    }
+    last.1
 }
 
 fn is_capture_ui_present() -> bool {
@@ -2308,7 +2380,11 @@ fn apply_capture_ui_state(app: &AppHandle, active: bool) {
             if let Ok(hwnd) = main_win.hwnd() {
                 set_click_through(hwnd, true);
             }
-            let _ = main_win.hide();
+            // Only when the notch hides from recordings (Settings › Notch,
+            // on by default); off = it stays, so a screenshot can show it.
+            if notch_hides_from_capture() {
+                let _ = main_win.hide();
+            }
         } else {
             if crate::utils::notch_enabled() {
                 let _ = main_win.show();
@@ -2432,16 +2508,26 @@ fn run_mouse_hook_thread() {
             queue_cursor(point);
             MOUSE_HOOK_LAST_EVENT_MS.store(hook_tick_ms(), Ordering::Relaxed);
         }
+        // Set after a reinstall until the hook delivers an event again. While
+        // input goes to an elevated window or the secure desktop, no hook of
+        // ours sees it; reinstalling every tick then only churned (2,111
+        // reinstalls in 16 days, in once-a-second bursts). One reinstall per
+        // episode still recovers a hook Windows really removed.
+        let mut reinstall_mark: Option<i64> = None;
         while GetMessageW(&mut message, None, 0, 0).0 > 0 {
             if message.message == WM_TIMER && message.wParam.0 == timer {
                 if SHUTTING_DOWN.load(Ordering::Relaxed) {
                     break;
                 }
+                let last_event = MOUSE_HOOK_LAST_EVENT_MS.load(Ordering::Relaxed);
+                if reinstall_mark.is_some_and(|mark| last_event != mark) {
+                    reinstall_mark = None;
+                }
                 let mut current = windows::Win32::Foundation::POINT::default();
                 let cursor_moved_without_hook = GetCursorPos(&mut current).is_ok()
                     && pack_cursor(current) != MOUSE_HOOK_CURSOR.load(Ordering::Relaxed)
-                    && hook_tick_ms() - MOUSE_HOOK_LAST_EVENT_MS.load(Ordering::Relaxed) > 750;
-                if hook.is_none() || cursor_moved_without_hook {
+                    && hook_tick_ms() - last_event > 750;
+                if hook.is_none() || (cursor_moved_without_hook && reinstall_mark.is_none()) {
                     if let Some(old) = hook.take() {
                         let _ = UnhookWindowsHookEx(old);
                     }
@@ -2456,7 +2542,9 @@ fn run_mouse_hook_thread() {
                     );
                     if hook.is_some() {
                         queue_cursor(current);
-                        MOUSE_HOOK_LAST_EVENT_MS.store(hook_tick_ms(), Ordering::Relaxed);
+                        let mark = hook_tick_ms();
+                        MOUSE_HOOK_LAST_EVENT_MS.store(mark, Ordering::Relaxed);
+                        reinstall_mark = Some(mark);
                     }
                 }
             } else {
@@ -2543,6 +2631,10 @@ fn top_edge_armed_for(
 
 /// Hover + click-through state for the notch window. Shared by the mouse hook
 /// (on movement) and the top-edge watchdog (to finish a stationary dwell).
+/// How far past the open notch's edge the pointer may stray before it
+/// closes (left, right and below).
+const OPEN_GRACE_PX: f64 = 40.0;
+
 fn update_main_interaction(
     app_handle: &AppHandle,
     cursor: windows::Win32::Foundation::POINT,
@@ -2631,8 +2723,31 @@ fn update_main_interaction(
                 let rx = win_pos.x + (r.x as f64 * scale) as i32 - pad_x - hyst;
                 let rw = (r.width as f64 * scale) as i32 + (pad_x * 2) + (hyst * 2);
                 let ry_top = win_pos.y;
-                let ry_bottom = win_pos.y + (r.height as f64 * scale) as i32 + pad_y_bottom + hyst;
-
+                let mut rx = rx;
+                let mut rw = rw;
+                let mut ry_bottom =
+                    win_pos.y + (r.height as f64 * scale) as i32 + pad_y_bottom + hyst;
+                // The clickable region is the box the notch is animating to:
+                // count it as the notch too, so a stale NOTCH_RECT can't make
+                // the lower part of a tall page (the Shelf) count as outside.
+                let region = crate::state::NOTCH_REGION.lock().ok().and_then(|g| *g);
+                if let Some((left, _, right, bottom)) = region {
+                    let left = win_pos.x + (left as f64 * scale) as i32;
+                    let right = win_pos.x + (right as f64 * scale) as i32;
+                    rw = (rx + rw).max(right) - rx.min(left);
+                    rx = rx.min(left);
+                    ry_bottom = ry_bottom.max(win_pos.y + (bottom as f64 * scale) as i32);
+                }
+                // Grace around the open notch (user, 2026-11-20): a shaky
+                // hand reaching for a corner button may slip past its edge;
+                // it closes only once the pointer is this far out. Clicks out
+                // there still reach the apps below (the window region).
+                if crate::state::NOTCH_OPEN.load(Ordering::Relaxed) {
+                    let grace = (OPEN_GRACE_PX * scale) as i32;
+                    rx -= grace;
+                    rw += grace * 2;
+                    ry_bottom += grace;
+                }
                 let in_notch_rect = cursor.x >= rx
                     && cursor.x <= (rx + rw)
                     && cursor.y >= ry_top
@@ -2721,6 +2836,11 @@ fn setup_top_edge_watchdog(app_handle: AppHandle) {
         }
         let fg_fs = CURRENT_FOREGROUND_FULLSCREEN.load(Ordering::Relaxed);
         update_main_interaction(&app_handle, pt, now_ms(), fg_fs);
+        // The edge Shelf too, while it's open or the cursor rests on its
+        // edge (no mouse events then; also none over elevated apps).
+        if crate::clipboard::shelf_needs_tick(pt.x, pt.y) {
+            queue_cursor(pt);
+        }
     });
 }
 
@@ -3934,7 +4054,9 @@ pub unsafe extern "system" fn enum_windows_proc(hwnd: HWND, lparam: LPARAM) -> B
                         || (window_class == "#32770" && dialog_has_tab_control(hwnd));
 
                     // Filter out Bloom itself (except the Settings window) and some common background processes
-                    if (lowercase_path.contains("bloom.exe") && title != "Settings")
+                    if ((lowercase_path.contains("bloom.exe")
+                        || lowercase_path.contains("lotusnotch.exe"))
+                        && title != "Settings")
                         || lowercase_path.contains("conhost.exe")
                         || (lowercase_path.contains("explorer.exe") && !is_explorer_window)
                         || lowercase_path.contains("shellexperiencehost.exe")
@@ -4469,6 +4591,14 @@ fn recover_from_webview_failure(handle: &AppHandle) {
 
 #[cfg(test)]
 mod tests {
+    #[test]
+    fn snipping_tool_is_recognised() {
+        assert!(super::is_capture_tool_name(
+            r"C:\Program Files\WindowsApps\Microsoft.ScreenSketch_11.2609.15.0_x64__8wekyb3d8bbwe\SnippingTool\SnippingTool.exe"
+        ));
+        assert!(!super::is_capture_tool_name(r"C:\Windows\explorer.exe"));
+    }
+
     #[test]
     fn smart_dock_overlap_uses_the_expanded_bar_instead_of_the_live_pill() {
         let expanded = super::dock_span_px(

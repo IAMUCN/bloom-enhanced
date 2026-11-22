@@ -21,6 +21,8 @@ export interface ClipTileProps {
 	notes: boolean;
 	richText: boolean;
 	copied?: boolean;
+	/** Just added: plays the one-off highlight. */
+	fresh?: boolean;
 	selected?: boolean;
 	onPointerDown?: (e: React.PointerEvent) => void;
 	onPointerMove?: (e: React.PointerEvent) => void;
@@ -120,7 +122,7 @@ export function ClipTile(props: ClipTileProps) {
 
 	return (
 		<div
-			className={`ctile ${item.kind === "text" && !color ? `is-text text-${link ? "medium" : textSize}` : ""} ${item.pinned ? "pinned" : ""} ${selected ? "selected" : ""}`}
+			className={`ctile ${item.kind === "text" && !color ? `is-text text-${link ? "medium" : textSize}` : ""} ${item.pinned ? "pinned" : ""} ${selected ? "selected" : ""} ${props.fresh ? "fx-new" : ""}`}
 			data-clip-id={item.id}
 			onPointerDown={props.onPointerDown}
 			onPointerMove={props.onPointerMove}
@@ -202,6 +204,16 @@ export function ClipTile(props: ClipTileProps) {
 						</>
 					) : (
 						<>
+							{item.unsynced && (
+								<span className="ctile-unsynced" title="Too big for live clipboard (25 MB), so not sent">
+									Not synced ·{" "}
+								</span>
+							)}
+							{item.from && (
+								<>
+									<span className="ctile-from">From {item.from}</span> ·{" "}
+								</>
+							)}
 							{timeAgo(item.captured_at)}
 							{item.hits > 1 && ` · ${item.hits}×`}
 						</>

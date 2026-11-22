@@ -48,7 +48,8 @@ Edit `settings.json` with any text editor while Bloom is running. Changes are ap
 | `bloom-notch-edge-delay` | milliseconds `"0"`–`"2000"`      | `"200"`   | In smart/peek mode, how long the cursor must rest against the top screen edge before the notch peeks. `"0"` reveals instantly. |
 | `bloom-notch-style`      | `"notch"` / `"pill"` / `"minimal"` | `"notch"` | Idle look. **notch** = attached to the top edge with flares. **pill** = floating capsule below the edge. **minimal** = thin bar while idle; content shows on hover, music, or alerts. |
 | `bloom-notch-scale`      | float string `"0.5"`–`"1.5"`     | (unset)   | Size of the notch only. Unset = follows `bloom-scale`. |
-| `bloom-notch-panel-scales` | JSON object, panel → `0.5`–`1.5` | `"{}"` | Per-panel notch size on top of `bloom-notch-scale`, e.g. `{"calendar":1.2,"music":0.9}`. Panels: `calendar`, `command-center` (incl. Wi-Fi/Bluetooth), `devices`, `music`, `shelf`, `clipboard`. Missing panels use 1. Command Center's 1 is 30% larger than its original layout. The time row keeps one size on every page. |
+| `bloom-notch-open-scale` | float string `"0.8"`–`"1.25"`    | `"1"`     | Extra size of the open notch only, on top of `bloom-notch-scale` (Settings › Notch › Open Size; asked in the first-run setup with the notch held open as a preview). |
+| `bloom-notch-panel-scales` | — | — | Removed in 0.2 (one Notch Size for every panel); ignored if present. |
 | `bloom-notch-panel-order` | JSON list of `command-center`, `calendar`, `clipboard`, `devices` | `"[]"` | Order scrolling, swiping and the arrows go through the notch pages. Pages left out follow in the default order: Command Center, Calendar, Shelf (`clipboard`, when the clipboard is in the notch), Devices. |
 | `bloom-notch-time-size`  | `"0.7"`–`"1.5"` | `"1"` | Size of the clock in the notch, on top of the notch size. |
 | `bloom-notch-left-size`  | `"0.7"`–`"1.5"` | `"1"` | Size of the status widgets left of the clock. |
@@ -75,8 +76,36 @@ Edit `settings.json` with any text editor while Bloom is running. Changes are ap
 | `bloom-notch-devices-enabled` | `"true"` / `"false"` | `"false"` | Show the Connected devices panel in the notch. Settings keeps at least one of the panels (calendar, Command Center, Connected devices) on; if all are off, the notch shows Command Center. |
 | `bloom-music-mode-enabled`  | `"true"` / `"false"`              | `"true"` | Enable interactive music media widget.                                                                   |
 | `bloom-music-compact-notch` | `"true"` / `"false"`              | `"true"` | Show compact music display (visualizer + artwork) in collapsed notch.                                    |
-| `bloom-notch-remember-panel` | `"true"` / `"false"` | `"true"` | Click opens the last-used panel when on; when off, click opens `bloom-notch-default-panel`. |
-| `bloom-notch-default-panel` | `"calendar"` / `"command-center"` / `"devices"` | `"calendar"` | Fixed panel opened on click when panel memory is off. If that panel is turned off, the first panel that's on opens instead. |
+| `bloom-motion` | `on` \| `off` | `on` | Animations (Settings › Appearance). On by default, even when Windows' "Animation effects" is off; `off` turns LotusNotch's motion off. Battery saver can still pause it. Old value `windows` reads as `on`. |
+| `bloom-cc-tiles` | JSON list of tile ids | `["wifi","bluetooth","dnd","night-light","energy","airplane","hotspot","cast","project","captions","nearby","notch-mode","task-manager"]` | The Command Center tiles (Settings › Notch › Command Center › Tiles). 16 at most: Wi-Fi and Bluetooth always on top, then up to 14 round tiles in two rows of seven, in the order the user drags them into. Round tile ids: `dnd`, `captions`, `nearby`, `night-light`, `energy`, `airplane`, `hotspot`, `cast`, `project`, `dock-mode` (hidden while the dock is off), `notch-mode`, `radial-menu` (turns the Radial Menu on or off, `bloom-files-enabled`), `studio`, `accessibility`, `task-manager`, `tray`, `notifications`, `windows-settings`, `lotus-settings`, `restart`. Real switches: Wi-Fi, Bluetooth, Night light, Energy saver, Airplane mode, Mobile hotspot, Live captions, Nearby sharing, Dock/Notch mode (their mode shows under the icon); Do not disturb and Studio effects open their Windows page; Cast and Project open their pickers. |
+| `bloom-shortcuts` | JSON object action → chord | `{}` (defaults apply) | Global keyboard shortcuts (Settings › Shortcuts). Every chord is Ctrl + left Alt (+ Shift) + a key; AltGr never fires one. Defaults: `notch` Ctrl+Alt+N, `tool-1`…`tool-9` Ctrl+Alt+1…9 (tabs by position), `tool:command-center` Ctrl+Alt+C, `snip` Ctrl+Alt+S, `ocr` Ctrl+Alt+T, `picker` Ctrl+Alt+P, `mic` Ctrl+Alt+M. Also settable: `tool:<id>` for every tool, `tile:<id>` for every Command Center tile. `""` clears one. The old `bloom-notch-shortcut` still applies while `bloom-shortcuts` is unset. |
+| `bloom-timer-display` | `both` \| `pill` \| `edge` \| `off` | `both` | How the Timer tool's running countdown shows on the closed notch (Settings › Tools › Timer): the time in place of the clock, an edge light that fills as time passes, both, or nothing. A running timer keeps the notch on screen in Peek / Smart. |
+| `bloom-game-glance` | `on` \| `off` | `off` | Game strip glance (the eye button in the Game strip): time · CPU · GPU · RAM take the clock's place on the closed notch (and keep it on screen in Peek / Smart) while the Game strip is on. |
+| `bloom-notch-favourite` | tool id | `command-center` | The tool the notch opens on (star in Settings › Tools); any tool. Falls back to the old `bloom-notch-default-panel`. |
+| `bloom-notch-favourite-on` | `"true"` / `"false"` | `"true"` | Off: the notch opens on the tool used last (`bloom-notch-last-tool`, kept in the notch's local storage). |
+| `bloom-notch-quick-return` | minutes: `0` `2` `5` `15` `30` | `5` | Come back within this time and the notch reopens the tool you left; beats the favourite. `0` = off. Replaces Smart Start (`bloom-notch-remember-panel`: off → 0). |
+| `bloom-tab-order` | JSON list of tool ids | `[]` | The tab bar's order, set by dragging in Settings › Tools (built-in and extra tools mixed). Tools not in it follow in their default place. `bloom-notch-panel-order` is kept in step for the mouse-wheel cycle. |
+| `bloom-tools-enabled` | JSON list of tool ids | `[]` | The notch tools beyond the built-in panels that are on, in tab order (Settings › Notch › More Tools). Off tools are never loaded; each tool's data lives in `<app config>/tools/<id>.json` until "Erase data". |
+| `bloom-tools-picked` | `"true"` / absent | absent | Set once the first-run "Pick your tools" welcome in Settings was finished or skipped. |
+| `bloom-setup-done` | `"true"` / absent | absent | Set once the first-run setup (your name, notch size, Pick your tools) was finished or skipped; until then the notch opens Settings on start. |
+| `bloom-battery-saver` | `"off"` / `"battery"` / `"below"` | `"below"` | When Battery saver turns on: never, on battery, or on battery at or below `bloom-battery-saver-threshold`. A leaf shows on the notch while it's on. |
+| `bloom-battery-saver-threshold` | percent as string, `"10"`–`"80"` | `"30"` | Battery level for `"below"`. |
+| `bloom-battery-saver-pauses` | JSON `{"visualizer","motion","glass"}` booleans | all `true` | What Battery saver pauses: the audio visualizer (stops the capture), animations (reduced motion), blur. |
+| `bloom-files-anim-open` / `-anim-switch` / `-anim-close` | `"true"` / `"false"` | `"true"` | Radial Menu animations (OrbitDrop style): grow-in on open, slices turn in on a menu switch, pop and fade on a pick. |
+| `bloom-files-anim-speed` | `"slow"` / `"normal"` / `"fast"` | `"normal"` | How fast the radial menu animations play. |
+| `bloom-files-chain-at` | `"notch"` / `"cursor"` | `"notch"` | Where a radial chain shows while it is built (the notch, or a tag by the pointer; never both). Without a notch it is the pointer. |
+| `bloom-progress-color` | hex or `""` | `""` | Colour of the radial job progress light on the notch; empty follows the accent. |
+| `bloom-progress-effect` | `"edge"` / `"center"` / `"bar"` / `"beam"` / `"glow"` / `"off"` | `"edge"` | How a radial-menu job's progress shows on the notch (when Show Progress is Notch); the result glows green or red once. |
+| `bloom-notch-shortcut` | e.g. `"Ctrl+Alt+N"`, `""` = none | `"Ctrl+Alt+N"` | Global shortcut that opens and closes the notch (RegisterHotKey; at least one modifier unless an F-key). |
+| `bloom-notch-open-on` | `"click"` / `"hover"` | `"click"` | How the notch opens: a click, or resting the pointer on it for `bloom-notch-hover-delay`. |
+| `bloom-notch-hover-delay` | ms as string, `"0"`–`"1000"` | `"300"` | Hover opening: how long the pointer rests on the notch first. |
+| `bloom-notch-hide-from-capture` | `"true"` / `"false"` | `"true"` | Leaves the notch (and the Shelf inside it) out of screen recordings, shares and screenshots (Windows can't tell them apart), and hides the notch while Snipping Tool is open. Off = screenshots show it. The Teleprompter hides it while it shows either way. |
+| `bloom-dock-hide-from-capture` | `"true"` / `"false"` | `"false"` | The same for the dock (Settings › Dock). |
+| `bloom-clipboard-hide-from-capture` | `"true"` / `"false"` | `"false"` | The same for the Shelf on a screen edge (Settings › Shelf); in the notch it follows the notch. |
+| `bloom-share-port` | port as string, `"1024"`–`"65535"` | `"47917"` | The port Shelf sharing finds other PCs on. Change it when another app holds it (53317, the old default, is LocalSend's). Every PC that shares together needs the same port; it applies after a restart. |
+| `bloom-files-hide-from-capture` | `"true"` / `"false"` | `"true"` | The same for the radial menu (Settings › Radial Menu). |
+| `bloom-notch-remember-panel` | `"true"` / `"false"` | `"true"` | Smart Start: a click reopens the last-used panel if the notch closed less than 5 minutes ago; otherwise (or when off) it opens `bloom-notch-default-panel`. |
+| `bloom-notch-default-panel` | `"calendar"` / `"command-center"` / `"devices"` | `"command-center"` | The favourite panel: opened on click when Smart Start doesn't reopen the last one. If that panel is turned off, the first panel that's on opens instead. |
 | `bloom-notch-last-panel`    | `"calendar"` / `"command-center"` / `"devices"` | (unset)  | Last panel the notch was left on, saved by Bloom while panel memory is on. |
 | `bloom-notch-click-to-open` | `"true"` / `"false"` | (legacy) | Old setting read only when `bloom-notch-remember-panel` is absent; `"false"` now selects fixed-panel behavior. |
 | `bloom-device-looks` | JSON object, device name → `"headphones"` / `"round-buds"` / `"stem-buds"` / `"neckband"` / `"speaker"` for Bluetooth audio; `"headphones-wired"` / `"earbuds-usbc"` / `"earbuds-jack"` / `"speaker"` / `"microphone"` for wired and USB audio | (unset) | The drawing an audio device's connection popup uses, picked under "Looks like" in the notch's Connected devices panel (or, for Bluetooth, its Bluetooth view). Devices without a pick are guessed from their name and class. |
@@ -92,14 +121,21 @@ Edit `settings.json` with any text editor while Bloom is running. Changes are ap
 | `bloom-clipboard-group-files` | `"true"` / `"false"` | `"true"` | Several files copied at once are one fanned stack (click it to see the files, or ungroup it). `"false"` records each file as its own item. Items can also be grouped later by dropping one tile on another or with multi-select; text joins a group as a .txt file. |
 | `bloom-clipboard-thumb-size` | `"small"` / `"medium"` / `"large"` | `"small"` | Minimum tile width in the clipboard grid (96 / 116 / 148 px); tiles stretch to fill the row. |
 | `bloom-clipboard-position` | `"notch"` / `"left"` / `"right"` | `"notch"` | Where the history lives: the notch's Clipboard panel (with the notch off, a shelf under the middle of the top edge), or a shelf that slides out of the left or right screen edge. On a shared edge the first of shelf and volume/brightness HUD to open keeps the edge until it closes. Dragging something in goes to the same place: the notch, or that edge. |
+| `bloom-clipboard-edge-open` | `"flick"` / `"rest"` | `"flick"` | How a left or right edge shelf opens: `"flick"` = the pointer thrown at the edge (at `bloom-clipboard-edge-speed` or faster; reaching the edge slowly, as for a browser's side tabs, doesn't open it), `"rest"` = resting at the edge 150 ms. Dragging a file to the edge always opens it on resting. |
+| `bloom-clipboard-edge-speed` | px per second as string, `"300"`–`"3000"` | `"1000"` | Quick move: how fast the pointer must reach the edge to open a side shelf. Lower opens more easily. |
 | `bloom-clipboard-shortcut` | e.g. `"Alt+C"`, `"Ctrl+Shift+V"`, `"F9"` | `"Alt+C"` | Global shortcut that opens/closes the clipboard (notch panel or edge shelf). `""` = no shortcut. Letters, digits and Space need a modifier. |
 | `bloom-clipboard-monitor` | monitor device name as Windows reports it (ends in `DISPLAY2` etc.) | `""` | Screen whose edge the shelf uses; `""` = primary. Ignored when the clipboard is in the notch. |
-| `bloom-clipboard-notch-wide` | `"true"` / `"false"` | `"false"` | A wider Clipboard panel in the notch (560 instead of 380), so more and larger tiles fit. |
+| `bloom-clipboard-notch-wide` | `"true"` / `"false"` | `"false"` | No longer used: the Shelf in the notch now always has the notch's one open width. |
+| `bloom-share-name` | string (≤ 48 chars) | (unset: the PC's name) | Your name, shown only to people you share your Shelf with (asked on first run; Settings › Shelf › Sharing). |
 | `bloom-clipboard-rich-text` | `"true"` / `"false"` | `"true"` | Keep the HTML of formatted text (up to 64 KB) and paste it back formatted. |
 | `bloom-clipboard-link-previews` | `"true"` / `"false"` | `"true"` | Show a site badge, a title from the address and the domain for links. Made offline; nothing is fetched. |
 | `bloom-clipboard-notes` | `"true"` / `"false"` | `"true"` | Allow a note or #tags on items. Noted items are kept through cleanup and found by search. |
 | `bloom-clipboard-multi-select` | `"true"` / `"false"` | `"true"` | Ctrl-click or the select button picks several items to group, copy, pin or delete. |
 | `bloom-clipboard-sounds` | `"true"` / `"false"` | `"true"` | Short synthesized sounds for copy, pin/group and delete in the panel. |
+| `bloom-clipboard-open-beam` | `"true"` / `"false"` | `"true"` | A gradient beam runs once round the edge shelf when it opens. |
+| `bloom-copy-effect` | `"beam"` / `"neon"` / `"glow"` / `"off"` | `"beam"` | The light on the closed notch's edge with "Copied" (Shelf › Copy Effect). |
+| `bloom-copy-color` | hex or `""` | `""` | Its colour; empty follows the accent. |
+| `bloom-open-effect` | `"lotus"` / `"off"` | `"lotus"` | The lotus signature lights the notch edge when it opens. |
 | `bloom-clipboard-copy-indicator` | `"true"` / `"false"` | `"true"` | The notch briefly shows "Copied" when something is recorded. |
 
 ### Files
@@ -133,22 +169,17 @@ Edit `settings.json` with any text editor while Bloom is running. Changes are ap
 | `bloom-media-visualizer-enabled`   | `"true"` / `"false"`      | `"true"`    | Audio visualizer bars in music mode. Also accepts `bloom-visualizer-enabled` (legacy alias).    |
 | `bloom-media-album-art-enabled`    | `"true"` / `"false"`      | `"true"`    | Show album artwork in the notch music display.                                                  |
 
-### Overlays
+### Overlays (removed)
 
-| Key                                | Type                 | Default  | Description                                                              |
-| ---------------------------------- | -------------------- | -------- | ------------------------------------------------------------------------ |
-| `bloom-volume-overlay-enabled`     | `"true"` / `"false"` | `"true"` | Show Bloom volume HUD when volume changes (replaces native Windows OSD). |
-| `bloom-volume-edge-enabled`        | `"true"` / `"false"` | `"true"` | Trigger volume HUD by hovering the left screen edge.                     |
-| `bloom-brightness-overlay-enabled` | `"true"` / `"false"` | `"true"` | Show Bloom brightness HUD when brightness changes.                       |
-| `bloom-brightness-edge-enabled`    | `"true"` / `"false"` | `"true"` | Trigger brightness HUD by hovering the right screen edge.                |
+The volume and brightness HUDs were removed on 2026-11-15: the Command Center has both sliders, and Windows shows its own flyout for the keys. `bloom-volume-overlay-enabled`, `bloom-volume-edge-enabled`, `bloom-brightness-overlay-enabled` and `bloom-brightness-edge-enabled` are ignored; old files may still carry them (export keeps them in an `overlays` group).
 
 ### Appearance
 
 | Key                      | Type                                             | Default     | Description                                                                                                                                                 |
 | ------------------------ | ------------------------------------------------ | ----------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `bloom-theme-mode`       | `"dark"` / `"light"` / `"custom"` / `"adaptive"` | `"dark"`    | Theme mode. **dark** = dark translucent. **light** = light translucent. **custom** = user-picked color. **adaptive** = follows Windows system accent color. |
+| `bloom-theme-mode`       | `"dark"` (Black) / `"graphite"` / `"light"` / `"custom"` / `"adaptive"` | `"dark"`    | Theme mode. **dark** = dark translucent. **light** = light translucent. **custom** = user-picked color. **adaptive** = follows Windows system accent color. |
 | `bloom-theme-color`      | hex string                                       | `"#007aff"` | Custom theme color (used in `custom` and `adaptive` modes).                                                                                                 |
-| `bloom-theme-opacity`    | float string                                     | `"0.80"`    | Background opacity (0.1 to 1.0).                                                                                                                            |
+| `bloom-theme-opacity`    | float string                                     | `"1"`       | Background opacity (0.1 to 1.0); solid by default since 0.2.                                                                                                                            |
 | `bloom-theme-saturation` | float string                                     | `"0.50"`    | Color saturation for custom/adaptive themes (0.0 to 1.0).                                                                                                   |
 | `bloom-theme-brightness` | float string                                     | `"0.15"`    | Background brightness for custom/adaptive themes (0.0 to 1.0).                                                                                              |
 

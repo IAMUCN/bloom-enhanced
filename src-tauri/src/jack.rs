@@ -115,7 +115,7 @@ pub fn jack_state(active: &[Endpoint]) -> Option<Jack> {
     })
 }
 
-fn string_prop(device: &IMMDevice, key: &PROPERTYKEY) -> Option<String> {
+pub(crate) fn string_prop(device: &IMMDevice, key: &PROPERTYKEY) -> Option<String> {
     unsafe {
         let value = device
             .OpenPropertyStore(STGM_READ)

@@ -1,0 +1,1180 @@
+/* Shared look of the notch's tools (design file › Notch — Tools). */
+.notch-tool {
+	box-sizing: border-box;
+	width: 100%;
+	flex: 1;
+	min-height: 0;
+	display: flex;
+	flex-direction: column;
+	gap: 8px;
+	padding: 2px 16px 14px;
+	color: var(--bloom-text, #fff);
+	font-family: "Inter", "Segoe UI Variable Text", "Segoe UI", sans-serif;
+	font-size: 12px;
+	pointer-events: auto;
+	overflow: hidden;
+}
+
+.nt-row {
+	display: flex;
+	align-items: center;
+	gap: 8px;
+}
+
+.nt-grow {
+	flex: 1;
+	min-width: 0;
+}
+
+.nt-card {
+	box-sizing: border-box;
+	border-radius: 12px;
+	background: color-mix(in srgb, var(--bloom-text, #fff) 7%, transparent);
+	padding: 8px 10px;
+}
+
+.nt-muted {
+	color: var(--bloom-text-muted, rgba(255, 255, 255, 0.6));
+	font-size: 11px;
+}
+
+.nt-big {
+	font-size: 30px;
+	font-weight: 600;
+	font-variant-numeric: tabular-nums;
+	line-height: 1.1;
+}
+
+.nt-btn {
+	font: inherit;
+	display: inline-flex;
+	align-items: center;
+	justify-content: center;
+	gap: 5px;
+	border: none;
+	border-radius: 999px;
+	padding: 6px 12px;
+	background: color-mix(in srgb, var(--bloom-text, #fff) 10%, transparent);
+	color: inherit;
+	cursor: pointer;
+	white-space: nowrap;
+}
+
+.nt-btn:hover {
+	background: color-mix(in srgb, var(--bloom-text, #fff) 16%, transparent);
+}
+
+.nt-btn.primary {
+	background: var(--tool-color, var(--bloom-accent, #0a84ff));
+	color: #000;
+}
+
+.nt-btn:disabled {
+	opacity: 0.4;
+	cursor: default;
+}
+
+.nt-btn:focus-visible,
+.nt-input:focus-visible,
+.nt-seg button:focus-visible {
+	outline: 2px solid var(--bloom-accent, #0a84ff);
+	outline-offset: 1px;
+}
+
+.nt-icon-btn {
+	padding: 6px;
+}
+
+.nt-input {
+	font: inherit;
+	box-sizing: border-box;
+	width: 100%;
+	border: none;
+	border-radius: 10px;
+	padding: 7px 10px;
+	background: color-mix(in srgb, var(--bloom-text, #fff) 7%, transparent);
+	color: inherit;
+	outline: none;
+}
+
+textarea.nt-input {
+	resize: none;
+	line-height: 1.45;
+}
+
+.nt-seg {
+	display: inline-flex;
+	gap: 2px;
+	padding: 3px;
+	border-radius: 999px;
+	background: color-mix(in srgb, var(--bloom-text, #fff) 7%, transparent);
+}
+
+.nt-seg button {
+	font: inherit;
+	font-size: 11px;
+	border: none;
+	border-radius: 999px;
+	padding: 4px 10px;
+	background: none;
+	color: var(--bloom-text-muted, rgba(255, 255, 255, 0.6));
+	cursor: pointer;
+}
+
+.nt-seg button.on {
+	background: var(--tool-color, var(--bloom-accent, #0a84ff));
+	color: #000;
+}
+
+.nt-list {
+	display: flex;
+	flex-direction: column;
+	gap: 6px;
+	overflow-y: auto;
+	min-height: 0;
+	flex: 1;
+}
+
+.nt-list::-webkit-scrollbar {
+	width: 4px;
+}
+
+.nt-list::-webkit-scrollbar-thumb {
+	background: var(--bloom-scrollbar-thumb, rgba(255, 255, 255, 0.15));
+	border-radius: 999px;
+}
+
+/* A merged tool's parts (ToolHost): a row of segments under the tab bar. */
+.tool-segments {
+	display: flex;
+	justify-content: center;
+	gap: 4px;
+	height: 34px;
+	flex: none;
+	align-items: center;
+	pointer-events: auto;
+}
+
+.tool-segment {
+	position: relative;
+	display: flex;
+	align-items: center;
+	gap: 6px;
+	height: 26px;
+	padding: 0 10px;
+	border: none;
+	border-radius: 999px;
+	background: none;
+	color: var(--bloom-text-secondary, #a1a1aa);
+	font: 500 12px/1 "Inter", "Segoe UI", sans-serif;
+	cursor: pointer;
+}
+
+.tool-segment.on {
+	color: var(--bloom-text, #fff);
+}
+
+.tool-segment > svg,
+.tool-segment > span:not(.tool-segment-chip) {
+	position: relative;
+}
+
+.tool-segment-chip {
+	position: absolute;
+	inset: 0;
+	border-radius: 999px;
+	background: rgba(255, 255, 255, 0.1);
+}
+
+.tool-segment:focus-visible {
+	outline: 2px solid var(--bloom-accent, #0a84ff);
+	outline-offset: 1px;
+}
+
+/* Timer · Stopwatch · Pomodoro: one centred column, sized to fill the body
+   (user, 2026-11-15: bigger things in the same space). */
+.nt-timers {
+	display: flex;
+	flex-direction: column;
+	align-items: center;
+	justify-content: center;
+	gap: 8px;
+	flex: 1;
+	min-height: 0;
+	text-align: center;
+}
+
+.nt-timer-face {
+	display: flex;
+	align-items: center;
+	gap: 12px;
+}
+
+.nt-timer-face .nt-big {
+	font-variant-numeric: tabular-nums;
+	min-width: 4ch;
+}
+
+.nt-timer-actions {
+	display: flex;
+	align-items: center;
+	justify-content: center;
+	gap: 6px;
+	margin-top: 2px;
+}
+
+.nt-chip {
+	height: 26px;
+	padding: 0 10px;
+	border: none;
+	border-radius: 999px;
+	background: color-mix(in srgb, var(--bloom-text, #fff) 7%, transparent);
+	color: var(--bloom-text-muted, rgba(255, 255, 255, 0.7));
+	font: 500 11px/1 "Inter", "Segoe UI", sans-serif;
+	cursor: pointer;
+}
+
+.nt-chip.on {
+	background: color-mix(in srgb, var(--tool-color, #ffc94d) 22%, transparent);
+	color: var(--bloom-text, #fff);
+}
+
+.nt-chip:focus-visible {
+	outline: 2px solid var(--bloom-accent, #0a84ff);
+	outline-offset: 1px;
+}
+
+.nt-times-up {
+	font-weight: 800;
+	font-size: 14px;
+	letter-spacing: 0.06em;
+	color: #ffc94d;
+}
+
+/* System monitor (user's reference): one card, a row per reading. */
+.sm-card {
+	display: flex;
+	flex-direction: column;
+	padding: 2px 14px;
+	border-radius: 14px;
+	background: color-mix(in srgb, var(--bloom-text, #fff) 4%, transparent);
+	border: 1px solid color-mix(in srgb, var(--bloom-text, #fff) 8%, transparent);
+}
+
+.sm-row {
+	display: grid;
+	grid-template-columns: 16px 76px 1fr auto;
+	align-items: center;
+	gap: 12px;
+	height: 34px;
+}
+
+.sm-row + .sm-row {
+	border-top: 1px solid color-mix(in srgb, var(--bloom-text, #fff) 7%, transparent);
+}
+
+.sm-icon {
+	color: var(--bloom-text-secondary, #a1a1aa);
+}
+
+.sm-label {
+	font-size: 13px;
+	font-weight: 500;
+	color: var(--bloom-text-secondary, #c7c7cc);
+}
+
+.sm-mid {
+	display: flex;
+	align-items: center;
+	gap: 18px;
+	min-width: 0;
+}
+
+.sm-track {
+	position: relative;
+	flex: 1;
+	height: 5px;
+	border-radius: 3px;
+	background: color-mix(in srgb, var(--bloom-text, #fff) 12%, transparent);
+	overflow: hidden;
+}
+
+.sm-fill {
+	position: absolute;
+	inset: 0;
+	border-radius: 3px;
+	background: color-mix(in srgb, var(--bloom-text, #fff) 85%, transparent);
+	transform-origin: left center;
+	transition: transform 0.4s ease;
+}
+
+.sm-value {
+	min-width: 64px;
+	text-align: right;
+	font-size: 12px;
+	font-weight: 600;
+	font-variant-numeric: tabular-nums;
+}
+
+.sm-value.faint {
+	min-width: 0;
+}
+
+.sm-net {
+	display: flex;
+	align-items: center;
+	gap: 6px;
+	white-space: nowrap;
+	font-size: 12px;
+	font-variant-numeric: tabular-nums;
+}
+
+.sm-net strong {
+	font-weight: 600;
+}
+
+.sm-arrow,
+.sm-spark {
+	flex: none;
+	color: var(--bloom-text-secondary, #a1a1aa);
+}
+
+/* Mirror: the camera (its real aspect ratio) on the left, mic and speakers
+   on the right. */
+.mirror {
+	display: flex;
+	flex-direction: column;
+	gap: 10px;
+	flex: 1;
+	min-height: 0;
+}
+
+/* The camera, as large as the page allows, centred. */
+.mirror-stage {
+	flex: 1;
+	min-height: 0;
+	display: flex;
+	align-items: center;
+	justify-content: center;
+}
+
+.mirror-camera {
+	position: relative;
+	height: 100%;
+	max-width: 100%;
+	border-radius: 14px;
+	overflow: hidden;
+	background: #111;
+}
+
+.mirror-video {
+	width: 100%;
+	height: 100%;
+	object-fit: contain; /* the whole frame the camera captures */
+	transform: scaleX(-1); /* a mirror */
+	display: block;
+	background: #000;
+}
+
+.mirror-camera-off {
+	position: absolute;
+	inset: 0;
+	display: flex;
+	flex-direction: column;
+	align-items: center;
+	justify-content: center;
+	gap: 8px;
+	border: none;
+	background: none;
+	color: var(--bloom-text-secondary, #a1a1aa);
+	font: 500 13px/1.3 "Inter", "Segoe UI", sans-serif;
+	cursor: pointer;
+}
+
+.mirror-camera-off:hover {
+	color: var(--bloom-text, #fff);
+}
+
+.mirror-camera-stop {
+	position: absolute;
+	right: 8px;
+	top: 8px;
+	display: grid;
+	place-items: center;
+	width: 26px;
+	height: 26px;
+	border: none;
+	border-radius: 50%;
+	background: rgba(0, 0, 0, 0.6);
+	color: #fff;
+	cursor: pointer;
+}
+
+/* Under the camera: camera, mic and speakers, one line each. */
+.mirror-rows {
+	display: flex;
+	flex-direction: column;
+	gap: 6px;
+	flex: none;
+}
+
+.mirror-row {
+	display: flex;
+	align-items: center;
+	justify-content: center;
+	gap: 8px;
+	height: 30px;
+	min-width: 0;
+}
+
+.mirror-row-icon {
+	flex: none;
+	display: grid;
+	place-items: center;
+	width: 30px;
+	height: 30px;
+	border: none;
+	border-radius: 50%;
+	background: color-mix(in srgb, var(--bloom-text, #fff) 9%, transparent);
+	color: inherit;
+}
+
+.mirror-row-icon.button {
+	cursor: pointer;
+}
+
+.mirror-row-icon.muted {
+	background: #ff453a;
+	color: #fff;
+}
+
+.mirror-row-note {
+	font-size: 12px;
+	color: var(--bloom-text-muted, rgba(255, 255, 255, 0.6));
+}
+
+.mirror-meter {
+	flex: none;
+	width: 64px;
+	height: 6px;
+	border-radius: 3px;
+	overflow: hidden;
+	background: color-mix(in srgb, var(--bloom-text, #fff) 12%, transparent);
+}
+
+.mirror-meter-fill {
+	width: 100%;
+	height: 100%;
+	transform-origin: left;
+	background: #30d158;
+	transition: transform 80ms linear;
+}
+
+.mirror-chips {
+	flex: 0 1 auto;
+	min-width: 0;
+	display: flex;
+	gap: 4px;
+	overflow-x: auto;
+	scrollbar-width: none;
+}
+
+.mirror-chip {
+	flex: none;
+	max-width: 180px;
+	padding: 5px 11px;
+	border: none;
+	border-radius: 999px;
+	background: color-mix(in srgb, var(--bloom-text, #fff) 7%, transparent);
+	color: var(--bloom-text-muted, rgba(255, 255, 255, 0.65));
+	font: inherit;
+	font-size: 12px;
+	white-space: nowrap;
+	overflow: hidden;
+	text-overflow: ellipsis;
+	cursor: pointer;
+}
+
+.mirror-chip.on {
+	background: color-mix(in srgb, var(--tool-color) 22%, transparent);
+	color: var(--bloom-text, #fff);
+	font-weight: 600;
+}
+
+.mirror-test {
+	flex: none;
+	display: inline-flex;
+	align-items: center;
+	gap: 5px;
+	padding: 5px 11px;
+	border: none;
+	border-radius: 999px;
+	background: var(--tool-color);
+	color: #000;
+	font: inherit;
+	font-size: 12px;
+	font-weight: 600;
+	cursor: pointer;
+}
+
+.mirror-camera-off:focus-visible,
+.mirror-camera-stop:focus-visible,
+.mirror-test:focus-visible,
+.mirror-chip:focus-visible,
+.mirror-row-icon:focus-visible {
+	outline: 2px solid var(--bloom-accent, #0a84ff);
+	outline-offset: 1px;
+}
+
+/* Teleprompter */
+.tp {
+	display: flex;
+	flex-direction: column;
+	gap: 10px;
+	flex: 1;
+	min-height: 0;
+}
+
+.tp-view {
+	position: relative;
+	flex: 1;
+	min-height: 0;
+	overflow: hidden;
+	-webkit-mask-image: linear-gradient(transparent, #000 18%, #000 82%, transparent);
+	mask-image: linear-gradient(transparent, #000 18%, #000 82%, transparent);
+	cursor: text;
+}
+
+.tp-text {
+	padding: 24px 12px 0;
+	text-align: center;
+	font-weight: 600;
+	line-height: 1.35;
+	white-space: pre-wrap;
+	will-change: transform;
+}
+
+.tp-empty {
+	color: var(--bloom-text-secondary, #a1a1aa);
+}
+
+.tp-edit {
+	flex: 1;
+	min-height: 0;
+	resize: none;
+	font-size: 13px;
+	line-height: 1.5;
+}
+
+.tp-controls {
+	display: flex;
+	align-items: center;
+	justify-content: center;
+	gap: 10px;
+	flex: none;
+}
+
+.tp-round {
+	width: 32px;
+	height: 32px;
+	border-radius: 50% !important;
+	justify-content: center;
+}
+
+.tp-play {
+	width: 38px;
+	height: 38px;
+	background: #fff !important;
+	color: #000 !important;
+}
+
+.tp-slider {
+	display: flex;
+	align-items: center;
+	gap: 6px;
+	color: var(--bloom-text-secondary, #a1a1aa);
+}
+
+.tp-slider input {
+	width: 110px;
+	accent-color: #fff;
+}
+
+/* Game strip: four readings in one even row, the options below. */
+.gs {
+	display: flex;
+	flex-direction: column;
+	justify-content: center;
+	gap: 10px;
+	flex: 1;
+	min-height: 0;
+}
+
+.gs-cells {
+	display: grid;
+	grid-template-columns: repeat(4, minmax(0, 1fr));
+	gap: 8px;
+}
+
+.gs-cell {
+	display: grid;
+	grid-template-columns: auto 1fr;
+	grid-template-rows: auto auto;
+	column-gap: 8px;
+	align-items: center;
+	padding: 8px 10px;
+	border-radius: 12px;
+	background: color-mix(in srgb, var(--bloom-text, #fff) 5%, transparent);
+	min-width: 0;
+}
+
+.gs-icon {
+	grid-row: span 2;
+	color: #b6f36b;
+}
+
+.gs-value {
+	font-size: 16px;
+	font-weight: 700;
+	font-variant-numeric: tabular-nums;
+	white-space: nowrap;
+	overflow: hidden;
+	text-overflow: ellipsis;
+}
+
+.gs-label {
+	font-size: 10px;
+	color: var(--bloom-text-secondary, #a1a1aa);
+}
+
+.gs-actions {
+	display: flex;
+	align-items: center;
+	justify-content: space-between;
+	gap: 12px;
+	padding: 0 2px;
+}
+
+.gs-switch {
+	display: flex;
+	align-items: center;
+	gap: 8px;
+	font-size: 11px;
+	color: var(--bloom-text-secondary, #c7c7cc);
+	cursor: pointer;
+}
+
+.gs-switch input {
+	position: absolute;
+	opacity: 0;
+	pointer-events: none;
+}
+
+.gs-switch-track {
+	position: relative;
+	width: 28px;
+	height: 16px;
+	border-radius: 999px;
+	background: color-mix(in srgb, var(--bloom-text, #fff) 18%, transparent);
+	transition: background 0.15s ease;
+}
+
+.gs-switch-track::after {
+	content: "";
+	position: absolute;
+	top: 2px;
+	left: 2px;
+	width: 12px;
+	height: 12px;
+	border-radius: 50%;
+	background: #fff;
+	transition: transform 0.15s ease;
+}
+
+.gs-switch input:checked + .gs-switch-track {
+	background: #b6f36b;
+}
+
+.gs-switch input:checked + .gs-switch-track::after {
+	transform: translateX(12px);
+	background: #000;
+}
+
+.gs-switch input:focus-visible + .gs-switch-track {
+	outline: 2px solid var(--bloom-accent, #0a84ff);
+	outline-offset: 2px;
+}
+
+.gs-link {
+	display: flex;
+	align-items: center;
+	gap: 6px;
+	padding: 5px 10px;
+	border: none;
+	border-radius: 999px;
+	background: color-mix(in srgb, var(--bloom-text, #fff) 7%, transparent);
+	color: var(--bloom-text, #fff);
+	font: 500 11px/1 "Inter", "Segoe UI", sans-serif;
+	cursor: pointer;
+}
+
+.gs-link kbd {
+	padding: 2px 5px;
+	border-radius: 4px;
+	background: color-mix(in srgb, var(--bloom-text, #fff) 10%, transparent);
+	font: 600 9px/1 "Inter", "Segoe UI", sans-serif;
+	color: var(--bloom-text-secondary, #a1a1aa);
+}
+
+.gs-link:focus-visible {
+	outline: 2px solid var(--bloom-accent, #0a84ff);
+	outline-offset: 1px;
+}
+
+.nt-timers .nt-seg button {
+	font-size: 12px;
+	padding: 5px 14px;
+}
+
+.nt-timers .nt-muted,
+.nt-timers .nt-times-up {
+	font-size: 13px;
+}
+
+.nt-timers .nt-chip {
+	height: 30px;
+	padding: 0 13px;
+	font-size: 12px;
+}
+
+.nt-timers .nt-timer-face .nt-icon-btn {
+	width: 32px;
+	height: 32px;
+	justify-content: center;
+}
+
+/* Capture's parts sit in the middle of the tab, like their segment bar. */
+.notch-tool:is([data-tool="snip"], [data-tool="ocr"], [data-tool="picker"]) {
+	justify-content: center;
+}
+
+/* Capture's main buttons: bigger, easy to hit. */
+.cap-big {
+	font-size: 13px;
+	padding: 9px 18px;
+	gap: 7px;
+}
+
+/* Colour picker */
+.cp-swatch {
+	width: 64px;
+	height: 64px;
+	border-radius: 16px;
+	flex: none;
+	border: 1px dashed var(--bloom-border, #333);
+}
+/* Picking: the swatch shows the live colour and pulses its ring. */
+.cp-swatch.picking {
+	border: 2px solid var(--tool-color);
+	animation: cp-pulse 1.2s ease-in-out infinite;
+}
+@keyframes cp-pulse {
+	50% { box-shadow: 0 0 0 5px color-mix(in srgb, var(--tool-color) 30%, transparent); }
+}
+.nt-btn.cp-active:disabled {
+	opacity: 1;
+}
+.cp-chip {
+	position: relative;
+	display: inline-flex;
+}
+.cp-chip > button:first-child {
+	width: 22px;
+	height: 22px;
+	border-radius: 7px;
+	border: none;
+	padding: 0;
+	cursor: pointer;
+}
+.cp-chip.on > button:first-child {
+	outline: 2px solid var(--bloom-text, #fff);
+	outline-offset: 2px;
+}
+.cp-remove {
+	position: absolute;
+	top: -5px;
+	right: -5px;
+	width: 14px;
+	height: 14px;
+	border-radius: 50%;
+	border: none;
+	padding: 0;
+	display: grid;
+	place-items: center;
+	background: #3a3a3c;
+	color: #fff;
+	cursor: pointer;
+	opacity: 0;
+	transition: opacity 0.12s;
+}
+.cp-chip:hover .cp-remove,
+.cp-remove:focus-visible {
+	opacity: 1;
+}
+@media (prefers-reduced-motion: reduce) {
+	.cp-swatch.picking { animation: none; }
+}
+
+/* Unit converter: both sides are the same box, line for line (the input
+   and the result used to differ in height). */
+.units-value {
+	display: flex;
+	align-items: center;
+	width: 100%;
+	height: 30px;
+	margin: 0;
+	padding: 0;
+	border: none;
+	background: none;
+	font: inherit;
+	font-size: 20px;
+	font-weight: 600;
+	line-height: 30px;
+	color: inherit;
+	overflow: hidden;
+	text-overflow: ellipsis;
+	white-space: nowrap;
+}
+
+.units-out {
+	color: var(--tool-color, #8be3f5);
+}
+
+.units-unit {
+	margin-top: 4px;
+	align-self: flex-start;
+}
+
+/* Power modes: one slider with three stops, like Settings › Power. */
+.pm {
+	display: flex;
+	flex-direction: column;
+	gap: 14px;
+	padding: 4px 18px;
+}
+
+.pm-head {
+	display: flex;
+	flex-direction: column;
+	gap: 2px;
+}
+
+.pm-name {
+	font-size: 17px;
+	font-weight: 650;
+	letter-spacing: -0.01em;
+}
+
+.pm-note {
+	font-size: 12px;
+	color: var(--bloom-text-muted, rgba(255, 255, 255, 0.6));
+}
+
+.pm-track {
+	position: relative;
+	height: 22px;
+	margin: 0 9px;
+}
+
+.pm-rail,
+.pm-fill {
+	position: absolute;
+	top: 50%;
+	left: 0;
+	height: 4px;
+	margin-top: -2px;
+	border-radius: 2px;
+}
+
+.pm-rail {
+	right: 0;
+	background: color-mix(in srgb, var(--bloom-text, #fff) 16%, transparent);
+}
+
+.pm-fill {
+	background: var(--tool-color);
+}
+
+.pm-stop {
+	position: absolute;
+	top: 50%;
+	width: 22px;
+	height: 22px;
+	margin: -11px 0 0 -11px;
+	padding: 0;
+	border: none;
+	border-radius: 50%;
+	background: none;
+	cursor: pointer;
+}
+
+/* The stop's dot; the thumb covers it on the chosen one. */
+.pm-stop::before {
+	content: "";
+	position: absolute;
+	inset: 7px;
+	border-radius: 50%;
+	background: color-mix(in srgb, var(--bloom-text, #fff) 35%, transparent);
+}
+
+.pm-stop.passed::before {
+	background: var(--tool-color);
+}
+
+.pm-stop:focus-visible {
+	outline: 2px solid var(--tool-color);
+	outline-offset: 1px;
+}
+
+.pm-thumb {
+	position: absolute;
+	inset: 2px;
+	border-radius: 50%;
+	background: #fff;
+	box-shadow: 0 0 0 4px var(--tool-color), 0 2px 6px rgba(0, 0, 0, 0.4);
+}
+
+.pm-labels {
+	display: flex;
+	justify-content: space-between;
+}
+
+.pm-labels button {
+	padding: 0;
+	border: none;
+	background: none;
+	font: inherit;
+	font-size: 11.5px;
+	color: var(--bloom-text-muted, rgba(255, 255, 255, 0.6));
+	cursor: pointer;
+}
+
+.pm-labels button.on {
+	color: inherit;
+	font-weight: 600;
+}
+
+.pm.off .pm-track,
+.pm.off .pm-labels {
+	opacity: 0.35;
+}
+
+.pm.off .pm-stop,
+.pm.off .pm-labels button {
+	cursor: default;
+}
+
+.pm-error {
+	font-size: 11.5px;
+	color: #ff453a;
+}
+
+/* Deadlines (Calendar side panel and Reminders). */
+.dl {
+	display: flex;
+	flex-direction: column;
+	gap: 4px;
+	width: 100%;
+	min-width: 0;
+}
+
+.dl-heading {
+	margin-top: 6px;
+	font-weight: 600;
+}
+
+.dl-item {
+	display: flex;
+	align-items: center;
+	gap: 7px;
+	height: 26px;
+	padding: 0 4px 0 9px;
+	border-radius: 8px;
+	background: color-mix(in srgb, var(--bloom-text, #fff) 7%, transparent);
+	font-size: 12px;
+	color: #ff9447;
+}
+
+.dl-title {
+	flex: 1;
+	min-width: 0;
+	overflow: hidden;
+	text-overflow: ellipsis;
+	white-space: nowrap;
+	color: var(--bloom-text, #fff);
+}
+
+.dl-days {
+	flex: none;
+	font-weight: 600;
+	font-variant-numeric: tabular-nums;
+}
+
+.dl-item.soon .dl-days {
+	color: #ff453a;
+}
+
+.dl-item.past {
+	opacity: 0.5;
+}
+
+.dl-remove {
+	flex: none;
+	display: grid;
+	place-items: center;
+	width: 18px;
+	height: 18px;
+	padding: 0;
+	border: none;
+	border-radius: 50%;
+	background: none;
+	color: var(--bloom-text-muted, rgba(255, 255, 255, 0.6));
+	cursor: pointer;
+}
+
+.dl-remove:hover {
+	background: color-mix(in srgb, var(--bloom-text, #fff) 12%, transparent);
+	color: var(--bloom-text, #fff);
+}
+
+.dl-add {
+	display: flex;
+	gap: 4px;
+	align-items: center;
+}
+
+.dl-add .nt-input {
+	min-width: 0;
+	padding: 5px 8px;
+	font-size: 12px;
+}
+
+.dl-date {
+	flex: none;
+	padding: 5px 10px;
+	border: none;
+	border-radius: 8px;
+	background: color-mix(in srgb, #ff9447 16%, transparent);
+	color: #ffb27a;
+	font: inherit;
+	font-size: 12px;
+	font-weight: 600;
+	white-space: nowrap;
+	cursor: pointer;
+}
+
+.dl-date.on {
+	background: #ff9447;
+	color: #000;
+}
+
+/* The month picker inside the notch. */
+.mm {
+	padding: 8px;
+	border-radius: 12px;
+	background: color-mix(in srgb, var(--bloom-text, #fff) 6%, transparent);
+}
+
+.mm-head {
+	display: flex;
+	align-items: center;
+	justify-content: space-between;
+	margin-bottom: 4px;
+	font-size: 12px;
+	font-weight: 600;
+}
+
+.mm-nav {
+	display: grid;
+	place-items: center;
+	width: 22px;
+	height: 22px;
+	padding: 0;
+	border: none;
+	border-radius: 50%;
+	background: none;
+	color: inherit;
+	cursor: pointer;
+}
+
+.mm-nav:hover {
+	background: color-mix(in srgb, var(--bloom-text, #fff) 12%, transparent);
+}
+
+.mm-grid {
+	display: grid;
+	grid-template-columns: repeat(7, 1fr);
+	gap: 2px;
+}
+
+.mm-dow {
+	text-align: center;
+	font-size: 10px;
+	color: var(--bloom-text-muted, rgba(255, 255, 255, 0.55));
+}
+
+.mm-day {
+	height: 22px;
+	padding: 0;
+	border: none;
+	border-radius: 6px;
+	background: none;
+	color: inherit;
+	font: inherit;
+	font-size: 11px;
+	font-variant-numeric: tabular-nums;
+	cursor: pointer;
+}
+
+.mm-day:hover {
+	background: color-mix(in srgb, var(--bloom-text, #fff) 12%, transparent);
+}
+
+.mm-day.today {
+	box-shadow: inset 0 0 0 1px #ff9447;
+}
+
+.mm-day.on {
+	background: #ff9447;
+	color: #000;
+	font-weight: 700;
+}
+
+.dl-date:focus-visible,
+.mm-nav:focus-visible,
+.mm-day:focus-visible {
+	outline: 2px solid #ff9447;
+	outline-offset: 1px;
+}
+
+.dl-new {
+	align-self: flex-start;
+	display: inline-flex;
+	align-items: center;
+	gap: 5px;
+	padding: 4px 10px;
+	border: none;
+	border-radius: 999px;
+	background: color-mix(in srgb, #ff9447 16%, transparent);
+	color: #ffb27a;
+	font: inherit;
+	font-size: 11.5px;
+	font-weight: 600;
+	cursor: pointer;
+}
+
+.dl-new:focus-visible,
+.dl-remove:focus-visible {
+	outline: 2px solid #ff9447;
+	outline-offset: 1px;
+}

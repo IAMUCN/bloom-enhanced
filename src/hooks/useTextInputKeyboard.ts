@@ -7,6 +7,20 @@ const isTextField = (el: EventTarget | null): el is HTMLElement =>
 
 let held = false;
 
+const TEXT_FIELDS = "textarea, input:not([type=range]):not([type=checkbox]):not([type=radio]):not([type=button]):not([type=submit])";
+
+/** Tab in the open notch: the first text field in `root` takes the keyboard.
+ *  Nothing is focused by default, so number keys switch tabs until then. */
+export function focusFirstTextField(root: ParentNode | null) {
+	const field = [...(root?.querySelectorAll<HTMLElement>(TEXT_FIELDS) ?? [])].find((el) => el.offsetParent !== null);
+	if (!field) return false;
+	held = true;
+	invoke("keyboard_focus", { focus: true })
+		.then(() => field.focus())
+		.catch(() => {});
+	return true;
+}
+
 /** Gives the keyboard back if a text field had taken it. Called when the
  *  surface closes, since a field removed while focused fires no focusout. */
 export function releaseTextKeyboard() {

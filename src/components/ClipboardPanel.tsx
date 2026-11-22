@@ -3,22 +3,26 @@ import { invoke } from "@tauri-apps/api/core";
 import { listen } from "@tauri-apps/api/event";
 import { openUrl } from "@tauri-apps/plugin-opener";
 import { startDrag } from "@crabnebula/tauri-plugin-drag";
-import { ArrowLeft, Copy, Eraser, Inbox, Layers, ListChecks, Pin, Search, Trash2, Ungroup, X } from "lucide-react";
+import { ArrowLeft, Copy, Download, Eraser, Image, Inbox, LayoutGrid, Layers, Link, ListChecks, Pin, Search, Shapes, Trash2, Type, Ungroup, X } from "lucide-react";
 import { releaseTextKeyboard } from "../hooks/useTextInputKeyboard";
 import { useClipboardSettings } from "../hooks/useClipboardSettings";
 import { clipSounds } from "../clipboardSounds";
 import { ClipTile } from "./ClipTile";
+import { ShareColumn, sharePeerAt } from "./ShareColumn";
 import {
 	CLEAR_WINDOWS,
 	CLIP_FILTERS,
 	THUMB_SIZES,
 	clearIds,
+	fileName,
 	filePaths,
 	visibleItems,
 	type ClipFilter,
 	type ClipItem
 } from "../clipboardModel";
 import "./QuickPanel.css";
+import "../effects.css";
+import { useNewKeys } from "../hooks/useNewKeys";
 import "./ClipboardPanel.css";
 
 interface ClipboardPanelProps {
@@ -31,16 +35,33 @@ interface ClipboardPanelProps {
 	 *  stays open meanwhile and releases its hover afterwards. */
 	onDragStart: () => void;
 	onDragEnd: () => void;
+	/** A send is running or its result shows: keep the surface open. */
+	onBusy?: (busy: boolean) => void;
 	/** Something from another app is being dragged over: show only where to
 	 *  drop it, not the history. */
 	dragOver?: boolean;
+	/** Notch: the share column on the right; edge shelf: along the bottom. */
+	layout?: "notch" | "edge";
+	/** The edge shelf's × (and Esc): close it. */
+	onClose?: () => void;
 }
+
+/** The filter row shows icons (their names on hover), leaving room. */
+const FILTER_ICONS: Record<ClipFilter, typeof Type> = {
+	all: LayoutGrid,
+	text: Type,
+	links: Link,
+	images: Image,
+	others: Shapes,
+	received: Download
+};
 
 const openLink = (url: string) => openUrl(/^https?:/i.test(url) ? url : `https://${url}`);
 
-export function ClipboardPanel({ dragIcon, dropEvent, onDragStart, onDragEnd, dragOver }: ClipboardPanelProps) {
+export function ClipboardPanel({ dragIcon, dropEvent, onDragStart, onDragEnd, onBusy, dragOver, layout = "notch", onClose }: ClipboardPanelProps) {
 	const options = useClipboardSettings();
 	const [items, setItems] = useState<ClipItem[]>([]);
+	const newTiles = useNewKeys(items.length ? items.map((i) => i.id) : null);
 	const [query, setQuery] = useState("");
 	const [filter, setFilter] = useState<ClipFilter>("all");
 	const [copiedId, setCopiedId] = useState<string | null>(null);
@@ -53,6 +74,10 @@ export function ClipboardPanel({ dragIcon, dropEvent, onDragStart, onDragEnd, dr
 	// The tile being dragged out, so dropping it back on another tile groups them.
 	const dragSource = useRef<string | null>(null);
 	const searchRef = useRef<HTMLInputElement>(null);
+	// What is being dragged out, so the share column can say so.
+	const [dragging, setDragging] = useState<string | null>(null);
+	// Where the share column puts its Pair / Groups / Live icons.
+	const [shareSlot, setShareSlot] = useState<HTMLSpanElement | null>(null);
 
 	const sound = (name: keyof typeof clipSounds) => options.sounds && clipSounds[name]();
 
@@ -74,6 +99,11 @@ export function ClipboardPanel({ dragIcon, dropEvent, onDragStart, onDragEnd, dr
 			const source = dragSource.current;
 			const pos = e.payload.position;
 			if (!source || !pos) return;
+			const peer = sharePeerAt(pos);
+			if (peer) {
+				window.dispatchEvent(new CustomEvent("share-send", { detail: { peer, clips: [source] } }));
+				return;
+			}
 			const el = document.elementFromPoint(pos.x / devicePixelRatio, pos.y / devicePixelRatio);
 			const target = el?.closest<HTMLElement>("[data-clip-id]")?.dataset.clipId;
 			if (target && target !== source) {
@@ -154,10 +184,12 @@ export function ClipboardPanel({ dragIcon, dropEvent, onDragStart, onDragEnd, dr
 		else return;
 		st.dragging = true;
 		dragSource.current = source?.id ?? null;
+		setDragging(paths.length ? (paths.length === 1 ? `"${fileName(paths[0])}"` : `${paths.length} files`) : "this text");
 		onDragStart();
 		drag.catch((err) => console.error("[clipboard] drag out failed:", err)).finally(() => {
 			// The drop event can land just after the drag call returns.
 			window.setTimeout(() => (dragSource.current = null), 300);
+			setDragging(null);
 			onDragEnd();
 		});
 	};
@@ -211,6 +243,7 @@ export function ClipboardPanel({ dragIcon, dropEvent, onDragStart, onDragEnd, dr
 			notes={options.notes}
 			richText={options.richText}
 			copied={copiedId === key}
+			fresh={newTiles.has(key)}
 			selected={selected.has(key)}
 			onPointerDown={(e) => beginPointer(e, key)}
 			onPointerMove={(e) => movePointer(e, key, onClick ? null : it, paths, it.kind === "text" ? it.text : undefined)}
@@ -234,20 +267,23 @@ export function ClipboardPanel({ dragIcon, dropEvent, onDragStart, onDragEnd, dr
 
 	return (
 		<div
-			className="qp clip-panel"
+			className={`qp clip-panel clip-${layout}`}
 			style={{ "--clip-tile": `${THUMB_SIZES[options.thumbSize]}px` } as React.CSSProperties}
 			onClick={(e) => {
 				e.stopPropagation();
 				setClearOpen(false);
 			}}
 			onKeyDown={(e) => {
-				if (e.key === "Escape" && (selected.size || selecting)) endSelection();
+				if (e.key !== "Escape") return;
+				if (selected.size || selecting) endSelection();
+				else onClose?.();
 			}}
 		>
+			<div className="clip-main">
 			{dragOver && (
 				<div className="clip-drop">
 					<Inbox size={22} strokeWidth={1.5} />
-					<span>Drop files or selected text here</span>
+					<span>Drop here to keep it, or on a person to send it</span>
 				</div>
 			)}
 			<div className="clip-toolbar">
@@ -278,6 +314,11 @@ export function ClipboardPanel({ dragIcon, dropEvent, onDragStart, onDragEnd, dr
 						}}
 					>
 						<ListChecks size={13} />
+					</button>
+				)}
+				{onClose && (
+					<button className="qp-icon-btn" title="Close (Esc)" aria-label="Close the Shelf" onClick={(e) => (e.stopPropagation(), onClose())}>
+						<X size={14} />
 					</button>
 				)}
 				<div className="clip-clear">
@@ -367,18 +408,26 @@ export function ClipboardPanel({ dragIcon, dropEvent, onDragStart, onDragEnd, dr
 				</div>
 			) : (
 				<div className="clip-filters">
-					{CLIP_FILTERS.map(([id, text]) => (
-						<button
-							key={id}
-							className={filter === id ? "active" : ""}
-							onClick={(e) => {
-								e.stopPropagation();
-								setFilter(id);
-							}}
-						>
-							{text}
-						</button>
-					))}
+					{CLIP_FILTERS.map(([id, text]) => {
+						const Icon = FILTER_ICONS[id];
+						return (
+							<button
+								key={id}
+								className={filter === id ? "active" : ""}
+								title={text}
+								aria-label={text}
+								aria-pressed={filter === id}
+								onClick={(e) => {
+									e.stopPropagation();
+									setFilter(id);
+								}}
+							>
+								<Icon size={14} />
+							</button>
+						);
+					})}
+					<span className="clip-filters-gap" />
+					<span className="clip-share-tools" ref={setShareSlot} />
 				</div>
 			)}
 
@@ -409,6 +458,16 @@ export function ClipboardPanel({ dragIcon, dropEvent, onDragStart, onDragEnd, dr
 					</div>
 				)}
 			</div>
+			</div>
+			<ShareColumn
+				layout={layout}
+				selected={[...selected]}
+				dragging={dragging}
+				onSent={endSelection}
+				tools={shareSlot}
+				dragOverEvent={dropEvent.replace(/-drop$/, "-over")}
+				onBusy={onBusy}
+			/>
 		</div>
 	);
 }

@@ -41,6 +41,19 @@ pub fn set_window_region(window: Window, rects: Vec<IntRect>) {
         return;
     };
     let scale = window.scale_factor().unwrap_or(1.0);
+    if window.label() == "main" {
+        let bbox = (!rects.is_empty()).then(|| {
+            (
+                rects.iter().map(|r| r.x).min().unwrap_or(0),
+                rects.iter().map(|r| r.y).min().unwrap_or(0),
+                rects.iter().map(|r| r.x + r.width).max().unwrap_or(0),
+                rects.iter().map(|r| r.y + r.height).max().unwrap_or(0),
+            )
+        });
+        if let Ok(mut region) = crate::state::NOTCH_REGION.lock() {
+            *region = bbox;
+        }
+    }
     // A region on a window that isn't layered turns its transparent pixels
     // opaque (see set_click_through). Make sure it's layered before the region
     // lands, keeping whatever click-through state it has.
@@ -59,11 +72,91 @@ pub fn set_window_region(window: Window, rects: Vec<IntRect>) {
             let _ = DeleteObject(part.into());
         }
         // The system owns the region from here on, so it isn't deleted on
-        // success. Redraw so the newly uncovered parts paint.
+        // success. Redraw so the newly uncovered parts paint, erasing the
+        // window's own surface there (see clear_on_erase) but not the page.
         if SetWindowRgn(hwnd, Some(region), true) == 0 {
             let _ = DeleteObject(region.into());
         }
+        use windows::Win32::Graphics::Gdi::{
+            RedrawWindow, RDW_ERASE, RDW_INVALIDATE, RDW_NOCHILDREN,
+        };
+        let _ = RedrawWindow(
+            Some(hwnd),
+            None,
+            None,
+            RDW_INVALIDATE | RDW_ERASE | RDW_NOCHILDREN,
+        );
     }
+}
+
+/// Logs (diagnostics.log) every time the notch window stops or starts being
+/// layered: an un-layered moment with a region paints its clear pixels
+/// opaque, the suspect for the white boxes that still sometimes show beside
+/// the pill. Checked twice a second; costs one GetWindowLong.
+pub fn watch_layered(hwnd: windows::Win32::Foundation::HWND) {
+    use windows::Win32::UI::WindowsAndMessaging::{GetWindowLongPtrW, GWL_EXSTYLE, WS_EX_LAYERED};
+    let raw = hwnd.0 as isize;
+    std::thread::spawn(move || {
+        let hwnd = windows::Win32::Foundation::HWND(raw as *mut _);
+        let mut was = true;
+        loop {
+            std::thread::sleep(std::time::Duration::from_millis(500));
+            let style = unsafe { GetWindowLongPtrW(hwnd, GWL_EXSTYLE) } as u32;
+            let now = style & WS_EX_LAYERED.0 != 0;
+            if now != was {
+                crate::diagnostics::record(
+                    if now {
+                        "notch_layered"
+                    } else {
+                        "notch_not_layered"
+                    },
+                    &format!("exstyle=0x{style:X}"),
+                );
+                was = now;
+            }
+        }
+    });
+}
+
+/// Keeps the window's own surface (under the webview) see-through. tao
+/// leaves erasing to Windows, which with no background brush paints
+/// nothing: pixels uncovered when the region grows kept whatever was there
+/// before, which showed as light boxes beside the notch pill (2026-11-19,
+/// sometimes; then beside the open notch where the closed one had been).
+/// Here every erase fills the client area with black, which this
+/// transparent window (DWM blur-behind) shows as clear.
+pub fn clear_on_erase(hwnd: windows::Win32::Foundation::HWND) {
+    use windows::Win32::UI::Shell::SetWindowSubclass;
+    // SAFETY: called on the window's own (main) thread; the callback only
+    // handles WM_ERASEBKGND and passes everything else on.
+    unsafe {
+        let _ = SetWindowSubclass(hwnd, Some(erase_proc), 0x4C4E, 0);
+    }
+}
+
+unsafe extern "system" fn erase_proc(
+    hwnd: windows::Win32::Foundation::HWND,
+    msg: u32,
+    wparam: windows::Win32::Foundation::WPARAM,
+    lparam: windows::Win32::Foundation::LPARAM,
+    _id: usize,
+    _data: usize,
+) -> windows::Win32::Foundation::LRESULT {
+    use windows::Win32::Graphics::Gdi::{FillRect, GetStockObject, BLACK_BRUSH, HBRUSH, HDC};
+    use windows::Win32::UI::Shell::DefSubclassProc;
+    use windows::Win32::UI::WindowsAndMessaging::{GetClientRect, WM_ERASEBKGND};
+    if msg == WM_ERASEBKGND {
+        let mut rc = RECT::default();
+        if GetClientRect(hwnd, &mut rc).is_ok() {
+            FillRect(
+                HDC(wparam.0 as *mut _),
+                &rc,
+                HBRUSH(GetStockObject(BLACK_BRUSH).0),
+            );
+            return windows::Win32::Foundation::LRESULT(1);
+        }
+    }
+    DefSubclassProc(hwnd, msg, wparam, lparam)
 }
 
 #[cfg(test)]

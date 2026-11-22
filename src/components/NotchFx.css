@@ -1,0 +1,83 @@
+.nfx path {
+	fill: none;
+	stroke-linecap: round;
+	stroke-linejoin: round;
+	stroke: var(--fx-1, var(--bloom-accent, #6a55ff));
+}
+
+.nfx .halo {
+	stroke-width: 6;
+	opacity: 0.28;
+}
+
+.nfx .core {
+	stroke-width: 2;
+}
+
+/* One comet sweeps out from the bottom centre along both sides. */
+.nfx-beam path,
+.nfx-beam-loop path {
+	stroke-dasharray: 0.24 1.5;
+	animation: nfx-run 0.95s cubic-bezier(0.45, 0, 0.55, 1) 1 both;
+}
+
+.nfx-beam-loop path {
+	animation-iteration-count: infinite;
+	animation-duration: 1.4s;
+}
+
+@keyframes nfx-run {
+	from {
+		stroke-dashoffset: 0.24;
+	}
+	to {
+		stroke-dashoffset: -1;
+	}
+}
+
+.nfx-neon {
+	animation: copy-flash 1.2s linear 1 both;
+}
+
+.nfx-neon .halo {
+	stroke-width: 9;
+}
+
+.nfx-glow {
+	animation: nfx-glow 1.4s ease-out 1 both;
+}
+
+.nfx-glow .halo {
+	stroke-width: 12;
+}
+
+@keyframes nfx-glow {
+	0% {
+		opacity: 0;
+	}
+	25% {
+		opacity: 0.9;
+	}
+	100% {
+		opacity: 0;
+	}
+}
+
+.nfx-lotus .halo {
+	stroke-width: 7;
+}
+
+.nfx-lotus {
+	animation: lotus-lit 1.5s ease-out 0.15s 1 both;
+}
+
+/* Progress: lit lengths come from the dash array; they glide as it changes. */
+.nfx-edge path,
+.nfx-center path {
+	transition: stroke-dasharray 0.3s linear, stroke-dashoffset 0.3s linear;
+}
+
+:root.fx-off .nfx,
+:root.fx-off .nfx path {
+	animation: none;
+}

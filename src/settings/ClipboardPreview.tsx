@@ -3,10 +3,13 @@
 import { useEffect, useState } from "react";
 import { ClipboardCheck, Layers, Volume2 } from "lucide-react";
 import { ClipTile } from "../components/ClipTile";
+import { ClipboardPanel } from "../components/ClipboardPanel";
+import { EdgeSurface } from "../components/EdgeSurface";
 import { useClipboardSettings } from "../hooks/useClipboardSettings";
 import { clipSounds } from "../clipboardSounds";
 import type { ClipItem } from "../clipboardModel";
 import "../components/ClipboardPanel.css";
+import { CopyEffect } from "../components/ProgressEffect";
 
 export type ClipScene = "clip-shelf" | "clip-rich" | "clip-links" | "clip-notes" | "clip-select" | "clip-sounds" | "clip-indicator";
 
@@ -42,6 +45,7 @@ const SAMPLES = {
 export function ClipboardPreview({ scene }: { scene: ClipScene }) {
 	const o = useClipboardSettings();
 	const [copied, setCopied] = useState(false);
+	const floating = localStorage.getItem("bloom-notch-style") === "pill";
 	useEffect(() => {
 		if (scene !== "clip-indicator") return;
 		const timer = window.setInterval(() => setCopied((c) => !c), 1400);
@@ -68,7 +72,13 @@ export function ClipboardPreview({ scene }: { scene: ClipScene }) {
 
 	switch (scene) {
 		case "clip-shelf":
-			return grid([SAMPLES.text, SAMPLES.stack, SAMPLES.link, SAMPLES.color].map((it) => tile(it)));
+			// The real shelf (your own history), not a mock. ponytail: it also reads the live clipboard.
+			return (
+				<div className="clipshelf left open shelf-live">
+					<EdgeSurface edge="left" />
+					<ClipboardPanel dragIcon={null} dropEvent="clipshelf-drag-drop" layout="edge" onDragStart={() => {}} onDragEnd={() => {}} />
+				</div>
+			);
 		case "clip-rich":
 			return grid([tile(SAMPLES.rich), tile(SAMPLES.text)]);
 		case "clip-links":
@@ -91,7 +101,7 @@ export function ClipboardPreview({ scene }: { scene: ClipScene }) {
 			return (
 				<div className="clip-preview clip-preview-center">
 					{(["copy", "pop", "delete"] as const).map((name) => (
-						<button key={name} className="clip-preview-btn" disabled={!o.sounds} onClick={() => clipSounds[name]()}>
+						<button key={name} className="clip-preview-btn" onClick={() => clipSounds[name]()}>
 							<Volume2 size={12} /> {name === "copy" ? "Copy" : name === "pop" ? "Pin / group" : "Delete"}
 						</button>
 					))}
@@ -100,9 +110,10 @@ export function ClipboardPreview({ scene }: { scene: ClipScene }) {
 		case "clip-indicator":
 			return (
 				<div className="clip-preview clip-preview-center">
-					<div className={`clip-preview-pill ${o.copyIndicator && copied ? "wide" : ""}`}>
+					<div className={`clip-preview-pill ${o.copyIndicator && copied ? "wide" : ""}${floating ? " floating" : ""}`} style={{ position: "relative" }}>
 						{o.copyIndicator && copied && (
 							<>
+								<CopyEffect full={floating} shape={{ width: 200, height: 32, radius: 14, flares: !floating }} />
 								<ClipboardCheck size={14} /> Copied
 							</>
 						)}

@@ -2,6 +2,7 @@ import { useState, useEffect, useLayoutEffect, useMemo, useRef, memo } from "rea
 import { motion, AnimatePresence, Reorder } from "framer-motion";
 import { invoke } from "@tauri-apps/api/core";
 import { listen } from "@tauri-apps/api/event";
+import { getCurrentWebview } from "@tauri-apps/api/webview";
 import "./Dock.css";
 import { EdgeSurface } from "./components/EdgeSurface";
 import { initTheme } from "./theme";
@@ -19,6 +20,7 @@ import {
 } from "./dockApps";
 import { driveLetter, hideDrive, removeCustomFolder, type DockExtra } from "./dockExtras";
 import { createRegionSender, measureElements, padRect, type RegionRect } from "./windowRegion";
+import { useHideFromCapture } from "./hooks/useHideFromCapture";
 
 // Host processes (Edge/Chrome/Brave/ApplicationFrameHost) run every PWA/UWP
 // window, so their window title must be part of their identity — otherwise two
@@ -134,7 +136,7 @@ function resolveStartIcon(startIcon: string): string {
 	if (startIcon === "bloom-biscuit") return "/bloom-biscuit.png";
 	if (startIcon === "windows") return "/windows-11.png";
 	if (startIcon.startsWith("custom:")) return startIcon.slice("custom:".length);
-	return "/bloom.png";
+	return "/lotusnotch.png";
 }
 
 // Stable module-level constants so object references never change between renders,
@@ -163,6 +165,7 @@ function WindowDots({ count, background }: { count: number; background?: boolean
 }
 
 const Dock = memo(function Dock() {
+	useHideFromCapture("bloom-dock-hide-from-capture", false);
 	useEffect(() => {
 		return initTheme();
 	}, []);
@@ -1109,6 +1112,48 @@ const Dock = memo(function Dock() {
 		return [...pinned, ...unpinned];
 	}, [pinnedApps, activeApps, activeOrder]);
 
+	// Files dragged in from another app: resting on an open app's icon brings it
+	// forward (so the file can be dropped into it); dropping on an icon opens the
+	// files with that app.
+	const [dropKey, setDropKey] = useState<string | null>(null);
+	const dockItemsRef = useRef<AppInfo[]>([]);
+	dockItemsRef.current = dockItems;
+	useEffect(() => {
+		let timer: ReturnType<typeof setTimeout> | undefined;
+		let current: string | null = null;
+		const keyAt = (p: { x: number; y: number }) =>
+			document
+				.elementFromPoint(p.x / devicePixelRatio, p.y / devicePixelRatio)
+				?.closest("[data-dock-key]")
+				?.getAttribute("data-dock-key") ?? null;
+		const appOf = (key: string | null) => dockItemsRef.current.find((a) => itemKey(a) === key);
+		const target = (key: string | null) => {
+			if (key === current) return;
+			current = key;
+			setDropKey(key);
+			clearTimeout(timer);
+			if (key)
+				timer = setTimeout(() => {
+					const app = appOf(key);
+					if (app && (app.hwnd || app.all_hwnds?.length)) handleAppClickRef.current(app);
+				}, 700);
+		};
+		const off = getCurrentWebview().onDragDropEvent((e) => {
+			const p = e.payload;
+			if (p.type === "enter" || p.type === "over") target(keyAt(p.position));
+			else if (p.type === "drop") {
+				const app = appOf(keyAt(p.position));
+				target(null);
+				if (app && app.path !== "start" && p.paths.length)
+					invoke("open_files_with", { appPath: app.path, paths: p.paths }).catch((err) => console.error(err));
+			} else target(null);
+		});
+		return () => {
+			clearTimeout(timer);
+			off.then((fn) => fn()).catch(() => {});
+		};
+	}, []);
+
 	const startItem = useMemo(
 		() => dockItems.find((i) => i.path === "start") as AppInfo,
 		[dockItems]
@@ -1474,6 +1519,8 @@ const Dock = memo(function Dock() {
 											as="div"
 											key={itemKey(app)}
 											value={itemKey(app)}
+											data-dock-key={itemKey(app)}
+											className={dropKey === itemKey(app) ? "file-drop-target" : undefined}
 											style={{ position: "relative" }}
 											onDragStart={() => {
 												setIsDragging(true);
@@ -1650,6 +1697,7 @@ const Dock = memo(function Dock() {
 											as="div"
 											key={itemKey(app)}
 											value={itemKey(app)}
+											data-dock-key={itemKey(app)}
 											onDragStart={() => {
 												setIsDragging(true);
 												setHoveredApp(null);
@@ -1670,7 +1718,7 @@ const Dock = memo(function Dock() {
 												}
 											}}
 											exit={{ opacity: 0, scale: 0, transition: { duration: 0.12 } }}
-											className="dock-icon-wrapper"
+											className={`dock-icon-wrapper${dropKey === itemKey(app) ? " file-drop-target" : ""}`}
 											onContextMenu={(e) => handleContextMenu(e, app)}
 											onMouseEnter={() => setHoveredApp(itemKey(app))}
 											onMouseLeave={() => {

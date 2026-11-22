@@ -1,9 +1,9 @@
 {
   "$schema": "https://schema.tauri.app/config/2",
-  "productName": "Bloom Enhanced",
-  "mainBinaryName": "bloom",
+  "productName": "LotusNotch",
+  "mainBinaryName": "LotusNotch",
   "version": "0.1.0",
-  "identifier": "com.ucnindustries.bloomenhanced",
+  "identifier": "com.ucnindustries.lotusnotch",
   "build": {
     "beforeDevCommand": "bun run dev",
     "devUrl": "http://localhost:1420",
@@ -15,7 +15,7 @@
       {
         "additionalBrowserArgs": "--disable-features=msWebOOUI,msPdfOOUI,msSmartScreenProtection --autoplay-policy=no-user-gesture-required",
         "label": "main",
-        "title": "bloom",
+        "title": "",
         "width": 1920,
         "height": 420,
         "x": 0,
@@ -40,13 +40,15 @@
         "create": false,
         "title": "Settings",
         "url": "settings.html",
-        "width": 740,
-        "height": 560,
+        "width": 1040,
+        "height": 720,
+        "minWidth": 880,
+        "minHeight": 600,
         "decorations": false,
         "transparent": true,
         "resizable": true,
-        "maximizable": false,
-        "minimizable": false,
+        "maximizable": true,
+        "minimizable": true,
         "closable": false,
         "alwaysOnTop": false,
         "visibleOnAllWorkspaces": false,
@@ -59,7 +61,8 @@
       {
         "additionalBrowserArgs": "--disable-features=msWebOOUI,msPdfOOUI,msSmartScreenProtection --autoplay-policy=no-user-gesture-required",
         "label": "overlay",
-        "title": "Overlay",
+        "create": false,
+        "title": "",
         "url": "overlay.html",
         "width": 1920,
         "height": 1080,
@@ -81,7 +84,7 @@
       {
         "additionalBrowserArgs": "--disable-features=msWebOOUI,msPdfOOUI,msSmartScreenProtection --autoplay-policy=no-user-gesture-required",
         "label": "dock",
-        "title": "Bloom Dock",
+        "title": "",
         "url": "dock.html",
         "width": 1920,
         "height": 600,
@@ -104,7 +107,7 @@
         "additionalBrowserArgs": "--disable-features=msWebOOUI,msPdfOOUI,msSmartScreenProtection --autoplay-policy=no-user-gesture-required",
         "label": "clipshelf",
         "create": false,
-        "title": "Clipboard",
+        "title": "",
         "url": "clipshelf.html",
         "width": 360,
         "height": 560,
@@ -127,7 +130,7 @@
         "additionalBrowserArgs": "--disable-features=msWebOOUI,msPdfOOUI,msSmartScreenProtection --autoplay-policy=no-user-gesture-required",
         "label": "orbit",
         "create": false,
-        "title": "File Wheel",
+        "title": "",
         "url": "orbit.html",
         "width": 360,
         "height": 360,
@@ -148,7 +151,7 @@
       }
     ],
     "security": {
-      "csp": "default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; img-src 'self' data: blob:; font-src 'self' data: https://fonts.gstatic.com; connect-src 'self' ipc: http://ipc.localhost https://api.open-meteo.com https://geocoding-api.open-meteo.com https://ipapi.co http://ip-api.com https://bloom.sehaz.space"
+      "csp": "default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob:; font-src 'self' data:; connect-src 'self' ipc: http://ipc.localhost https://api.open-meteo.com https://geocoding-api.open-meteo.com https://ipapi.co http://ip-api.com"
     }
   },
   "bundle": {
@@ -163,6 +166,13 @@
     "windows": {
       "webviewInstallMode": {
         "type": "embedBootstrapper"
+      },
+      "nsis": {
+        "template": "installer/installer.nsi",
+        "installerHooks": "installer/hooks.nsh",
+        "headerImage": "installer/header.bmp",
+        "sidebarImage": "installer/sidebar.bmp",
+        "installerIcon": "icons/icon.ico"
       }
     },
     "icon": [

@@ -471,6 +471,7 @@ dependencies = [
  "base64 0.22.1",
  "image",
  "lopdf",
+ "ring",
  "rustfft",
  "serde",
  "serde_json",

@@ -15,6 +15,20 @@ use crate::types::{
 use crate::utils::*;
 use std::collections::HashMap;
 
+/// The notch says whether it wants the audio visualizer (see
+/// state::VISUALIZER_WANTED).
+#[tauri::command]
+pub fn set_visualizer_wanted(wanted: bool) {
+    crate::state::VISUALIZER_WANTED.store(wanted, Ordering::Relaxed);
+}
+
+/// The notch reports when it opens and closes, so the keyboard hook can close
+/// it on Esc (the notch window never takes keyboard focus).
+#[tauri::command]
+pub fn set_notch_open(open: bool) {
+    crate::state::NOTCH_OPEN.store(open, Ordering::Relaxed);
+}
+
 #[tauri::command]
 pub async fn set_menu_open(open: bool, rect: Option<IntRect>) {
     MENU_IS_OPEN.store(open, Ordering::Relaxed);
@@ -150,13 +164,6 @@ pub fn set_window_height(window: Window, height: f64) {
             let logical_width = physical_size.width as f64 / scale_factor;
             let _ = window.set_size(tauri::LogicalSize::new(logical_width, height));
         }
-    }
-}
-
-#[tauri::command]
-pub fn resize_settings_window(app: AppHandle, width: f64, height: f64) {
-    if let Some(win) = app.get_webview_window("settings") {
-        let _ = win.set_size(tauri::LogicalSize::new(width, height));
     }
 }
 
@@ -461,6 +468,39 @@ pub async fn change_dock_mode(app: AppHandle, mode: String) {
     }
 }
 
+/// True once after a manual (re)install: the installer leaves a marker
+/// (installer/hooks.nsh) so the first-run setup opens again.
+#[tauri::command]
+pub fn take_setup_marker(app: AppHandle) -> bool {
+    let Ok(dir) = app.path().app_config_dir() else {
+        return false;
+    };
+    std::fs::remove_file(dir.join("setup-again")).is_ok()
+}
+
+/// Spans the notch window over the primary monitor's width, tall enough for
+/// the tallest page (the Shelf) at the notch's sizes. Run at start, on a
+/// notch mode change and when a notch size changes.
+pub fn resize_notch_window(app: &AppHandle) {
+    let Some(main_win) = app.get_webview_window("main") else {
+        return;
+    };
+    if let Ok(Some(monitor)) = main_win.primary_monitor() {
+        let m_pos = monitor.position();
+        let m_size = monitor.size();
+        let scale = monitor.scale_factor();
+        let bloom_scale = crate::utils::get_surface_scale(app, "bloom-notch-scale");
+        // The window region keeps everything outside the notch click-through.
+        let open_scale = crate::utils::get_setting_str(app, "bloom-notch-open-scale")
+            .and_then(|s| s.parse::<f64>().ok())
+            .unwrap_or(1.0)
+            .clamp(0.8, 1.25);
+        let target_height = (600.0 * bloom_scale * open_scale.max(1.0) * scale) as u32;
+        let _ = main_win.set_position(tauri::PhysicalPosition::new(m_pos.x, m_pos.y));
+        let _ = main_win.set_size(tauri::PhysicalSize::new(m_size.width, target_height));
+    }
+}
+
 #[tauri::command]
 pub async fn change_notch_mode(app: AppHandle) {
     if let Some(main_win) = app.get_webview_window("main") {
@@ -478,16 +518,7 @@ pub async fn change_notch_mode(app: AppHandle) {
                 re_assert_topmost(hwnd);
             }
         });
-        // Reposition window to span the full primary monitor so CSS justify-content:center works
-        if let Ok(Some(monitor)) = main_win.primary_monitor() {
-            let m_pos = monitor.position();
-            let m_size = monitor.size();
-            let scale = monitor.scale_factor();
-            let bloom_scale = crate::utils::get_surface_scale(&app, "bloom-notch-scale");
-            let target_height = (420.0 * bloom_scale * scale) as u32;
-            let _ = main_win.set_position(tauri::PhysicalPosition::new(m_pos.x, m_pos.y));
-            let _ = main_win.set_size(tauri::PhysicalSize::new(m_size.width, target_height));
-        }
+        resize_notch_window(&app);
 
         let current = CURRENT_NOTCH_OVERLAP.load(Ordering::Relaxed);
         if current != -1 {
@@ -678,7 +709,7 @@ fn is_bloom_launch_target(target: &str, identifier: &str) -> bool {
         || target.eq_ignore_ascii_case(identifier)
         || std::path::Path::new(target)
             .file_name()
-            .is_some_and(|name| name.to_string_lossy().eq_ignore_ascii_case("bloom.exe"))
+            .is_some_and(|name| crate::utils::is_own_exe_name(&name.to_string_lossy()))
 }
 
 /// Launches another instance of an app instead of focusing an existing window.
@@ -1673,6 +1704,30 @@ pub fn schedule_icon_cache_save(app: AppHandle) {
     });
 }
 
+/// Files dropped on a dock icon open in that app (the app is started with the
+/// files as arguments; a running one takes them over). Apps from the Store
+/// have no path to start this way.
+#[tauri::command]
+pub fn open_files_with(app_path: String, paths: Vec<String>) -> Result<(), String> {
+    if paths.is_empty() {
+        return Ok(());
+    }
+    let mut exe = app_path;
+    if !exe.contains('\\') && !exe.contains('/') {
+        if let Some(resolved) = resolve_executable_path(&exe) {
+            exe = resolved;
+        }
+    }
+    if is_aumid_path(&exe) || exe.to_lowercase().contains("\\windowsapps\\") {
+        return Err("This app can't be given files from the dock.".into());
+    }
+    std::process::Command::new(&exe)
+        .args(&paths)
+        .spawn()
+        .map(|_| ())
+        .map_err(|e| e.to_string())
+}
+
 #[tauri::command]
 pub async fn get_app_icon(
     app: AppHandle,
@@ -1692,6 +1747,23 @@ pub async fn get_app_icon(
             use base64::Engine;
             let b64 = base64::engine::general_purpose::STANDARD.encode(&data);
             return Ok(Some(format!("data:image/png;base64,{}", b64)));
+        }
+    }
+
+    // LotusNotch's own windows (Settings...) always show the LotusNotch icon, never
+    // an old cached or extracted one.
+    if let Ok(exe) = std::env::current_exe() {
+        let same = |a: &str, b: &str| {
+            a.replace('/', "\\")
+                .eq_ignore_ascii_case(&b.replace('/', "\\"))
+        };
+        if same(&path, &exe.to_string_lossy()) {
+            use base64::Engine;
+            let png = include_bytes!("../icons/128x128@2x.png");
+            return Ok(Some(format!(
+                "data:image/png;base64,{}",
+                base64::engine::general_purpose::STANDARD.encode(png)
+            )));
         }
     }
 
@@ -2230,6 +2302,16 @@ pub fn open_settings_window(app: AppHandle) {
         };
         if created {
             let _ = window_vibrancy::apply_mica(&win, None);
+            // Open large: 80 % of the screen, kept between the minimum
+            // (880×600) and 1400×920, centred.
+            if let Ok(Some(monitor)) = win.current_monitor() {
+                let scale = monitor.scale_factor();
+                let size = monitor.size().to_logical::<f64>(scale);
+                let w = (size.width * 0.8).clamp(880.0, 1400.0);
+                let h = (size.height * 0.8).clamp(600.0, 920.0);
+                let _ = win.set_size(tauri::LogicalSize::new(w, h));
+                let _ = win.center();
+            }
             let closing = win.clone();
             win.on_window_event(move |event| {
                 if let tauri::WindowEvent::CloseRequested { api, .. } = event {
@@ -2269,10 +2351,38 @@ pub fn close_settings_window(app: AppHandle) {
     }
 }
 
+/// The overlay window only draws the splash and the update screen, so it is
+/// created when one is due (tauri.conf.json: `create: false`) and destroyed
+/// when it ends. True when it was just created (its page is still loading).
+/// Call off the main thread.
+pub fn ensure_overlay(app: &AppHandle) -> bool {
+    let Some((win, created)) = crate::utils::ensure_window(app, "overlay") else {
+        return false;
+    };
+    if created {
+        // Layered from the start, like the notch and dock (see set_click_through).
+        let _ = win.set_ignore_cursor_events(true);
+        let handle = app.clone();
+        win.on_window_event(move |e| {
+            if let tauri::WindowEvent::CloseRequested { api, .. } = e {
+                api.prevent_close();
+                restore_taskbar_and_exit(&handle);
+            }
+        });
+    }
+    created
+}
+
+/// The notch calls this when it knows a splash is due (first run, new version).
+#[tauri::command]
+pub async fn show_splash_overlay(app: AppHandle) {
+    let _ = tauri::async_runtime::spawn_blocking(move || ensure_overlay(&app)).await;
+}
+
 #[tauri::command]
 pub fn hide_overlay(app: AppHandle) {
     if let Some(win) = app.get_webview_window("overlay") {
-        let _ = win.hide();
+        crate::utils::release_window(&win, true);
     }
 }
 
@@ -2292,6 +2402,8 @@ pub fn set_splash_fullscreen(app: AppHandle, fullscreen: bool) {
         } else {
             let _ = win.hide();
             crate::services::sync_overlays(&app);
+            // Splash or update screen over: free its renderer.
+            crate::utils::release_window(&win, true);
         }
     }
 }
@@ -3366,6 +3478,12 @@ pub fn save_setting(app: AppHandle, key: String, value: serde_json::Value) -> Re
     if crate::utils::SCALE_KEYS.contains(&key.as_str()) {
         re_register_appbars(&app, &settings);
     }
+    if matches!(
+        key.as_str(),
+        "bloom-scale" | "bloom-notch-scale" | "bloom-notch-open-scale"
+    ) {
+        resize_notch_window(&app);
+    }
     Ok(())
 }
 
@@ -3934,8 +4052,8 @@ pub async fn export_settings_to_file(
         app.dialog()
             .file()
             .set_parent(&window)
-            .set_title("Export Bloom Enhanced Settings")
-            .set_file_name("bloom-enhanced-settings.json")
+            .set_title("Export LotusNotch Settings")
+            .set_file_name("lotusnotch-settings.json")
             .add_filter("JSON", &["json"])
             .blocking_save_file()
     })
@@ -3965,7 +4083,7 @@ pub async fn import_settings_from_file(
             app.dialog()
                 .file()
                 .set_parent(&window)
-                .set_title("Import Bloom Enhanced Settings")
+                .set_title("Import LotusNotch Settings")
                 .add_filter("JSON", &["json"])
                 .blocking_pick_file()
         }
@@ -4078,7 +4196,7 @@ fn build_settings_export(
             .collect::<Vec<_>>()
     });
     serde_json::json!({
-        "app": "Bloom Enhanced",
+        "app": "LotusNotch",
         "format": SETTINGS_EXPORT_FORMAT,
         "appVersion": app_version,
         "preferences": sections,
@@ -4115,7 +4233,7 @@ fn parse_settings_import(text: &str) -> Result<SettingsImport, String> {
         });
     };
     if object.get("format").and_then(|f| f.as_u64()).unwrap_or(0) > SETTINGS_EXPORT_FORMAT {
-        return Err("This file was made by a newer version of Bloom Enhanced.".into());
+        return Err("This file was made by a newer version of LotusNotch.".into());
     }
     let mut preferences = HashMap::new();
     for section in sections
@@ -4646,7 +4764,7 @@ mod pwa_icon_tests {
 
     #[test]
     fn bloom_launch_targets_reuse_the_running_settings_window() {
-        let identifier = "com.ucnindustries.bloomenhanced";
+        let identifier = "com.ucnindustries.lotusnotch";
         assert!(is_bloom_launch_target(identifier, identifier));
         assert!(is_bloom_launch_target("bloom-settings", identifier));
         assert!(is_bloom_launch_target(
@@ -4870,6 +4988,18 @@ pub enum SystemAction {
     PowerOptions,
     NetworkConnections,
     TaskView,
+    // Command Center tiles: Windows has no public switch for these, so each
+    // opens Windows' own page or flyout.
+    NotificationSettings,
+    NightLight,
+    Airplane,
+    Hotspot,
+    LiveCaptions,
+    StudioEffects,
+    Accessibility,
+    NearbySharing,
+    Cast,
+    Project,
 }
 
 #[tauri::command]
@@ -4903,6 +5033,21 @@ pub async fn open_system_action(action: SystemAction) -> Result<(), String> {
             SystemAction::InstalledApps => ("ms-settings:appsfeatures".into(), String::new()),
             SystemAction::PowerOptions => ("ms-settings:powersleep".into(), String::new()),
             SystemAction::NetworkConnections => ("ms-settings:network".into(), String::new()),
+            SystemAction::NotificationSettings => {
+                ("ms-settings:notifications".into(), String::new())
+            }
+            SystemAction::NightLight => ("ms-settings:nightlight".into(), String::new()),
+            SystemAction::Airplane => ("ms-settings:network-airplanemode".into(), String::new()),
+            SystemAction::Hotspot => ("ms-settings:network-mobilehotspot".into(), String::new()),
+            SystemAction::LiveCaptions => (format!("{system}\\LiveCaptions.exe"), String::new()),
+            SystemAction::StudioEffects => ("ms-settings:camera".into(), String::new()),
+            SystemAction::Accessibility => ("ms-settings:easeofaccess".into(), String::new()),
+            SystemAction::NearbySharing => ("ms-settings:crossdevice".into(), String::new()),
+            SystemAction::Cast => (
+                "ms-settings-connectabledevices:devicediscovery".into(),
+                String::new(),
+            ),
+            SystemAction::Project => (format!("{system}\\DisplaySwitch.exe"), String::new()),
             // Task View's shell folder opens Task View like the taskbar's
             // button, without sending Win+Tab, which a held Ctrl or Shift
             // would turn into a different shortcut.

@@ -1,4 +1,4 @@
-import { motion, AnimatePresence, useAnimation } from "framer-motion";
+import { motion, AnimatePresence, MotionConfig, useAnimation } from "framer-motion";
 import { useEffect, useLayoutEffect, useState, useCallback, useMemo, useRef, memo } from "react";
 import { listen } from "@tauri-apps/api/event";
 import { invoke } from "@tauri-apps/api/core";
@@ -15,8 +15,6 @@ import {
 import {
 	asNotchStyle,
 	parsePanelOrder,
-	parsePanelScales,
-	type PanelScales,
 	type SizedPanel,
 	panelZoom
 } from "./notchLayout";
@@ -37,6 +35,28 @@ import { useWeather } from "./hooks/useWeather";
 import { useSettingsSync } from "./hooks/useSettingsSync";
 import { useTrailingThrottle } from "./hooks/useTrailingThrottle";
 import { useAnnouncement } from "./hooks/useAnnouncement";
+import { NotchTabBar } from "./components/NotchTabBar";
+import { BloomTip } from "./components/BloomTip";
+import { BODY_VARIANTS, CC_EXIT, LIST_MOTION, LIVELY, bodyMotion } from "./motion";
+import { Roll } from "./components/Roll";
+import { CopyEffect, LotusSignature, ProgressEffect, asProgressStyle } from "./components/ProgressEffect";
+import { EXTRA_BY_ID, GRID_H, MAX_TABS, OPEN_WIDTH, TAB_BAR_HEIGHT, openingTool, pomodoroLength, orderTabs, TOOLS, parseEnabledTools, type ExtraToolId, type Tool } from "./tools";
+import { SEGMENT_BAR_HEIGHT, ToolHost, showPart } from "./notchTools/ToolHost";
+import { CommandCenter, ccBodyHeight, parseCcTiles, type CcTileId, type CcTileState } from "./components/CommandCenter";
+
+// Tool switches: bodies slide toward the picked tab with a lively spring
+// (motion.ts). The Command Center steps aside for its Wi-Fi / Bluetooth list.
+const CC_VARIANTS = {
+	enter: (c: number | "list") => BODY_VARIANTS.enter(typeof c === "number" ? c : 0),
+	center: BODY_VARIANTS.center,
+	exit: (c: number | "list") => (c === "list" ? CC_EXIT : BODY_VARIANTS.exit(c))
+};
+
+type MotionPref = "on" | "off";
+const asMotionPref = (v: unknown): MotionPref => (v === "off" ? "off" : "on");
+
+/** system_tools.rs CcStates; a missing key = not available on this PC. */
+type CcSystemStates = Partial<Record<"night-light" | "airplane" | "hotspot" | "nearby" | "captions", boolean | null>>;
 import { reloadIfMirrorWasStale } from "./hooks/settingsMirror";
 import { openUrl } from "@tauri-apps/plugin-opener";
 import { writeText } from "@tauri-apps/plugin-clipboard-manager";
@@ -51,10 +71,14 @@ import { deviceArtFor } from "./devices/deviceArtFor";
 import { deviceLookFor } from "./devices/deviceLooks";
 import type { BudLevel, BudsBattery } from "./devices/connectedDevices";
 import { ConnectedDevicesPanel } from "./components/ConnectedDevicesPanel";
+import { requestSend, sharePeerAt } from "./components/ShareColumn";
+import { useHideFromCapture } from "./hooks/useHideFromCapture";
+import { DeadlineList, dayKey, useDeadlines } from "./notchTools/Deadlines";
+import { NotchOutline } from "./components/NotchOutline";
 import { ClipboardPanel } from "./components/ClipboardPanel";
 import { useClipboardSettings } from "./hooks/useClipboardSettings";
 import { clipSounds } from "./clipboardSounds";
-import { releaseTextKeyboard, useTextInputKeyboard } from "./hooks/useTextInputKeyboard";
+import { focusFirstTextField, releaseTextKeyboard, useTextInputKeyboard } from "./hooks/useTextInputKeyboard";
 import { useConnectedDevices } from "./hooks/useConnectedDevices";
 import { isWiredAudio, usbArtFor, usbDisplayName, type UsbIdentity } from "./devices/usbArtFor";
 import type { DeviceArtKey } from "./devices/art";
@@ -64,9 +88,7 @@ import {
 	HardDrive,
 	ArrowUpDown,
 	BellRing,
-	Play,
-	Pause,
-	RotateCcw,
+	Timer,
 	Megaphone,
 	Type,
 	X,
@@ -75,10 +97,9 @@ import {
 	Inbox,
 	Music,
 	Zap,
-	Activity,
 	ClipboardCheck
 } from "lucide-react";
-import { CircleAlert, CircleCheck, CircleSlash } from "lucide-react";
+import { CircleAlert, CircleCheck, CircleSlash, Leaf } from "lucide-react";
 import type { OrbitStatus } from "./orbitOps";
 
 /**
@@ -93,6 +114,21 @@ import type { OrbitStatus } from "./orbitOps";
  */
 type NotchPanel = "calendar" | "command-center" | "devices" | "clipboard";
 const NOTCH_PANELS: readonly NotchPanel[] = ["calendar", "command-center", "devices", "clipboard"];
+/** What Battery saver pauses (`bloom-battery-saver-pauses`, JSON); all three
+ *  by default. */
+type SaverPauses = { visualizer: boolean; motion: boolean; glass: boolean };
+function parseSaverPauses(raw: unknown): SaverPauses {
+	const all = { visualizer: true, motion: true, glass: true };
+	try {
+		const v = JSON.parse(String(raw ?? ""));
+		return v && typeof v === "object" ? { ...all, ...v } : all;
+	} catch {
+		return all;
+	}
+}
+
+/** Smart start's window for reopening the last panel. */
+const SMART_START_MS = 5 * 60 * 1000;
 const asNotchPanel = (value: unknown): NotchPanel | null =>
 	NOTCH_PANELS.includes(value as NotchPanel) ? (value as NotchPanel) : null;
 
@@ -101,31 +137,7 @@ const asNotchPanel = (value: unknown): NotchPanel | null =>
 const DEVICES_MIN_HEIGHT = 150;
 const DEVICES_MAX_HEIGHT = 300;
 
-// Pomodoro timer limit.
-const MAX_TIMER_SECONDS = 180 * 60;
 
-// Inline timer editing: digits fill from the right and the colon is inserted
-// automatically ("130" -> 1:30, "2500" -> 25:00, "45" -> 0:45).
-const timerDigitsToSeconds = (digits: string): number | null => {
-	if (!digits) return null;
-	const secs = parseInt(digits.slice(-2) || "0", 10);
-	const mins = parseInt(digits.slice(0, -2) || "0", 10);
-	const total = mins * 60 + secs;
-	return total > 0 && total <= MAX_TIMER_SECONDS ? total : null;
-};
-
-const timerSecondsToDigits = (seconds: number): string => {
-	const mins = Math.floor(seconds / 60);
-	const secs = seconds % 60;
-	return `${mins}${secs.toString().padStart(2, "0")}`.replace(/^0+(?=\d)/, "");
-};
-
-const formatTimerDigits = (digits: string): string => {
-	if (!digits) return "0:00";
-	const secs = digits.slice(-2).padStart(2, "0");
-	const mins = parseInt(digits.slice(0, -2) || "0", 10);
-	return `${mins}:${secs}`;
-};
 
 // Completion chime for the Pomodoro timer. Synthesized with the Web Audio API
 // so no audio asset is needed; created on the Start click so the webview's
@@ -181,47 +193,6 @@ const playTimerChime = () => {
 };
 
 // Simple SVG icons
-function WifiIcon({ enabled, connected }: { enabled: boolean; connected: boolean }) {
-	return (
-		<svg
-			width="18"
-			height="18"
-			viewBox="0 0 24 24"
-			fill="none"
-			stroke="currentColor"
-			strokeWidth="2.5"
-			strokeLinecap="round"
-			strokeLinejoin="round"
-			opacity={!enabled ? 0.4 : connected ? 1 : 0.7}
-		>
-			<path d="M5 12.55a11 11 0 0 1 14.08 0" />
-			<path d="M1.42 9a16 16 0 0 1 21.16 0" />
-			<path d="M8.53 16.11a6 6 0 0 1 6.95 0" />
-			<line x1="12" y1="20" x2="12.01" y2="20" />
-		</svg>
-	);
-}
-
-function TrayIcon() {
-	return (
-		<svg
-			width="14"
-			height="14"
-			viewBox="0 0 24 24"
-			fill="none"
-			stroke="currentColor"
-			strokeWidth="2.5"
-			strokeLinecap="round"
-			strokeLinejoin="round"
-		>
-			<rect x="3" y="3" width="6" height="6" rx="1" />
-			<rect x="15" y="3" width="6" height="6" rx="1" />
-			<rect x="15" y="15" width="6" height="6" rx="1" />
-			<rect x="3" y="15" width="6" height="6" rx="1" />
-		</svg>
-	);
-}
-
 function BatteryIcon({
 	charging,
 	level,
@@ -395,33 +366,6 @@ const calendarMonthRows = (() => {
 	return Math.ceil((firstWeekday + daysInMonth) / 7);
 })();
 
-// Odometer-style digit for the timer clock. When the value changes the old
-// digit rolls up and out while the new one rolls in from below with a slight
-// 3D tilt — no card chrome, just the numerals.
-const RollDigit = memo(function RollDigit({
-	value,
-	compact = false
-}: {
-	value: string;
-	compact?: boolean;
-}) {
-	return (
-		<span className={`roll-digit ${compact ? "compact" : ""}`}>
-			<AnimatePresence initial={false}>
-				<motion.span
-					key={value}
-					className="roll-num"
-					initial={{ y: "72%", rotateX: -50, opacity: 0 }}
-					animate={{ y: "0%", rotateX: 0, opacity: 1 }}
-					exit={{ y: "-72%", rotateX: 50, opacity: 0 }}
-					transition={{ duration: 0.4, ease: [0.22, 1, 0.36, 1] }}
-				>
-					{value}
-				</motion.span>
-			</AnimatePresence>
-		</span>
-	);
-});
 
 interface MediaInfo {
 	title: string;
@@ -470,7 +414,8 @@ type BloomMode =
 	| "bluetooth"
 	| "devices"
 	| "clipboard"
-	| "device";
+	| "device"
+	| "tool";
 
 // A device that just connected or disconnected, shown briefly in the pill.
 interface DeviceAlert {
@@ -484,6 +429,8 @@ interface DeviceAlert {
 	buds?: BudsBattery | null;
 	// A USB device, which has no list to open when the alert is clicked.
 	usb?: boolean;
+	// A USB drive: clicking the alert opens it in File Explorer.
+	disk?: boolean;
 	// Changes on every alert, so the drawing replays its animation.
 	runId: number;
 }
@@ -641,6 +588,15 @@ function App() {
 	const [isHovered, setIsHovered] = useState(false);
 	// Expanded into a panel by a click. Hover alone only peeks.
 	const [isOpen, setIsOpen] = useState(false);
+	// The Timer tool's running countdown, shown on the closed notch as
+	// `bloom-timer-display` says: the time, an edge light, both, or off.
+	const [toolTimer, setToolTimer] = useState<{ left: number; total: number } | null>(null);
+	const [timerDisplay, setTimerDisplay] = useState(() => localStorage.getItem("bloom-timer-display") ?? "both");
+	const [timesUp, setTimesUp] = useState(false);
+	const [enabledTools, setEnabledTools] = useState(() => parseEnabledTools(localStorage.getItem("bloom-tools-enabled")));
+	// Game strip glance (`bloom-game-glance`): its readings on the closed notch.
+	const [gameGlance, setGameGlance] = useState(() => localStorage.getItem("bloom-game-glance") === "on");
+	const [glance, setGlance] = useState<{ cpu: number; gpu: number | null; ram: number } | null>(null);
 	const isOpenRef = useRef(false);
 	isOpenRef.current = isOpen;
 	const [isReady, setIsReady] = useState(false);
@@ -653,9 +609,6 @@ function App() {
 		return value ? parseFloat(value) : null;
 	});
 	const scale = notchScale ?? globalScale;
-	const [notchPanelScales, setNotchPanelScales] = useState<PanelScales>(() =>
-		parsePanelScales(localStorage.getItem("bloom-notch-panel-scales"))
-	);
 	const [panelOrder, setPanelOrder] = useState(() => parsePanelOrder(localStorage.getItem("bloom-notch-panel-order")));
 	const [notchStyle, setNotchStyle] = useState(() =>
 		asNotchStyle(localStorage.getItem("bloom-notch-style"))
@@ -672,6 +625,18 @@ function App() {
 
 	const [batteryLevel, setBatteryLevel] = useState(100);
 	const [isCharging, setIsCharging] = useState(false);
+	// Battery saver (Settings › General): when it turns on and what it pauses.
+	const [saverMode, setSaverMode] = useState(() => localStorage.getItem("bloom-battery-saver") ?? "below");
+	const [saverThreshold, setSaverThreshold] = useState(
+		() => parseInt(localStorage.getItem("bloom-battery-saver-threshold") ?? "", 10) || 30
+	);
+	const [saverPauses, setSaverPauses] = useState(() => parseSaverPauses(localStorage.getItem("bloom-battery-saver-pauses")));
+	// Animations (`bloom-motion`): on by default, whatever Windows' "Animation
+	// effects" says; Off turns them off. Battery saver can still pause them.
+	const [motionPref, setMotionPref] = useState(() => asMotionPref(localStorage.getItem("bloom-motion")));
+	useEffect(() => {
+		document.documentElement.classList.toggle("motion-on", motionPref !== "off");
+	}, [motionPref]);
 	// Fetched when the pointer reaches the battery widget, for its tooltip.
 	const [batteryDetails, setBatteryDetails] = useState<BatteryDetails | null>(null);
 	// The status widget whose tooltip is open, the side of the pill it hangs
@@ -696,12 +661,21 @@ function App() {
 	const [eventPeek, setEventPeek] = useState(false);
 	const eventPeekTimeoutRef = useRef<any>(null);
 	const updatePulseTimerRef = useRef<any>(null);
+	// First-run setup's live preview (Settings › setup): the notch stays shown,
+	// closed or open, while its size sliders move.
+	const [setupPreview, setSetupPreview] = useState<"closed" | "open" | null>(null);
+	// Extra size for the open notch only (`bloom-notch-open-scale`).
+	const [openScale, setOpenScale] = useState(() => {
+		const v = parseFloat(localStorage.getItem("bloom-notch-open-scale") ?? "1");
+		return Number.isFinite(v) ? Math.min(1.25, Math.max(0.8, v)) : 1;
+	});
 	const triggerEventPeek = useCallback((duration = 3000) => {
 		setEventPeek(true);
 		if (eventPeekTimeoutRef.current) clearTimeout(eventPeekTimeoutRef.current);
 		eventPeekTimeoutRef.current = setTimeout(() => setEventPeek(false), duration);
 	}, []);
 
+	const [radialOn, setRadialOn] = useState(() => localStorage.getItem("bloom-files-enabled") !== "false");
 	const [notchMode, setNotchMode] = useState(() => {
 		const raw = localStorage.getItem("bloom-notch-mode") || "fixed";
 		if (raw === "auto-hide") return "smart";
@@ -756,6 +730,9 @@ function App() {
 	const [isMuted, setIsMuted] = useState(false);
 	// Sliders show 0 while muted, matching the overlay HUD.
 	const displayVolume = isMuted ? 0 : volume;
+	// What the Command Center's slider icons bring back after muting / dimming to 0.
+	const restoreVolumeRef = useRef(0.5);
+	const restoreBrightnessRef = useRef(50);
 	// Null until the first successful fetch so the pill can't flash a wrong
 	// default on startup.
 	const [wifiStatus, setWifiStatus] = useState<WifiStatus | null>(null);
@@ -922,9 +899,21 @@ function App() {
 	const appliedNotchMode = useRef<string | null>(null);
 
 	const isAnyInteraction = isHovered || isNotchHovered || isEdgeHovered;
+	// An open notch never hides (Peek / Smart): the shortcut opens it without
+	// the pointer touching the edge.
+	// A running Timer shown on the notch keeps it on screen (Peek / Smart).
+	const glanceOn = gameGlance && enabledTools.includes("game");
+	const timerShowing = (!!toolTimer && timerDisplay !== "off") || timesUp || (glanceOn && !isOpen);
+	const [fileStatus, setFileStatus] = useState<OrbitStatus>(null);
 	const isHidden =
+		!isOpen &&
+		!timerShowing &&
 		!startupAnimating &&
 		!deviceAlertOnScreen &&
+		// A notice ("Riya copied: …", a send's result) shows the notch
+		// for its few seconds even when an app covers the top.
+		!fileStatus &&
+		!setupPreview &&
 		((notchMode === "smart" && isOverlapped && interactionState === "none" && !eventPeek) ||
 			(notchMode === "peek" && interactionState === "none" && !eventPeek));
 
@@ -1038,6 +1027,8 @@ function App() {
 		const storedVersion = localStorage.getItem("bloom-app-version");
 
 		const waitForSplash = () => {
+			// The overlay window only exists for the splash: ask for it.
+			invoke("show_splash_overlay").catch(() => {});
 			// Splash is definitely coming — register listener now (2800ms animation gives us plenty of time)
 			let started = false;
 			let interval: any;
@@ -1139,15 +1130,54 @@ function App() {
 	}, [windowLabel, settingsClipboardEnabled, clipboardCopyIndicator, clipOptions.sounds, notchMode, triggerEventPeek]);
 	// The radial menu's job status, when Settings › Radial Menu shows it here
 	// (the menu sends it as `orbit-status`; null clears it).
-	const [fileStatus, setFileStatus] = useState<OrbitStatus>(null);
+	// Shelf sharing on the closed notch: "Riya copied: …" (click puts it on
+	// the clipboard) and "Riya sent 3 things". Shown through the status line.
+	const liveClipRef = useRef<string | null>(null);
 	useEffect(() => {
 		if (windowLabel !== "main") return;
+		let timer: ReturnType<typeof setTimeout> | undefined;
+		const show = (text: string, ms: number, clip: string | null, bad = false) => {
+			liveClipRef.current = clip;
+			// A loss ("Riya removed you") gets the red outline.
+			setFileStatus({ text, percent: null, result: bad ? "failed" : clip ? null : "ok" });
+			clearTimeout(timer);
+			timer = setTimeout(() => {
+				liveClipRef.current = null;
+				setFileStatus(null);
+			}, ms);
+		};
+		const offs = [
+			listen<{ from: string; id: string | null; preview: string | null }>("share-live", (e) =>
+				show(`${e.payload.from} copied${e.payload.preview ? `: ${e.payload.preview}` : " something"}`, 6000, e.payload.id)
+			),
+			listen<{ text: string; bad: boolean }>("share-notice", (e) => show(e.payload.text, 4000, null, e.payload.bad)),
+			listen<{ from: string; count: number }>("share-received", (e) =>
+				show(`${e.payload.from} sent ${e.payload.count === 1 ? "something" : `${e.payload.count} things`} · in the Shelf`, 3500, null)
+			)
+		];
+		const onCopied = () => show("Ready to paste", 1200, null);
+		window.addEventListener("share-live-copied", onCopied);
+		return () => {
+			clearTimeout(timer);
+			window.removeEventListener("share-live-copied", onCopied);
+			offs.forEach((o) => o.then((f) => f()));
+		};
+	}, [windowLabel]);
+	// How a job's progress shows on the notch (Settings › Radial Menu).
+	const [progressStyle, setProgressStyle] = useState(() => asProgressStyle(localStorage.getItem("bloom-progress-effect")));
+	useEffect(() => {
+		if (windowLabel !== "main") return;
+		let canceledAt = 0;
 		const unlisten = listen<OrbitStatus>("orbit-status", (e) => {
+			// A failure reported right after "Canceled" is the job stopping, not a real failure.
+			if (e.payload?.result === "canceled") canceledAt = Date.now();
+			else if (e.payload?.result === "failed" && Date.now() - canceledAt < 3000) return;
 			setFileStatus(e.payload);
 			// Stays on screen until the job ends (Smart and Peek modes too).
 			if (e.payload) {
 				setIsHovered(false);
-				if (notchMode !== "fixed") triggerEventPeek(e.payload.result ? 4000 : 600000);
+				if (notchMode !== "fixed") // A chain being built (no percent, no result) only peeks for a while.
+				if (notchMode !== "fixed") triggerEventPeek(e.payload.result ? 4000 : e.payload.percent === null ? 20000 : 600000);
 			}
 		});
 		return () => {
@@ -1167,8 +1197,123 @@ function App() {
 	const rememberPanelEnabledRef = useRef(rememberPanelEnabled);
 	rememberPanelEnabledRef.current = rememberPanelEnabled;
 	const [defaultPanel, setDefaultPanel] = useState<NotchPanel>(() =>
-		asNotchPanel(localStorage.getItem("bloom-notch-default-panel")) ?? "calendar"
+		asNotchPanel(localStorage.getItem("bloom-notch-default-panel")) ?? "command-center"
 	);
+	// When the open notch last closed: Smart start returns to the last panel
+	// only within SMART_START_MS of that, else to the favourite.
+	const lastClosedAtRef = useRef(0);
+	// The extra tools turned on (Settings › Notch › Tools), in tab order, and
+	// the one showing while bloomMode is "tool".
+	const [ccTiles, setCcTiles] = useState(() => parseCcTiles(localStorage.getItem("bloom-cc-tiles")));
+	const [tabOrder, setTabOrder] = useState<unknown>(() => localStorage.getItem("bloom-tab-order"));
+	const tabMotion = useRef<{ id: string | null; idx: number; dir: number }>({ id: null, idx: -1, dir: 0 });
+	const stepTabRef = useRef<(direction: 1 | -1) => boolean>(() => false);
+	const runShortcutRef = useRef<(action: string) => void>(() => {});
+	// Which tool the notch opens on (Fable's rules, 2026-11-15): Quick return
+	// (the tool you left, within `bloom-notch-quick-return` minutes of
+	// closing) → Favourite (`bloom-notch-favourite`, any tool, when
+	// `bloom-notch-favourite-on`) → the last tool used → Command Center.
+	const openFromRestRef = useRef<() => void>(() => {});
+	const [favouriteOn, setFavouriteOn] = useState(() => localStorage.getItem("bloom-notch-favourite-on") !== "false");
+	const [favourite, setFavourite] = useState(
+		() => localStorage.getItem("bloom-notch-favourite") ?? localStorage.getItem("bloom-notch-default-panel") ?? "command-center"
+	);
+	const [quickReturnMin, setQuickReturnMin] = useState(() => {
+		const v = localStorage.getItem("bloom-notch-quick-return");
+		if (v !== null) return Number(v) || 0;
+		// Before: Smart Start on = 5 minutes, off = never.
+		return localStorage.getItem("bloom-notch-remember-panel") === "false" ? 0 : 5;
+	});
+	const lastToolRef = useRef<string | null>(localStorage.getItem("bloom-notch-last-tool"));
+	// A notch the Timer or a reminder opened doesn't count as "used".
+	const autoOpenedRef = useRef(false);
+	const [ccSystem, setCcSystem] = useState<CcSystemStates>({});
+	const [activeTool, setActiveTool] = useState<ExtraToolId | null>(null);
+	// Reminders and the Timer ring while their tool is on, even with the tab
+	// closed: when one is due the notch opens on it and chimes, once per due
+	// time. Checked every 2 s (ponytail: a poll, cheap: two small files).
+	const rungRef = useRef(new Set<string>());
+	useEffect(() => {
+		const watch = (["reminders", "stopwatch"] as const).filter((t) => enabledTools.includes(t));
+		if (windowLabel !== "main" || !watch.length) return;
+		const ring = (tool: ExtraToolId, key: string) => {
+			if (rungRef.current.has(key)) return;
+			rungRef.current.add(key);
+			playTimerChime();
+			const open = () => {
+				autoOpenedRef.current = true;
+				setTimesUp(false);
+				setActiveTool(tool);
+				setIsOpen(true);
+				setBloomMode("tool");
+			};
+			// The Timer says so first: a bold TIME'S UP on the notch, then it opens.
+			if (tool === "stopwatch" && !isOpenRef.current) {
+				setTimesUp(true);
+				window.setTimeout(open, 1800);
+			} else open();
+		};
+		const check = () => {
+			if (watch.includes("reminders"))
+				invoke<string | null>("tool_data_get", { tool: "reminders" })
+					.then((text) => {
+						const items: { id: string; at: number }[] = text ? JSON.parse(text).items ?? [] : [];
+						const due = items.find((r) => r.at <= Date.now() && !rungRef.current.has(`${r.id}@${r.at}`));
+						if (due) ring("reminders", `${due.id}@${due.at}`);
+					})
+					.catch(() => {});
+			if (watch.includes("stopwatch"))
+				invoke<string | null>("tool_data_get", { tool: "stopwatch" })
+					.then((text) => {
+						const t = text ? JSON.parse(text) : null;
+						// The tab may have seen the end first and stopped it; only a
+						// recent end rings (finishedFor outlives a restart).
+						if (t?.finishedFor && !t.timerAt && t.finishedAt && Date.now() - t.finishedAt < 15000) ring("stopwatch", `timer@${t.finishedFor}`);
+						// Pomodoro: a phase that ended rings and shows its countdown.
+						if (t?.mode === "pomodoro" && t.phaseAt) {
+							const total = pomodoroLength(t.phase ?? 0);
+							const left = total - (t.phaseDone ?? 0) - (Date.now() - t.phaseAt);
+							setToolTimer(left > 0 ? { left, total } : null);
+							if (left <= 0) ring("stopwatch", `pomo@${t.phaseAt}`);
+							if (!t.timerAt) return;
+						}
+						if (!t?.timerAt) return setToolTimer(null);
+						const total = t.timerLength ?? 300000;
+						const left = total - (t.timerDone ?? 0) - (Date.now() - t.timerAt);
+						setToolTimer(left > 0 ? { left, total } : null);
+						if (left <= 0) ring("stopwatch", `timer@${t.timerAt}`);
+					})
+					.catch(() => {});
+		};
+		check();
+		const timer = window.setInterval(check, 1000);
+		return () => window.clearInterval(timer);
+	}, [windowLabel, enabledTools]);
+	// OCR's one-step snip ends here (the notch may have closed meanwhile):
+	// keep the text for the OCR page and open it, like a ring does.
+	useEffect(() => {
+		if (windowLabel !== "main") return;
+		const off = listen<{ text?: string; error?: string }>("ocr-result", (e) => {
+			const result = { text: e.payload.text ?? "", error: e.payload.error ?? "", at: Date.now() };
+			invoke("tool_data_set", { tool: "ocr", json: JSON.stringify(result) }).catch(() => {});
+			if (!enabledTools.includes("capture")) return;
+			showPart("capture", "ocr");
+			if (isOpenRef.current) return;
+			autoOpenedRef.current = true;
+			setActiveTool("capture");
+			setIsOpen(true);
+			setBloomMode("tool");
+		});
+		return () => void off.then((f) => f());
+	}, [windowLabel, enabledTools]);
+	const visualizerWantedRef = useRef(true);
+	const visualizerSentRef = useRef<boolean | null>(null);
+	// Open on click (default) or on hover after a delay.
+	const [notchOpenOn, setNotchOpenOn] = useState(() => localStorage.getItem("bloom-notch-open-on") === "hover" ? "hover" : "click");
+	const [notchHoverDelay, setNotchHoverDelay] = useState(() => {
+		const v = parseInt(localStorage.getItem("bloom-notch-hover-delay") ?? "", 10);
+		return Number.isFinite(v) ? v : 300;
+	});
 	// The panel the open notch was last left on. Opening the notch returns to it,
 	// across restarts too (bloom-notch-last-panel).
 	const [lastPanel, setLastPanel] = useState<NotchPanel | null>(() =>
@@ -1236,7 +1381,12 @@ function App() {
 				setRememberPanelEnabled(
 					(getVal("bloom-notch-remember-panel") ?? getVal("bloom-notch-click-to-open", "true")) !== "false"
 				);
-				setDefaultPanel(asNotchPanel(getVal("bloom-notch-default-panel")) ?? "calendar");
+				setDefaultPanel(asNotchPanel(getVal("bloom-notch-default-panel")) ?? "command-center");
+				setNotchOpenOn(getVal("bloom-notch-open-on") === "hover" ? "hover" : "click");
+				{
+					const v = parseInt(String(getVal("bloom-notch-hover-delay") ?? ""), 10);
+					setNotchHoverDelay(Number.isFinite(v) ? v : 300);
+				}
 				setShelfPersist(getVal("bloom-shelf-persist", "false") === "true");
 				setSettingsMusicCompactNotch(getVal("bloom-music-compact-notch", "true") !== "false");
 				setLastPanel(asNotchPanel(getVal("bloom-notch-last-panel")));
@@ -1269,6 +1419,15 @@ function App() {
 						});
 						localStorage.setItem("bloom-first-run", "done");
 					}
+					// First-run setup (notch size, name, tools) lives in Settings:
+					// open it until it's done, and again after a manual reinstall.
+					const again = await invoke<boolean>("take_setup_marker").catch(() => false);
+					if (again) {
+						localStorage.setItem("bloom-setup-done", "false");
+						await invoke("save_setting", { key: "bloom-setup-done", value: "false" }).catch(() => {});
+					}
+					if (again || getVal("bloom-setup-done", "false") !== "true")
+						window.setTimeout(() => invoke("open_settings_window").catch(() => {}), 2500);
 					const rawDockMode = getVal("bloom-dock-mode", "smart") as string;
 					const dockMode = rawDockMode === "auto-hide" ? "smart" : rawDockMode;
 					setDockMode(dockMode);
@@ -1291,7 +1450,6 @@ function App() {
 				if (scaleVal !== null) setGlobalScale(parseFloat(scaleVal));
 				const notchScaleVal = getVal("bloom-notch-scale");
 				if (notchScaleVal !== null) setNotchScale(parseFloat(notchScaleVal));
-				setNotchPanelScales(parsePanelScales(getVal("bloom-notch-panel-scales")));
 				setNotchStyle(asNotchStyle(getVal("bloom-notch-style")));
 				setPanelOrder(parsePanelOrder(getVal("bloom-notch-panel-order")));
 				setTimeSize(sizeOf(getVal("bloom-notch-time-size")));
@@ -1364,7 +1522,12 @@ function App() {
 			"bloom-music-mode-enabled": setSettingsMusicModeEnabled,
 			"bloom-notch-remember-panel": setRememberPanelEnabled,
 			"bloom-notch-default-panel": (v: unknown) =>
-				setDefaultPanel(asNotchPanel(v) ?? "calendar"),
+				setDefaultPanel(asNotchPanel(v) ?? "command-center"),
+			"bloom-notch-open-on": (v: unknown) => setNotchOpenOn(v === "hover" ? "hover" : "click"),
+			"bloom-notch-hover-delay": (v: unknown) => {
+				const n = parseInt(String(v ?? ""), 10);
+				setNotchHoverDelay(Number.isFinite(n) ? n : 300);
+			},
 			"bloom-shelf-persist": setShelfPersist,
 			"bloom-music-compact-notch": setSettingsMusicCompactNotch,
 			"bloom-notch-last-panel": (v: unknown) => setLastPanel(asNotchPanel(v)),
@@ -1376,16 +1539,33 @@ function App() {
 			"bloom-media-layout": setMediaLayout,
 			"bloom-scale": setGlobalScale,
 			"bloom-notch-scale": setNotchScale,
-			"bloom-notch-panel-scales": (v: unknown) => setNotchPanelScales(parsePanelScales(v)),
+			"bloom-notch-open-scale": (v: unknown) => {
+				const n = parseFloat(String(v));
+				setOpenScale(Number.isFinite(n) ? Math.min(1.25, Math.max(0.8, n)) : 1);
+			},
 			"bloom-notch-style": (v: unknown) => setNotchStyle(asNotchStyle(v)),
 			"bloom-notch-panel-order": (v: unknown) => setPanelOrder(parsePanelOrder(v)),
 			"bloom-notch-time-size": (v: unknown) => setTimeSize(sizeOf(v)),
 			"bloom-notch-left-size": (v: unknown) => setLeftSize(sizeOf(v)),
 			"bloom-notch-right-size": (v: unknown) => setRightSize(sizeOf(v)),
 			"bloom-low-battery-threshold": setLowBatteryThreshold,
+			"bloom-tools-enabled": (v: unknown) => setEnabledTools(parseEnabledTools(v)),
+			"bloom-cc-tiles": (v: unknown) => setCcTiles(parseCcTiles(v)),
+			"bloom-timer-display": (v: unknown) => setTimerDisplay(String(v)),
+			"bloom-notch-favourite-on": (v: unknown) => setFavouriteOn(v !== false && v !== "false"),
+			"bloom-notch-favourite": (v: unknown) => setFavourite(String(v)),
+			"bloom-notch-quick-return": (v: unknown) => setQuickReturnMin(Number(v) || 0),
+			"bloom-game-glance": (v: unknown) => setGameGlance(v === "on"),
+			"bloom-tab-order": setTabOrder,
+			"bloom-progress-effect": (v: unknown) => setProgressStyle(asProgressStyle(v)),
+			"bloom-battery-saver": (v: unknown) => setSaverMode(String(v ?? "below")),
+			"bloom-battery-saver-threshold": (v: unknown) => setSaverThreshold(parseInt(String(v ?? ""), 10) || 30),
+			"bloom-battery-saver-pauses": (v: unknown) => setSaverPauses(parseSaverPauses(v)),
+			"bloom-motion": (v: unknown) => setMotionPref(asMotionPref(v)),
 			"bloom-dock-enabled": setDockEnabled,
 			"bloom-dock-mode": setDockMode,
 			"bloom-notch-mode": setNotchMode,
+			"bloom-files-enabled": (v: unknown) => setRadialOn(v !== false && v !== "false"),
 			"bloom-status-widgets": (value) => {
 				try {
 					const parsed = JSON.parse(value);
@@ -1753,6 +1933,7 @@ function App() {
 		if (isOpenRef.current) {
 			const panel = asNotchPanel(bloomModeRef.current);
 			if (panel && rememberPanelEnabledRef.current) rememberPanelRef.current(panel);
+			lastClosedAtRef.current = Date.now();
 			setIsOpen(false);
 		}
 		setBloomMode((prev) =>
@@ -1764,11 +1945,15 @@ function App() {
 			prev === "wifi" ||
 			prev === "bluetooth" ||
 			prev === "devices" ||
-			prev === "clipboard"
+			prev === "clipboard" ||
+			prev === "tool"
 				? restingModeRef.current
 				: prev
 		);
 	};
+
+	const releaseNotchHoverRef = useRef(releaseNotchHover);
+	releaseNotchHoverRef.current = releaseNotchHover;
 
 	const clearShelfCollapse = () => {
 		if (shelfCollapseTimer.current !== null) {
@@ -1904,6 +2089,83 @@ function App() {
 	// keyboard handed to this no-activate window.
 	useTextInputKeyboard();
 
+	// The backend captures audio only while the visualizer is wanted.
+	useEffect(() => {
+		if (windowLabel !== "main") return;
+		if (visualizerSentRef.current === visualizerWantedRef.current) return;
+		visualizerSentRef.current = visualizerWantedRef.current;
+		invoke("set_visualizer_wanted", { wanted: visualizerWantedRef.current }).catch(() => {});
+	});
+
+	// Esc closes the open notch (the keyboard hook in services.rs reports it;
+	// this window never takes focus). The backend learns open/closed here.
+	useEffect(() => {
+		if (windowLabel !== "main") return;
+		invoke("set_notch_open", { open: isOpen }).catch(() => {});
+	}, [isOpen, windowLabel]);
+	useEffect(() => {
+		if (windowLabel !== "main") return;
+		// Esc steps back one level: a Wi-Fi / Bluetooth list returns to the
+		// Command Center, the next Esc closes the notch.
+		const onEscape = () => {
+			// Typing in a field: Esc leaves it (number keys switch tabs again);
+			// the next Esc steps back / closes.
+			const active = document.activeElement as HTMLElement | null;
+			if (active?.matches("input, textarea, [contenteditable='true']")) {
+				active.blur();
+				releaseTextKeyboard();
+				notchPinnedRef.current = false;
+				return;
+			}
+			if (bloomModeRef.current === "wifi" || bloomModeRef.current === "bluetooth") return setBloomMode("command-center");
+			// A tool holding the keys (the Calculator) lets them go first.
+			const toolEsc = new Event("notch-escape-tool", { cancelable: true });
+			window.dispatchEvent(toolEsc);
+			if (toolEsc.defaultPrevented) return;
+			// Closes, clearing any pin a tool left (a pinned notch used to
+			// ignore Esc).
+			notchPinnedRef.current = false;
+			(document.activeElement as HTMLElement | null)?.blur?.();
+			releaseNotchHoverRef.current();
+		};
+		// From the keyboard hook while another app has the keyboard…
+		const unlisten = listen("notch-escape", onEscape);
+		// …and here while the notch has it (typing in a note): Windows doesn't
+		// run LotusNotch's hook then.
+		const onEscKey = (e: KeyboardEvent) => {
+			if (e.key === "Escape" && !e.defaultPrevented && isOpenRef.current) onEscape();
+		};
+		window.addEventListener("keydown", onEscKey);
+		// Global shortcuts (shortcuts.rs): the notch runs the action.
+		const unlistenShortcut = listen<string>("shortcut", (e) => runShortcutRef.current(e.payload));
+		// Tab moves into the open tab's typing box (the Shelf's search, a note…).
+		const typeHere = () => focusFirstTextField(document.querySelector(".tool-host-motion") ?? document.querySelector(".qp") ?? bloomRef.current);
+		const unlistenTab = listen("notch-tab", () => isOpenRef.current && typeHere());
+		// With this window focused (typing in a tool), 1–9 jump to a tab and
+		// Shift+1–9 to one counted from the end, unless a text field has the keys.
+		const onDigit = (e: KeyboardEvent) => {
+			if (e.defaultPrevented || !isOpenRef.current || e.ctrlKey || e.altKey || e.metaKey) return;
+			const target = e.target as HTMLElement | null;
+			if (target?.closest("input, textarea, [contenteditable='true']")) return;
+			if (e.key === "Tab" && !e.shiftKey) {
+				if (typeHere()) e.preventDefault();
+				return;
+			}
+			const m = /^(Digit|Numpad)([1-9])$/.exec(e.code);
+			if (!m || (e.shiftKey && m[1] === "Numpad")) return;
+			e.preventDefault();
+			runShortcutRef.current(e.shiftKey ? `tool-end-${m[2]}` : `tool-${m[2]}`);
+		};
+		window.addEventListener("keydown", onDigit);
+		return () => {
+			unlisten.then((f) => f());
+			unlistenShortcut.then((f) => f());
+			unlistenTab.then((f) => f());
+			window.removeEventListener("keydown", onEscKey);
+			window.removeEventListener("keydown", onDigit);
+		};
+	}, [windowLabel]);
+
 	// The clipboard shortcut (clipboard.rs) toggles the Clipboard panel while
 	// the history lives in the notch.
 	useEffect(() => {
@@ -1961,13 +2223,16 @@ function App() {
 				}
 			}
 		};
-		const drop = (event: { payload: { paths?: string[]; text?: string } }) => {
+		const drop = (event: { payload: { paths?: string[]; text?: string; position?: { x: number; y: number } } }) => {
 			setIsDragHovering(false);
 			shelfDragActiveRef.current = false;
 			shelfSelfDropAtRef.current = Date.now();
 			const paths = event.payload.paths ?? [];
 			const text = event.payload.text;
 			if (bloomModeRef.current === "clipboard") {
+				// Dropped on a person in the share column: send it, don't keep it.
+				const peer = clipboardSelfDragRef.current ? null : sharePeerAt(event.payload.position);
+				if (peer) return requestSend(peer, { paths, text });
 				// Dropping our own drag back onto the panel is a no-op.
 				if (!clipboardSelfDragRef.current) invoke("clipboard_add", { paths, text }).catch(() => {});
 				return;
@@ -2065,6 +2330,8 @@ function App() {
 	// Music and shelf remain entry points through their activity affordances.
 	const cycleBloomMode = (direction: 1 | -1) => {
 		if (bloomMode === "announcement") return false;
+		// Open: the wheel walks every tab in the tab bar, in its order.
+		if (isOpen && stepTabRef.current(direction)) return true;
 		const panels = panelOrder.filter(panelAvailable);
 		const currentIndex = panels.indexOf(bloomMode as NotchPanel);
 		const nextMode = currentIndex === -1
@@ -2077,147 +2344,53 @@ function App() {
 
 	// Arrows and wheel both stay within panels once one is open.
 	const cyclePanel = (direction: 1 | -1) => {
+		if (stepTabRef.current(direction)) return;
 		const panels = panelOrder.filter(panelAvailable);
 		const index = panels.indexOf(bloomMode as NotchPanel);
 		if (index === -1 || panels.length < 2) return;
 		setBloomMode(panels[(index + direction + panels.length) % panels.length]);
 	};
 
-	// Timer state
+	// The Day tab's own timer was removed (user, 2026-11-20: the Timer tab
+	// does it). ponytail: its countdown state and closed-notch display below
+	// can no longer start; delete them with the next notch cleanup.
 	const [timerSeconds, setTimerSeconds] = useState(0);
 	const [isTimerRunning, setIsTimerRunning] = useState(false);
 	const [isTimerFinished, setIsTimerFinished] = useState(false);
-	const [isEditingTimer, setIsEditingTimer] = useState(false);
-	const [timerEditDigits, setTimerEditDigits] = useState("");
-	const [lastDurationSeconds, setLastDurationSeconds] = useState(() => {
-		const stored = parseInt(localStorage.getItem("bloom-timer-last-duration") || "", 10);
-		return Number.isFinite(stored) && stored > 0 ? stored : 25 * 60;
-	});
-	const timerInputRef = useRef<HTMLInputElement>(null);
-	const timerEditActiveRef = useRef(false);
 	const timerIntervalRef = useRef<any>(null);
 	const prevTimerFinishedRef = useRef(false);
 
+	// The Game strip glance: CPU · GPU · RAM in the clock's place, read every
+	// 2 s only while it shows.
+	// Hidden while hovered: the hover widgets beside the clock would land on it.
+	const showGlance = glanceOn && !isOpen && !isHovered && !timesUp && !toolTimer && timerSeconds === 0 && !isTimerFinished;
+	useEffect(() => {
+		if (windowLabel !== "main" || !showGlance) return setGlance(null);
+		const read = () =>
+			Promise.all([
+				invoke<{ cpu: number; mem_used: number; mem_total: number }>("system_stats"),
+				invoke<number | null>("gpu_usage").catch(() => null)
+			])
+				.then(([s, gpu]) => setGlance({ cpu: s.cpu, gpu, ram: (s.mem_used / s.mem_total) * 100 }))
+				.catch(() => {});
+		read();
+		const t = window.setInterval(read, 2000);
+		return () => window.clearInterval(t);
+	}, [showGlance, windowLabel]);
+	// The Timer tool's countdown takes the clock's place on the closed notch.
+	const showToolTimer =
+		!!toolTimer && !isOpen && timerSeconds === 0 && !isTimerFinished && (timerDisplay === "pill" || timerDisplay === "both");
 	const formatTimerTime = (totalSeconds: number) => {
 		const mins = Math.floor(Math.abs(totalSeconds) / 60);
 		const secs = Math.abs(totalSeconds) % 60;
 		return `${mins}:${secs.toString().padStart(2, "0")}`;
 	};
 
-	const startTimer = (seconds: number) => {
-		// Unlock audio here (user gesture) so the completion chime can play later.
-		getTimerChimeCtx();
-		timerEditActiveRef.current = false;
-		setIsEditingTimer(false);
-		setTimerSeconds(seconds);
-		setLastDurationSeconds(seconds);
-		localStorage.setItem("bloom-timer-last-duration", String(seconds));
-		setIsTimerRunning(true);
-		setIsTimerFinished(false);
-	};
-
 	const resetTimer = () => {
-		timerEditActiveRef.current = false;
-		setIsEditingTimer(false);
 		setIsTimerRunning(false);
 		setTimerSeconds(0);
 		setIsTimerFinished(false);
 	};
-
-	// Idle/finished play restarts the last duration; paused play resumes.
-	const handlePrimaryTimerAction = () => {
-		if (isEditingTimer) {
-			commitTimerEdit(true);
-		} else if (isTimerRunning) {
-			setIsTimerRunning(false);
-		} else if (timerSeconds > 0) {
-			getTimerChimeCtx();
-			setIsTimerRunning(true);
-		} else {
-			startTimer(lastDurationSeconds);
-		}
-	};
-
-	// Clicking the big time turns it into a masked editor. Digits fill from the
-	// right, so the colon never has to be typed.
-	const beginTimerEdit = () => {
-		if (isTimerRunning || isEditingTimer) return;
-		if (isTimerFinished) resetTimer();
-		const base = timerSeconds > 0 ? timerSeconds : lastDurationSeconds;
-		setTimerEditDigits(timerSecondsToDigits(base));
-		timerEditActiveRef.current = true;
-		setIsEditingTimer(true);
-	};
-
-	const commitTimerEdit = (start: boolean) => {
-		if (!timerEditActiveRef.current) return;
-		timerEditActiveRef.current = false;
-		setIsEditingTimer(false);
-		const total = timerDigitsToSeconds(timerEditDigits);
-		if (total === null) return;
-		const base = timerSeconds > 0 ? timerSeconds : lastDurationSeconds;
-		// A tap that changes nothing (e.g. paused timer) must not reset the state.
-		if (!start && total === base) return;
-		localStorage.setItem("bloom-timer-last-duration", String(total));
-		setLastDurationSeconds(total);
-		setTimerSeconds(start ? total : 0);
-		setIsTimerRunning(start);
-		setIsTimerFinished(false);
-		if (start) getTimerChimeCtx();
-	};
-
-	useEffect(() => {
-		if (isEditingTimer) {
-			timerInputRef.current?.focus();
-			timerInputRef.current?.select();
-		}
-	}, [isEditingTimer]);
-
-	const timerEditValid = timerDigitsToSeconds(timerEditDigits) !== null;
-
-	const timerState: "idle" | "running" | "paused" | "finished" = isEditingTimer
-		? "idle"
-		: isTimerFinished
-			? "finished"
-			: isTimerRunning
-				? "running"
-				: timerSeconds > 0
-					? "paused"
-					: "idle";
-	const timerDisplaySeconds =
-		timerSeconds > 0 || isTimerFinished ? timerSeconds : lastDurationSeconds;
-	const primaryTimerLabel = isTimerRunning
-		? "Pause"
-		: timerSeconds > 0
-			? "Resume"
-			: isTimerFinished
-				? "Restart"
-				: "Start";
-	const timerEndTime =
-		timerSeconds > 0 && !isTimerFinished
-			? new Date(Date.now() + timerSeconds * 1000).toLocaleTimeString([], {
-					hour: "2-digit",
-					minute: "2-digit",
-					hour12: !timeFormat24h
-				})
-			: null;
-
-	// Split the display time into individual flip-clock digits. Keys are counted
-	// from the right so existing digits keep their identity when minutes grow
-	// from two digits to three. While editing, the same clock renders the digits
-	// being typed so the layout never changes.
-	const clockText = isEditingTimer
-		? formatTimerDigits(timerEditDigits)
-		: formatTimerTime(timerDisplaySeconds);
-	const [clockMinutesText, clockSecondsText] = clockText.split(":");
-	const clockMinutesPadded = clockMinutesText.padStart(2, "0");
-	const clockCompact = clockMinutesPadded.length > 2;
-	const minuteDigitItems = clockMinutesPadded
-		.split("")
-		.map((digit, i, arr) => ({ digit, key: `m${arr.length - i}` }));
-	const secondDigitItems = clockSecondsText
-		.split("")
-		.map((digit, i, arr) => ({ digit, key: `s${arr.length - i}` }));
 
 	useEffect(() => {
 		if (isTimerRunning && timerSeconds > 0) {
@@ -2273,10 +2446,14 @@ function App() {
 	restingModeRef.current = collapsedMode;
 	bloomModeRef.current = bloomMode;
 
-	// A click opens the last-used panel when memory is enabled, otherwise the
-	// selected default. If that panel is turned off, the first one that's on.
+	// Smart start: a click reopens the last-used panel if the notch closed
+	// less than 5 minutes ago (and memory is on), otherwise the favourite
+	// (Default Panel, Command Center unless changed). If that panel is turned
+	// off, the first one that's on. A live activity opens its own view instead
+	// (its click handler).
 	const openingPanel = (): NotchPanel => {
-		const preferred = rememberPanelEnabled ? lastPanel ?? defaultPanel : defaultPanel;
+		const recent = Date.now() - lastClosedAtRef.current < SMART_START_MS;
+		const preferred = rememberPanelEnabled && recent ? lastPanel ?? defaultPanel : defaultPanel;
 		if (panelAvailable(preferred)) return preferred;
 		return panelOrder.find(panelAvailable) ?? "command-center";
 	};
@@ -2287,6 +2464,38 @@ function App() {
 		setIsOpen(true);
 		setBloomMode(view);
 	};
+
+	// Someone asks to pair or adds you to a group: open the Shelf in the notch, where the share
+	// column shows the request and its code (an edge Shelf shows it when
+	// opened; the request waits a minute).
+	useEffect(() => {
+		if (windowLabel !== "main") return;
+		const show = () => {
+			if (!clipboardInNotchRef.current) return;
+			autoOpenedRef.current = true;
+			setIsOpen(true);
+			setBloomMode("clipboard");
+		};
+		const offs = [listen("share-pair-request", show), listen("share-group-invite", show)];
+		return () => offs.forEach((o) => void o.then((f) => f()));
+	}, [windowLabel]);
+
+	const openFromShortcutRef = useRef(() => {});
+	openFromShortcutRef.current = () => openFromRestRef.current();
+
+	// A tool turned off while its tab shows: fall back to the opening panel.
+	useEffect(() => {
+		if (bloomMode === "tool" && isOpen && !(activeTool && enabledTools.includes(activeTool))) {
+			setBloomMode(openingPanel());
+		}
+	}, [bloomMode, isOpen, activeTool, enabledTools]);
+
+	// Hover opening: resting on the notch for the delay opens it like a click.
+	useEffect(() => {
+		if (notchOpenOn !== "hover" || !isHovered || isOpen || fileStatus || bloomMode === "announcement") return;
+		const timer = window.setTimeout(() => openFromRestRef.current(), notchHoverDelay);
+		return () => window.clearTimeout(timer);
+	}, [notchOpenOn, notchHoverDelay, isHovered, isOpen, fileStatus, bloomMode]);
 
 	const rememberPanel = (panel: NotchPanel) => {
 		if (panel === lastPanel) return;
@@ -2306,6 +2515,28 @@ function App() {
 		// releaseNotchHover only touches refs and state setters.
 		// eslint-disable-next-line react-hooks/exhaustive-deps
 	}, []);
+
+	// Settings › Notch › Hide From Recordings (on by default).
+	useHideFromCapture("bloom-notch-hide-from-capture", true, windowLabel === "main");
+
+	// Setup's live preview: hold the notch closed (showing the time) or open
+	// on the Command Center while its size is chosen; null lets it go.
+	useEffect(() => {
+		if (windowLabel !== "main") return;
+		const off = listen<"closed" | "open" | null>("setup-preview", (e) => {
+			const state = e.payload;
+			setSetupPreview(state);
+			notchPinnedRef.current = state === "open";
+			if (state === "open") {
+				setIsOpen(true);
+				setBloomMode("command-center");
+			} else {
+				setIsOpen(false);
+				setBloomMode("status");
+			}
+		});
+		return () => void off.then((f) => f());
+	}, [windowLabel]);
 
 	// In peek mode, briefly show the notch when a new track starts or playback
 	// resumes. The notch itself never switches views for media; the collapsed
@@ -2341,7 +2572,7 @@ function App() {
 	// Leave the music view when music is turned off or the player ends its media
 	// session: an open notch falls back to the remembered panel.
 	useEffect(() => {
-		if (bloomMode === "music" && !(settingsMusicModeEnabled && mediaInfo.has_media)) {
+		if (bloomMode === "music" && !(settingsMusicModeEnabled && (mediaInfo.has_media || isOpen))) {
 			setBloomMode(isOpen ? openingPanel() : collapsedMode);
 		}
 	}, [settingsMusicModeEnabled, mediaInfo.has_media, bloomMode, isOpen]);
@@ -2428,7 +2659,8 @@ function App() {
 				name,
 				connected: payload.connected,
 				battery: null,
-				usb: true
+				usb: true,
+				disk: payload.class === "disk"
 			});
 		};
 		const unlistenUsb = listen<UsbConnection>("usb-connection", showWired);
@@ -2964,13 +3196,6 @@ function App() {
 		}
 	}, []);
 
-	// Right-click opens the tile's own view, the same as its › button.
-	const handleWifiRightClick = useCallback((e: React.MouseEvent) => {
-		e.preventDefault();
-		e.stopPropagation();
-		setBloomMode("wifi");
-	}, []);
-
 	const toggleDockModeSetting = useCallback(
 		async (e: React.MouseEvent) => {
 			e.stopPropagation();
@@ -3003,12 +3228,6 @@ function App() {
 		[notchMode]
 	);
 
-	const handleBluetoothRightClick = useCallback((e: React.MouseEvent) => {
-		e.preventDefault();
-		e.stopPropagation();
-		setBloomMode("bluetooth");
-	}, []);
-
 	const toggleCalendarMode = (e: React.MouseEvent) => {
 		e.stopPropagation();
 		if (isTimerFinished) {
@@ -3017,11 +3236,7 @@ function App() {
 		}
 		// The time is part of the notch: a click opens it like anywhere else.
 		// Once open, it is a shortcut to the calendar.
-		if (!isOpen) {
-			openNotch(openingPanel());
-		} else if (settingsCalendarEnabled) {
-			setBloomMode("calendar");
-		}
+		if (!isOpen) openFromRestRef.current();
 	};
 
 	// Where a status tooltip card sits and how it slides in, by placement.
@@ -3177,10 +3392,21 @@ function App() {
 				: isMusicMode && isOpen
 					? "music"
 					: null;
-	const panelZoomNow = sizedPanel && isExpanded && isVisible && !isHidden ? panelZoom(sizedPanel, notchPanelScales) : 1;
-	const pillZoom = scale * panelZoomNow;
+	const panelZoomNow = sizedPanel && isExpanded && isVisible && !isHidden ? panelZoom(sizedPanel) : 1;
+	const pillZoom = scale * panelZoomNow * (isOpen ? openScale : 1);
 	// The floating pill style sits 6px below the edge (see pillTargetY).
 	const pillGap = notchStyle === "pill" ? 6 : 0;
+
+	// Fixed mode only: 10 s after the notch was last used (closed, not
+	// hovered, nothing happening), it fades to 40% so it sits back; any use
+	// brings it back at once.
+	const [idleFaded, setIdleFaded] = useState(false);
+	useEffect(() => {
+		setIdleFaded(false);
+		if (notchMode !== "fixed" || isOpen || isHovered || fileStatus || isDragHovering) return;
+		const t = setTimeout(() => setIdleFaded(true), 10000);
+		return () => clearTimeout(t);
+	}, [notchMode, isOpen, isHovered, fileStatus, isDragHovering, bloomMode]);
 
 	// Notch style (Settings > Notch > Style). "pill" floats below the edge
 	// with no flares; "minimal" shrinks the idle notch to a thin bar that shows
@@ -3204,22 +3430,244 @@ function App() {
 		mediaInfo.has_media && (!musicActivityVisible || !settingsMusicCompactNotch);
 	const showCompactMusicIcons = isMusicMode || showMusicOnStatusHover;
 
+	// Battery saver: on battery ("battery"), or on battery at or below the
+	// threshold ("below", default 30 %); "off" never.
+	const saverOn =
+		!isCharging && (saverMode === "battery" || (saverMode === "below" && batteryLevel <= saverThreshold));
+	const visualizerOn = settingsVisualizerEnabled && !(saverOn && saverPauses.visualizer);
+	visualizerWantedRef.current = visualizerOn && settingsMusicModeEnabled;
+
+	// The open notch's tab bar: every enabled panel in the user's order, then
+	// Media while something is playing. Shown on the panels (the music view
+	// keeps its own layout).
+	const tabTools: Tool[] = orderTabs(
+		[
+			...panelOrder.filter(panelAvailable).map((p) => TOOLS[p]),
+			...enabledTools.map((id) => EXTRA_BY_ID[id]),
+			// Media keeps its tab while nothing plays ("Nothing's playing").
+			...(settingsMusicModeEnabled ? [TOOLS.music] : [])
+		],
+		tabOrder
+	).slice(0, MAX_TABS);
+	const toolShowing = bloomMode === "tool" && activeTool !== null && enabledTools.includes(activeTool) ? activeTool : null;
+	// The Wi-Fi / Bluetooth lists belong to the Command Center: its tab stays
+	// active and the notch keeps its size.
+	const quickList = bloomMode === "wifi" || bloomMode === "bluetooth";
+	const activeTabId: string | null =
+		toolShowing ??
+		(quickList ? "command-center" : bloomMode === "music" && isOpen && settingsMusicModeEnabled ? "music" : asNotchPanel(bloomMode));
+	const showTabBar = isOpen && activeTabId !== null && tabTools.length > 1;
+	// Media as a tab: the player (or "Nothing's playing") sits under the tab bar.
+	const mediaTab = showTabBar && activeTabId === "music";
+	const playerHeight =
+		mediaLayout === "compact"
+			? ((mediaInfo.duration_ms ?? 0) > 0 ? 132 : 116) + (compactVolumeExpanded ? 36 : 0)
+			: 120;
+	// Which way the body slides: toward the picked tab (motion.ts).
+	const tabIdx = activeTabId ? tabTools.findIndex((t) => t.id === activeTabId) : -1;
+	if (activeTabId !== tabMotion.current.id) {
+		const prev = tabMotion.current.idx;
+		tabMotion.current = { id: activeTabId, idx: tabIdx, dir: prev < 0 || tabIdx < 0 ? 0 : Math.sign(tabIdx - prev) };
+	}
+	const tabDir = tabMotion.current.dir;
+	openFromRestRef.current = () => {
+		const id = openingTool({
+			tabs: tabTools.map((t) => t.id),
+			recent: quickReturnMin > 0 && Date.now() - lastClosedAtRef.current < quickReturnMin * 60_000,
+			last: lastToolRef.current,
+			favouriteOn,
+			favourite
+		});
+		autoOpenedRef.current = false;
+		if (!id) return openNotch(openingPanel());
+		setIsOpen(true);
+		selectTab(id);
+	};
+	// Every tool the user lands on while the notch is open is "last used".
+	useEffect(() => {
+		if (!isOpen) {
+			autoOpenedRef.current = false;
+			return;
+		}
+		if (!activeTabId || autoOpenedRef.current) return;
+		lastToolRef.current = activeTabId;
+		localStorage.setItem("bloom-notch-last-tool", activeTabId);
+	}, [activeTabId, isOpen]);
+	// A notch the Timer or a reminder opened closes itself after 15 s unless
+	// the pointer comes to it, so it doesn't keep taking the number keys
+	// (tab jumps, Calculator) from the app being typed in.
+	useEffect(() => {
+		if (!isOpen || isHovered || !autoOpenedRef.current) return;
+		const t = window.setTimeout(() => autoOpenedRef.current && releaseNotchHover(), 15_000);
+		return () => window.clearTimeout(t);
+	}, [isOpen, isHovered]);
+	// One step along the tab bar (wheel and arrows); false when there's no bar.
+	stepTabRef.current = (direction: 1 | -1) => {
+		if (tabTools.length < 2) return false;
+		const i = Math.max(0, tabIdx);
+		selectTab(tabTools[(i + direction + tabTools.length) % tabTools.length].id);
+		return true;
+	};
+	const wasOpen = useRef(isOpen);
+	const shellSpring =
+		isOpen && !wasOpen.current
+			? { type: "spring" as const, visualDuration: 0.45, bounce: 0.4 }
+			: !isOpen
+				? { type: "spring" as const, visualDuration: 0.3, bounce: 0.15 }
+				: LIVELY;
+	useEffect(() => {
+		wasOpen.current = isOpen;
+	});
+	const selectTab = (id: string) => {
+		autoOpenedRef.current = false;
+		if (id === "music") openNotch("music");
+		else if (id in EXTRA_BY_ID) {
+			setActiveTool(id as ExtraToolId);
+			setBloomMode("tool");
+		} else setBloomMode(id as NotchPanel);
+	};
+	const tabBarSpace = showTabBar ? TAB_BAR_HEIGHT / panelZoomNow : 0;
+
+	// Command Center tiles. Night light, Airplane mode, Mobile hotspot,
+	// Nearby sharing and Live captions switch for real (system_tools.rs
+	// cc_toggle); a switch that fails on this PC opens its Windows page
+	// instead. Cast and Project open their pickers; Do not disturb, Energy
+	// saver and Studio effects have no switch Windows lets an app use.
+	const openSystem = (action: string) => () => {
+		invoke("open_system_action", { action }).catch(console.error);
+	};
+	const ccSwitch = (tile: keyof CcSystemStates, fallback: string) => ({
+		on: ccSystem[tile] === true,
+		onClick: () => {
+			invoke<boolean>("cc_toggle", { tile })
+				.then((on) => setCcSystem((s) => ({ ...s, [tile]: on })))
+				.catch((e) => {
+					console.error(`${tile}:`, e);
+					openSystem(fallback)();
+				});
+		}
+	});
+	const modeName = (m: string) => (m === "fixed" ? "Fixed" : m === "smart" ? "Smart" : "Peek");
+	// Turn the radial menu off for a while (an app where Shift+drag means
+	// something else); the same switch as Settings › Radial Menu.
+	const toggleRadialMenu = () => {
+		const next = !radialOn;
+		setRadialOn(next);
+		localStorage.setItem("bloom-files-enabled", String(next));
+		invoke("save_setting", { key: "bloom-files-enabled", value: String(next) }).catch(console.error);
+	};
+	const ccState: Record<CcTileId, CcTileState> = {
+		wifi: {
+			on: wifiEnabled,
+			status: wifiStatus === null ? "…" : !wifiEnabled ? "Off" : wifiConnected ? (wifiStatus?.ssid ?? "Connected") : "Not connected",
+			onClick: () => toggleWifi(),
+			onMore: () => setBloomMode("wifi")
+		},
+		bluetooth: {
+			on: bluetoothEnabled,
+			status: !bluetoothEnabled
+				? "Off"
+				: btConnectedNames.length === 1
+					? btConnectedNames[0]
+					: btConnectedNames.length > 1
+						? `${btConnectedNames.length} connected`
+						: "On",
+			onClick: () => toggleBluetooth(),
+			onMore: () => setBloomMode("bluetooth")
+		},
+		dnd: { hint: "opens Notifications", onClick: openSystem("notification-settings") },
+		"night-light": ccSwitch("night-light", "night-light"),
+		energy: {
+			on: batterySaverEnabled,
+			onClick: () => {
+				invoke<boolean>("cc_toggle", { tile: "energy" })
+					.then(setBatterySaverEnabled)
+					.catch((e) => {
+						console.error("energy:", e);
+						openBatterySaverSettings();
+					});
+			}
+		},
+		airplane: ccSwitch("airplane", "airplane"),
+		hotspot: ccSwitch("hotspot", "hotspot"),
+		captions: ccSwitch("captions", "live-captions"),
+		nearby: ccSwitch("nearby", "nearby-sharing"),
+		cast: { hint: "pick a screen", onClick: openSystem("cast") },
+		project: { hint: "pick a display mode", onClick: openSystem("project") },
+		"dock-mode": { caption: modeName(dockMode), hidden: !dockEnabled, onClick: toggleDockModeSetting },
+		"notch-mode": { caption: modeName(notchMode), onClick: toggleNotchModeSetting },
+		"radial-menu": { on: radialOn, onClick: toggleRadialMenu },
+		studio: { hint: "opens camera settings", onClick: openSystem("studio-effects") },
+		accessibility: { onClick: openSystem("accessibility") },
+		"task-manager": { onClick: openSystem("task-manager") },
+		tray: { onClick: openSystemTray },
+		notifications: { onClick: () => invoke("open_notification_center").catch(console.error) },
+		"windows-settings": { onClick: openSystem("settings") },
+		"lotus-settings": { onClick: () => openSettingsWindow() },
+		restart: { onClick: () => invoke("restart_bloom").catch(console.error) }
+	};
+
+	// What each global shortcut does (src/shortcuts.ts lists them).
+	runShortcutRef.current = (action: string) => {
+		const openTab = (id: string | undefined) => {
+			if (!id) return;
+			setIsOpen(true);
+			selectTab(id);
+		};
+		if (action === "notch") {
+			if (isOpen) releaseNotchHover();
+			else openFromShortcutRef.current();
+		} else if (action.startsWith("tool-end-")) {
+			// Shift+N: the Nth tab from the end.
+			openTab(tabTools[tabTools.length - Number(action.slice(9))]?.id);
+		} else if (action.startsWith("tool-")) {
+			openTab(tabTools[Number(action.slice(5)) - 1]?.id);
+		} else if (action.startsWith("tool:")) {
+			const id = action.slice(5);
+			if (tabTools.some((t) => t.id === id)) openTab(id);
+		} else if (action.startsWith("tile:")) {
+			const tile = ccState[action.slice(5) as CcTileId];
+			tile?.onClick({ stopPropagation() {}, preventDefault() {} } as React.MouseEvent);
+		} else if (action === "snip") {
+			invoke("screen_clip", { mode: "snip" }).catch(console.error);
+		} else if (action === "ocr") {
+			// One step: snip, read, copy; the result opens Capture › OCR.
+			invoke("ocr_snip").catch(console.error);
+		} else if (action === "picker") {
+			invoke<string | null>("pick_screen_color")
+				.then((hex) => {
+					if (hex) writeText(hex).catch(() => {});
+				})
+				.catch(console.error);
+		} else if (action === "mic") {
+			invoke<boolean | null>("mic_muted")
+				.then((muted) => invoke("set_mic_muted", { muted: !muted }))
+				.catch(console.error);
+		}
+	};
+
 	// The 24-hour clock is ~16px narrower than the 12-hour one.
 	const clock24hTrim = timeFormat24h ? 16 : 0;
 
 	// Calculate width dynamically based on enabled features
-	const getDynamicWidth = () => {
+	// With the tab bar showing, every tool gets one width so the clock and the
+	// tab bar never move when switching; only the height changes.
+	const getDynamicWidth = () => (showTabBar ? OPEN_WIDTH / panelZoomNow : getBaseWidth());
+	const getBaseWidth = () => {
+		if (toolShowing && isOpen) return OPEN_WIDTH;
 		if (minimalIdle) return 72;
 		if (fileStatus && !isOpen) return 300;
+		if (showGlance && glance) return 300;
 		if (bloomMode === "announcement" && announcement && !announcementDismissed) return 380;
 		if (bloomMode === "device" && deviceAlert) return 330;
 		if (isCalendarMode) return 480;
-		if (bloomMode === "clipboard" && clipOptions.notchWide) return 560;
-		if (bloomMode === "shelf" || bloomMode === "clipboard") return 380;
-		if (bloomMode === "command-center" && isOpen) return 350;
+		// The Shelf and the file shelf keep the one open width like every
+		// other page (they used to be narrower, so the notch jumped).
+		if (bloomMode === "shelf" || bloomMode === "clipboard") return OPEN_WIDTH / panelZoomNow;
+		if (bloomMode === "command-center" && isOpen) return 400;
 		if (bloomMode === "wifi" || bloomMode === "bluetooth" || bloomMode === "devices") return 350;
 		if (showMusicOnStatusHover) {
-			return 170 + (settingsVisualizerEnabled ? 30 : 0);
+			return 170 + (visualizerOn ? 30 : 0);
 		}
 		if (bloomMode === "status" && isHovered) {
 			const totalWidgets = statusWidgets.left.length + statusWidgets.right.length;
@@ -3230,17 +3678,22 @@ function App() {
 
 		let w = 140 - clock24hTrim;
 		if (isMusicMode) {
-			if (settingsVisualizerEnabled && isPlaying) w += 30;
+			if (visualizerOn && isPlaying) w += 30;
 			if (settingsAlbumArtEnabled) w += 30;
 		}
 
 		return w;
 	};
 
-	const getDynamicHeight = () => {
+	const getDynamicHeight = () => getBaseHeight() + tabBarSpace;
+	const getBaseHeight = () => {
 		if (!isExpanded || !isVisible || isHidden) {
 			return isImpacted ? 28.9 : 44.2;
 		}
+		// An extra tool: the clock row plus the tool's height from the grid.
+		if (toolShowing && isOpen)
+			return 36 + GRID_H[EXTRA_BY_ID[toolShowing].size[1]] + (EXTRA_BY_ID[toolShowing].parts.length > 1 ? SEGMENT_BAR_HEIGHT : 0);
+		if (mediaTab) return 36 + (mediaInfo.has_media ? playerHeight : 110);
 		if (minimalIdle) return 8;
 		// Announcement card: body is line-clamped, so a fixed size fits both cases.
 		if (bloomMode === "announcement" && announcement && !announcementDismissed) {
@@ -3257,13 +3710,15 @@ function App() {
 			if (shelfItems.length === 0) return 130;
 			return shelfOverflowing ? 190 : 176;
 		}
-		if (bloomMode === "command-center") return isOpen ? 230 : 36;
+		if (bloomMode === "command-center") return isOpen ? 36 + ccBodyHeight(ccTiles) : 36;
 		if (bloomMode === "devices") {
 			return devicesPanelHeight;
 		}
-		if (bloomMode === "wifi" || bloomMode === "bluetooth") return 300;
-		// 300 × the clipboard's 1.3 base keeps it inside the notch window.
-		if (bloomMode === "clipboard") return 300;
+		// The Command Center's height: opening a list moves nothing.
+		if (quickList) return isOpen ? 36 + ccBodyHeight(ccTiles) : 300;
+		// The Shelf is tall, so more of the history fits (inside the notch
+		// window, commands.rs: 600 × the notch's sizes).
+		if (bloomMode === "clipboard") return 520;
 		if (bloomMode === "status") return 36;
 		if (isMusicMode && isOpen) {
 			const hasProgressBar = (mediaInfo.duration_ms ?? 0) > 0;
@@ -3280,7 +3735,7 @@ function App() {
 	// Arrows switch between the two tool panels; wheel/swipe can also open one
 	// directly from the collapsed pill or a live activity.
 	const showPanelArrows =
-		isOpen && asNotchPanel(bloomMode) !== null && panelOrder.filter(panelAvailable).length > 1;
+		isOpen && !showTabBar && asNotchPanel(bloomMode) !== null && panelOrder.filter(panelAvailable).length > 1;
 
 	// What the notch is doing, for the local perf recorder of testing builds
 	// (src-tauri/src/perf.rs); a no-op in normal builds.
@@ -3324,6 +3779,8 @@ function App() {
 				? 39.1
 				: 30.6;
 	const pillTargetHeight = !isReady ? 34 : getDynamicHeight();
+	// The notch's real outline, for the effects that run along it.
+	const fxShape = { width: pillTargetWidth, height: pillTargetHeight, radius: minimalIdle ? 4 : isCalendarMode ? 28 : 18, flares: attachedToEdge };
 	// Shadow and the edge flares beside the pill.
 	pillTargetRef.current = notchPillBox(
 		window.innerWidth,
@@ -3334,6 +3791,13 @@ function App() {
 		24
 	);
 
+	// The Command Center's Windows switches, read each time it opens (they
+	// can change in Windows Settings meanwhile).
+	useEffect(() => {
+		if (windowLabel !== "main" || !isOpen || bloomMode !== "command-center") return;
+		invoke<CcSystemStates>("cc_states").then(setCcSystem).catch(() => {});
+	}, [isOpen, bloomMode]);
+
 	// Clip the notch window to what it draws (see window_region.rs): outside
 	// these rectangles the window takes no clicks, whatever its click-through
 	// state. Sent after every render, but only when the region changes.
@@ -3341,131 +3805,10 @@ function App() {
 		if (windowLabel === "main") updateNotchRegion();
 	});
 
-	return (
-		<div className="screen" style={{ overflow: "hidden" }}>
-			<div
-				style={{
-					zoom: pillZoom,
-					width: "100%",
-					display: "flex",
-					justifyContent: "center",
-					position: "relative"
-				}}
-			>
-				<DeviceArtDefs />
-				<motion.div
-					ref={bloomRef}
-					className={`bloom ${isHovered ? "expanded" : ""} ${isImpacted ? "is-impacted" : ""} ${minimalIdle ? "minimal-idle" : ""} ${isDragHovering ? "drag-hover" : ""}`}
-					onMouseEnter={() => setIsNotchHovered(true)}
-					onMouseLeave={() => setIsNotchHovered(false)}
-					onWheel={handleWheel}
-					initial={{
-						y: 250,
-						width: 30.6,
-						height: 44.2,
-						borderTopLeftRadius: 18,
-						borderTopRightRadius: 18,
-						borderBottomLeftRadius: 18,
-						borderBottomRightRadius: 18,
-						scaleX: 1,
-						scaleY: 1,
-						opacity: 0
-					}}
-					animate={{
-						y: pillTargetY,
-						width: pillTargetWidth,
-						height: pillTargetHeight,
-						opacity: isVisible ? 1 : 0,
-						scaleX: 1,
-						scaleY: 1,
-						borderTopLeftRadius: attachedToEdge ? 0 : 18,
-						borderTopRightRadius: attachedToEdge ? 0 : 18,
-						borderBottomLeftRadius: minimalIdle ? 4 : isCalendarMode ? 28 : 18,
-						borderBottomRightRadius: minimalIdle ? 4 : isCalendarMode ? 28 : 18,
-						filter: isVisible ? "blur(0px)" : "blur(8px)",
-						pointerEvents: isVisible ? "auto" : "none"
-					}}
-					onClick={(e) => {
-						e.stopPropagation();
-						if (fileStatus) return;
-						if (!isOpen) openNotch(openingPanel());
-					}}
-					onHoverStart={() => {
-						if (fileStatus) return;
-						releaseDeferredRef.current = false;
-						setIsHovered(true);
-						// Hovering the shelf cancels its post-drop auto-close.
-						if (bloomMode === "shelf") clearShelfCollapse();
-					}}
-					onHoverEnd={releaseNotchHover}
-					style={{ originY: 0 }}
-					transition={{
-						width: { type: "spring", stiffness: 400, damping: 31 },
-						height: { type: "spring", stiffness: 450, damping: 29 },
-						y: { type: "spring", stiffness: 550, damping: 45, mass: 0.8, restDelta: 0.001 },
-						opacity: { duration: 0.2 },
-						borderTopLeftRadius: { type: "spring", stiffness: 1000, damping: 40 },
-						borderTopRightRadius: { type: "spring", stiffness: 1000, damping: 40 },
-						borderBottomLeftRadius: { type: "spring", stiffness: 1000, damping: 40 },
-						borderBottomRightRadius: { type: "spring", stiffness: 1000, damping: 40 },
-						default: { type: "spring", stiffness: 500, damping: 30, mass: 1 }
-					}}
-				>
-					<EdgeSurface edge="top" flares={attachedToEdge} />
-					<AnimatePresence>
-						{isMusicMode && settingsAmbienceEnabled && albumArtUrl && isOpen && !isCalendarMode && (
-							<motion.div
-								className="notch-ambient-glow"
-								initial={{ opacity: 0 }}
-								animate={{ opacity: 1 }}
-								exit={{ opacity: 0 }}
-								transition={{ duration: 0.15 }}
-							>
-								<AnimatePresence mode="wait">
-									<motion.img
-										key={albumArtUrl}
-										src={albumArtUrl}
-										alt=""
-										draggable={false}
-										initial={{ opacity: 0, scale: 1.1 }}
-										animate={{ opacity: 1, scale: 1.8 }}
-										exit={{ opacity: 0 }}
-										transition={{ duration: 0.3 }}
-									/>
-								</AnimatePresence>
-							</motion.div>
-						)}
-					</AnimatePresence>
-					<AnimatePresence mode="wait">
-						{isExpanded && (
-							<motion.div
-								key="bloom-content"
-								initial={{ opacity: 0 }}
-								animate={{ opacity: 1 }}
-								exit={{ opacity: 0 }}
-								transition={{ duration: 0.1 }}
-								style={{
-									width: "100%",
-									height: "100%",
-									display: "flex",
-									flexDirection: "column",
-									alignItems: "center",
-									position: "relative",
-									borderRadius: "inherit"
-								}}
-							>
-								{/* Faster Waiting Transition Area */}
-								<AnimatePresence mode="wait">
-									{isOpen && isMusicMode && !isCalendarMode ? (
-										<motion.div
-											key="expanded-music"
-											className="expanded-music-container"
-											initial={{ opacity: 0, scale: 0.98 }}
-											animate={{ opacity: 1, scale: 1 }}
-											exit={{ opacity: 0, scale: 0.98, transition: { duration: 0.1 } }}
-											transition={{ type: "spring", stiffness: 500, damping: 30 }}
-										>
-											{mediaLayout === "compact" ? (
+	// The music player (compact or classic): the whole notch while the tab
+	// bar is hidden, otherwise the Media tab's body.
+	const musicPlayer =
+											mediaLayout === "compact" ? (
 												<CompactMediaPlayer
 													mediaInfo={mediaInfo}
 													albumArtUrl={albumArtUrl}
@@ -3714,7 +4057,175 @@ function App() {
 														</div>
 													</div>
 												</div>
-											)}
+											);
+
+	return (
+		<MotionConfig
+			reducedMotion={(saverOn && saverPauses.motion) || motionPref === "off" ? "always" : "never"}
+		>
+		<div className={`screen${saverOn && saverPauses.glass ? " battery-saver" : ""}`} style={{ overflow: "hidden" }}>
+			<div
+				style={{
+					zoom: pillZoom,
+					width: "100%",
+					display: "flex",
+					justifyContent: "center",
+					position: "relative",
+					opacity: idleFaded ? 0.4 : 1,
+					transition: `opacity ${idleFaded ? 800 : 150}ms ease`
+				}}
+			>
+				<DeviceArtDefs />
+				{windowLabel === "main" && <BloomTip root={bloomRef} />}
+				<motion.div
+					ref={bloomRef}
+					className={`bloom ${isHovered ? "expanded" : ""} ${isImpacted ? "is-impacted" : ""} ${minimalIdle ? "minimal-idle" : ""} ${isDragHovering ? "drag-hover" : ""}`}
+					onMouseEnter={() => setIsNotchHovered(true)}
+					// Open: leaving is decided by the backend, which allows a grace
+					// margin around the notch (services.rs OPEN_GRACE_PX).
+					onMouseLeave={() => !isOpenRef.current && setIsNotchHovered(false)}
+					onWheel={handleWheel}
+					initial={{
+						y: 250,
+						width: 30.6,
+						height: 44.2,
+						borderTopLeftRadius: 18,
+						borderTopRightRadius: 18,
+						borderBottomLeftRadius: 18,
+						borderBottomRightRadius: 18,
+						scaleX: 1,
+						scaleY: 1,
+						opacity: 0
+					}}
+					animate={{
+						y: pillTargetY,
+						width: pillTargetWidth,
+						height: pillTargetHeight,
+						opacity: isVisible ? 1 : 0,
+						scaleX: 1,
+						scaleY: 1,
+						borderTopLeftRadius: attachedToEdge ? 0 : 18,
+						borderTopRightRadius: attachedToEdge ? 0 : 18,
+						borderBottomLeftRadius: minimalIdle ? 4 : isCalendarMode ? 28 : 18,
+						borderBottomRightRadius: minimalIdle ? 4 : isCalendarMode ? 28 : 18,
+						filter: isVisible ? "blur(0px)" : "blur(8px)",
+						pointerEvents: isVisible ? "auto" : "none"
+					}}
+					onClick={(e) => {
+						e.stopPropagation();
+						// "Riya copied: …": a click puts it on the clipboard.
+						const clip = liveClipRef.current;
+						if (clip) {
+							liveClipRef.current = null;
+							invoke("clipboard_copy", { id: clip })
+								.then(() => window.dispatchEvent(new Event("share-live-copied")))
+								.catch(() => {});
+							return;
+						}
+						if (fileStatus) return;
+						if (!isOpen) openFromRestRef.current();
+					}}
+					onHoverStart={() => {
+						if (fileStatus) return;
+						releaseDeferredRef.current = false;
+						setIsHovered(true);
+						// Hovering the shelf cancels its post-drop auto-close.
+						if (bloomMode === "shelf") clearShelfCollapse();
+					}}
+					// Open: the backend closes it once the pointer is past the grace
+					// margin (notch-pointer-left); closing here, on the pill's own
+					// edge, made that margin do nothing.
+					onHoverEnd={() => !isOpenRef.current && releaseNotchHover()}
+					// Panels placed below the clock row move down by the tab bar.
+					style={
+						{
+							originY: 0,
+							"--tab-bar-space": `${tabBarSpace}px`,
+							// The width it is opening to: bodies lay out at it (App.css .notch-body).
+							"--notch-final-width": `${pillTargetWidth}px`,
+							containerType: "inline-size"
+						} as React.CSSProperties
+					}
+					transition={{
+						// Opening bounces like the Dynamic Island; closing settles
+						// softly; changing tools resizes with a lively spring.
+						width: shellSpring,
+						height: shellSpring,
+						y: { type: "spring", stiffness: 550, damping: 45, mass: 0.8, restDelta: 0.001 },
+						opacity: { duration: 0.2 },
+						borderTopLeftRadius: { type: "spring", stiffness: 1000, damping: 40 },
+						borderTopRightRadius: { type: "spring", stiffness: 1000, damping: 40 },
+						borderBottomLeftRadius: { type: "spring", stiffness: 1000, damping: 40 },
+						borderBottomRightRadius: { type: "spring", stiffness: 1000, damping: 40 },
+						default: { type: "spring", stiffness: 500, damping: 30, mass: 1 }
+					}}
+				>
+					<EdgeSurface edge="top" flares={attachedToEdge} />
+					{setupPreview && isVisible && (
+						<NotchOutline width={pillTargetWidth} height={pillTargetHeight} radius={minimalIdle ? 4 : isCalendarMode ? 28 : 18} flares={attachedToEdge} />
+					)}
+					{fileStatus && !isOpen && (
+						<ProgressEffect style={progressStyle} percent={fileStatus.percent} result={fileStatus.result} full={!attachedToEdge} shape={fxShape} />
+					)}
+					{showCopyPulse && !fileStatus && !isOpen && <CopyEffect full={!attachedToEdge} shape={fxShape} />}
+					{isOpen && <LotusSignature full={!attachedToEdge} shape={fxShape} />}
+					{toolTimer && !fileStatus && !isOpen && (timerDisplay === "edge" || timerDisplay === "both") && (
+						<ProgressEffect style="edge" percent={((toolTimer.total - toolTimer.left) / toolTimer.total) * 100} />
+					)}
+					<AnimatePresence>
+						{isMusicMode && settingsAmbienceEnabled && albumArtUrl && isOpen && !isCalendarMode && (
+							<motion.div
+								className="notch-ambient-glow"
+								initial={{ opacity: 0 }}
+								animate={{ opacity: 1 }}
+								exit={{ opacity: 0 }}
+								transition={{ duration: 0.15 }}
+							>
+								<AnimatePresence mode="wait">
+									<motion.img
+										key={albumArtUrl}
+										src={albumArtUrl}
+										alt=""
+										draggable={false}
+										initial={{ opacity: 0, scale: 1.1 }}
+										animate={{ opacity: 1, scale: 1.8 }}
+										exit={{ opacity: 0 }}
+										transition={{ duration: 0.3 }}
+									/>
+								</AnimatePresence>
+							</motion.div>
+						)}
+					</AnimatePresence>
+					<AnimatePresence mode="wait">
+						{isExpanded && (
+							<motion.div
+								key="bloom-content"
+								initial={{ opacity: 0 }}
+								animate={{ opacity: 1 }}
+								exit={{ opacity: 0 }}
+								transition={{ duration: 0.1 }}
+								style={{
+									width: "100%",
+									height: "100%",
+									display: "flex",
+									flexDirection: "column",
+									alignItems: "center",
+									position: "relative",
+									borderRadius: "inherit"
+								}}
+							>
+								{/* Faster Waiting Transition Area */}
+								<AnimatePresence mode="wait">
+									{isOpen && isMusicMode && !isCalendarMode && !mediaTab ? (
+										<motion.div
+											key="expanded-music"
+											className="expanded-music-container"
+											initial={{ opacity: 0, scale: 0.98 }}
+											animate={{ opacity: 1, scale: 1 }}
+											exit={{ opacity: 0, scale: 0.98, transition: { duration: 0.1 } }}
+											transition={{ type: "spring", stiffness: 500, damping: 30 }}
+										>
+											{musicPlayer}
 										</motion.div>
 									) : (
 										<motion.div
@@ -3790,7 +4301,11 @@ function App() {
 																	style={{ minWidth: 0, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}
 																>
 																	{fileStatus.text}
-																	{fileStatus.percent !== null && ` • ${fileStatus.percent}%`}
+																	{fileStatus.percent !== null && (
+															<>
+																 {" • "}<Roll value={fileStatus.percent} />%
+															</>
+														)}
 																</span>
 															</motion.div>
 														) : showCopyPulse ? (
@@ -3854,9 +4369,17 @@ function App() {
 														>
 															{/* Left: music on hover while a paused session remains, otherwise status widgets */}
 															<div className="side-content left">
-																{showCompactMusicIcons && settingsVisualizerEnabled ? (
+																{saverOn && !isOpen && (
+																	<Leaf
+																		size={13}
+																		strokeWidth={2.2}
+																		className="battery-saver-leaf"
+																		aria-label="Battery saver on"
+																	/>
+																)}
+																{showCompactMusicIcons && visualizerOn ? (
 																	<AnimatePresence>
-																		{settingsVisualizerEnabled && (
+																		{visualizerOn && (
 																			<motion.div
 																				key="visualizer"
 																				initial={{ scale: 0.8, opacity: 0 }}
@@ -3906,8 +4429,46 @@ function App() {
 																	)}
 																</AnimatePresence>
 																<div className="time-flip-container" style={{ zoom: timeSize }} onClick={toggleCalendarMode}>
-																	<AnimatePresence initial={false}>
-																		{timerSeconds > 0 || isTimerFinished ? (
+																	{/* One text at a time: the old one flips out before the new one flips in. */}
+																	<AnimatePresence initial={false} mode="wait">
+																		{showGlance && glance ? (
+																			<motion.span
+																				key="game-glance"
+																				className="time game-glance"
+																				initial={{ rotateX: -90, opacity: 0 }}
+																				animate={{ rotateX: 0, opacity: 1 }}
+																				exit={{ rotateX: 90, opacity: 0 }}
+																				transition={{ type: "spring", stiffness: 600, damping: 30 }}
+																			>
+																				<span>{time}</span>
+																				<span>CPU {Math.round(glance.cpu)}%</span>
+																				<span>GPU {glance.gpu === null ? "–" : Math.round(glance.gpu)}%</span>
+																				<span>RAM {Math.round(glance.ram)}%</span>
+																			</motion.span>
+																		) : timesUp ? (
+																			<motion.span
+																				key="times-up"
+																				className="time times-up"
+																				initial={{ scale: 0.6, opacity: 0 }}
+																				animate={{ scale: 1, opacity: 1 }}
+																				exit={{ opacity: 0 }}
+																				transition={{ type: "spring", visualDuration: 0.4, bounce: 0.5 }}
+																			>
+																				TIME'S UP
+																			</motion.span>
+																		) : showToolTimer ? (
+																			<motion.span
+																				key="tool-timer"
+																				className="time compact-timer tool-countdown"
+																				initial={{ rotateX: -90, opacity: 0 }}
+																				animate={{ rotateX: 0, opacity: 1 }}
+																				exit={{ rotateX: 90, opacity: 0 }}
+																				transition={{ type: "spring", stiffness: 600, damping: 30 }}
+																			>
+																				<Timer size={14} strokeWidth={2.5} />
+																				{formatTimerTime(Math.ceil(toolTimer!.left / 1000))}
+																			</motion.span>
+																		) : timerSeconds > 0 || isTimerFinished ? (
 																			<motion.span
 																				key="timer"
 																				className={`time compact-timer ${isTimerFinished ? "timer-finished" : ""}`}
@@ -4055,15 +4616,47 @@ function App() {
 									)}
 								</AnimatePresence>
 
+								{showTabBar && (
+									<NotchTabBar
+										tools={tabTools}
+										active={activeTabId}
+										zoom={1 / panelZoomNow}
+										onSelect={selectTab}
+										onStep={(dir) => stepTabRef.current(dir)}
+									/>
+								)}
+								<AnimatePresence custom={tabDir}>
+									{mediaTab && (
+										<motion.div key="media-body" className="notch-body" {...bodyMotion(tabDir)}>
+											<div className="media-body" style={{ height: mediaInfo.has_media ? playerHeight : 110 }}>
+												{mediaInfo.has_media ? (
+													<div className="expanded-music-container">{musicPlayer}</div>
+												) : (
+													<div className="media-empty">
+														<MusicNoteIcon size={26} className="media-empty-icon" />
+														<strong>Nothing's playing</strong>
+														<span>Play something in any app and it shows up here</span>
+													</div>
+												)}
+											</div>
+										</motion.div>
+									)}
+								</AnimatePresence>
+								<AnimatePresence mode="popLayout" custom={tabDir}>
+									{toolShowing && isOpen && (
+										<motion.div key={toolShowing} className="tool-host-motion" {...bodyMotion(tabDir)}>
+											<ToolHost id={toolShowing} setPinned={setNotchPinned} />
+										</motion.div>
+									)}
+								</AnimatePresence>
+
 								{/* Wi-Fi networks, opened from the controls panel's Wi-Fi tile */}
 								<AnimatePresence>
 									{bloomMode === "wifi" && (
 										<motion.div
 											key="wifi-view"
-											initial={{ opacity: 0 }}
-											animate={{ opacity: 1 }}
-											exit={{ opacity: 0, filter: "blur(4px)", transition: { duration: 0.1 } }}
-											transition={{ type: "spring", stiffness: 400, damping: 30 }}
+											className="notch-body qp-zoom"
+											{...LIST_MOTION}
 										>
 											<WifiPanel
 												enabled={wifiEnabled}
@@ -4080,10 +4673,8 @@ function App() {
 									{bloomMode === "bluetooth" && (
 										<motion.div
 											key="bluetooth-view"
-											initial={{ opacity: 0 }}
-											animate={{ opacity: 1 }}
-											exit={{ opacity: 0, filter: "blur(4px)", transition: { duration: 0.1 } }}
-											transition={{ type: "spring", stiffness: 400, damping: 30 }}
+											className="notch-body qp-zoom"
+											{...LIST_MOTION}
 										>
 											<BluetoothPanel
 												enabled={bluetoothEnabled}
@@ -4096,14 +4687,12 @@ function App() {
 								</AnimatePresence>
 
 								{/* Connected devices: everything connected, with its battery, by priority */}
-								<AnimatePresence>
+								<AnimatePresence custom={tabDir}>
 									{bloomMode === "devices" && (
 										<motion.div
 											key="devices-view"
-											initial={{ opacity: 0 }}
-											animate={{ opacity: 1 }}
-											exit={{ opacity: 0, filter: "blur(4px)", transition: { duration: 0.1 } }}
-											transition={{ type: "spring", stiffness: 400, damping: 30 }}
+											className="notch-body"
+											{...bodyMotion(tabDir)}
 										>
 											<ConnectedDevicesPanel
 												data={connectedDevices}
@@ -4117,14 +4706,12 @@ function App() {
 								</AnimatePresence>
 
 								{/* Clipboard history */}
-								<AnimatePresence>
+								<AnimatePresence custom={tabDir}>
 									{bloomMode === "clipboard" && (
 										<motion.div
 											key="clipboard-view"
-											initial={{ opacity: 0 }}
-											animate={{ opacity: 1 }}
-											exit={{ opacity: 0, filter: "blur(4px)", transition: { duration: 0.1 } }}
-											transition={{ type: "spring", stiffness: 400, damping: 30 }}
+											className="notch-body"
+											{...bodyMotion(tabDir)}
 										>
 											<ClipboardPanel
 												dragIcon={shelfDragIcon}
@@ -4140,278 +4727,41 @@ function App() {
 													releaseNotchHover();
 													invoke("set_notch_hovered", { hovered: false }).catch(() => {});
 												}}
+												onBusy={setNotchPinned}
 											/>
 										</motion.div>
 									)}
 								</AnimatePresence>
 
-								{/* Command Center Panel */}
-								<AnimatePresence>
+								{/* Command Center */}
+								<AnimatePresence custom={quickList ? "list" : tabDir}>
 									{bloomMode === "command-center" && (
 										<motion.div
-											className="command-center-content-minimal"
-											onClick={(e) => e.stopPropagation()}
-											initial={{ opacity: 0 }}
-											animate={{ opacity: 1 }}
-											exit={{ opacity: 0, filter: "blur(4px)", transition: { duration: 0.1 } }}
-											transition={{ type: "spring", stiffness: 400, damping: 30 }}
+											key="command-center"
+											className="notch-body"
+											variants={CC_VARIANTS} custom={tabDir} initial="enter" animate="center" exit="exit"
 										>
-											{/* Pills Grid */}
-											<div className="cc-pills-grid">
-												{/* Wi-Fi Pill */}
-												<div
-													className={`cc-pill-tile ${wifiEnabled ? "active" : ""}`}
-													onClick={(e) => {
-														e.stopPropagation();
-														toggleWifi();
-													}}
-													onContextMenu={handleWifiRightClick}
-													title="Left-click to toggle, Right-click for networks"
-												>
-													<div className="cc-pill-icon-wrapper">
-														<WifiIcon enabled={wifiEnabled} connected={wifiConnected} />
-													</div>
-													<div className="cc-pill-info">
-														<span className="cc-pill-title">Wi-Fi</span>
-														<span className="cc-pill-status">
-															{wifiStatus === null
-																? "…"
-																: !wifiEnabled
-																	? "Off"
-																	: wifiConnected
-																		? (wifiStatus?.ssid ?? "Connected")
-																		: "Not connected"}
-														</span>
-													</div>
-													<button
-														className="cc-pill-more"
-														aria-label="Wi-Fi networks"
-														title="Wi-Fi networks"
-														onClick={(e) => {
-															e.stopPropagation();
-															setBloomMode("wifi");
-														}}
-													>
-														<ChevronRight />
-													</button>
-												</div>
-
-												{/* Dock Mode Pill */}
-												<div
-													className={`cc-pill-tile ${dockMode === "fixed" ? "active" : ""}`}
-													onClick={toggleDockModeSetting}
-													title="Cycle dock mode: Fixed / Smart / Peek"
-												>
-													<div className="cc-pill-icon-wrapper">
-														<DockIcon />
-													</div>
-													<div className="cc-pill-info">
-														<span className="cc-pill-title">Dock Mode</span>
-														<span className="cc-pill-status">
-															{dockMode === "fixed"
-																? "Fixed"
-																: dockMode === "smart"
-																	? "Smart"
-																	: "Peek"}
-														</span>
-													</div>
-												</div>
-
-												{/* Bluetooth Pill */}
-												<div
-													className={`cc-pill-tile ${bluetoothEnabled ? "active" : ""}`}
-													onClick={(e) => {
-														e.stopPropagation();
-														toggleBluetooth();
-													}}
-													onContextMenu={handleBluetoothRightClick}
-													title="Left-click to toggle, Right-click for devices"
-												>
-													<div className="cc-pill-icon-wrapper">
-														<BluetoothIcon />
-													</div>
-													<div className="cc-pill-info">
-														<span className="cc-pill-title">Bluetooth</span>
-														<span className="cc-pill-status">
-															{!bluetoothEnabled
-																? "Off"
-																: btConnectedNames.length === 1
-																	? btConnectedNames[0]
-																	: btConnectedNames.length > 1
-																		? `${btConnectedNames.length} connected`
-																		: "On"}
-														</span>
-													</div>
-													<button
-														className="cc-pill-more"
-														aria-label="Bluetooth devices"
-														title="Bluetooth devices"
-														onClick={(e) => {
-															e.stopPropagation();
-															setBloomMode("bluetooth");
-														}}
-													>
-														<ChevronRight />
-													</button>
-												</div>
-
-												{/* Notch Mode Pill */}
-												<div
-													className={`cc-pill-tile ${notchMode === "fixed" ? "active" : ""}`}
-													onClick={toggleNotchModeSetting}
-													title="Cycle notch mode: Fixed / Smart / Peek"
-												>
-													<div className="cc-pill-icon-wrapper">
-														<NotchIcon />
-													</div>
-													<div className="cc-pill-info">
-														<span className="cc-pill-title">Notch Mode</span>
-														<span className="cc-pill-status">
-															{notchMode === "fixed"
-																? "Fixed"
-																: notchMode === "smart"
-																	? "Smart"
-																	: "Peek"}
-														</span>
-													</div>
-												</div>
-											</div>
-
-											{/* Circular Actions Row */}
-											<div className="cc-circular-actions-row">
-												<button
-													className="cc-circular-btn"
-													onClick={(e) => {
-														e.stopPropagation();
-														invoke("open_app", { appName: "ms-settings:notifications" }).catch(
-															console.error
-														);
-													}}
-													title="Do Not Disturb — Open Windows notification settings"
-												>
-													<MoonIcon />
-												</button>
-												<button
-													className={`cc-circular-btn ${batterySaverEnabled ? "active" : ""}`}
-													onClick={(e) => {
-														e.stopPropagation();
-														openBatterySaverSettings();
-													}}
-													title={`Energy Saver: ${batterySaverEnabled ? "On" : "Off"} — Click to open Settings`}
-												>
-													<BatterySaverIcon />
-												</button>
-												<button
-													className="cc-circular-btn"
-													onClick={(e) => {
-														e.stopPropagation();
-														openSystemTray(e);
-													}}
-													title="System Tray"
-												>
-													<TrayIcon />
-												</button>
-												<button
-													className="cc-circular-btn"
-													onClick={(e) => {
-														e.stopPropagation();
-														invoke("open_system_action", { action: "task-manager" }).catch(
-															console.error
-														);
-													}}
-													title="Task Manager"
-													aria-label="Task Manager"
-												>
-													<Activity size={18} strokeWidth={2.5} />
-												</button>
-												<button
-													className="cc-circular-btn"
-													onClick={(e) => {
-														e.stopPropagation();
-														invoke("open_notification_center");
-													}}
-													title="Notification Center"
-												>
-													<BellIcon />
-												</button>
-												<button
-													className="cc-circular-btn"
-													onClick={(e) => {
-														e.stopPropagation();
-														openSettingsWindow();
-													}}
-													title="Bloom Settings"
-												>
-													<SettingsIcon />
-												</button>
-												<button
-													className="cc-circular-btn"
-													onClick={(e) => {
-														e.stopPropagation();
-														invoke("restart_bloom");
-													}}
-													title="Restart Bloom"
-												>
-													<ReloadIcon />
-												</button>
-											</div>
-
-											{/* Classic Sliders Area */}
-											<div className="cc-classic-sliders-area">
-												{/* Volume Slider */}
-												<div className="cc-classic-slider-row">
-													<div className="cc-classic-slider-label">
-														<VolumeLowIcon style={{ opacity: 0.5 }} />
-														<span>Volume</span>
-													</div>
-													<div className="cc-classic-slider-track">
-														<input
-															type="range"
-															min="0"
-															max="1"
-															step="0.01"
-															value={displayVolume}
-															onChange={(e) => handleVolumeChange(parseFloat(e.target.value))}
-															onPointerDown={(e) => e.stopPropagation()}
-															onClick={(e) => e.stopPropagation()}
-															className="cc-classic-input"
-														/>
-														<div
-															className="cc-classic-fill"
-															style={{ width: `${displayVolume * 100}%` }}
-														/>
-													</div>
-													<span className="cc-classic-percentage">
-														{Math.round(displayVolume * 100)}%
-													</span>
-												</div>
-
-												{/* Brightness Slider */}
-												<div className="cc-classic-slider-row">
-													<div className="cc-classic-slider-label">
-														<BrightnessLowIcon />
-														<span>Brightness</span>
-													</div>
-													<div className="cc-classic-slider-track">
-														<input
-															type="range"
-															min="0"
-															max="100"
-															step="1"
-															value={currentBrightness}
-															onChange={(e) => handleBrightnessChange(parseInt(e.target.value))}
-															onPointerDown={(e) => e.stopPropagation()}
-															onClick={(e) => e.stopPropagation()}
-															className="cc-classic-input"
-														/>
-														<div
-															className="cc-classic-fill"
-															style={{ width: `${currentBrightness}%` }}
-														/>
-													</div>
-													<span className="cc-classic-percentage">{currentBrightness}%</span>
-												</div>
-											</div>
+											<CommandCenter
+												tiles={ccTiles}
+												state={ccState}
+												volume={Math.round(displayVolume * 100)}
+												muted={isMuted}
+												onVolume={(v) => handleVolumeChange(v / 100)}
+												onMute={() => {
+													if (displayVolume > 0) {
+														restoreVolumeRef.current = displayVolume;
+														handleVolumeChange(0);
+													} else handleVolumeChange(restoreVolumeRef.current || 0.5);
+												}}
+												brightness={currentBrightness}
+												onBrightness={handleBrightnessChange}
+												onBrightnessIcon={() => {
+													if (currentBrightness > 0) {
+														restoreBrightnessRef.current = currentBrightness;
+														handleBrightnessChange(0);
+													} else handleBrightnessChange(restoreBrightnessRef.current || 50);
+												}}
+											/>
 										</motion.div>
 									)}
 								</AnimatePresence>
@@ -4426,11 +4776,15 @@ function App() {
 									{bloomMode === "device" && deviceAlert && (
 										<motion.div
 											className="device-alert"
+											title={deviceAlert.disk && deviceAlert.connected ? "Open in File Explorer" : undefined}
+											style={deviceAlert.disk && deviceAlert.connected ? { cursor: "pointer" } : undefined}
 											onClick={(e) => {
 												e.stopPropagation();
 												const usb = deviceAlert.usb;
+												const openDrive = deviceAlert.disk && deviceAlert.connected;
 												deviceAlertQueueRef.current = [];
 												setDeviceAlert(null);
+												if (openDrive) invoke("open_new_drive").catch(() => {});
 												// Bluetooth devices open their list; USB ones
 												// have none, so the click just dismisses.
 												if (usb) return;
@@ -4507,127 +4861,30 @@ function App() {
 									)}
 								</AnimatePresence>
 
-								{/* Calendar & Timer Split View */}
-								<AnimatePresence>
+								{/* Day: the month beside today (date, weekday, week of the month).
+								    The timer lives in its own Timer tab only (user, 2026-11-20). */}
+								<AnimatePresence custom={tabDir}>
 									{settingsCalendarEnabled && isCalendarMode && (
 										<motion.div
 											className="calendar-timer-content split-view"
 											onClick={(e) =>
 												e.stopPropagation()
 											} /* Block mode switches when clicking inside */
-											initial={{ opacity: 0 }}
-											animate={{ opacity: 1 }}
-											exit={{ opacity: 0, filter: "blur(4px)", transition: { duration: 0.1 } }}
-											transition={{ type: "spring", stiffness: 400, damping: 30 }}
+											{...bodyMotion(tabDir)}
 										>
-											<div className="calendar-column">
-												<Calendar />
-											</div>
-
-											<div className="timer-column">
-												<div className={`timer-section-new state-${timerState}`}>
-													<div className="timer-main">
-														<div className="timer-status">
-															{isEditingTimer
-																? "Set duration"
-																: isTimerFinished
-																	? "Time's up"
-																	: timerEndTime
-																		? `${timerState === "paused" ? "Paused · " : ""}ends ${timerEndTime}`
-																		: "Click to edit"}
-														</div>
-
-														<div className={`timer-clock-row ${isEditingTimer ? "editing" : ""}`}>
-															<div
-																className={`timer-clock ${isEditingTimer && !timerEditValid ? "invalid" : ""}`}
-																onClick={beginTimerEdit}
-																title={isTimerRunning ? undefined : "Click to set a duration"}
-															>
-																{minuteDigitItems.map(({ digit, key }) => (
-																	<RollDigit key={key} value={digit} compact={clockCompact} />
-																))}
-																<span className="timer-colon">:</span>
-																{secondDigitItems.map(({ digit, key }) => (
-																	<RollDigit key={key} value={digit} compact={clockCompact} />
-																))}
-															</div>
-															<span className="timer-edit-underline" aria-hidden="true" />
-															{isEditingTimer && (
-																<input
-																	ref={timerInputRef}
-																	className="timer-edit-input"
-																	type="text"
-																	inputMode="numeric"
-																	aria-label="Set timer duration"
-																	value={formatTimerDigits(timerEditDigits)}
-																	onChange={(e) =>
-																		setTimerEditDigits(
-																			e.target.value.replace(/\D/g, "").slice(0, 5)
-																		)
-																	}
-																	onKeyDown={(e) => {
-																		if (e.key === "Enter") commitTimerEdit(true);
-																	}}
-																	onBlur={() => commitTimerEdit(false)}
-																	onWheel={(e) => e.stopPropagation()}
-																/>
-															)}
-														</div>
-													</div>
-
-													<div className="timer-controls-row">
-														<span className="timer-controls-spacer" aria-hidden="true" />
-														<button
-															onClick={handlePrimaryTimerAction}
-															onMouseDown={(e) => e.preventDefault()}
-															className="timer-btn-play"
-															title={primaryTimerLabel}
-														>
-															{isTimerRunning ? (
-																<Pause size={14} strokeWidth={2} fill="currentColor" />
-															) : (
-																<Play size={14} strokeWidth={2} fill="currentColor" />
-															)}
-															<span>{primaryTimerLabel}</span>
-														</button>
-														<button
-															onClick={resetTimer}
-															className="timer-btn-reset"
-															disabled={timerSeconds === 0 && !isTimerFinished}
-															title="Reset"
-														>
-															<RotateCcw size={14} strokeWidth={2.5} />
-														</button>
-													</div>
-
-													<div className="timer-preset-group">
-														{[5, 15, 25, 50].map((mins) => (
-															<button
-																key={mins}
-																onClick={() => startTimer(mins * 60)}
-																className={`timer-preset-segment ${lastDurationSeconds === mins * 60 && !isTimerFinished ? "active" : ""}`}
-															>
-																{mins}m
-															</button>
-														))}
-													</div>
-												</div>
-											</div>
+											<DayView setPinned={setNotchPinned} />
 										</motion.div>
 									)}
 								</AnimatePresence>
 
 								{/* Shelf Panel */}
-								<AnimatePresence>
+								<AnimatePresence custom={tabDir}>
 									{bloomMode === "shelf" && (
 										<motion.div
 											className="shelf-content"
 											onClick={(e) => e.stopPropagation()}
 											onWheel={handleShelfWheel}
-											initial={{ opacity: 0 }}
-											animate={{ opacity: 1 }}
-											exit={{ opacity: 0, filter: "blur(4px)", transition: { duration: 0.1 } }}
-											transition={{ type: "spring", stiffness: 400, damping: 30 }}
+											{...bodyMotion(tabDir)}
 										>
 											{shelfNotice && <div className="shelf-notice">{shelfNotice}</div>}
 											{shelfItems.length === 0 ? (
@@ -4807,10 +5064,58 @@ function App() {
 				</AnimatePresence>
 			</div>
 		</div>
+		</MotionConfig>
 	);
 }
 
-function Calendar() {
+/** Week of the month, counted in calendar rows (Sunday first, like the
+ *  grid beside it): the 1st's row is week 1. */
+function weekOfMonth(d: Date) {
+	const first = new Date(d.getFullYear(), d.getMonth(), 1).getDay();
+	return Math.ceil((d.getDate() + first) / 7);
+}
+
+const ORDINAL = ["First", "Second", "Third", "Fourth", "Fifth", "Sixth"];
+
+/** Today, beside the month: the date large, the weekday, the week. */
+function TodayPanel() {
+	const [now, setNow] = useState(() => new Date());
+	// Rolls over at midnight while the notch stays open.
+	useEffect(() => {
+		const t = setInterval(() => setNow(new Date()), 60000);
+		return () => clearInterval(t);
+	}, []);
+	const week = weekOfMonth(now);
+	return (
+		<div className="today-panel">
+			<span className="today-weekday">{now.toLocaleDateString(undefined, { weekday: "long" })}</span>
+			<span className="today-date">{now.getDate()}</span>
+			<span className="today-month">{now.toLocaleDateString(undefined, { month: "long", year: "numeric" })}</span>
+			<span className="today-week">{ORDINAL[week - 1] ?? `Week ${week}`} week</span>
+		</div>
+	);
+}
+
+/** The Calendar tab: the month (click a day to give it a deadline) and,
+ *  beside it, today and the next deadlines with the days left. */
+function DayView({ setPinned }: { setPinned: (pinned: boolean) => void }) {
+	const store = useDeadlines();
+	const [picked, setPicked] = useState<string | null>(null);
+	const marked = new Set(store[0].items.map((d) => d.date));
+	return (
+		<>
+			<div className="calendar-column">
+				<Calendar marked={marked} onPick={(d) => setPicked(`${d}#${Date.now()}`)} />
+			</div>
+			<div className="timer-column day-side">
+				<TodayPanel />
+				<DeadlineList picked={picked} max={2} setPinned={setPinned} store={store} calendarPicks />
+			</div>
+		</>
+	);
+}
+
+function Calendar({ marked, onPick }: { marked: Set<string>; onPick: (day: string) => void }) {
 	const [date] = useState(new Date());
 
 	const daysInMonth = (year: number, month: number) => new Date(year, month + 1, 0).getDate();
@@ -4835,10 +5140,17 @@ function Calendar() {
 		new Date().getMonth() === currentMonth && new Date().getFullYear() === currentYear;
 
 	for (let i = 1; i <= totalDays; i++) {
+		const key = dayKey(new Date(currentYear, currentMonth, i));
 		days.push(
-			<div key={i} className={`calendar-day ${isCurrentMonth && i === today ? "today" : ""}`}>
+			<button
+				type="button"
+				key={i}
+				className={`calendar-day ${isCurrentMonth && i === today ? "today" : ""}${marked.has(key) ? " has-deadline" : ""}`}
+				title="Add a deadline on this day"
+				onClick={() => onPick(key)}
+			>
 				{i}
-			</div>
+			</button>
 		);
 	}
 
@@ -4858,170 +5170,6 @@ function Calendar() {
 				{days}
 			</div>
 		</div>
-	);
-}
-
-function BluetoothIcon() {
-	return (
-		<svg
-			width="18"
-			height="18"
-			viewBox="0 0 24 24"
-			fill="none"
-			stroke="currentColor"
-			strokeWidth="2.5"
-			strokeLinecap="round"
-			strokeLinejoin="round"
-		>
-			<path d="M6.5 6.5l11 11L12 23V1l5.5 5.5-11 11" />
-		</svg>
-	);
-}
-
-function SettingsIcon() {
-	return (
-		<svg
-			width="14"
-			height="14"
-			viewBox="0 0 24 24"
-			fill="none"
-			stroke="currentColor"
-			strokeWidth="2.5"
-			strokeLinecap="round"
-			strokeLinejoin="round"
-			style={{ opacity: 0.9 }}
-		>
-			<circle cx="12" cy="12" r="3" />
-			<path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z" />
-		</svg>
-	);
-}
-
-function BrightnessLowIcon() {
-	return (
-		<svg
-			width="12"
-			height="12"
-			viewBox="0 0 24 24"
-			fill="none"
-			stroke="currentColor"
-			strokeWidth="2"
-			strokeLinecap="round"
-			strokeLinejoin="round"
-			style={{ opacity: 0.5 }}
-		>
-			<circle cx="12" cy="12" r="5" fill="currentColor" />
-		</svg>
-	);
-}
-
-function MoonIcon() {
-	return (
-		<svg
-			width="18"
-			height="18"
-			viewBox="0 0 24 24"
-			fill="none"
-			stroke="currentColor"
-			strokeWidth="2.5"
-			strokeLinecap="round"
-			strokeLinejoin="round"
-		>
-			<path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z" />
-		</svg>
-	);
-}
-
-function DockIcon() {
-	return (
-		<svg
-			width="18"
-			height="18"
-			viewBox="0 0 24 24"
-			fill="none"
-			stroke="currentColor"
-			strokeWidth="2.5"
-			strokeLinecap="round"
-			strokeLinejoin="round"
-		>
-			<rect x="2" y="14" width="20" height="8" rx="2" />
-			<line x1="6" y1="18" x2="6.01" y2="18" strokeWidth="3.5" strokeLinecap="round" />
-			<line x1="10" y1="18" x2="10.01" y2="18" strokeWidth="3.5" strokeLinecap="round" />
-			<line x1="14" y1="18" x2="14.01" y2="18" strokeWidth="3.5" strokeLinecap="round" />
-			<line x1="18" y1="18" x2="18.01" y2="18" strokeWidth="3.5" strokeLinecap="round" />
-		</svg>
-	);
-}
-
-function NotchIcon() {
-	return (
-		<svg
-			width="18"
-			height="18"
-			viewBox="0 0 24 24"
-			fill="none"
-			stroke="currentColor"
-			strokeWidth="2.5"
-			strokeLinecap="round"
-			strokeLinejoin="round"
-		>
-			<path d="M4 3h16a2 2 0 0 1 2 2v2a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2z" />
-			<path d="M9 9v4a2 2 0 0 0 2 2h2a2 2 0 0 0 2-2V9" />
-		</svg>
-	);
-}
-
-function BellIcon() {
-	return (
-		<svg
-			width="14"
-			height="14"
-			viewBox="0 0 24 24"
-			fill="none"
-			stroke="currentColor"
-			strokeWidth="2.5"
-			strokeLinecap="round"
-			strokeLinejoin="round"
-		>
-			<path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9z" />
-			<path d="M13.73 21a2 2 0 0 1-3.46 0" />
-		</svg>
-	);
-}
-
-function ReloadIcon() {
-	return (
-		<svg
-			width="14"
-			height="14"
-			viewBox="0 0 24 24"
-			fill="none"
-			stroke="currentColor"
-			strokeWidth="2.5"
-			strokeLinecap="round"
-			strokeLinejoin="round"
-		>
-			<path d="M21.5 2v6h-6M21.34 15.57a10 10 0 1 1-.57-8.38l5.67-5.67" />
-		</svg>
-	);
-}
-
-function BatterySaverIcon() {
-	return (
-		<svg
-			width="18"
-			height="18"
-			viewBox="0 0 24 24"
-			fill="none"
-			stroke="currentColor"
-			strokeWidth="2.5"
-			strokeLinecap="round"
-			strokeLinejoin="round"
-		>
-			<rect x="2" y="7" width="16" height="10" rx="2" />
-			<path d="M22 11v2" />
-			<path d="M6 12h4l2-3v6l-2-3H6" />
-		</svg>
 	);
 }
 

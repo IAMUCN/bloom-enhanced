@@ -1,4 +1,4 @@
-@import url("https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&display=swap");
+@import "./fonts.css";
 
 html,
 body {
@@ -71,6 +71,11 @@ img {
    children's opacity is animated inline by Framer Motion. */
 .bloom.minimal-idle > :not(.edge-surface) {
 	visibility: hidden;
+}
+
+/* The idle bar is 8px tall: its flares shrink with it (13px would dwarf it). */
+.bloom.minimal-idle {
+	--flare: 5px;
 }
 
 .bloom.expanded {
@@ -705,6 +710,55 @@ img {
 	padding-left: 16px;
 }
 
+/* Today on top, the next deadlines at the bottom. */
+.timer-column.day-side {
+	justify-content: space-between;
+	gap: 10px;
+	padding-top: 6px;
+	padding-bottom: 6px;
+}
+
+/* Day: today beside the month. The date is the anchor; weekday above,
+   month and the week of the month below, quieter. */
+.today-panel {
+	display: flex;
+	flex-direction: column;
+	align-items: flex-start;
+	gap: 2px;
+	padding-left: 6px;
+}
+
+.today-weekday {
+	font-size: 13px;
+	font-weight: 600;
+	color: #ff9447;
+	letter-spacing: 0.01em;
+}
+
+.today-date {
+	font-size: 44px;
+	font-weight: 700;
+	line-height: 1;
+	letter-spacing: -0.03em;
+	font-variant-numeric: tabular-nums;
+}
+
+.today-month {
+	margin-top: 4px;
+	font-size: 13px;
+	opacity: 0.75;
+}
+
+.today-week {
+	margin-top: 8px;
+	padding: 3px 9px;
+	border-radius: 999px;
+	font-size: 11.5px;
+	font-weight: 600;
+	background: rgba(255, 148, 71, 0.16);
+	color: #ffb27a;
+}
+
 .calendar-container {
 	width: 100%;
 }
@@ -734,14 +788,48 @@ img {
 	padding-bottom: 2px;
 }
 
+/* Fixed-height cells: square ones grew with the wider notch and pushed the
+   last week out of the panel. Six weeks of 26 px fit the 6-row height. */
 .calendar-day {
-	aspect-ratio: 1;
+	position: relative;
+	height: 26px;
 	display: flex;
 	align-items: center;
 	justify-content: center;
+	padding: 0;
+	border: none;
+	background: none;
+	color: inherit;
+	font: inherit;
 	font-size: 10px;
 	border-radius: 4px;
 	transition: background 0.2s ease;
+}
+
+button.calendar-day {
+	cursor: pointer;
+}
+
+button.calendar-day:hover {
+	background: color-mix(in srgb, var(--bloom-text, #fff) 10%, transparent);
+}
+
+button.calendar-day:focus-visible {
+	outline: 1.5px solid #ff9447;
+	outline-offset: -1px;
+}
+
+/* A day with a deadline: a dot under the number. */
+.calendar-day.has-deadline::after {
+	content: "";
+	position: absolute;
+	bottom: 2px;
+	left: 50%;
+	width: 4px;
+	height: 4px;
+	margin-left: -2px;
+	border-radius: 50%;
+	background: #ff9447;
 }
 
 .calendar-day.today {
@@ -1366,31 +1454,12 @@ img {
 
 .calendar-timer-content {
 	position: absolute;
-	top: 36px;
+	top: calc(36px + var(--tab-bar-space, 0px));
 	left: 0;
 	width: 100%;
-	height: calc(100% - 36px);
+	height: calc(100% - 36px - var(--tab-bar-space, 0px));
 	box-sizing: border-box;
 	z-index: 2;
-}
-
-/* Command Center Panel - Minimal */
-.command-center-content-minimal {
-	position: absolute;
-	top: 36px;
-	left: 0;
-	width: 100%;
-	height: calc(100% - 36px);
-	box-sizing: border-box;
-	z-index: 2;
-	padding: 12px 14px 12px 14px;
-	display: flex;
-	flex-direction: column;
-	justify-content: space-between;
-	align-items: center;
-	color: var(--bloom-text, white);
-	border-radius: 0 0 18px 18px;
-	overflow: hidden;
 }
 
 /* Shelf panel */
@@ -1815,268 +1884,6 @@ img {
 	opacity: 0.85;
 }
 
-/* Pills Grid */
-.cc-pills-grid {
-	display: grid;
-	grid-template-columns: 1fr 1fr;
-	gap: 10px;
-	width: 100%;
-	height: 78px;
-}
-
-.cc-pill-tile {
-	display: flex;
-	align-items: center;
-	gap: 8px;
-	padding: 5px 8px;
-	border-radius: 10px;
-	background: var(--bloom-group-bg, rgba(255, 255, 255, 0.04));
-	border: 1px solid var(--bloom-border, rgba(255, 255, 255, 0.02));
-	cursor: pointer;
-	transition: all 0.15s cubic-bezier(0.16, 1, 0.3, 1);
-	user-select: none;
-	height: 34px;
-	box-sizing: border-box;
-}
-
-.cc-pill-tile:hover {
-	background: var(--bloom-border, rgba(255, 255, 255, 0.08));
-	transform: translateY(-0.5px);
-}
-
-.cc-pill-tile:active {
-	transform: scale(0.98);
-}
-
-.cc-pill-icon-wrapper {
-	display: flex;
-	align-items: center;
-	justify-content: center;
-	width: 20px;
-	height: 20px;
-	border-radius: 50%;
-	background: var(--bloom-group-bg, rgba(255, 255, 255, 0.08));
-	color: var(--bloom-text, rgba(255, 255, 255, 0.9));
-	transition: all 0.15s ease;
-}
-
-.cc-pill-icon-wrapper svg {
-	width: 12px;
-	height: 12px;
-}
-
-.cc-pill-info {
-	display: flex;
-	flex-direction: column;
-	min-width: 0;
-	line-height: 1.15;
-}
-
-.cc-pill-title {
-	font-size: 9px;
-	font-weight: 600;
-	color: var(--bloom-text, rgba(255, 255, 255, 0.9));
-}
-
-.cc-pill-status {
-	font-size: 7.5px;
-	color: var(--bloom-text-muted, rgba(255, 255, 255, 0.4));
-	font-weight: 500;
-	/* The connected network's name can be long. */
-	white-space: nowrap;
-	overflow: hidden;
-	text-overflow: ellipsis;
-}
-
-/* Active Monochrome pill states */
-.cc-pill-tile.active {
-	background: var(--bloom-text, rgba(255, 255, 255, 0.95));
-	border-color: var(--bloom-text, rgba(255, 255, 255, 0.95));
-}
-
-.cc-pill-tile.active .cc-pill-title {
-	color: var(--bloom-bg-expanded, rgba(0, 0, 0, 0.9));
-}
-
-.cc-pill-tile.active .cc-pill-status {
-	color: var(--bloom-bg-expanded, rgba(0, 0, 0, 0.5));
-}
-
-.cc-pill-tile.active .cc-pill-icon-wrapper {
-	background: var(--bloom-group-bg, rgba(0, 0, 0, 0.08));
-	color: var(--bloom-bg-expanded, #000);
-}
-
-/* Opens a tile's detail view from the controls panel. */
-.cc-pill-more {
-	margin-left: auto;
-	width: 18px;
-	height: 18px;
-	padding: 0;
-	flex: none;
-	display: flex;
-	align-items: center;
-	justify-content: center;
-	border: none;
-	border-radius: 6px;
-	background: transparent;
-	color: inherit;
-	opacity: 0.55;
-	cursor: pointer;
-	transition:
-		opacity 0.15s ease,
-		background 0.15s ease;
-}
-
-.cc-pill-more:hover {
-	opacity: 1;
-	background: var(--bloom-group-bg, rgba(255, 255, 255, 0.12));
-}
-
-.cc-pill-more svg {
-	width: 12px;
-	height: 12px;
-}
-
-.cc-pill-tile.active .cc-pill-more {
-	color: var(--bloom-bg-expanded, black);
-}
-
-/* Circular Actions Row */
-.cc-circular-actions-row {
-	display: flex;
-	justify-content: space-between;
-	align-items: center;
-	width: 100%;
-	padding: 0 4px;
-}
-
-.cc-circular-btn {
-	width: 32px;
-	height: 32px;
-	border-radius: 50%;
-	background: var(--bloom-group-bg, rgba(255, 255, 255, 0.04));
-	border: 1px solid var(--bloom-border, rgba(255, 255, 255, 0.02));
-	color: var(--bloom-text-muted, rgba(255, 255, 255, 0.7));
-	display: flex;
-	align-items: center;
-	justify-content: center;
-	cursor: pointer;
-	transition: all 0.2s cubic-bezier(0.16, 1, 0.3, 1);
-}
-
-.cc-circular-btn:hover {
-	background: var(--bloom-border, rgba(255, 255, 255, 0.1));
-	color: var(--bloom-text, #fff);
-	transform: translateY(-1px);
-}
-
-.cc-circular-btn:active {
-	transform: scale(0.95) translateY(0);
-}
-
-.cc-circular-btn.active {
-	background: var(--bloom-text, #ffffff);
-	border-color: var(--bloom-text, #ffffff);
-	color: var(--bloom-bg-expanded, #000000);
-	box-shadow: 0 2px 8px var(--bloom-border, rgba(255, 255, 255, 0.1));
-}
-
-.cc-circular-btn.active:hover {
-	background: rgba(255, 255, 255, 0.9);
-}
-
-/* Classic Sliders Area */
-.cc-classic-sliders-area {
-	display: flex;
-	flex-direction: column;
-	gap: 8px;
-	width: 100%;
-}
-
-.cc-classic-slider-row {
-	display: flex;
-	align-items: center;
-	gap: 10px;
-	width: 100%;
-	height: 18px;
-	position: relative;
-}
-
-.cc-classic-slider-label {
-	display: flex;
-	align-items: center;
-	gap: 6px;
-	width: 75px;
-	font-size: 9px;
-	font-weight: 600;
-	color: var(--bloom-text-muted, rgba(255, 255, 255, 0.65));
-}
-
-.cc-classic-slider-label svg {
-	opacity: 0.7;
-	width: 12px;
-	height: 12px;
-}
-
-.cc-classic-slider-track {
-	flex: 1;
-	height: 6px;
-	border-radius: 3px;
-	background: var(--bloom-group-bg, rgba(255, 255, 255, 0.08));
-	position: relative;
-	display: flex;
-	align-items: center;
-	transition: background 0.15s ease;
-}
-
-.cc-classic-slider-row:hover .cc-classic-slider-track {
-	background: var(--bloom-border, rgba(255, 255, 255, 0.12));
-}
-
-.cc-classic-fill {
-	background: var(--bloom-text, rgba(255, 255, 255, 0.9));
-	border-radius: 3px;
-	height: 100%;
-	position: absolute;
-	left: 0;
-	top: 0;
-	pointer-events: none;
-	transition:
-		width 0.05s linear,
-		background 0.15s ease;
-}
-
-.cc-classic-slider-row:hover .cc-classic-fill {
-	background: var(--bloom-text, #ffffff);
-	box-shadow: 0 0 4px var(--bloom-border, rgba(255, 255, 255, 0.15));
-}
-
-.cc-classic-percentage {
-	width: 28px;
-	text-align: right;
-	font-size: 9px;
-	font-weight: 600;
-	color: var(--bloom-text-muted, rgba(255, 255, 255, 0.55));
-	font-variant-numeric: tabular-nums;
-}
-
-.cc-classic-slider-row:hover .cc-classic-percentage {
-	color: var(--bloom-text, rgba(255, 255, 255, 0.85));
-}
-
-.cc-classic-input {
-	position: absolute;
-	top: -6px;
-	left: 0;
-	width: 100%;
-	height: 18px;
-	opacity: 0;
-	cursor: pointer;
-	z-index: 4;
-	margin: 0;
-}
-
 /* Light Mode overrides for Notch App components */
 .light-mode .power-pulse-content .label {
 	color: var(--bloom-text);
@@ -2099,17 +1906,12 @@ img {
 
 .light-mode .volume-slider-bar,
 .light-mode .brightness-slider-bar,
-.light-mode .cc-classic-slider,
 .light-mode .slider-track-premium {
 	background: rgba(0, 0, 0, 0.12);
 }
 
 .light-mode .slider-track-premium:hover {
 	background: rgba(0, 0, 0, 0.18);
-}
-
-.light-mode .cc-classic-slider-row svg {
-	color: var(--bloom-text);
 }
 
 /* ===== Immersive Media Player (iPhone Dynamic Island style) ===== */
@@ -2453,4 +2255,121 @@ img {
 .cmp-output-check {
 	font-size: 11px;
 	opacity: 0.6;
+}
+
+/* Battery saver: the leaf in the closed notch; no glass (blur) anywhere. */
+.battery-saver-leaf {
+	color: #30d158;
+	flex: none;
+	margin-right: 4px;
+}
+
+.battery-saver,
+.battery-saver * {
+	backdrop-filter: none !important;
+	-webkit-backdrop-filter: none !important;
+}
+
+/* A tool body that animates as a whole: it covers the notch so the panel
+   inside keeps its own absolute place, and only the panel takes clicks. */
+/* A page's body is laid out at the notch's final width from the first
+   frame, centred, and clipped to the notch as it springs open, so text never
+   re-wraps while the bouncy shell grows and settles (it used to fold onto
+   the next line, then jump back). */
+.notch-body {
+	position: absolute;
+	top: 0;
+	bottom: 0;
+	left: calc(50% - var(--notch-final-width, 100%) / 2);
+	width: var(--notch-final-width, 100%);
+	clip-path: inset(0 max(0px, calc((var(--notch-final-width, 100cqw) - 100cqw) / 2)));
+	z-index: 2;
+	pointer-events: none;
+}
+
+.notch-body > * {
+	pointer-events: auto;
+}
+
+/* An extra tool's body, animated as a whole (motion.ts bodyMotion). */
+.tool-host-motion {
+	flex: 1;
+	min-height: 0;
+	width: 100%;
+	display: flex;
+	flex-direction: column;
+}
+
+/* Media as a tab: the player, or "Nothing's playing", below the tab bar. */
+.media-body {
+	position: absolute;
+	top: calc(36px + var(--tab-bar-space, 0px));
+	left: 0;
+	right: 0;
+	padding: 0 16px;
+	box-sizing: border-box;
+	display: flex;
+	justify-content: center;
+}
+
+.media-body .expanded-music-container {
+	max-width: 520px;
+}
+
+.media-empty {
+	display: flex;
+	flex-direction: column;
+	align-items: center;
+	justify-content: center;
+	gap: 4px;
+	width: 100%;
+	color: var(--bloom-text, #fff);
+	text-align: center;
+}
+
+.media-empty-icon {
+	opacity: 0.5;
+	margin-bottom: 4px;
+}
+
+.media-empty strong {
+	font-size: 14px;
+	font-weight: 600;
+}
+
+.media-empty span {
+	font-size: 12px;
+	color: var(--bloom-text-secondary, #a1a1aa);
+}
+
+/* The Timer's end, on the closed notch, before it opens. */
+.time.times-up {
+	font-weight: 800;
+	letter-spacing: 0.04em;
+	color: #ffc94d;
+}
+
+/* Game strip glance on the closed notch. */
+.time.game-glance {
+	display: inline-flex;
+	gap: 10px;
+	font-size: 12px;
+	font-weight: 600;
+	font-variant-numeric: tabular-nums;
+	white-space: nowrap;
+	color: #b6f36b;
+}
+
+/* The Timer tool's countdown on the closed notch: bigger, and centred in the
+   notch itself. The closed notch is ~29 px tall but its clock row is 36 px,
+   so the row's centre sits ~3 px low.
+   ponytail: a fixed nudge; re-measure if the closed notch height changes. */
+.time.tool-countdown {
+	position: relative;
+	top: -3px;
+	gap: 6px;
+	font-size: 16px;
+	font-weight: 700;
+	line-height: 1;
+	font-variant-numeric: tabular-nums;
 }

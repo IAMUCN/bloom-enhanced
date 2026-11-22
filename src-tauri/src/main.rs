@@ -11,9 +11,14 @@ mod jack;
 mod orbit;
 mod perf;
 mod services;
+mod share;
+mod share_app;
 mod shelf;
 mod shelf_preview;
+mod shortcuts;
 mod state;
+mod system_tools;
+mod tool_data;
 mod tray;
 mod types;
 mod updater;
@@ -48,7 +53,15 @@ const AUTOSTART_ARG: &str = "--autostart";
 
 fn main() {
     let mut args = std::env::args_os();
-    if args.nth(1).as_deref() == Some(std::ffi::OsStr::new("--taskbar-watchdog")) {
+    let first = args.nth(1);
+    if first.as_deref() == Some(std::ffi::OsStr::new("--taskbar-watchdog-launch")) {
+        // Exits at once so the watchdog it starts outlives Bloom's process tree.
+        if let (Some(pid), Some(marker)) = (args.next(), args.next()) {
+            let _ = utils::spawn_detached(&["--taskbar-watchdog".as_ref(), &pid, &marker]);
+        }
+        return;
+    }
+    if first.as_deref() == Some(std::ffi::OsStr::new("--taskbar-watchdog")) {
         if let (Some(pid), Some(marker)) = (args.next(), args.next()) {
             if let Ok(pid) = pid.to_string_lossy().parse::<u32>() {
                 utils::run_taskbar_watchdog(pid, marker.into());
@@ -58,6 +71,15 @@ fn main() {
     }
     unsafe {
         let _ = SetConsoleCtrlHandler(Some(ctrl_handler), true);
+    }
+    // Dev builds: the pages can be inspected live (chasing the white boxes
+    // beside the notch, 2026-11-20). Never in releases.
+    if cfg!(debug_assertions) && std::env::var_os("WEBVIEW2_ADDITIONAL_BROWSER_ARGUMENTS").is_none()
+    {
+        std::env::set_var(
+            "WEBVIEW2_ADDITIONAL_BROWSER_ARGUMENTS",
+            "--remote-debugging-port=9333",
+        );
     }
 
     // Single-instance enforcement
@@ -111,6 +133,17 @@ fn main() {
     diagnostics::initialize();
     setup_brightness_worker();
     let app = tauri::Builder::default()
+        // Windows hit-tests a layered window at the size it had when it became
+        // layered: the notch starts 420 px tall, grows to fit the Shelf, and
+        // the mouse fell through its lower part (closing it on the way to the
+        // people row). Re-layering after every resize keeps them in step.
+        .on_window_event(|window, event| {
+            if let tauri::WindowEvent::Resized(size) = event {
+                if let Ok(hwnd) = window.hwnd() {
+                    utils::refresh_layered(hwnd, size.width, size.height);
+                }
+            }
+        })
         .plugin(tauri_plugin_opener::init())
         .plugin(tauri_plugin_dialog::init())
         .plugin(tauri_plugin_clipboard_manager::init())
@@ -131,8 +164,9 @@ fn main() {
             open_system_tray,
             set_ignore_cursor_events,
             set_window_height,
-            resize_settings_window,
+            open_files_with,
             hide_overlay,
+            show_splash_overlay,
             set_splash_fullscreen,
             sync_overlay_position,
             media_play_pause,
@@ -144,6 +178,7 @@ fn main() {
             toggle_dock,
             change_dock_mode,
             change_notch_mode,
+            take_setup_marker,
             sync_appbar,
             open_app,
             launch_new_instance,
@@ -171,6 +206,7 @@ fn main() {
             clipboard::clipboard_take_out,
             orbit::orbit_run,
             orbit::orbit_cancel,
+            orbit::orbit_save_text,
             orbit::orbit_close,
             orbit::orbit_hide,
             orbit::orbit_shrink,
@@ -195,6 +231,53 @@ fn main() {
             remove_custom_icon,
             get_custom_icons,
             set_menu_open,
+            set_notch_open,
+            set_visualizer_wanted,
+            tool_data::tool_data_get,
+            tool_data::tool_data_set,
+            tool_data::tool_data_erase,
+            system_tools::keep_awake,
+            system_tools::keep_awake_status,
+            system_tools::mic_muted,
+            system_tools::set_mic_muted,
+            system_tools::system_stats,
+            system_tools::power_mode,
+            system_tools::set_power_mode,
+            system_tools::power_modes_available,
+            system_tools::pick_screen_color,
+            system_tools::screen_clip,
+            system_tools::ocr_snip,
+            share_app::share_me,
+            share_app::share_set_name,
+            clipboard::clipboard_shelf_close,
+            share_app::share_peers,
+            share_app::share_list,
+            share_app::share_pair,
+            share_app::share_answer,
+            share_app::share_requests,
+            share_app::share_unpair,
+            share_app::share_send,
+            share_app::share_send_drop,
+            share_app::share_live_get,
+            share_app::share_live_set,
+            share_app::share_live_in,
+            share_app::share_groups,
+            share_app::share_group_create,
+            share_app::share_group_add,
+            share_app::share_group_remove,
+            share_app::share_group_leave,
+            share_app::share_invite_answer,
+            system_tools::color_at_cursor,
+            system_tools::ocr_clipboard,
+            system_tools::cc_states,
+            system_tools::cc_toggle,
+            system_tools::audio_devices,
+            system_tools::set_default_audio,
+            system_tools::set_capture_excluded,
+            system_tools::gpu_usage,
+            shortcuts::set_shortcuts_paused,
+            shortcuts::set_notch_key_capture,
+            shortcuts::set_notch_paste_capture,
             focus_window,
             focus_app_windows,
             close_window,
@@ -254,6 +337,7 @@ fn main() {
             bluetooth::bluetooth_unpair,
             bluetooth::bluetooth_refresh_buds,
             usb::usb_list_devices,
+            usb::open_new_drive,
             jack::jack_list_devices
         ])
         .setup(|app| {
@@ -266,6 +350,8 @@ fn main() {
             crate::utils::init_settings_cache(app.handle());
             clipboard::start(app.handle().clone());
             clipboard::start_shortcut(app.handle().clone());
+            share_app::start(app.handle().clone());
+            shortcuts::start(app.handle().clone());
             orbit::start(app.handle().clone());
             // Crash-recovery: if a previous session was force-killed while the native
             // taskbar was hidden, restore it now. Runs before the frontend re-hides it
@@ -292,10 +378,28 @@ fn main() {
             // needs to stay transparent; set_click_through then drives the
             // click-through bit directly. The worst a rebuild does is make the
             // window click-through until the next cursor update.
+            // Windows hit-tests a layered window at the size it had when it
+            // became layered: become layered at the screen's full size (it's
+            // still hidden), then go back, so growing later (opening the
+            // notch) never needs re-layering (utils::refresh_layered).
+            let first_size = window.outer_size().ok();
+            if let Ok(Some(m)) = window.primary_monitor() {
+                let _ = window.set_size(*m.size());
+            }
             let _ = window.set_ignore_cursor_events(true);
+            if let Ok(hwnd) = window.hwnd() {
+                window_region::clear_on_erase(hwnd);
+                window_region::watch_layered(hwnd);
+            }
+            if let Some(size) = first_size {
+                let _ = window.set_size(size);
+            }
             let dock_win = app.get_webview_window("dock").unwrap();
             // Same for the dock window, which has a region too.
             let _ = dock_win.set_ignore_cursor_events(true);
+            if let Ok(hwnd) = dock_win.hwnd() {
+                window_region::clear_on_erase(hwnd);
+            }
             if let Ok(hwnd) = dock_win.hwnd() {
                 DOCK_HWND.store(hwnd.0 as isize, Ordering::Relaxed);
             }
@@ -378,24 +482,6 @@ fn main() {
 
             sync_overlays(app.handle());
 
-            // Initialize the overlay window — on Windows, set_position doesn't
-            // take effect on a window that has never been shown. Show it once
-            // to register it with the compositor, then hide immediately.
-            if let Some(ov_win) = app.get_webview_window("overlay") {
-                // Layered from the start, like the notch and dock (see
-                // set_click_through): the overlay has a window region too.
-                let _ = ov_win.set_ignore_cursor_events(true);
-                let _ = ov_win.show();
-                let _ = ov_win.hide();
-                let overlay_handle = app.handle().clone();
-                ov_win.on_window_event(move |e| {
-                    if let tauri::WindowEvent::CloseRequested { api, .. } = e {
-                        api.prevent_close();
-                        restore_taskbar_and_exit(&overlay_handle);
-                    }
-                });
-            }
-
             watch_webview_processes(app.handle());
             setup_mouse_hook(app.handle().clone());
             setup_display_change_monitor(app.handle().clone());
@@ -471,7 +557,7 @@ fn main() {
                 let ah = app.handle().clone();
                 TrayIconBuilder::new()
                     .icon(app.default_window_icon().unwrap().clone())
-                    .tooltip("Bloom Enhanced")
+                    .tooltip("LotusNotch")
                     .menu(&menu)
                     .on_menu_event(move |_, event| match event.id().as_ref() {
                         "quit" => {
@@ -520,7 +606,12 @@ fn main() {
         .build(tauri::generate_context!())
         .expect("error while building tauri application");
     app.run(|_, event| {
-        if let tauri::RunEvent::Exit = event {
+        // Every quit path has already restored the taskbar (and removed the
+        // marker) while the event loop was alive. Doing it again here, as the
+        // loop is torn down, made Explorer's reply messages reach a destroyed
+        // loop and panic ("cannot move state from Destroyed"), so this is
+        // only a fallback for when the taskbar is still hidden.
+        if matches!(event, tauri::RunEvent::Exit) && utils::taskbar_marker_exists() {
             diagnostics::record("exit", "restoring native taskbar");
             set_taskbar_visibility(true, true);
             NATIVE_TASKBAR_HIDDEN.store(false, Ordering::Relaxed);

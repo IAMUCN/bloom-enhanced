@@ -2,21 +2,24 @@ import { StrictMode, useState, useEffect, useRef } from "react";
 import { createRoot } from "react-dom/client";
 import { getCurrentWebviewWindow } from "@tauri-apps/api/webviewWindow";
 import { Effect } from "@tauri-apps/api/window";
+import { LogicalSize } from "@tauri-apps/api/dpi";
 import { invoke } from "@tauri-apps/api/core";
 import { openUrl } from "@tauri-apps/plugin-opener";
 import {
 	X,
-	Settings,
+	Minus,
+	Square,
+	Settings2,
 	Palette,
 	PanelTop,
-	Monitor,
-	Layers,
+	PanelBottom,
+	LayoutGrid,
 	Info,
 	Megaphone,
 	ClipboardList,
 	Orbit,
 	Search,
-	RotateCcw
+	RotateCcw,
 } from "lucide-react";
 import {
 	useSettings,
@@ -24,41 +27,54 @@ import {
 	AppearanceTab,
 	NotchTab,
 	DockTab,
-	OverlaysTab,
 	ClipboardTab,
 	FilesTab,
 	AboutTab
 } from "./settings/index";
 import type { SettingsTab } from "./settings/index";
 import { useAnnouncement } from "./hooks/useAnnouncement";
+import { Setup, type SetupModules } from "./settings/Setup";
+import { Choice } from "./settings/Choice";
+import { ToolsTab } from "./settings/ToolsTab";
+import { useSettingsSync } from "./hooks/useSettingsSync";
 import { initTheme } from "./theme";
-import { FeaturePreview } from "./settings/FeaturePreview";
+import { FeaturePreview, hasPreview } from "./settings/FeaturePreview";
 import { searchSettings, type SettingEntry } from "./settings/searchIndex";
 import "./Settings.css";
 
 const appWindow = getCurrentWebviewWindow();
 
-const TABS: { id: SettingsTab; label: string; icon: typeof Settings }[] = [
-	{ id: "general", label: "General", icon: Settings },
-	{ id: "appearance", label: "Appearance", icon: Palette },
-	{ id: "notch", label: "Notch", icon: PanelTop },
-	{ id: "dock", label: "Dock", icon: Monitor },
-	{ id: "clipboard", label: "Shelf", icon: ClipboardList },
-	{ id: "files", label: "Radial Menu", icon: Orbit },
-	{ id: "overlays", label: "Overlays", icon: Layers },
-	{ id: "about", label: "About", icon: Info }
+type NavItem = { id: SettingsTab; label: string; icon: typeof Settings2; sub?: boolean };
+
+/** The sidebar, in parts (user, 2026-11-15): the notch and its tools, then
+ *  each module on its own, then the app-wide pages. About sits at the foot. */
+const NAV: NavItem[][] = [
+	[
+		{ id: "general", label: "General", icon: Settings2 },
+		{ id: "appearance", label: "Appearance", icon: Palette }
+	],
+	[
+		{ id: "notch", label: "Notch", icon: PanelTop },
+		{ id: "dock", label: "Dock", icon: PanelBottom },
+		{ id: "clipboard", label: "Shelf", icon: ClipboardList },
+		{ id: "files", label: "Radial Menu", icon: Orbit }
+	]
 ];
+const TABS: NavItem[] = [...NAV.flat(), { id: "tools", label: "Notch", icon: LayoutGrid }, { id: "about", label: "About", icon: Info }];
 
 const TAB_COPY: Record<SettingsTab, string> = {
-	general: "The essentials for how Bloom starts and runs.",
-	appearance: "Make every surface feel at home on your desktop.",
-	notch: "Choose what appears at the top of your screen.",
-	dock: "Shape the taskbar replacement around your workflow.",
-	clipboard: "Everything you copy, kept on this PC and opened from the notch.",
-	files: "Convert and act on files from a ring around the pointer, without opening an app.",
-	overlays: "Keep quick controls visible only when you need them.",
+	general: "How LotusNotch starts, runs and saves battery.",
+	appearance: "Theme, size and motion for every part of LotusNotch.",
+	notch: "How the notch looks, when and how it opens, and the tools in its tab bar.",
+	tools: "The tools in the notch's tab bar, in their order.",
+	dock: "The taskbar replacement at the bottom of the screen.",
+	clipboard: "Everything you copy, kept on this PC.",
+	files: "Convert and act on files from a ring around the pointer.",
 	about: "Version, updates and your settings data."
 };
+
+/** Notch rows that live under the Opening segment. */
+const OPENING_ROWS = ["When It Shows", "Peek Delay", "Open On", "Hover Delay", "Favourite", "Quick Return"];
 
 /** Keys each page's "Reset this page" puts back to defaults. */
 const PAGE_KEYS: Partial<Record<SettingsTab, string[]>> = {
@@ -68,7 +84,7 @@ const PAGE_KEYS: Partial<Record<SettingsTab, string[]>> = {
 		"bloom-low-battery-threshold",
 		"bloom-keep-windows-loaded"
 	],
-	appearance: ["bloom-theme-", "bloom-scale"],
+	appearance: ["bloom-theme-", "bloom-scale", "bloom-accent"],
 	notch: [
 		"bloom-notch-",
 		"bloom-calendar-",
@@ -82,8 +98,7 @@ const PAGE_KEYS: Partial<Record<SettingsTab, string[]>> = {
 	],
 	dock: ["bloom-dock-", "bloom-start-icon"],
 	clipboard: ["bloom-clipboard-"],
-	files: ["bloom-files-"],
-	overlays: ["bloom-volume-", "bloom-brightness-"]
+	files: ["bloom-files-"]
 };
 
 /** A search result's row on its page: the row (or folded section, or group
@@ -110,18 +125,21 @@ function rowFor(root: HTMLElement | null, hit: SettingEntry): HTMLElement | null
 function SettingsApp() {
 	const [activeTab, setActiveTab] = useState<SettingsTab>("general");
 	const [previewFocus, setPreviewFocus] = useState("");
+	const [notchSeg, setNotchSeg] = useState<"look" | "open">("look");
 	const contentRef = useRef<HTMLDivElement>(null);
 	const searchRef = useRef<HTMLInputElement>(null);
 	const [query, setQuery] = useState("");
 	// While searching no page shows; the results do. Only the page shown is
 	// loaded; search reads the list of every setting (searchIndex.ts).
 	const shown = query.trim() ? null : activeTab;
+	const head: SettingsTab = shown === "tools" ? "notch" : (shown ?? activeTab);
 	const pageName = (tab: SettingsTab) => TABS.find((t) => t.id === tab)?.label ?? "";
 	const hits = searchSettings(query, pageName);
 
 	const jumpTo = (hit: SettingEntry) => {
 		setQuery("");
 		setActiveTab(hit.tab);
+		if (hit.tab === "notch") setNotchSeg(OPENING_ROWS.includes(hit.label) ? "open" : "look");
 		// The page renders first; a row that only shows while its feature is on
 		// may not be there, and the page simply opens.
 		setTimeout(() => {
@@ -155,11 +173,65 @@ function SettingsApp() {
 		return () => window.removeEventListener("keydown", onKey);
 	}, []);
 	const settings = useSettings();
+	// Each module's master switch sits in its page header.
+	const [filesOn, setFilesOn] = useState(() => localStorage.getItem("bloom-files-enabled") !== "false");
+	useSettingsSync({ "bloom-files-enabled": setFilesOn });
+	const modules: Partial<Record<SettingsTab, { on: boolean; toggle: () => void }>> = {
+		notch: { on: settings.notchEnabled, toggle: settings.toggleNotch },
+		dock: { on: settings.dockEnabled, toggle: settings.toggleDock },
+		clipboard: { on: settings.clipboardEnabled, toggle: settings.toggleClipboard },
+		files: {
+			on: filesOn,
+			toggle: () => {
+				setFilesOn(!filesOn);
+				settings.saveSetting("bloom-files-enabled", String(!filesOn));
+			}
+		}
+	};
+	// The tool page open inside Tools (null = the list).
+	const [toolPage, setToolPage] = useState<string | null>(null);
+	// First run: modules, their sizes, your name, "Pick your tools", once (bloom-setup-done).
+	const [setup, setSetup] = useState(
+		() => localStorage.getItem("bloom-setup-done") !== "true" || localStorage.getItem("bloom-tools-picked") !== "true"
+	);
 	const { announcement, dismissed, dismiss } = useAnnouncement();
-
+	// Settings › Notch › Run Setup Again.
 	useEffect(() => {
-		return initTheme();
+		const again = () => setSetup(true);
+		window.addEventListener("run-setup", again);
+		return () => window.removeEventListener("run-setup", again);
 	}, []);
+
+	// Remember the window size (not while maximized).
+	useEffect(() => {
+		try {
+			const saved = JSON.parse(localStorage.getItem("bloom-settings-size") ?? "null");
+			if (saved?.w >= 880 && saved?.h >= 600) appWindow.setSize(new LogicalSize(saved.w, saved.h)).catch(() => {});
+		} catch {}
+		let timer = 0;
+		const un = appWindow.onResized(() => {
+			window.clearTimeout(timer);
+			timer = window.setTimeout(async () => {
+				if (await appWindow.isMaximized().catch(() => true)) return;
+				const [size, f] = await Promise.all([appWindow.innerSize(), appWindow.scaleFactor()]);
+				localStorage.setItem("bloom-settings-size", JSON.stringify({ w: Math.round(size.width / f), h: Math.round(size.height / f) }));
+			}, 400);
+		});
+		return () => {
+			window.clearTimeout(timer);
+			un.then((fn) => fn());
+		};
+	}, []);
+
+	const [themeTick, setThemeTick] = useState(0);
+	useEffect(() => {
+		const again = () => setThemeTick((n) => n + 1);
+		window.addEventListener("settings-theme-changed", again);
+		return () => window.removeEventListener("settings-theme-changed", again);
+	}, []);
+	useEffect(() => {
+		return initTheme({ followSystem: true });
+	}, [themeTick]);
 
 	useEffect(() => {
 		const preventContext = (e: MouseEvent) => e.preventDefault();
@@ -178,13 +250,6 @@ function SettingsApp() {
 	}, []);
 
 	useEffect(() => {
-		invoke("resize_settings_window", {
-			width: 740 * settings.scale,
-			height: 560 * settings.scale
-		}).catch(console.error);
-	}, [settings.scale]);
-
-	useEffect(() => {
 		if (contentRef.current) contentRef.current.scrollTop = 0;
 	}, [activeTab]);
 
@@ -198,20 +263,36 @@ function SettingsApp() {
 
 	return (
 		<div className="settings-container" style={{ zoom: settings.scale }}>
+			{setup && (
+				<Setup
+					saveSetting={settings.saveSetting}
+					onDone={() => setSetup(false)}
+					modules={modules as SetupModules}
+					dockScale={settings.dockScale}
+					onDockScale={settings.handleDockScaleChange}
+				/>
+			)}
 			<div className="title-bar" data-tauri-drag-region>
 				<span className="title-text" data-tauri-drag-region>
 					Settings
 				</span>
-				<button className="close-btn" onClick={handleClose} title="Close Settings">
-					<X size={12} strokeWidth={1.5} className="close-btn-icon" />
-				</button>
+				<div className="title-controls">
+					<button className="close-btn" onClick={() => appWindow.minimize().catch(() => {})} title="Minimize" aria-label="Minimize">
+						<Minus size={12} strokeWidth={1.75} className="close-btn-icon" />
+					</button>
+					<button className="close-btn" onClick={() => appWindow.toggleMaximize().catch(() => {})} title="Maximize" aria-label="Maximize or restore">
+						<Square size={10} strokeWidth={1.75} className="close-btn-icon" />
+					</button>
+					<button className="close-btn" onClick={handleClose} title="Close Settings" aria-label="Close Settings">
+						<X size={12} strokeWidth={1.5} className="close-btn-icon" />
+					</button>
+				</div>
 			</div>
 
 			<div className="settings-body">
 				<div className="settings-sidebar">
-					<div className="settings-sidebar-intro"><strong>Bloom Enhanced</strong><span>Make it yours</span></div>
 					<label className="settings-search">
-						<Search size={13} strokeWidth={1.75} />
+						<Search size={14} strokeWidth={1.75} />
 						<input
 							ref={searchRef}
 							value={query}
@@ -221,42 +302,63 @@ function SettingsApp() {
 							onChange={(e) => setQuery(e.target.value)}
 							onKeyDown={(e) => {
 								if (e.key === "Enter" && hits[0]) jumpTo(hits[0]);
+									if (e.key === "ArrowDown") {
+										e.preventDefault();
+										contentRef.current?.querySelector<HTMLElement>(".search-result")?.focus();
+									}
 							}}
 						/>
 					</label>
-					{TABS.map(({ id, label, icon: Icon }) => (
-						<button
-							key={id}
-							className={`sidebar-tab ${shown === id ? "active" : ""}`}
-							aria-current={shown === id ? "page" : undefined}
-							onClick={() => {
-								setQuery("");
-								setActiveTab(id);
-							}}
-						>
-							<div className="sidebar-tab-icon">
-								<Icon size={14} strokeWidth={1.5} />
+					<nav className="settings-nav" aria-label="Settings pages">
+						{NAV.map((part, i) => (
+							<div key={i} className="settings-nav-part">
+								{part.map(({ id, label, icon: Icon, sub }) => {
+									return (
+										<button
+											key={id}
+											className={`sidebar-tab${sub ? " sub" : ""}${shown === id ? " active" : ""}`}
+											aria-current={shown === id ? "page" : undefined}
+											onClick={() => {
+												setQuery("");
+												setActiveTab(id);
+												setToolPage(null);
+											}}
+										>
+											<span className="sidebar-tab-icon">
+												<Icon size={16} strokeWidth={1.75} />
+											</span>
+											<span className="sidebar-tab-label">{label}</span>
+										</button>
+									);
+								})}
 							</div>
-							<span>{label}</span>
-						</button>
-					))}
+						))}
+					</nav>
+					<button
+						className={`sidebar-tab sidebar-about${shown === "about" ? " active" : ""}`}
+						aria-current={shown === "about" ? "page" : undefined}
+						onClick={() => {
+							setQuery("");
+							setActiveTab("about");
+						}}
+					>
+						<span className="sidebar-tab-icon">
+							<Info size={16} strokeWidth={1.75} />
+						</span>
+						<span className="sidebar-tab-label">About</span>
+						<span className="sidebar-version">{settings.appVersion ? `v${settings.appVersion}` : ""}</span>
+					</button>
 				</div>
 
-				<div className="settings-content" ref={contentRef} onChangeCapture={(event) => {
+				<div className={`settings-content${shown && hasPreview(shown) && (!modules[shown] || modules[shown]!.on) ? " has-preview" : ""}`} ref={contentRef} onChangeCapture={(event) => {
 					const target = event.target as HTMLElement;
 					const row = target.closest(".setting-item");
 					let label = row?.querySelector(".setting-label")?.textContent;
 					if (!label && target.closest(".settings-disclosure-standalone")) label = "Status Widgets";
-					if (activeTab === "overlays" && label === "Show on Edge Hover") {
-						const edgeRows = Array.from(contentRef.current?.querySelectorAll(".setting-item") ?? []).filter(
-							(item) => item.querySelector(".setting-label")?.textContent === label
-						);
-						label = row === edgeRows[edgeRows.length - 1] && edgeRows.length > 1 ? "Brightness Edge Hover" : "Volume Edge Hover";
-					}
 					if (label) setPreviewFocus(activeTab + ":" + label + ":" + Date.now());
 				}} onClickCapture={(event) => {
 					const label = (event.target as HTMLElement).closest(".setting-item")?.querySelector(".setting-label")?.textContent;
-					if (label === "Start Menu Icon" || label === "Weather Status") {
+					if (label) {
 						setPreviewFocus(activeTab + ":" + label + ":" + Date.now());
 					}
 				}}>
@@ -296,15 +398,62 @@ function SettingsApp() {
 						</div>
 					)}
 					{shown ? (
-						<>
-							<div className="settings-page-heading">
-								<h1>{TABS.find((tab) => tab.id === shown)?.label}</h1>
-								<p>{TAB_COPY[shown]}</p>
-							</div>
-							<FeaturePreview tab={shown} settings={settings} focus={previewFocus} />
-						</>
+						!(shown === "tools" && toolPage) && (
+							<>
+								<header className="settings-page-heading">
+									<div>
+										<h1>{TABS.find((tab) => tab.id === head)?.label}</h1>
+										<p>{TAB_COPY[head]}</p>
+									</div>
+									{modules[head] && (
+										<label className="toggle-switch settings-master" title={`Turn ${TABS.find((t) => t.id === head)?.label} on or off`}>
+											<input
+												type="checkbox"
+												checked={modules[head]!.on}
+												onChange={modules[head]!.toggle}
+												aria-label={`${TABS.find((t) => t.id === head)?.label} on`}
+											/>
+											<span className="slider"></span>
+										</label>
+									)}
+								</header>
+								{head === "notch" && (!modules.notch || modules.notch.on) && (
+									<div className="notch-segments">
+										<Choice
+											value={shown === "tools" ? "tools" : notchSeg}
+											options={[["look", "Look"], ["open", "Opening"], ["tools", "Tools"]] as const}
+											onChange={(v) => {
+												if (v === "tools") setActiveTab("tools");
+												else {
+													setNotchSeg(v as "look" | "open");
+													setActiveTab("notch");
+												}
+											}}
+											label="Notch page"
+										/>
+									</div>
+								)}
+								{modules[head] && !modules[head]!.on && (
+									<p className="settings-module-off">
+										{TABS.find((t) => t.id === head)?.label} is off. Turn it on above to change its settings.
+									</p>
+								)}
+							</>
+						)
 					) : (
-						<div className="settings-search-results" role="list">
+						<div
+							className="settings-search-results"
+							role="list"
+							onKeyDown={(e) => {
+								if (e.key !== "ArrowDown" && e.key !== "ArrowUp") return;
+								e.preventDefault();
+								const items = Array.from(e.currentTarget.querySelectorAll<HTMLElement>(".search-result"));
+								const at = items.indexOf(document.activeElement as HTMLElement);
+								const next = items[at + (e.key === "ArrowDown" ? 1 : -1)];
+								if (next) next.focus();
+								else if (e.key === "ArrowUp") searchRef.current?.focus();
+							}}
+						>
 							<div className="settings-page-heading">
 								<h1>Search</h1>
 								<p>
@@ -322,6 +471,8 @@ function SettingsApp() {
 							))}
 						</div>
 					)}
+					<div className={`settings-split${shown && hasPreview(shown) && (!modules[shown] || modules[shown]!.on) ? " with-preview" : ""}`}>
+					<div className="settings-main">
 					{shown === "general" && (
 						<section data-tab="general">
 							<GeneralTab
@@ -336,6 +487,10 @@ function SettingsApp() {
 								restartBloom={settings.restartBloom}
 								resetToDefaults={settings.resetToDefaults}
 								quitBloom={settings.quitBloom}
+								exportStatus={settings.exportStatus}
+								importStatus={settings.importStatus}
+								handleExportSettings={settings.handleExportSettings}
+								handleImportSettings={settings.handleImportSettings}
 								saveSetting={settings.saveSetting}
 							/>
 						</section>
@@ -362,37 +517,12 @@ function SettingsApp() {
 						<section data-tab="notch">
 							<NotchTab
 								saveSetting={settings.saveSetting}
+								section={notchSeg}
 								notchEnabled={settings.notchEnabled}
-								toggleNotch={settings.toggleNotch}
 								notchMode={settings.notchMode}
 								setNotchModeValue={settings.setNotchModeValue}
 								notchEdgeDelay={settings.notchEdgeDelay}
 								handleNotchEdgeDelayChange={settings.handleNotchEdgeDelayChange}
-								calendarEnabled={settings.calendarEnabled}
-								toggleCalendar={settings.toggleCalendar}
-								controlsPanelEnabled={settings.controlsPanelEnabled}
-								toggleControlsPanel={settings.toggleControlsPanel}
-								devicesPanelEnabled={settings.devicesPanelEnabled}
-								toggleDevicesPanel={settings.toggleDevicesPanel}
-								enabledPanelCount={settings.enabledPanelCount}
-								notchRememberPanel={settings.notchRememberPanel}
-								toggleNotchRememberPanel={settings.toggleNotchRememberPanel}
-								notchDefaultPanel={settings.notchDefaultPanel}
-								changeNotchDefaultPanel={settings.changeNotchDefaultPanel}
-								timerSoundEnabled={settings.timerSoundEnabled}
-								toggleTimerSound={settings.toggleTimerSound}
-								musicModeEnabled={settings.musicModeEnabled}
-								toggleMusicMode={settings.toggleMusicMode}
-								musicCompactNotch={settings.musicCompactNotch}
-								toggleMusicCompactNotch={settings.toggleMusicCompactNotch}
-								shelfPersist={settings.shelfPersist}
-								toggleShelfPersist={settings.toggleShelfPersist}
-								mediaLayout={settings.mediaLayout}
-								toggleMediaLayout={settings.toggleMediaLayout}
-								mediaAmbienceEnabled={settings.mediaAmbienceEnabled}
-								toggleAmbience={settings.toggleAmbience}
-								mediaCompactGlowEnabled={settings.mediaCompactGlowEnabled}
-								toggleCompactGlow={settings.toggleCompactGlow}
 								weatherEnabled={settings.weatherEnabled}
 								toggleWeather={settings.toggleWeather}
 								tempUnitFahrenheit={settings.tempUnitFahrenheit}
@@ -408,8 +538,6 @@ function SettingsApp() {
 								handleWidgetsChange={settings.handleWidgetsChange}
 								notchScale={settings.notchScale}
 								handleNotchScaleChange={settings.handleNotchScaleChange}
-								notchPanelScales={settings.notchPanelScales}
-								handlePanelScaleChange={settings.handlePanelScaleChange}
 								notchStyle={settings.notchStyle}
 								handleNotchStyleChange={settings.handleNotchStyleChange}
 							/>
@@ -419,7 +547,6 @@ function SettingsApp() {
 						<section data-tab="dock">
 							<DockTab
 								dockEnabled={settings.dockEnabled}
-								toggleDock={settings.toggleDock}
 								dockMode={settings.dockMode}
 								setDockModeValue={settings.setDockModeValue}
 								dockEdgeDelay={settings.dockEdgeDelay}
@@ -460,7 +587,6 @@ function SettingsApp() {
 						<section data-tab="clipboard">
 							<ClipboardTab
 								enabled={settings.clipboardEnabled}
-								toggleEnabled={settings.toggleClipboard}
 								incognito={settings.clipboardIncognito}
 								toggleIncognito={settings.toggleClipboardIncognito}
 								limit={settings.clipboardLimit}
@@ -478,6 +604,8 @@ function SettingsApp() {
 								changeShortcut={settings.changeClipboardShortcut}
 								saveSetting={settings.saveSetting}
 								notchOn={settings.notchEnabled}
+								shelfPersist={settings.shelfPersist}
+								toggleShelfPersist={settings.toggleShelfPersist}
 							/>
 						</section>
 					)}
@@ -486,17 +614,34 @@ function SettingsApp() {
 							<FilesTab saveSetting={settings.saveSetting} />
 						</section>
 					)}
-					{shown === "overlays" && (
-						<section data-tab="overlays">
-							<OverlaysTab
-								volumeOverlayEnabled={settings.volumeOverlayEnabled}
-								toggleVolumeOverlay={settings.toggleVolumeOverlay}
-								volumeEdgeEnabled={settings.volumeEdgeEnabled}
-								toggleVolumeEdge={settings.toggleVolumeEdge}
-								brightnessOverlayEnabled={settings.brightnessOverlayEnabled}
-								toggleBrightnessOverlay={settings.toggleBrightnessOverlay}
-								brightnessEdgeEnabled={settings.brightnessEdgeEnabled}
-								toggleBrightnessEdge={settings.toggleBrightnessEdge}
+					{shown === "tools" && (
+						<section data-tab="tools">
+							<ToolsTab
+								saveSetting={settings.saveSetting}
+								calendarEnabled={settings.calendarEnabled}
+								toggleCalendar={settings.toggleCalendar}
+								controlsPanelEnabled={settings.controlsPanelEnabled}
+								toggleControlsPanel={settings.toggleControlsPanel}
+								devicesPanelEnabled={settings.devicesPanelEnabled}
+								toggleDevicesPanel={settings.toggleDevicesPanel}
+								musicModeEnabled={settings.musicModeEnabled}
+								toggleMusicMode={settings.toggleMusicMode}
+								enabledPanelCount={settings.enabledPanelCount}
+								musicCompactNotch={settings.musicCompactNotch}
+								toggleMusicCompactNotch={settings.toggleMusicCompactNotch}
+								mediaLayout={settings.mediaLayout}
+								toggleMediaLayout={settings.toggleMediaLayout}
+								mediaAmbienceEnabled={settings.mediaAmbienceEnabled}
+								toggleAmbience={settings.toggleAmbience}
+								mediaCompactGlowEnabled={settings.mediaCompactGlowEnabled}
+								toggleCompactGlow={settings.toggleCompactGlow}
+								timerSoundEnabled={settings.timerSoundEnabled}
+								toggleTimerSound={settings.toggleTimerSound}
+								openShelf={() => setActiveTab("clipboard")}
+								clipboardEnabled={settings.clipboardEnabled}
+								clipboardPosition={settings.clipboardPosition}
+								page={toolPage}
+								setPage={setToolPage}
 							/>
 						</section>
 					)}
@@ -510,13 +655,16 @@ function SettingsApp() {
 								updateVersion={settings.updateVersion}
 								checkForUpdates={settings.checkForUpdates}
 								installUpdate={settings.installUpdate}
-								exportStatus={settings.exportStatus}
-								importStatus={settings.importStatus}
-								handleExportSettings={settings.handleExportSettings}
-								handleImportSettings={settings.handleImportSettings}
 							/>
 						</section>
 					)}
+					</div>
+					{shown && hasPreview(shown) && (!modules[shown] || modules[shown]!.on) && (
+						<aside className="settings-aside">
+							<FeaturePreview tab={shown} settings={settings} focus={previewFocus} />
+						</aside>
+					)}
+					</div>
 					{shown && PAGE_KEYS[shown] && (
 						<div className="settings-page-reset">
 							<button

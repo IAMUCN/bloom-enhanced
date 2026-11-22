@@ -3,10 +3,10 @@
    controls panel itself. */
 .qp {
 	position: absolute;
-	top: 36px;
+	top: calc(36px + var(--tab-bar-space, 0px));
 	left: 0;
 	width: 100%;
-	height: calc(100% - 36px);
+	height: calc(100% - 36px - var(--tab-bar-space, 0px));
 	box-sizing: border-box;
 	z-index: 2;
 	padding: 4px 12px 8px;
@@ -559,4 +559,11 @@
 	flex: none;
 	font-size: 9.5px;
 	color: var(--bloom-text-muted, rgba(255, 255, 255, 0.5));
+}
+
+/* The Wi-Fi / Bluetooth lists keep the size they had in Bloom Enhanced
+   (drawn at 130%) while the clock and the tab bar above them stay put. Only
+   those lists: the Devices panel shares .qp and must stay at 100%. */
+.qp-zoom > .qp > * {
+	zoom: 1.3;
 }

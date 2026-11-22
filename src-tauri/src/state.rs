@@ -26,12 +26,20 @@ pub static DOCK_RECT: Mutex<Option<IntRect>> = Mutex::new(None);
 /// Expanded bar geometry, independent of the animated hit area and previews.
 pub static DOCK_OVERLAP_RECT: Mutex<Option<IntRect>> = Mutex::new(None);
 pub static NOTCH_RECT: Mutex<Option<IntRect>> = Mutex::new(None);
+/// The notch window's clickable region as one box (left, top, right, bottom
+/// in CSS px). It comes from the size the notch is animating *to*, so it is
+/// never behind the spring the way NOTCH_RECT (measured mid-animation, then
+/// not always re-measured) is: the pointer reaching the lower part of a tall
+/// page like the Shelf used to count as "left" and closed the notch.
+pub static NOTCH_REGION: Mutex<Option<(i32, i32, i32, i32)>> = Mutex::new(None);
 pub static DOCK_IS_HOVERED: AtomicBool = AtomicBool::new(false);
 pub static NOTCH_IS_HOVERED: AtomicBool = AtomicBool::new(false);
 /// Frontend-reported whether the notch is actually on screen. While false in
 /// smart/peek mode the notch must stay click-through even over its footprint.
 pub static NOTCH_IS_VISIBLE: AtomicBool = AtomicBool::new(true);
 pub static MENU_IS_OPEN: AtomicBool = AtomicBool::new(false);
+/// The notch is open (a panel or view showing): Esc closes it.
+pub static NOTCH_OPEN: AtomicBool = AtomicBool::new(false);
 // The dock window's handle, for the mouse hook to tell whether a press lands
 // on the dock (which closes its own menus) or outside it.
 pub static DOCK_HWND: AtomicIsize = AtomicIsize::new(0);
@@ -46,6 +54,10 @@ pub static CURRENT_BRIGHTNESS: AtomicU32 = AtomicU32::new(50);
 pub static CURRENT_VOLUME: AtomicU32 = AtomicU32::new(50);
 pub static LAST_BRIGHTNESS_CHANGE: AtomicI64 = AtomicI64::new(0);
 pub static ANY_MEDIA_PLAYING: AtomicBool = AtomicBool::new(false);
+/// The notch wants the audio visualizer (it's on, music mode is on and
+/// Battery saver doesn't pause it). Off stops the loopback capture entirely;
+/// off until the notch asks, so a turned-off notch costs no capture.
+pub static VISUALIZER_WANTED: AtomicBool = AtomicBool::new(false);
 // Whether the Start menu was open when the left button last went down,
 // recorded by the mouse hook before Start can react to the press.
 pub static START_OPEN_AT_PRESS: AtomicBool = AtomicBool::new(false);

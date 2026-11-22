@@ -1,27 +1,17 @@
 import {
 	PanelTop,
-	Calendar,
-	BellRing,
-	Music,
-	Minimize2,
-	LayoutList,
-	Sparkles,
-	Circle,
 	CloudSun,
 	Timer,
-	Archive,
-	Headphones,
-	SlidersHorizontal,
 	Maximize2,
 	X,
 	Clock,
 	PanelLeft,
 	PanelRight,
-	GripVertical,
-	ListOrdered
+	Star,
+	History,
+	Sparkles
 } from "lucide-react";
-import { useRef, useState } from "react";
-import { Reorder } from "framer-motion";
+import { useState } from "react";
 import { SettingRow } from "./SettingRow";
 
 /** Notch behavior (`bloom-notch-mode`): name and what it does. */
@@ -39,19 +29,12 @@ const NOTCH_MODES = [
 	]
 ] as const;
 import { ScaleStepper } from "./ScaleStepper";
+import { ShortcutRow } from "./ShortcutRow";
 import { Choice } from "./Choice";
-import {
-	NOTCH_STYLES,
-	SIZED_PANELS,
-	parsePanelOrder,
-	type OrderedPanel,
-	type NotchStyle,
-	type PanelScales,
-	type SizedPanel
-} from "../notchLayout";
+import { NOTCH_STYLES, type NotchStyle } from "../notchLayout";
+import { EXTRA_TOOLS, TOOLS } from "../tools";
 import { StatusWidgetConfig } from "../components/StatusWidgetConfig";
 import type { WidgetConfig } from "./types";
-import type { NotchPanelChoice } from "./useSettings";
 
 /** Sizes of the clock and the icons beside it, on top of the notch size. */
 const ROW_SIZES = [
@@ -83,84 +66,127 @@ function RowSizes({ saveSetting }: { saveSetting: (key: string, value: string | 
 	);
 }
 
-const PAGE_NAMES: Record<OrderedPanel, string> = {
-	"command-center": "Command Center",
-	calendar: "Calendar",
-	clipboard: "Shelf",
-	devices: "Devices"
-};
+/** Which tool the notch opens on (Fable's rules, 2026-11-15): Quick return
+ *  first (the tool you left, within N minutes), then the Favourite, or with
+ *  Favourite off the last tool you used. The favourite itself is picked with
+ *  the star in Settings › Tools. */
+const QUICK_RETURN = [
+	["0", "Off"],
+	["2", "2 min"],
+	["5", "5 min"],
+	["15", "15 min"],
+	["30", "30 min"]
+] as const;
 
-/** Settings › Notch › Page Order: drag the pages into the order the wheel,
- *  swipes and arrows go through them. Pages that are off are dimmed. */
-function PageOrder({
-	isOn,
-	saveSetting
-}: {
-	isOn: (panel: OrderedPanel) => boolean;
-	saveSetting: (key: string, value: string | null) => Promise<boolean>;
-}) {
-	const [order, setOrder] = useState(() => parsePanelOrder(localStorage.getItem("bloom-notch-panel-order")));
-	const latest = useRef(order);
-	latest.current = order;
+function OpeningRows({ saveSetting }: { saveSetting: (key: string, value: string | null) => Promise<boolean> }) {
+	const [favOn, setFavOn] = useState(() => localStorage.getItem("bloom-notch-favourite-on") !== "false");
+	const favId = localStorage.getItem("bloom-notch-favourite") ?? localStorage.getItem("bloom-notch-default-panel") ?? "command-center";
+	const favName =
+		favId in TOOLS ? TOOLS[favId as keyof typeof TOOLS].label : EXTRA_TOOLS.find((t) => t.id === favId)?.label ?? "Command Center";
+	const [quick, setQuick] = useState(() => {
+		const v = localStorage.getItem("bloom-notch-quick-return");
+		return v ?? (localStorage.getItem("bloom-notch-remember-panel") === "false" ? "0" : "5");
+	});
 	return (
-		<Reorder.Group axis="y" values={order} onReorder={setOrder} className="radial-rows page-order">
-			{order.map((panel, i) => (
-				<Reorder.Item
-					key={panel}
-					value={panel}
-					className={`radial-row${isOn(panel) ? "" : " off"}`}
-					whileDrag={{ scale: 1.04, zIndex: 2 }}
-					onDragEnd={() => saveSetting("bloom-notch-panel-order", JSON.stringify(latest.current))}
-				>
-					<GripVertical size={13} className="radial-grip" />
-					<span className="page-order-number">{i + 1}</span>
-					<span className="radial-row-label">{PAGE_NAMES[panel]}</span>
-					{!isOn(panel) && <span className="page-order-off">off</span>}
-				</Reorder.Item>
-			))}
-		</Reorder.Group>
+		<>
+			<SettingRow
+				icon={Star}
+				label="Favourite"
+				desc={
+					favOn
+						? `Opens on ${favName}. Pick another with the star in Tools`
+						: "Off: the notch opens on the tool you used last"
+				}
+			>
+				<label className="toggle-switch">
+					<input
+						type="checkbox"
+						checked={favOn}
+						onChange={() => {
+							setFavOn(!favOn);
+							saveSetting("bloom-notch-favourite-on", String(!favOn));
+						}}
+					/>
+					<span className="slider"></span>
+				</label>
+			</SettingRow>
+			<SettingRow
+				icon={History}
+				label="Quick Return"
+				desc={
+					quick === "0"
+						? "Off: every open starts on your favourite"
+						: `Come back within ${quick} minutes and the notch reopens where you left off`
+				}
+				divider={false}
+			>
+				<Choice
+					value={quick}
+					options={QUICK_RETURN}
+					onChange={(v) => {
+						setQuick(v);
+						saveSetting("bloom-notch-quick-return", v);
+					}}
+					label="Quick return"
+				/>
+			</SettingRow>
+		</>
 	);
 }
 
-/** The notch's panels, in the order the notch cycles through them. */
-const PANEL_CHOICES: readonly (readonly [NotchPanelChoice, string])[] = [
-	["calendar", "Calendar"],
-	["command-center", "Command Center"],
-	["devices", "Devices"]
-];
+/** How the notch opens: Click (default) or Hover after a delay
+ *  (`bloom-notch-open-on`, `bloom-notch-hover-delay`). */
+function OpenOnRows({ saveSetting }: { saveSetting: (key: string, value: string | null) => Promise<boolean> }) {
+	const [openOn, setOpenOn] = useState(() => (localStorage.getItem("bloom-notch-open-on") === "hover" ? "hover" : "click"));
+	const [delay, setDelay] = useState(() => {
+		const v = parseInt(localStorage.getItem("bloom-notch-hover-delay") ?? "", 10);
+		return Number.isFinite(v) ? v : 300;
+	});
+	return (
+		<>
+			<SettingRow
+				icon={PanelTop}
+				label="Open On"
+				desc={openOn === "hover" ? "Resting the pointer on the notch opens it" : "Clicking the notch opens it"}
+			>
+				<Choice
+					value={openOn}
+					options={[["click", "Click"], ["hover", "Hover"]] as const}
+					onChange={(v) => {
+						setOpenOn(v);
+						saveSetting("bloom-notch-open-on", v);
+					}}
+					label="Open the notch on"
+				/>
+			</SettingRow>
+			{openOn === "hover" && (
+				<SettingRow icon={Timer} label="Hover Delay" desc={`How long to rest on the notch before it opens: ${delay}ms`}>
+					<input
+						type="range"
+						min="0"
+						max="1000"
+						step="50"
+						value={delay}
+						onChange={(e) => {
+							const v = parseInt(e.target.value, 10);
+							setDelay(v);
+							saveSetting("bloom-notch-hover-delay", String(v));
+						}}
+						className="settings-slider"
+						aria-label="Hover delay"
+					/>
+				</SettingRow>
+			)}
+		</>
+	);
+}
 
 interface NotchTabProps {
 	notchEnabled: boolean;
-	toggleNotch: () => void;
 	notchMode: string;
 	setNotchModeValue: (mode: string) => void;
 	notchEdgeDelay: number;
 	handleNotchEdgeDelayChange: (val: number) => void;
-	calendarEnabled: boolean;
-	toggleCalendar: () => void;
-	controlsPanelEnabled: boolean;
-	toggleControlsPanel: () => void;
-	devicesPanelEnabled: boolean;
-	toggleDevicesPanel: () => void;
-	enabledPanelCount: number;
-	notchRememberPanel: boolean;
-	toggleNotchRememberPanel: () => void;
-	notchDefaultPanel: NotchPanelChoice;
-	changeNotchDefaultPanel: (panel: NotchPanelChoice) => void;
-	timerSoundEnabled: boolean;
-	toggleTimerSound: () => void;
-	musicModeEnabled: boolean;
-	toggleMusicMode: () => void;
-	musicCompactNotch: boolean;
-	toggleMusicCompactNotch: () => void;
-	shelfPersist: boolean;
-	toggleShelfPersist: () => void;
-	mediaLayout: "classic" | "compact";
-	toggleMediaLayout: (layout: "classic" | "compact") => void;
-	mediaAmbienceEnabled: boolean;
-	toggleAmbience: () => void;
-	mediaCompactGlowEnabled: boolean;
-	toggleCompactGlow: () => void;
 	weatherEnabled: boolean;
 	toggleWeather: () => void;
 	tempUnitFahrenheit: boolean;
@@ -181,8 +207,7 @@ interface NotchTabProps {
 	handleWidgetsChange: (config: WidgetConfig) => void;
 	notchScale: number;
 	handleNotchScaleChange: (val: number) => void;
-	notchPanelScales: PanelScales;
-	handlePanelScaleChange: (panel: SizedPanel, val: number) => void;
+	section: "look" | "open";
 	notchStyle: NotchStyle;
 	handleNotchStyleChange: (style: NotchStyle) => void;
 	saveSetting: (key: string, value: string | null) => Promise<boolean>;
@@ -190,36 +215,10 @@ interface NotchTabProps {
 
 export function NotchTab({
 	notchEnabled,
-	toggleNotch,
 	notchMode,
 	setNotchModeValue,
 	notchEdgeDelay,
 	handleNotchEdgeDelayChange,
-	calendarEnabled,
-	toggleCalendar,
-	controlsPanelEnabled,
-	toggleControlsPanel,
-	devicesPanelEnabled,
-	toggleDevicesPanel,
-	enabledPanelCount,
-	notchRememberPanel,
-	toggleNotchRememberPanel,
-	notchDefaultPanel,
-	changeNotchDefaultPanel,
-	timerSoundEnabled,
-	toggleTimerSound,
-	musicModeEnabled,
-	toggleMusicMode,
-	musicCompactNotch,
-	toggleMusicCompactNotch,
-	shelfPersist,
-	toggleShelfPersist,
-	mediaLayout,
-	toggleMediaLayout,
-	mediaAmbienceEnabled,
-	toggleAmbience,
-	mediaCompactGlowEnabled,
-	toggleCompactGlow,
 	weatherEnabled,
 	toggleWeather,
 	tempUnitFahrenheit,
@@ -235,78 +234,20 @@ export function NotchTab({
 	handleWidgetsChange,
 	notchScale,
 	handleNotchScaleChange,
-	notchPanelScales,
-	handlePanelScaleChange,
 	notchStyle,
 	handleNotchStyleChange,
+	section,
 	saveSetting
 }: NotchTabProps) {
-	const panelOn: Record<NotchPanelChoice, boolean> = {
-		calendar: calendarEnabled,
-		"command-center": controlsPanelEnabled,
-		devices: devicesPanelEnabled
-	};
-	const firstPanelOn = PANEL_CHOICES.find(([panel]) => panelOn[panel])?.[0] ?? "command-center";
-	// The notch needs at least one panel, so the last one on stays on.
-	const isLastPanel = (on: boolean) => on && enabledPanelCount <= 1;
-	const lastPanelTitle = (on: boolean) =>
-		isLastPanel(on) ? "The notch needs at least one panel" : undefined;
-
+	const [openEffect, setOpenEffect] = useState(() => (localStorage.getItem("bloom-open-effect") === "off" ? "off" : "lotus"));
 	return (
 		<>
-			<div className="setting-group-label">Notch</div>
-			<div className="setting-group">
-				<SettingRow
-					icon={PanelTop}
-					label="Bloom Notch"
-					desc="Turn off to remove the notch; Settings stay in the tray menu"
-					divider={notchEnabled}
-				>
-					<label className="toggle-switch">
-						<input type="checkbox" checked={notchEnabled} onChange={toggleNotch} />
-						<span className="slider"></span>
-					</label>
-				</SettingRow>
-			</div>
-
 			{notchEnabled && (
 				<>
+					{section === "look" && (
+					<>
+					<div className="setting-group-label">Shape</div>
 					<div className="setting-group">
-						<SettingRow
-							icon={PanelTop}
-							label="When It Shows"
-							desc={NOTCH_MODES.find(([m]) => m === notchMode)?.[2] ?? NOTCH_MODES[0][2]}
-						>
-							<Choice
-								value={notchMode}
-								options={NOTCH_MODES.map(([mode, name]) => [mode, name] as const)}
-								onChange={setNotchModeValue}
-								label="When the notch shows"
-							/>
-						</SettingRow>
-
-						{notchMode !== "fixed" && (
-							<SettingRow
-								icon={Timer}
-								label="Peek Delay"
-								desc={
-									notchEdgeDelay === 0
-										? "How long to rest on the top edge before it shows: instantly"
-										: `How long to rest on the top edge before it shows: ${notchEdgeDelay}ms`
-								}
-							>
-								<input
-									type="range"
-									min="0"
-									max="800"
-									step="50"
-									value={notchEdgeDelay}
-									onChange={(e) => handleNotchEdgeDelayChange(parseInt(e.target.value))}
-									className="settings-slider"
-								/>
-							</SettingRow>
-						)}
-
 						<SettingRow
 							icon={PanelTop}
 							label="Style"
@@ -337,238 +278,10 @@ export function NotchTab({
 								label="notch size"
 							/>
 						</SettingRow>
-					</div>
 
-					<div className="setting-group-label">Panels</div>
-					<div className="setting-group">
-						<SettingRow
-							icon={Calendar}
-							label="Calendar & Timer"
-							desc="Enable productivity split-view"
-						>
-							<label className="toggle-switch" title={lastPanelTitle(calendarEnabled)}>
-								<input
-									type="checkbox"
-									checked={calendarEnabled}
-									disabled={isLastPanel(calendarEnabled)}
-									onChange={toggleCalendar}
-								/>
-								<span className="slider"></span>
-							</label>
-						</SettingRow>
+						<OpenSizeRow saveSetting={saveSetting} />
 
-						{calendarEnabled && (
-							<SettingRow
-								icon={BellRing}
-								label="Timer Sound"
-								desc="Play a chime when the timer finishes"
-							>
-								<label className="toggle-switch">
-									<input type="checkbox" checked={timerSoundEnabled} onChange={toggleTimerSound} />
-									<span className="slider"></span>
-								</label>
-							</SettingRow>
-						)}
 
-						<SettingRow
-							icon={SlidersHorizontal}
-							label="Command Center"
-							desc="Quick toggles, Wi-Fi and Bluetooth"
-						>
-							<label className="toggle-switch" title={lastPanelTitle(controlsPanelEnabled)}>
-								<input
-									type="checkbox"
-									checked={controlsPanelEnabled}
-									disabled={isLastPanel(controlsPanelEnabled)}
-									onChange={toggleControlsPanel}
-								/>
-								<span className="slider"></span>
-							</label>
-						</SettingRow>
-
-						<SettingRow
-							icon={Headphones}
-							label="Connected Devices"
-							desc="Batteries and audio of your connected devices"
-						>
-							<label className="toggle-switch" title={lastPanelTitle(devicesPanelEnabled)}>
-								<input
-									type="checkbox"
-									checked={devicesPanelEnabled}
-									disabled={isLastPanel(devicesPanelEnabled)}
-									onChange={toggleDevicesPanel}
-								/>
-								<span className="slider"></span>
-							</label>
-						</SettingRow>
-
-						<SettingRow
-							icon={ListOrdered}
-							label="Page Order"
-							desc="Drag to set the order scrolling, swiping and the arrows go through the pages"
-							divider={false}
-						/>
-						<div className="page-order-wrap">
-							<PageOrder
-								isOn={(panel) =>
-									panel === "clipboard"
-										? // The Shelf is a notch page while the clipboard sits in the notch.
-											localStorage.getItem("bloom-clipboard-enabled") !== "false" &&
-											(localStorage.getItem("bloom-clipboard-position") ?? "notch") === "notch"
-										: panelOn[panel]
-								}
-								saveSetting={saveSetting}
-							/>
-						</div>
-						<div className="setting-divider" />
-
-						<SettingRow
-							icon={PanelTop}
-							label="Remember Last Panel"
-							desc="Reopen the panel you last used; turn off to choose a fixed default"
-						>
-							<label className="toggle-switch">
-								<input
-									type="checkbox"
-									checked={notchRememberPanel}
-									onChange={toggleNotchRememberPanel}
-								/>
-								<span className="slider"></span>
-							</label>
-						</SettingRow>
-
-						{!notchRememberPanel && (
-							<SettingRow
-								icon={PanelTop}
-								label="Default Panel"
-								desc="Open this panel when you click the notch"
-							>
-								<Choice
-									value={panelOn[notchDefaultPanel] ? notchDefaultPanel : firstPanelOn}
-									options={PANEL_CHOICES.filter(([panel]) => panelOn[panel])}
-									onChange={changeNotchDefaultPanel}
-									label="Default panel"
-								/>
-							</SettingRow>
-						)}
-					</div>
-
-					<div className="setting-group-label">Music</div>
-					<div className="setting-group">
-						<SettingRow icon={Music} label="Music Mode" desc="Interactive live music widget">
-							<label className="toggle-switch">
-								<input type="checkbox" checked={musicModeEnabled} onChange={toggleMusicMode} />
-								<span className="slider"></span>
-							</label>
-						</SettingRow>
-
-						{musicModeEnabled && (
-							<details className="settings-disclosure">
-								<summary>
-									Music options <span>Layout and visual effects</span>
-								</summary>
-								<SettingRow
-									icon={Minimize2}
-									label="Compact Mode"
-									desc="Show visualizer & artwork when collapsed"
-								>
-									<label className="toggle-switch">
-										<input
-											type="checkbox"
-											checked={musicCompactNotch}
-											onChange={toggleMusicCompactNotch}
-										/>
-										<span className="slider"></span>
-									</label>
-								</SettingRow>
-
-								<SettingRow
-									icon={LayoutList}
-									label="Media Layout"
-									desc="Choose expanded player style"
-								>
-									<div className="unit-toggle-minimal wide">
-										<span
-											className={mediaLayout === "classic" ? "active" : ""}
-											onClick={() => toggleMediaLayout("classic")}
-										>
-											Classic
-										</span>
-										<span
-											className={mediaLayout === "compact" ? "active" : ""}
-											onClick={() => toggleMediaLayout("compact")}
-										>
-											Compact
-										</span>
-									</div>
-								</SettingRow>
-
-								<SettingRow
-									icon={Sparkles}
-									label="Ambient Glow"
-									desc="Colored glow behind expanded album art"
-								>
-									<label className="toggle-switch">
-										<input
-											type="checkbox"
-											checked={mediaAmbienceEnabled}
-											onChange={toggleAmbience}
-										/>
-										<span className="slider"></span>
-									</label>
-								</SettingRow>
-
-								<SettingRow
-									icon={Circle}
-									label="Compact Glow"
-									desc="Glow around collapsed thumbnail"
-									divider={false}
-								>
-									<label className="toggle-switch">
-										<input
-											type="checkbox"
-											checked={mediaCompactGlowEnabled}
-											onChange={toggleCompactGlow}
-										/>
-										<span className="slider"></span>
-									</label>
-								</SettingRow>
-							</details>
-						)}
-					</div>
-
-					<div className="setting-group-label">Shelf</div>
-					<div className="setting-group">
-						<SettingRow
-							icon={Archive}
-							label="Keep Items"
-							desc="Keep shelf items after Bloom closes"
-							divider={false}
-						>
-							<label className="toggle-switch">
-								<input type="checkbox" checked={shelfPersist} onChange={toggleShelfPersist} />
-								<span className="slider"></span>
-							</label>
-						</SettingRow>
-					</div>
-
-					<div className="setting-group-label">Panel Sizes</div>
-					<div className="setting-group">
-						{SIZED_PANELS.map(([panel, label], index) => (
-							<SettingRow
-								key={panel}
-								icon={Maximize2}
-								label={label}
-								desc="Resizes this panel only"
-								divider={index < SIZED_PANELS.length - 1}
-							>
-								<ScaleStepper
-									value={notchPanelScales[panel] ?? 1}
-									onChange={(val) => handlePanelScaleChange(panel, val)}
-									label={`${label} size`}
-								/>
-							</SettingRow>
-						))}
 					</div>
 
 					<div className="setting-group-label">Weather</div>
@@ -576,7 +289,7 @@ export function NotchTab({
 						<SettingRow
 							icon={CloudSun}
 							label="Weather Status"
-							desc={cityName || "Auto-detect location"}
+							desc={weatherEnabled ? `Shows the temperature beside the clock for ${cityName || "your detected location"}. Switch off to hide it` : "Off: no temperature beside the clock"}
 						>
 							<div className="weather-controls">
 								<div className="unit-toggle-minimal" onClick={toggleTempUnit}>
@@ -644,18 +357,118 @@ export function NotchTab({
 						)}
 					</div>
 
-					<div className="setting-group-label">Widgets</div>
+					<div className="setting-group-label">Clock Bar</div>
 					<div className="setting-group">
-						<details className="settings-disclosure settings-disclosure-standalone">
-							<summary>
+						<div className="settings-disclosure-standalone widgets-open">
+							<div className="widgets-heading">
 								Choose status widgets <span>Arrange what appears beside the clock</span>
-							</summary>
+							</div>
 							<StatusWidgetConfig value={statusWidgets} onChange={handleWidgetsChange} />
-						</details>
+						</div>
 						<RowSizes saveSetting={saveSetting} />
 					</div>
+
+					<div className="setting-group-label">Effects</div>
+					<div className="setting-group">
+						<SettingRow icon={Sparkles} label="Open Effect" desc="When the notch opens, the lotus lights the parts of its edge it crosses">
+							<Choice
+								value={openEffect}
+								options={[["lotus", "Lotus"], ["off", "Off"]] as const}
+								onChange={(v) => {
+									setOpenEffect(v);
+									saveSetting("bloom-open-effect", v);
+								}}
+								label="Open effect"
+							/>
+						</SettingRow>
+					</div>
+					</>
+					)}
+					{section === "open" && (
+					<>
+					<div className="setting-group-label">Opening</div>
+					<div className="setting-group">
+						<SettingRow
+							icon={PanelTop}
+							label="When It Shows"
+							desc={NOTCH_MODES.find(([m]) => m === notchMode)?.[2] ?? NOTCH_MODES[0][2]}
+						>
+							<Choice
+								value={notchMode}
+								options={NOTCH_MODES.map(([mode, name]) => [mode, name] as const)}
+								onChange={setNotchModeValue}
+								label="When the notch shows"
+							/>
+						</SettingRow>
+
+						{notchMode !== "fixed" && (
+							<SettingRow
+								icon={Timer}
+								label="Peek Delay"
+								desc={
+									notchEdgeDelay === 0
+										? "How long to rest on the top edge before it shows: instantly"
+										: `How long to rest on the top edge before it shows: ${notchEdgeDelay}ms`
+								}
+							>
+								<input
+									type="range"
+									min="0"
+									max="800"
+									step="50"
+									value={notchEdgeDelay}
+									onChange={(e) => handleNotchEdgeDelayChange(parseInt(e.target.value))}
+									className="settings-slider"
+								/>
+							</SettingRow>
+						)}
+
+						<OpenOnRows saveSetting={saveSetting} />
+
+						<OpeningRows saveSetting={saveSetting} />
+					</div>
+
+					<div className="setting-group-label">Shortcuts</div>
+					<div className="setting-group">
+						<ShortcutRow action="notch" label="Open or close the notch" desc="Works anywhere; press Backspace while setting to clear it" />
+						<details className="settings-disclosure">
+							<summary>
+								More <span>Jump to tab 1–9 by position (Shift counts from the end)</span>
+							</summary>
+							{Array.from({ length: 9 }, (_, i) => (
+								<ShortcutRow key={i} action={`tool-${i + 1}`} label={`Tab ${i + 1}`} />
+							))}
+						</details>
+					</div>
+
+					</>
+					)}
 				</>
 			)}
 		</>
+	);
+}
+
+/** The open notch's own extra size (`bloom-notch-open-scale`, 80–125 %),
+ *  on top of Notch Size; also set in the first-run setup. */
+function OpenSizeRow({ saveSetting }: { saveSetting: (key: string, value: string | null) => Promise<boolean> }) {
+	const [value, setValue] = useState(() => {
+		const v = parseFloat(localStorage.getItem("bloom-notch-open-scale") ?? "1");
+		return Number.isFinite(v) ? Math.min(1.25, Math.max(0.8, v)) : 1;
+	});
+	return (
+		<SettingRow icon={Maximize2} label="Open Size" desc="How big the notch is when it's open, on top of Notch Size">
+			<ScaleStepper
+				value={value}
+				min={0.8}
+				max={1.25}
+				stepSize={0.05}
+				onChange={(v) => {
+					setValue(v);
+					saveSetting("bloom-notch-open-scale", v.toFixed(2));
+				}}
+				label="open notch size"
+			/>
+		</SettingRow>
 	);
 }

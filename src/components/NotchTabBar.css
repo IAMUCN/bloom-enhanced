@@ -1,0 +1,76 @@
+.notch-tab-bar {
+	display: flex;
+	align-items: center;
+	/* 15 tabs exactly span the Command Center's edges (16 px in from each
+	   side): 15 × 32 px plus 14 equal gaps. Fewer tabs keep that gap and
+	   sit centred. */
+	gap: calc((100% - 15 * 32px) / 14);
+	height: 36px;
+	flex: none;
+	box-sizing: border-box;
+	width: 100%;
+	padding: 0 16px;
+	overflow-x: auto;
+	scrollbar-width: none;
+	pointer-events: auto;
+}
+
+.notch-tab-bar::-webkit-scrollbar {
+	display: none;
+}
+
+/* Centred while the tabs fit; from the start once they scroll. */
+.notch-tab-bar > :first-child {
+	margin-left: auto;
+}
+
+.notch-tab-bar > :last-child {
+	margin-right: auto;
+}
+
+.notch-tab {
+	flex: none;
+}
+
+.notch-tab {
+	position: relative;
+	display: grid;
+	place-items: center;
+	width: 32px;
+	height: 28px;
+	padding: 0;
+	border: none;
+	border-radius: 10px;
+	background: none;
+	color: var(--bloom-text-secondary, #a1a1aa);
+	cursor: pointer;
+	transition: color 0.15s ease;
+}
+
+.notch-tab:hover {
+	color: var(--bloom-text, #fff);
+}
+
+.notch-tab:focus-visible {
+	outline: 2px solid var(--bloom-accent, #0a84ff);
+	outline-offset: 1px;
+}
+
+.notch-tab svg {
+	position: relative;
+}
+
+.notch-tab-chip {
+	position: absolute;
+	inset: 0;
+	border-radius: 10px;
+	background: rgba(255, 255, 255, 0.1);
+}
+
+/* Animations: "Follow Windows" (default) honours reduced motion; "On"
+   (.motion-on) keeps them. */
+@media (prefers-reduced-motion: reduce) {
+	:root:not(.motion-on) .notch-tab {
+		transition: none;
+	}
+}

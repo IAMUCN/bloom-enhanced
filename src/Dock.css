@@ -1,3 +1,4 @@
+@import "./fonts.css";
 html,
 body {
 	margin: 0;
@@ -18,7 +19,7 @@ body {
 	position: relative;
 	pointer-events: auto;
 	/* Handled by backend ignore_cursor_events */
-	font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+	font-family: "Inter", "Segoe UI Variable Text", "Segoe UI", sans-serif;
 }
 
 /* Dock Bar */
@@ -34,7 +35,7 @@ body {
 	padding: 4px 10px;
 	border-radius: 6px;
 	font-size: 12px;
-	font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+	font-family: "Inter", "Segoe UI Variable Text", "Segoe UI", sans-serif;
 	pointer-events: none;
 	opacity: 0;
 	transition: all 0.2s ease;
@@ -263,9 +264,11 @@ body {
 	justify-content: center;
 	align-items: center;
 	border-radius: 12px;
-	background: linear-gradient(135deg, rgba(255, 255, 255, 0.2) 0%, rgba(255, 255, 255, 0.05) 100%);
+	/* LotusNotch tokens: a flat tile on Surface 2 with a hairline. */
+	box-sizing: border-box;
+	background: color-mix(in srgb, var(--bloom-text, #fff) 9%, transparent);
+	border: 1px solid var(--bloom-border, rgba(255, 255, 255, 0.1));
 	color: var(--bloom-text, white);
-	box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
 	transition: opacity 0.2s ease;
 }
 
@@ -782,4 +785,12 @@ body {
 .window-dots .active-indicator.background-indicator {
 	background: #888;
 	box-shadow: none;
+}
+
+/* A file is being dragged over this icon: it lifts and glows. */
+.file-drop-target .dock-icon-wrapper,
+.dock-icon-wrapper.file-drop-target {
+	transform: translateY(-8px) scale(1.15);
+	filter: drop-shadow(0 0 8px var(--bloom-accent, #6a55ff));
+	transition: transform 0.15s ease, filter 0.15s ease;
 }

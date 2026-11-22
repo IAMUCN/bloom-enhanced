@@ -19,7 +19,11 @@
 	background: inherit;
 }
 
-.clip-panel:has(.clip-drop) > :not(.clip-drop) {
+.clip-main {
+	position: relative;
+}
+
+.clip-main:has(.clip-drop) > :not(.clip-drop) {
 	visibility: hidden;
 }
 
@@ -183,6 +187,8 @@
 /* A tile: the shelf-tile look. */
 .ctile {
 	position: relative;
+	/* A click copies; the text itself is never selected. */
+	user-select: none;
 	display: flex;
 	flex-direction: column;
 	gap: 4px;
@@ -525,4 +531,622 @@
 	color: inherit;
 	font: inherit;
 	font-size: 10px;
+}
+
+/* ---- Shelf sharing (.grill/shelf-share.md): the history, and once someone
+   is paired a narrow people sidebar on its right (notch and edge alike);
+   pairing, live clipboard and groups open as a sheet over the history. */
+.clip-panel.clip-notch,
+.clip-panel.clip-edge {
+	flex-direction: column;
+	gap: 6px;
+}
+
+/* The Shelf zooms only its content (130 %), like the Wi-Fi / Bluetooth
+   lists: the notch itself keeps every tool's width (notchLayout.ts). */
+.clip-panel > * {
+	zoom: 1.3;
+}
+
+.clip-main {
+	flex: 1;
+	min-width: 0;
+	min-height: 0;
+	display: flex;
+	flex-direction: column;
+	gap: 6px;
+}
+
+/* Filters as icons; Share at the end of the row. */
+.clip-filters {
+	align-items: center;
+}
+
+.clip-filters button,
+.clip-share-open {
+	flex: none !important;
+	display: grid;
+	place-items: center;
+	width: 28px;
+	height: 24px;
+	padding: 0 !important;
+}
+
+.clip-filters-gap {
+	flex: 1;
+}
+
+.clip-share-open {
+	border: none;
+	border-radius: 6px;
+	background: rgba(10, 132, 255, 0.2) !important;
+	color: #64b5ff;
+	opacity: 1 !important;
+	cursor: pointer;
+}
+
+/* The share bar at the bottom of the Shelf (notch and edge). */
+.clip-share {
+	flex: none;
+	display: flex;
+	flex-direction: column;
+	gap: 6px;
+	padding-top: 7px;
+	border-top: 1px solid rgba(255, 255, 255, 0.08);
+	font-size: 11px;
+}
+
+/* People and groups as name chips in one row that scrolls sideways (wheel
+   too); a drag near either end scrolls it (ShareColumn). */
+.clip-share-people {
+	display: flex;
+	gap: 5px;
+	overflow-x: auto;
+	overflow-y: hidden;
+	scrollbar-width: none;
+	padding-bottom: 1px;
+}
+
+/* Centred while the chips fit; once they overflow, auto margins collapse to
+   0 so the row still scrolls from its start (justify-content would clip it). */
+.clip-share-people > :first-child {
+	margin-left: auto;
+}
+.clip-share-people > :last-child {
+	margin-right: auto;
+}
+
+.clip-share-chip {
+	flex: none;
+	display: flex;
+	align-items: center;
+	gap: 6px;
+	height: 28px;
+	max-width: 170px;
+	padding: 0 9px;
+	border-radius: 14px;
+	background: rgba(255, 255, 255, 0.07);
+	font-size: 12px;
+	white-space: nowrap;
+}
+
+.clip-share-chip.can-send {
+	cursor: pointer;
+	box-shadow: inset 0 0 0 1px rgba(100, 181, 255, 0.5);
+}
+
+.clip-share-chip.can-send:hover {
+	background: rgba(10, 132, 255, 0.22);
+}
+
+.clip-share-chip.failed .clip-share-dot {
+	background: #ff6b61;
+}
+
+.clip-share-chip.ask {
+	max-width: none;
+	padding-right: 4px;
+	background: rgba(10, 132, 255, 0.16);
+	box-shadow: inset 0 0 0 1px rgba(100, 181, 255, 0.45);
+}
+
+.clip-share-chip .clip-share-name b {
+	font-variant-numeric: tabular-nums;
+	letter-spacing: 0.06em;
+}
+
+.clip-share-accept {
+	flex: none;
+	height: 20px;
+	padding: 0 8px;
+	border: none;
+	border-radius: 10px;
+	background: #fff;
+	color: #000;
+	font: inherit;
+	font-size: 11px;
+	font-weight: 600;
+	cursor: pointer;
+}
+
+.clip-share-chip:hover .clip-share-forget,
+.clip-share-forget.show {
+	opacity: 1;
+}
+
+/* The ring that stands in for the dot while sending. */
+.clip-share-ring {
+	flex: none;
+	width: 13px;
+	height: 13px;
+	margin: 0 -3px;
+	transform: rotate(-90deg);
+	fill: none;
+	stroke-width: 2.4;
+}
+
+.clip-share-ring circle:first-child {
+	stroke: rgba(255, 255, 255, 0.18);
+}
+
+.clip-share-ring circle:last-child {
+	stroke: #64b5ff;
+	stroke-linecap: round;
+	transition: stroke-dashoffset 0.15s linear;
+}
+
+.clip-share-ring.done circle:last-child {
+	stroke: #30d158;
+}
+
+/* Pair / Groups / Live at the end of the filter row. */
+.clip-share-tools {
+	display: flex;
+	gap: 2px;
+}
+
+.clip-filters .clip-share-tool {
+	position: relative;
+}
+
+.clip-filters .clip-share-tool.pair {
+	color: #64b5ff;
+	opacity: 0.9;
+}
+
+.clip-filters .clip-share-tool.lit {
+	color: #30d158;
+	opacity: 1;
+}
+
+.clip-share-badge {
+	position: absolute;
+	top: -2px;
+	right: -1px;
+	min-width: 12px;
+	height: 12px;
+	padding: 0 2px;
+	border-radius: 6px;
+	background: #30d158;
+	color: #000;
+	font-size: 8px;
+	font-weight: 700;
+	line-height: 12px;
+}
+
+.clip-share-actions {
+	display: flex;
+	align-items: center;
+	gap: 6px;
+}
+
+.clip-share-actions .clip-share-hint {
+	flex: 1;
+	min-width: 0;
+	overflow: hidden;
+	text-overflow: ellipsis;
+	white-space: nowrap;
+}
+
+.clip-share-menu-wrap {
+	position: relative;
+}
+
+.clip-share-btn.share {
+	background: rgba(10, 132, 255, 0.2);
+	color: #64b5ff;
+}
+
+.clip-share-banner {
+	padding: 5px 6px;
+	border-radius: 7px;
+	background: rgba(10, 132, 255, 0.18);
+	color: #64b5ff;
+	font-size: 10.5px;
+	line-height: 1.3;
+}
+
+/* The menu under the Share icon. */
+.clip-share-menu {
+	position: absolute;
+	bottom: calc(100% + 6px);
+	left: 0;
+	z-index: 8;
+	display: flex;
+	flex-direction: column;
+	padding: 4px;
+	min-width: 170px;
+	border-radius: 10px;
+	background: rgba(32, 32, 34, 0.98);
+	box-shadow: 0 6px 20px rgba(0, 0, 0, 0.45);
+}
+
+.clip-share-menu button {
+	display: flex;
+	align-items: center;
+	gap: 8px;
+	height: 32px;
+	padding: 0 10px;
+	border: none;
+	border-radius: 7px;
+	background: none;
+	color: inherit;
+	font: inherit;
+	font-size: 12.5px;
+	text-align: left;
+	cursor: pointer;
+}
+
+.clip-share-menu button:hover:not(:disabled) {
+	background: rgba(255, 255, 255, 0.1);
+}
+
+.clip-share-menu button:disabled {
+	opacity: 0.4;
+	cursor: default;
+}
+
+/* Pairing, live clipboard, groups: a sheet over the whole panel. */
+.clip-share-sheet {
+	position: absolute;
+	inset: 4px 0 0;
+	z-index: 7;
+	display: flex;
+	flex-direction: column;
+	padding: 10px 14px 12px;
+	background: var(--bloom-bg, #000);
+	border-radius: 0 0 18px 18px;
+	overflow-y: auto;
+	scrollbar-width: none;
+	/* The notch keeps its text on one line; sheet text wraps. */
+	white-space: normal;
+}
+
+.clip-share-list {
+	display: flex;
+	flex-direction: column;
+	gap: 2px;
+}
+
+.clip-share-list > .clip-share-btn {
+	margin-top: 8px;
+	justify-content: center;
+}
+
+.clip-share-empty {
+	padding: 16px 6px;
+	text-align: center;
+	opacity: 0.55;
+	line-height: 1.4;
+	font-size: 12px;
+}
+
+.clip-share-btn {
+	display: flex;
+	align-items: center;
+	justify-content: center;
+	gap: 6px;
+	height: 30px;
+	padding: 0 10px;
+	border: none;
+	border-radius: 8px;
+	background: rgba(255, 255, 255, 0.08);
+	color: inherit;
+	font: inherit;
+	font-size: 12px;
+	white-space: nowrap;
+	cursor: pointer;
+}
+
+.clip-share-btn:hover:not(:disabled) {
+	background: rgba(255, 255, 255, 0.14);
+}
+
+.clip-share-btn:disabled {
+	opacity: 0.45;
+	cursor: default;
+}
+
+.clip-share-btn.primary {
+	background: #fff;
+	color: #111;
+	font-weight: 600;
+}
+
+.clip-share-btn.primary:hover:not(:disabled) {
+	background: #e8e8e8;
+}
+
+.clip-share-btn.live-on {
+	background: rgba(48, 209, 88, 0.18);
+	color: #30d158;
+}
+
+.clip-share-person {
+	width: 100%;
+	display: flex;
+	align-items: center;
+	gap: 7px;
+	min-height: 30px;
+	padding: 3px 6px;
+	box-sizing: border-box;
+	border: none;
+	border-radius: 8px;
+	background: none;
+	color: inherit;
+	font: inherit;
+	font-size: 12px;
+	text-align: left;
+	cursor: default;
+}
+
+button.clip-share-person,
+.clip-share-person.can-send {
+	cursor: pointer;
+}
+
+.clip-share-person:hover,
+.clip-share-person.can-send {
+	background: rgba(255, 255, 255, 0.08);
+}
+
+.clip-share-person.faint {
+	opacity: 0.6;
+}
+
+.clip-share-name {
+	flex: 1;
+	min-width: 0;
+	overflow: hidden;
+	text-overflow: ellipsis;
+	white-space: nowrap;
+}
+
+.clip-share-name small {
+	display: block;
+	font-size: 10px;
+	opacity: 0.6;
+}
+
+.clip-share-status.bad {
+	color: #ff6b61;
+	opacity: 1;
+}
+
+.clip-share-bar {
+	display: block;
+	height: 3px;
+	margin-top: 2px;
+	border-radius: 2px;
+	background: rgba(255, 255, 255, 0.12);
+	overflow: hidden;
+}
+
+.clip-share-bar > span {
+	display: block;
+	height: 100%;
+	background: #30d158;
+	transform-origin: left;
+	transition: transform 0.1s linear;
+}
+
+.clip-share-dot {
+	flex: none;
+	width: 7px;
+	height: 7px;
+	border-radius: 50%;
+	background: rgba(255, 255, 255, 0.25);
+}
+
+.clip-share-dot.on {
+	background: #30d158;
+}
+
+.clip-share-group {
+	flex: none;
+	opacity: 0.5;
+}
+
+.clip-share-group.on {
+	color: #30d158;
+	opacity: 1;
+}
+
+.clip-share-forget,
+.clip-share-retry {
+	flex: none;
+	display: grid;
+	place-items: center;
+	border: none;
+	color: inherit;
+	cursor: pointer;
+}
+
+.clip-share-forget {
+	width: 16px;
+	height: 16px;
+	padding: 0;
+	border-radius: 50%;
+	background: rgba(255, 255, 255, 0.12);
+	opacity: 0;
+}
+
+.clip-share-person:hover .clip-share-forget,
+.clip-share-forget:focus-visible {
+	opacity: 1;
+}
+
+.clip-share-retry {
+	padding: 2px 6px;
+	border-radius: 6px;
+	background: rgba(255, 255, 255, 0.14);
+	font: inherit;
+	font-size: 10px;
+}
+
+.clip-share-check {
+	flex: none;
+	display: grid;
+	place-items: center;
+	width: 15px;
+	height: 15px;
+	border-radius: 4px;
+	box-shadow: inset 0 0 0 1.5px rgba(255, 255, 255, 0.35);
+}
+
+.clip-share-check.on {
+	background: #30d158;
+	box-shadow: none;
+	color: #000;
+}
+
+.clip-share-back {
+	display: flex;
+	align-items: center;
+	gap: 6px;
+	margin-bottom: 6px;
+	padding: 0;
+	border: none;
+	background: none;
+	color: inherit;
+	font: inherit;
+	font-size: 12.5px;
+	font-weight: 600;
+	cursor: pointer;
+}
+
+.clip-share-input {
+	width: 100%;
+	box-sizing: border-box;
+	height: 30px;
+	margin-bottom: 6px;
+	padding: 0 10px;
+	border: none;
+	outline: none;
+	border-radius: 8px;
+	background: rgba(255, 255, 255, 0.08);
+	color: inherit;
+	font: inherit;
+	font-size: 12.5px;
+}
+
+.clip-share-card {
+	flex: 1;
+	display: flex;
+	flex-direction: column;
+	align-items: center;
+	justify-content: center;
+	gap: 8px;
+	text-align: center;
+	font-size: 13px;
+	min-width: 0;
+}
+
+/* Centred lines wrap inside the card instead of running off its sides. */
+.clip-share-card > * {
+	max-width: 100%;
+	overflow-wrap: anywhere;
+}
+
+.clip-share-card .clip-share-hint {
+	max-width: 36ch;
+}
+
+.clip-share-code {
+	font-size: 30px;
+	font-weight: 700;
+	letter-spacing: 0.12em;
+	font-variant-numeric: tabular-nums;
+}
+
+.clip-share-hint,
+.clip-share-note {
+	font-size: 11px;
+	opacity: 0.6;
+	line-height: 1.4;
+}
+
+.clip-share-row {
+	display: flex;
+	gap: 8px;
+}
+
+.ctile-unsynced {
+	color: #ffb340;
+	opacity: 1;
+}
+
+/* Came from someone else's Shelf: the same blue as share requests. */
+.ctile-from {
+	color: #64b5ff;
+	font-weight: 600;
+}
+
+.clip-share-person.can-pair {
+	cursor: pointer;
+}
+
+.clip-share-person.can-pair:hover .clip-share-forget {
+	opacity: 1;
+}
+
+.clip-share-show-hidden {
+	align-self: flex-start;
+	padding: 0;
+	border: none;
+	background: none;
+	color: #64b5ff;
+	font: inherit;
+	font-size: 11px;
+	cursor: pointer;
+}
+
+/* Remove / Keep on a paired device (Pair › Paired devices). */
+.clip-share-remove {
+	flex: none;
+	height: 20px;
+	padding: 0 8px;
+	border: none;
+	border-radius: 10px;
+	background: rgba(255, 255, 255, 0.1);
+	color: inherit;
+	font: inherit;
+	font-size: 11px;
+	cursor: pointer;
+}
+
+.clip-share-remove:hover {
+	background: rgba(255, 255, 255, 0.18);
+}
+
+.clip-share-remove.confirm {
+	background: rgba(255, 107, 97, 0.22);
+	color: #ff6b61;
+}
+
+/* Live sheet: this person turned Live on for you. */
+.clip-share-live-in {
+	margin-left: auto;
+	color: #30d158;
+	font-size: 11px;
 }

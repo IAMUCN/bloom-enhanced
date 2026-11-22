@@ -1,0 +1,159 @@
+/* Drawn inside the notch, which clips to its rounded shape. The top edge is
+   flush with the screen, so the light runs down the sides and along the
+   bottom only. */
+.progress-edge {
+	position: absolute;
+	inset: 0;
+	border: 2px solid var(--fx-1, var(--bloom-accent, #0a84ff));
+	border-top-style: var(--fx-top, none);
+	border-radius: inherit;
+	pointer-events: none;
+	z-index: 3;
+	transition: mask-image 0.3s linear, -webkit-mask-image 0.3s linear;
+}
+
+/* The copy pulse: exactly one lap, then gone. */
+.progress-beam.fast::after {
+	animation: fx-lap 1.2s ease-in-out 1 both;
+}
+
+@keyframes fx-lap {
+	from {
+		--fx-a: 0deg;
+		opacity: 1;
+	}
+	85% {
+		opacity: 1;
+	}
+	to {
+		--fx-a: 360deg;
+		opacity: 0;
+	}
+}
+
+.progress-beam {
+	position: absolute;
+	inset: 0;
+	border-radius: inherit;
+	pointer-events: none;
+	z-index: 3;
+	--fx-w: 2px;
+}
+
+.progress-bar {
+	position: absolute;
+	left: 0;
+	bottom: 0;
+	height: 3px;
+	border-radius: 999px;
+	background: var(--fx-1, var(--bloom-accent, #0a84ff));
+	pointer-events: none;
+	z-index: 3;
+	transition: width 0.3s linear;
+}
+
+/* One glow in the result colour, then still. */
+.progress-glow {
+	position: absolute;
+	inset: 0;
+	border-radius: inherit;
+	pointer-events: none;
+	z-index: 3;
+	border: 1.5px solid currentColor;
+	border-top-style: var(--fx-top, none);
+	animation: progress-glow 1.2s ease-out forwards;
+}
+
+.progress-glow.ok {
+	color: #30d158;
+}
+
+.progress-glow.failed {
+	color: #ff453a;
+}
+
+@keyframes progress-glow {
+	0% {
+		opacity: 0;
+		box-shadow: 0 0 0 0 currentColor;
+	}
+	25% {
+		opacity: 1;
+		box-shadow: 0 0 18px 2px currentColor;
+	}
+	100% {
+		opacity: 0.85;
+		box-shadow: 0 0 0 0 transparent;
+	}
+}
+
+@media (prefers-reduced-motion: reduce) {
+	:root:not(.motion-on) .progress-edge,
+	:root:not(.motion-on) .progress-bar {
+		transition: none;
+	}
+	:root:not(.motion-on) .progress-glow {
+		animation: none;
+		opacity: 0.85;
+	}
+}
+
+/* Copy effects. Only opacity animates (cheap); the glow is a static shadow. */
+.progress-beam.copy-neon {
+	border: 2px solid var(--fx-1, var(--bloom-accent, #6a55ff));
+	border-top-style: var(--fx-top, none);
+	box-shadow: 0 0 7px var(--fx-1, var(--bloom-accent, #6a55ff)), inset 0 0 9px var(--fx-1, var(--bloom-accent, #6a55ff));
+	animation: copy-flash 1.2s linear 1 both;
+}
+
+.progress-beam.copy-glow {
+	color: var(--fx-1, var(--bloom-accent, #6a55ff));
+	border: 1.5px solid currentColor;
+	border-top-style: var(--fx-top, none);
+	animation: progress-glow 1.4s ease-out 1 both;
+}
+
+@keyframes copy-flash {
+	0%, 18%, 34% { opacity: 0; }
+	10%, 26%, 44%, 60% { opacity: 1; }
+	52% { opacity: 0.55; }
+	100% { opacity: 0; }
+}
+
+:root.fx-off .progress-beam.copy-neon,
+:root.fx-off .progress-beam.copy-glow {
+	animation: none;
+}
+
+/* The lotus signature: when the notch opens, the lotus outline (a mask, drawn
+   so its middle sits on the bottom edge) lights only the stretches of the
+   border it crosses. One lap of opacity, then still. */
+.notch-lotus {
+	position: absolute;
+	inset: 0;
+	border: 2.5px solid var(--bloom-accent, #6a55ff);
+	border-top-style: var(--fx-top, none);
+	border-radius: inherit;
+	pointer-events: none;
+	z-index: 3;
+	opacity: 0;
+	-webkit-mask: url("data:image/svg+xml,%3Csvg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 200 120%22 fill=%22none%22 stroke=%22%23000%22 stroke-width=%227%22 stroke-linejoin=%22round%22%3E%3Cpath d=%22M100 112C70 92 72 40 100 6C128 40 130 92 100 112Z%22/%3E%3Cpath d=%22M92 112C50 104 34 64 42 22C74 36 92 70 92 112Z%22/%3E%3Cpath d=%22M108 112C150 104 166 64 158 22C126 36 108 70 108 112Z%22/%3E%3Cpath d=%22M84 112C30 116 4 92 4 56C40 62 76 78 84 112Z%22/%3E%3Cpath d=%22M116 112C170 116 196 92 196 56C160 62 124 78 116 112Z%22/%3E%3C/svg%3E") 50% calc(100% + 75px) / auto 150px no-repeat;
+	mask: url("data:image/svg+xml,%3Csvg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 200 120%22 fill=%22none%22 stroke=%22%23000%22 stroke-width=%227%22 stroke-linejoin=%22round%22%3E%3Cpath d=%22M100 112C70 92 72 40 100 6C128 40 130 92 100 112Z%22/%3E%3Cpath d=%22M92 112C50 104 34 64 42 22C74 36 92 70 92 112Z%22/%3E%3Cpath d=%22M108 112C150 104 166 64 158 22C126 36 108 70 108 112Z%22/%3E%3Cpath d=%22M84 112C30 116 4 92 4 56C40 62 76 78 84 112Z%22/%3E%3Cpath d=%22M116 112C170 116 196 92 196 56C160 62 124 78 116 112Z%22/%3E%3C/svg%3E") 50% calc(100% + 75px) / auto 150px no-repeat;
+	animation: lotus-lit 1.5s ease-out 0.15s 1 both;
+}
+
+@keyframes lotus-lit {
+	0% { opacity: 0; }
+	25% { opacity: 1; }
+	60% { opacity: 1; }
+	100% { opacity: 0; }
+}
+
+:root.fx-off .notch-lotus {
+	display: none;
+}
+
+/* A floating pill has an edge all round; an attached notch is flush at the top. */
+.full {
+	--fx-top: solid;
+}

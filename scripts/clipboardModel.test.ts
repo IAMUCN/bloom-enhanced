@@ -28,6 +28,8 @@ test("filters sort items into one tab each", () => {
 	expect(tab("images")).toEqual(["s", "p"]);
 	expect(tab("others")).toEqual(["c", "d"]);
 	expect(tab("all")).toHaveLength(6);
+	expect(tab("received")).toEqual([]);
+	expect(matchesFilter(item("r", { text: "hi", from: "Riya" }), "received")).toBe(true);
 });
 
 test("recognises colour codes only when the whole text is one", () => {

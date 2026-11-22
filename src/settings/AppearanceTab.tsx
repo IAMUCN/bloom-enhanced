@@ -1,14 +1,89 @@
-import { Palette, Droplet, Contrast, Droplets, Sun, Maximize2 } from "lucide-react";
+import { Monitor, Palette, Droplet, Contrast, Droplets, Sun, Maximize2, Sparkles } from "lucide-react";
+import { useState } from "react";
+import { invoke } from "@tauri-apps/api/core";
 import { SettingRow } from "./SettingRow";
 import { ScaleStepper } from "./ScaleStepper";
 import { Choice } from "./Choice";
 
 const THEME_MODES = [
-	["dark", "Dark", "Translucent dark surfaces"],
+	["dark", "Black", "Black surfaces; solid at 100% opacity"],
+	["graphite", "Graphite", "Dark grey surfaces"],
 	["light", "Light", "Translucent light surfaces"],
 	["custom", "Custom", "A colour you pick"],
 	["adaptive", "Adaptive", "Follows your Windows accent colour"]
 ] as const;
+
+/** Animations (`bloom-motion`): on by default, whatever Windows' own
+ *  "Animation effects" says (user, 2026-11-15). */
+const MOTION = [
+	["on", "On", "Springy, lively motion in the notch, dock and menus"],
+	["off", "Off", "No movement; changes just appear"]
+] as const;
+
+/** The Settings window's own look (`bloom-settings-theme`): Light or Dark only.
+ *  Unset = what Windows uses. */
+const ACCENTS = ["#6a55ff", "#0a84ff", "#14b8a6", "#22c55e", "#f59e0b", "#ec4899", "#ef4444"];
+const DEFAULT_ACCENT = ACCENTS[0];
+
+/** The accent colour (`bloom-accent`): progress light, active states, the Settings window. */
+function AccentRow() {
+	const [value, setValue] = useState(() => localStorage.getItem("bloom-accent") || DEFAULT_ACCENT);
+	const pick = (v: string) => {
+		setValue(v);
+		localStorage.setItem("bloom-accent", v);
+		invoke("save_setting", { key: "bloom-accent", value: v }).catch(() => {});
+		window.dispatchEvent(new Event("settings-theme-changed"));
+	};
+	return (
+		<SettingRow icon={Palette} label="Accent Colour" desc="Shows on the notch's progress light, active buttons and this window">
+			<div className="accent-swatches">
+				{ACCENTS.map((c) => (
+					<button key={c} type="button" className={`accent-swatch${c === value ? " on" : ""}`} style={{ background: c }} aria-label={`Accent ${c}`} aria-pressed={c === value} onClick={() => pick(c)} />
+				))}
+				<input type="color" value={value} onChange={(e) => pick(e.target.value)} className="color-picker-input" aria-label="Custom accent colour" />
+			</div>
+		</SettingRow>
+	);
+}
+
+function SettingsWindowRow() {
+	const [value, setValue] = useState(
+		() => localStorage.getItem("bloom-settings-theme") ?? (window.matchMedia("(prefers-color-scheme: light)").matches ? "light" : "dark")
+	);
+	return (
+		<SettingRow icon={Monitor} label="Settings Window" desc="Light or dark, for this window only; the notch, dock and shelf keep their theme below">
+			<Choice
+				value={value}
+				options={[["light", "Light"], ["dark", "Dark"]] as const}
+				onChange={(v) => {
+					setValue(v);
+					localStorage.setItem("bloom-settings-theme", v);
+					invoke("save_setting", { key: "bloom-settings-theme", value: v }).catch(() => {});
+					window.dispatchEvent(new Event("settings-theme-changed"));
+				}}
+				label="Settings window theme"
+			/>
+		</SettingRow>
+	);
+}
+
+function AnimationsRow() {
+	const [value, setValue] = useState(() => (localStorage.getItem("bloom-motion") === "off" ? "off" : "on"));
+	return (
+		<SettingRow icon={Sparkles} label="Animations" desc={MOTION.find(([v]) => v === value)?.[2] ?? MOTION[0][2]}>
+			<Choice
+				value={value}
+				options={MOTION.map(([v, name]) => [v, name] as const)}
+				onChange={(v) => {
+					setValue(v);
+					localStorage.setItem("bloom-motion", v);
+					invoke("save_setting", { key: "bloom-motion", value: v }).catch(() => {});
+				}}
+				label="Animations"
+			/>
+		</SettingRow>
+	);
+}
 
 interface AppearanceTabProps {
 	themeMode: string;
@@ -44,7 +119,17 @@ export function AppearanceTab({
 
 	return (
 		<>
-			<div className="setting-group-label">Theme</div>
+			<div className="setting-group-label">Accent</div>
+			<div className="setting-group">
+				<AccentRow />
+			</div>
+
+			<div className="setting-group-label">Settings Window</div>
+			<div className="setting-group">
+				<SettingsWindowRow />
+			</div>
+
+			<div className="setting-group-label">Notch, Dock &amp; Shelf Theme</div>
 			<div className="setting-group">
 				<SettingRow
 					icon={Palette}
@@ -134,6 +219,7 @@ export function AppearanceTab({
 
 			<div className="setting-group-label">Display</div>
 			<div className="setting-group">
+				<AnimationsRow />
 				<SettingRow
 					icon={Maximize2}
 					label="UI & Font Scale"

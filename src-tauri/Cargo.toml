@@ -45,6 +45,7 @@ windows = { version = "0.61", features = [
 	"Win32_System_Memory",
 	"Win32_System_Com_StructuredStorage",
 	"Win32_System_SystemInformation",
+	"Win32_System_Performance",
 	"Win32_System_Wmi",
 	"Win32_Storage_FileSystem",
 	"Win32_System_Ole",
@@ -54,6 +55,7 @@ windows = { version = "0.61", features = [
 	"Storage_Streams",
 	"Win32_System_Console",
 	"Graphics_Imaging",
+	"Media_Ocr",
 	"Win32_Graphics_Imaging",
 	"Win32_Graphics_Dwm",
 	"Win32_Graphics_Gdi",
@@ -68,6 +70,8 @@ windows = { version = "0.61", features = [
 	"Devices_Bluetooth_Rfcomm",
 	"Networking",
 	"Networking_Sockets",
+	"Networking_Connectivity",
+	"Networking_NetworkOperators",
 	"Devices_Enumeration",
 	"Foundation_Collections",
 	"Win32_Media_KernelStreaming",
@@ -94,6 +98,8 @@ tauri-plugin-drag = "2.1.1"
 tauri-plugin-dialog = "2"
 rustfft = "6"
 lopdf = { version = "0.46.0", default-features = false }
+# Shelf sharing crypto (already built in via rustls; see src/share.rs).
+ring = "0.17"
 
 
 # `perf-recorder`: testing builds that log Bloom's memory/CPU to a local CSV

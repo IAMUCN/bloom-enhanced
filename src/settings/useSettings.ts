@@ -17,10 +17,7 @@ import {
 import type { WidgetConfig } from "./types";
 import {
 	asNotchStyle,
-	parsePanelScales,
-	type NotchStyle,
-	type PanelScales,
-	type SizedPanel
+	type NotchStyle
 } from "../notchLayout";
 
 function readBool(val: string | null): boolean {
@@ -31,7 +28,7 @@ function readBool(val: string | null): boolean {
 export type NotchPanelChoice = "calendar" | "command-center" | "devices";
 
 function asPanelChoice(val: unknown): NotchPanelChoice {
-	return val === "command-center" || val === "devices" ? val : "calendar";
+	return val === "calendar" || val === "devices" ? val : "command-center";
 }
 
 export function useSettings() {
@@ -71,16 +68,6 @@ export function useSettings() {
 	const [musicCompactNotch, setMusicCompactNotch] = useState(true);
 	const [shelfPersist, setShelfPersist] = useState(
 		() => localStorage.getItem("bloom-shelf-persist") === "true"
-	);
-	const [volumeOverlayEnabled, setVolumeOverlayEnabled] = useState(true);
-	const [volumeEdgeEnabled, setVolumeEdgeEnabled] = useState(
-		() => localStorage.getItem("bloom-volume-edge-enabled") !== "false"
-	);
-	const [brightnessOverlayEnabled, setBrightnessOverlayEnabled] = useState(
-		() => localStorage.getItem("bloom-brightness-overlay-enabled") !== "false"
-	);
-	const [brightnessEdgeEnabled, setBrightnessEdgeEnabled] = useState(
-		() => localStorage.getItem("bloom-brightness-edge-enabled") !== "false"
 	);
 	const [mediaAmbienceEnabled, setMediaAmbienceEnabled] = useState(true);
 	const [mediaCompactGlowEnabled, setMediaCompactGlowEnabled] = useState(true);
@@ -178,9 +165,6 @@ export function useSettings() {
 		const value = localStorage.getItem("bloom-notch-scale");
 		return value ? parseFloat(value) : null;
 	});
-	const [notchPanelScales, setNotchPanelScales] = useState<PanelScales>(() =>
-		parsePanelScales(localStorage.getItem("bloom-notch-panel-scales"))
-	);
 	const [notchStyle, setNotchStyle] = useState<NotchStyle>(() =>
 		asNotchStyle(localStorage.getItem("bloom-notch-style"))
 	);
@@ -192,7 +176,7 @@ export function useSettings() {
 	);
 	const [themeOpacity, setThemeOpacity] = useState(() => {
 		const val = localStorage.getItem("bloom-theme-opacity");
-		return val !== null ? parseFloat(val) : 0.8;
+		return val !== null ? parseFloat(val) : 1;
 	});
 	const [themeSaturation, setThemeSaturation] = useState(() => {
 		const val = localStorage.getItem("bloom-theme-saturation");
@@ -248,15 +232,11 @@ export function useSettings() {
 			apply(getVal("bloom-notch-default-panel"), setNotchDefaultPanel, asPanelChoice);
 			apply(getVal("bloom-music-compact-notch"), setMusicCompactNotch, readBool);
 			apply(getVal("bloom-shelf-persist"), setShelfPersist, readBool);
-			apply(getVal("bloom-volume-overlay-enabled"), setVolumeOverlayEnabled, readBool);
-			apply(getVal("bloom-brightness-overlay-enabled"), setBrightnessOverlayEnabled, readBool);
 			apply(getVal("bloom-media-ambience-enabled"), setMediaAmbienceEnabled, readBool);
 			apply(getVal("bloom-media-compact-glow-enabled"), setMediaCompactGlowEnabled, readBool);
 			apply(getVal("bloom-time-format-24h"), setTimeFormat24h, readBool);
 			apply(getVal("bloom-show-update-indicator"), setShowUpdateIndicator, readBool);
 			apply(getVal("bloom-auto-update"), setAutoUpdate, readBool);
-			apply(getVal("bloom-volume-edge-enabled"), setVolumeEdgeEnabled, readBool);
-			apply(getVal("bloom-brightness-edge-enabled"), setBrightnessEdgeEnabled, readBool);
 			apply(getVal("bloom-dock-enabled"), setDockEnabled, readBool);
 			apply(getVal("bloom-dock-preview-enabled"), setDockPreviewEnabled, readBool);
 			apply(getVal("bloom-dock-icon-only"), setDockIconOnly, readBool);
@@ -276,7 +256,6 @@ export function useSettings() {
 			apply(getVal("bloom-scale"), setScale, parseFloat);
 			apply(getVal("bloom-dock-scale"), setDockScaleOwn, parseFloat);
 			apply(getVal("bloom-notch-scale"), setNotchScaleOwn, parseFloat);
-			apply(getVal("bloom-notch-panel-scales"), setNotchPanelScales, parsePanelScales);
 			apply(getVal("bloom-notch-style"), setNotchStyle, asNotchStyle);
 			apply(getVal("bloom-low-battery-threshold"), setLowBatteryThreshold, parseInt);
 
@@ -444,14 +423,9 @@ export function useSettings() {
 		"bloom-scale": setScale,
 		"bloom-dock-scale": setDockScaleOwn,
 		"bloom-notch-scale": setNotchScaleOwn,
-		"bloom-notch-panel-scales": (v) => setNotchPanelScales(parsePanelScales(v)),
 		"bloom-notch-style": (v) => setNotchStyle(asNotchStyle(v)),
 		"bloom-temp-unit": (v) => setTempUnitFahrenheit(v === "fahrenheit"),
 		"bloom-auto-update": setAutoUpdate,
-		"bloom-volume-overlay-enabled": setVolumeOverlayEnabled,
-		"bloom-volume-edge-enabled": setVolumeEdgeEnabled,
-		"bloom-brightness-overlay-enabled": setBrightnessOverlayEnabled,
-		"bloom-brightness-edge-enabled": setBrightnessEdgeEnabled,
 		"bloom-theme-mode": setThemeMode,
 		"bloom-theme-color": setThemeColor,
 		"bloom-theme-opacity": setThemeOpacity,
@@ -713,30 +687,6 @@ export function useSettings() {
 		saveSetting("bloom-media-layout", layout);
 	};
 
-	const toggleVolumeOverlay = () => {
-		const next = !volumeOverlayEnabled;
-		setVolumeOverlayEnabled(next);
-		saveSetting("bloom-volume-overlay-enabled", String(next));
-	};
-
-	const toggleVolumeEdge = () => {
-		const next = !volumeEdgeEnabled;
-		setVolumeEdgeEnabled(next);
-		saveSetting("bloom-volume-edge-enabled", String(next));
-	};
-
-	const toggleBrightnessOverlay = () => {
-		const next = !brightnessOverlayEnabled;
-		setBrightnessOverlayEnabled(next);
-		saveSetting("bloom-brightness-overlay-enabled", String(next));
-	};
-
-	const toggleBrightnessEdge = () => {
-		const next = !brightnessEdgeEnabled;
-		setBrightnessEdgeEnabled(next);
-		saveSetting("bloom-brightness-edge-enabled", String(next));
-	};
-
 	const toggleAmbience = () => {
 		const next = !mediaAmbienceEnabled;
 		setMediaAmbienceEnabled(next);
@@ -919,12 +869,6 @@ export function useSettings() {
 		saveSetting("bloom-notch-style", style);
 	};
 
-	const handlePanelScaleChange = (panel: SizedPanel, val: number) => {
-		const next = { ...notchPanelScales, [panel]: val };
-		setNotchPanelScales(next);
-		saveSetting("bloom-notch-panel-scales", JSON.stringify(next));
-	};
-
 	const handleWidgetsChange = (config: WidgetConfig) => {
 		setStatusWidgets(config);
 		saveSetting("bloom-status-widgets", JSON.stringify(config));
@@ -1012,9 +956,9 @@ export function useSettings() {
 		try {
 			const { ask } = await import("@tauri-apps/plugin-dialog");
 			const confirmed = await ask(
-				"All settings return to their defaults and Bloom restarts. Pinned apps and custom icons are kept.",
+				"All settings return to their defaults and LotusNotch restarts. Pinned apps and custom icons are kept.",
 				{
-					title: "Reset Bloom to Defaults",
+					title: "Reset LotusNotch to Defaults",
 					kind: "warning",
 					okLabel: "Reset and Restart",
 					cancelLabel: "Cancel"
@@ -1048,7 +992,7 @@ export function useSettings() {
 	const resetPage = async (page: string, prefixes: string[]) => {
 		try {
 			const { ask } = await import("@tauri-apps/plugin-dialog");
-			const confirmed = await ask(`The ${page} settings return to their defaults and Bloom restarts.`, {
+			const confirmed = await ask(`The ${page} settings return to their defaults and LotusNotch restarts.`, {
 				title: `Reset ${page}`,
 				kind: "warning",
 				okLabel: "Reset and Restart",
@@ -1121,8 +1065,6 @@ export function useSettings() {
 		handleDockScaleChange,
 		notchScale: notchScaleOwn ?? scale,
 		handleNotchScaleChange,
-		notchPanelScales,
-		handlePanelScaleChange,
 		notchStyle,
 		handleNotchStyleChange,
 
@@ -1242,14 +1184,6 @@ export function useSettings() {
 		handleRemoveDockExtraFolder,
 
 		// Overlays
-		volumeOverlayEnabled,
-		toggleVolumeOverlay,
-		volumeEdgeEnabled,
-		toggleVolumeEdge,
-		brightnessOverlayEnabled,
-		toggleBrightnessOverlay,
-		brightnessEdgeEnabled,
-		toggleBrightnessEdge,
 
 		// Updates
 		updateStatus,

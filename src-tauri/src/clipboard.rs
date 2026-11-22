@@ -88,6 +88,12 @@ pub struct ClipItem {
     /// kept through cleanup like pinned ones.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub note: Option<String>,
+    /// Who sent it (Shelf sharing); None for the user's own copies.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub from: Option<String>,
+    /// Too big for live clipboard, so not sent (a small mark on the tile).
+    #[serde(default, skip_serializing_if = "std::ops::Not::not")]
+    pub unsynced: bool,
 }
 
 impl ClipItem {
@@ -158,6 +164,9 @@ pub fn add_item(history: &mut Vec<ClipItem>, mut item: ClipItem) -> Vec<ClipItem
         item.image = old.image;
         item.hits = old.hits + 1;
         item.pinned = old.pinned;
+        // Copying it again keeps the user's note and who sent it.
+        item.note = item.note.or(old.note);
+        item.from = item.from.or(old.from);
     }
     history.insert(0, item);
     removed
@@ -480,6 +489,8 @@ fn capture_image(app: &AppHandle, id: &str) -> Option<ClipItem> {
         hits: 1,
         html: None,
         note: None,
+        from: None,
+        unsynced: false,
     })
 }
 
@@ -500,6 +511,8 @@ fn capture(app: &AppHandle) -> Option<ClipItem> {
         hits: 1,
         html: None,
         note: None,
+        from: None,
+        unsynced: false,
     };
     match read_clipboard()? {
         Captured::Files(paths) => Some(ClipItem {
@@ -591,6 +604,11 @@ fn watch(app: AppHandle) {
         let kind = item.kind.clone();
         add_all(&app, grouped(item));
         let _ = app.emit("clipboard-captured", kind);
+        // Live clipboard: the copy as it now stands in the history.
+        let front = HISTORY.lock().unwrap().first().cloned();
+        if let Some(front) = front {
+            crate::share_app::on_copy(&app, front);
+        }
     }
 }
 
@@ -647,7 +665,85 @@ fn text_item(text: String) -> ClipItem {
         hits: 1,
         html: None,
         note: None,
+        from: None,
+        unsynced: false,
     }
+}
+
+/// What the Shelf items `ids` send to someone: their text, or their files.
+pub fn share_items(ids: &[String]) -> Vec<crate::share::Item> {
+    let history = HISTORY.lock().unwrap();
+    ids.iter()
+        .filter_map(|id| history.iter().find(|it| &it.id == id))
+        .flat_map(|it| match it.kind {
+            ClipKind::Text => it
+                .text
+                .clone()
+                .map(crate::share::Item::Text)
+                .into_iter()
+                .collect(),
+            _ => it
+                .file_paths()
+                .into_iter()
+                .map(|p| crate::share::Item::Path(p.into()))
+                .collect::<Vec<_>>(),
+        })
+        .collect()
+}
+
+/// Marks an item as not sent by live clipboard (too big).
+pub fn mark_unsynced(app: &AppHandle, id: &str) {
+    let mut history = HISTORY.lock().unwrap();
+    if let Some(it) = history.iter_mut().find(|it| it.id == id) {
+        it.unsynced = true;
+        commit(app, &history, &[]);
+    }
+}
+
+/// A send from a paired person: into the Shelf, tagged with their name.
+/// Returns the ids the new items have in the history, first first.
+pub fn add_received(
+    app: &AppHandle,
+    from: &str,
+    texts: Vec<String>,
+    paths: Vec<String>,
+) -> Vec<String> {
+    let tag = Some(short_name(from));
+    let mut items: Vec<ClipItem> = texts
+        .into_iter()
+        .map(|t| normalize_text(&t))
+        .filter(|t| !t.is_empty() && t.len() <= MAX_TEXT_BYTES)
+        .map(|t| ClipItem {
+            from: tag.clone(),
+            ..text_item(t)
+        })
+        .collect();
+    if !paths.is_empty() {
+        items.push(ClipItem {
+            kind: ClipKind::Files,
+            text: None,
+            is_url: false,
+            paths,
+            from: tag,
+            ..text_item(String::new())
+        });
+    }
+    let n = items.len();
+    if n == 0 {
+        return Vec::new();
+    }
+    add_all(app, items);
+    HISTORY
+        .lock()
+        .unwrap()
+        .iter()
+        .take(n)
+        .map(|it| it.id.clone())
+        .collect()
+}
+
+fn short_name(name: &str) -> String {
+    name.chars().take(48).collect()
 }
 
 /// Files or text dropped onto the shelf. Recorded like a copy, without
@@ -832,9 +928,64 @@ pub fn shelf_side() -> Option<ShelfSide> {
     }
 }
 
-/// The shelf's trigger band: the middle third of the edge.
+/// The top shelf's trigger band: the middle third of the edge.
 pub fn in_shelf_band(y: i32, mon_y: i32, mon_h: i32) -> bool {
     y >= mon_y + mon_h / 3 && y <= mon_y + mon_h * 2 / 3
+}
+
+/// A side shelf's trigger band: the middle two thirds of the edge, about
+/// where the shelf itself shows (it is up to two thirds of the screen tall).
+/// It was the middle third, so reaching the edge level with the top or
+/// bottom of the shelf didn't open it.
+pub fn in_side_band(y: i32, mon_y: i32, mon_h: i32) -> bool {
+    y >= mon_y + mon_h / 6 && y <= mon_y + mon_h * 5 / 6
+}
+
+/// Whether the cursor watchdog (services.rs) should re-check the shelf now:
+/// the shelf is open, or the cursor rests on its edge. Mouse events alone
+/// stop when the cursor rests against the edge, so the open delay never
+/// ran out and the shelf "sometimes" didn't open until the mouse moved.
+pub fn shelf_needs_tick(x: i32, y: i32) -> bool {
+    if SHELF_OPEN.load(Ordering::Relaxed) {
+        return true;
+    }
+    let (Some(side), Some((mx, my, mw, mh))) = (shelf_side(), shelf_monitor_rect()) else {
+        return false;
+    };
+    match side {
+        ShelfSide::Left => x <= mx + 8 && y >= my && y < my + mh,
+        ShelfSide::Right => x >= mx + mw - 8 && y >= my && y < my + mh,
+        ShelfSide::Top => y <= my + 2 && x >= mx && x < mx + mw,
+    }
+}
+
+/// A real full-screen app (a game, a video, a presentation), as Windows
+/// itself reports it. The notch's own full-screen test also counts a
+/// maximized Chrome, VS Code or Terminal (no standard title bar, and the dock
+/// replaces the taskbar), which kept the shelf shut over them. Edge-Drop
+/// asks Windows the same way. The desktop reports "busy" too: not full screen.
+fn real_fullscreen() -> bool {
+    use windows::Win32::UI::Shell::{
+        SHQueryUserNotificationState, QUNS_BUSY, QUNS_PRESENTATION_MODE,
+        QUNS_RUNNING_D3D_FULL_SCREEN,
+    };
+    use windows::Win32::UI::WindowsAndMessaging::{GetClassNameW, GetForegroundWindow};
+    let Ok(state) = (unsafe { SHQueryUserNotificationState() }) else {
+        return false;
+    };
+    if state == QUNS_RUNNING_D3D_FULL_SCREEN || state == QUNS_PRESENTATION_MODE {
+        return true;
+    }
+    if state != QUNS_BUSY {
+        return false;
+    }
+    let mut buf = [0u16; 64];
+    let len = unsafe { GetClassNameW(GetForegroundWindow(), &mut buf) } as usize;
+    let class = String::from_utf16_lossy(&buf[..len]);
+    !matches!(
+        class.as_str(),
+        "Progman" | "WorkerW" | "Shell_TrayWnd" | "Shell_SecondaryTrayWnd"
+    )
 }
 
 /// Whether the volume (left) or brightness (right) edge hover must stay shut
@@ -851,7 +1002,7 @@ pub fn shelf_blocks_hud(
     if shelf_side() != Some(side) || shelf_monitor_rect() != Some(primary) {
         return false;
     }
-    SHELF_OPEN.load(Ordering::Relaxed) || (!hud_active && in_shelf_band(y, primary.1, primary.3))
+    SHELF_OPEN.load(Ordering::Relaxed) || (!hud_active && in_side_band(y, primary.1, primary.3))
 }
 
 /// The monitor the shelf lives on: `bloom-clipboard-monitor` (a monitor
@@ -901,6 +1052,47 @@ pub fn shelf_open() -> bool {
 /// Opened by the shortcut: stays open until the cursor has been in it.
 static SHELF_HELD: AtomicBool = AtomicBool::new(false);
 static SHELF_EXPIRY: AtomicU64 = AtomicU64::new(0);
+/// When the pointer reached the edge (ms; 0 = not there): the shelf opens
+/// only after it rests there a moment, so brushing past doesn't open it.
+static EDGE_SINCE: AtomicU64 = AtomicU64::new(0);
+/// "Flick" opening (`bloom-clipboard-edge-open`, the default for the left
+/// and right edges; user's idea, 2026-11-20): a side shelf opens when the
+/// cursor is thrown at its edge, not when it creeps there. Creeping to the
+/// edge is usually work right there (a browser's side tabs, a scrollbar).
+/// Speed toward the edge over the last FLICK_WINDOW_MS, in physical px/ms;
+/// about 1000 px a second is a throw, aiming is much slower near the target.
+const FLICK_PX_PER_MS: f64 = 1.0;
+
+/// The quick-move speed in px/ms: `bloom-clipboard-edge-speed` (px per
+/// second, 300-8000, Settings › Shelf), else [`FLICK_PX_PER_MS`].
+fn flick_speed() -> f64 {
+    setting("bloom-clipboard-edge-speed")
+        .and_then(|v| v.parse::<f64>().ok())
+        .map(|v| v.clamp(300.0, 8000.0) / 1000.0)
+        .unwrap_or(FLICK_PX_PER_MS)
+}
+const FLICK_WINDOW_MS: u64 = 150;
+/// After a flick, the cursor must still be at the edge this long: passing
+/// through it to another monitor doesn't count.
+const FLICK_DWELL_MS: u64 = 60;
+static ARRIVED_FAST: AtomicBool = AtomicBool::new(false);
+/// Recent samples: (ms, distance from the shelf's edge).
+static RECENT: Mutex<Vec<(u64, i32)>> = Mutex::new(Vec::new());
+
+/// Speed toward the edge (px/ms) from the oldest recent sample to `dist`
+/// now. No recent sample means the cursor was still, then got here within
+/// one frame: a throw.
+fn approach_speed(recent: &[(u64, i32)], now: u64, dist: i32) -> f64 {
+    match recent.first() {
+        Some(&(t, d)) if now > t => (d - dist) as f64 / (now - t) as f64,
+        Some(_) => 0.0,
+        None => f64::INFINITY,
+    }
+}
+
+/// Rest this long at the edge to open (Edge-Drop: 40 ms + the user's
+/// delay); with the watchdog re-checking, it now runs out while resting.
+const EDGE_DWELL_MS: u64 = 150;
 static SHELF_GEN: AtomicU64 = AtomicU64::new(0);
 static SHELF_RECT: Mutex<(i32, i32, i32, i32)> = Mutex::new((0, 0, 0, 0));
 
@@ -908,17 +1100,12 @@ static SHELF_RECT: Mutex<(i32, i32, i32, i32)> = Mutex::new((0, 0, 0, 0));
 /// (`PANEL_BASE` in src/notchLayout.ts).
 const SHELF_BASE: f64 = 1.3;
 
-/// Edge shelf size: `bloom-scale` times the clipboard panel's own size.
+/// Edge shelf size: `bloom-scale` times the clipboard's base.
 fn shelf_scale() -> f64 {
     let global = setting("bloom-scale")
         .and_then(|v| v.parse::<f64>().ok())
         .unwrap_or(1.0);
-    let panel = setting("bloom-notch-panel-scales")
-        .and_then(|v| serde_json::from_str::<serde_json::Value>(&v).ok())
-        .and_then(|v| v.get("clipboard").and_then(|s| s.as_f64()))
-        .filter(|s| (0.5..=1.5).contains(s))
-        .unwrap_or(1.0);
-    global * panel * SHELF_BASE
+    global * SHELF_BASE
 }
 
 /// Makes and shows the parked shelf window when an edge position is chosen;
@@ -982,9 +1169,12 @@ fn set_shelf_open(app: &AppHandle, side: ShelfSide, open: bool) {
                 ((560.0 * scale) as i32).min(mw * 9 / 10),
                 ((380.0 * scale) as i32).min(mh * 4 / 5),
             ),
+            // The size the user marked (2026-11-19): narrower and taller
+            // than the 320 x 520 before, two thirds of the screen at most;
+            // the clips scroll and the people row stays at the bottom.
             _ => (
-                (360.0 * scale) as i32,
-                ((560.0 * scale) as i32).min(mh * 4 / 5),
+                (286.0 * scale) as i32,
+                ((580.0 * scale) as i32).min(mh * 2 / 3),
             ),
         };
         let (x, y) = match side {
@@ -1044,13 +1234,55 @@ pub fn update_edge_shelf(
             ShelfSide::Top => false,
         };
 
-    let at_edge = !fullscreen
+    // `fullscreen` (the notch's test) only gates the cheap check; Windows'
+    // own answer decides, so a maximized browser no longer keeps it shut.
+    let at_edge = !(fullscreen && real_fullscreen())
         && !hud_active
         && match side {
-            ShelfSide::Left => x <= mon_x + 8 && in_shelf_band(y, mon_y, mon_h),
-            ShelfSide::Right => x >= mon_x + mon_w - 8 && in_shelf_band(y, mon_y, mon_h),
+            ShelfSide::Left => x <= mon_x + 8 && in_side_band(y, mon_y, mon_h),
+            ShelfSide::Right => x >= mon_x + mon_w - 8 && in_side_band(y, mon_y, mon_h),
             ShelfSide::Top => y <= mon_y + 2 && in_shelf_band(x, mon_x, mon_w),
         };
+    // Where the cursor was lately, to tell a flick at the edge from a slow
+    // arrival (side shelves only).
+    let toward = |px: i32, py: i32| match side {
+        ShelfSide::Left => px - mon_x,
+        ShelfSide::Right => mon_x + mon_w - 1 - px,
+        ShelfSide::Top => py - mon_y,
+    };
+    let approach = {
+        let mut recent = RECENT.lock().unwrap();
+        recent.retain(|&(t, _)| now.saturating_sub(t) <= FLICK_WINDOW_MS);
+        let speed = approach_speed(&recent, now, toward(x, y));
+        recent.push((now, toward(x, y)));
+        speed
+    };
+    // Dragging something to drop on the shelf: resting is enough, however
+    // slowly it got there.
+    let dragging = unsafe {
+        windows::Win32::UI::Input::KeyboardAndMouse::GetAsyncKeyState(0x01) as u16 & 0x8000 != 0
+    };
+    let flick_mode = side != ShelfSide::Top
+        && !dragging
+        && setting("bloom-clipboard-edge-open").as_deref() != Some("rest");
+    let at_edge = if at_edge {
+        let since = match EDGE_SINCE.load(Ordering::Relaxed) {
+            0 => {
+                EDGE_SINCE.store(now, Ordering::Relaxed);
+                ARRIVED_FAST.store(approach >= flick_speed(), Ordering::Relaxed);
+                now
+            }
+            t => t,
+        };
+        if flick_mode {
+            ARRIVED_FAST.load(Ordering::Relaxed) && now - since >= FLICK_DWELL_MS
+        } else {
+            now - since >= EDGE_DWELL_MS
+        }
+    } else {
+        EDGE_SINCE.store(0, Ordering::Relaxed);
+        false
+    };
     let (rx, ry, rw, rh) = *SHELF_RECT.lock().unwrap();
     let inside =
         SHELF_OPEN.load(Ordering::Relaxed) && x >= rx && x < rx + rw && y >= ry && y < ry + rh;
@@ -1061,6 +1293,16 @@ pub fn update_edge_shelf(
         SHELF_EXPIRY.store(now + SHELF_LINGER_MS, Ordering::Relaxed);
     }
     set_shelf_open(app, side, now < SHELF_EXPIRY.load(Ordering::Relaxed));
+}
+
+/// The edge shelf's × and Esc: closes it now.
+#[tauri::command]
+pub fn clipboard_shelf_close(app: AppHandle) {
+    if let Some(side) = shelf_side() {
+        SHELF_HELD.store(false, Ordering::Relaxed);
+        SHELF_EXPIRY.store(0, Ordering::Relaxed);
+        set_shelf_open(&app, side, false);
+    }
 }
 
 /// The clipboard shortcut: toggles the edge shelf, or asks the notch to open
@@ -1113,18 +1355,19 @@ pub fn parse_shortcut(text: &str) -> Option<(u32, u32)> {
     (mods != 0 || (0x70..=0x87).contains(&key)).then_some((mods, key))
 }
 
-/// Registers `bloom-clipboard-shortcut` (default Alt+C, empty = none) with
-/// RegisterHotKey and re-registers when it changes.
+/// Registers the clipboard shortcut with RegisterHotKey and re-registers it
+/// when it changes: `bloom-clipboard-shortcut` (default Alt+C); empty = none.
+/// Every other shortcut (the notch, tools, tiles) goes through shortcuts.rs.
 pub fn start_shortcut(app: AppHandle) {
     use windows::Win32::UI::Input::KeyboardAndMouse::{
         RegisterHotKey, UnregisterHotKey, HOT_KEY_MODIFIERS, MOD_NOREPEAT,
     };
     use windows::Win32::UI::WindowsAndMessaging::{PeekMessageW, MSG, PM_REMOVE, WM_HOTKEY};
-    const ID: i32 = 0xC11;
+    const CLIP_ID: i32 = 0xC11;
     std::thread::spawn(move || {
         let mut current: Option<String> = None;
         loop {
-            // ponytail: polls the setting every 100ms instead of being woken on
+            // ponytail: polls the settings every 100ms instead of being woken on
             // change; cheap, and the hotkey thread needs a message pump anyway.
             let wanted = if crate::utils::clipboard_enabled() {
                 setting("bloom-clipboard-shortcut").unwrap_or_else(|| "Alt+C".into())
@@ -1133,17 +1376,21 @@ pub fn start_shortcut(app: AppHandle) {
             };
             if current.as_deref() != Some(wanted.as_str()) {
                 unsafe {
-                    let _ = UnregisterHotKey(None, ID);
+                    let _ = UnregisterHotKey(None, CLIP_ID);
                     if let Some((mods, vk)) = parse_shortcut(&wanted) {
-                        let _ =
-                            RegisterHotKey(None, ID, HOT_KEY_MODIFIERS(mods) | MOD_NOREPEAT, vk);
+                        let _ = RegisterHotKey(
+                            None,
+                            CLIP_ID,
+                            HOT_KEY_MODIFIERS(mods) | MOD_NOREPEAT,
+                            vk,
+                        );
                     }
                 }
                 current = Some(wanted);
             }
             let mut msg = MSG::default();
             while unsafe { PeekMessageW(&mut msg, None, 0, 0, PM_REMOVE) }.as_bool() {
-                if msg.message == WM_HOTKEY && msg.wParam.0 == ID as usize {
+                if msg.message == WM_HOTKEY && msg.wParam.0 == CLIP_ID as usize {
                     toggle_from_shortcut(&app);
                 }
             }
@@ -1414,7 +1661,22 @@ mod tests {
             hits: 1,
             html: None,
             note: None,
+            from: None,
+            unsynced: false,
         }
+    }
+
+    #[test]
+    fn copying_again_keeps_the_note_and_sender() {
+        let mut history = vec![ClipItem {
+            note: Some("keep".into()),
+            from: Some("Riya".into()),
+            ..text("a", "hello", 1)
+        }];
+        add_item(&mut history, text("b", "hello", 2));
+        assert_eq!(history.len(), 1);
+        assert_eq!(history[0].note.as_deref(), Some("keep"));
+        assert_eq!(history[0].from.as_deref(), Some("Riya"));
     }
 
     #[test]
@@ -1551,6 +1813,24 @@ mod tests {
         assert_eq!(parse_shortcut("Alt+F25"), None);
         assert_eq!(parse_shortcut("Alt+Tab"), None);
         assert_eq!(parse_shortcut(""), None);
+    }
+
+    #[test]
+    fn a_throw_opens_a_creep_does_not() {
+        // 600 px in 150 ms: thrown.
+        assert!(approach_speed(&[(1000, 600)], 1150, 0) >= FLICK_PX_PER_MS);
+        // 60 px in 150 ms: aiming at something near the edge.
+        assert!(approach_speed(&[(1000, 60)], 1150, 0) < FLICK_PX_PER_MS);
+        // Still, then there within a frame.
+        assert!(approach_speed(&[], 1150, 0) >= FLICK_PX_PER_MS);
+    }
+
+    #[test]
+    fn side_band_is_middle_two_thirds() {
+        assert!(!in_side_band(149, 0, 900));
+        assert!(in_side_band(150, 0, 900));
+        assert!(in_side_band(750, 0, 900));
+        assert!(!in_side_band(751, 0, 900));
     }
 
     #[test]

@@ -1,9 +1,9 @@
-import { Download, RefreshCw, FileDown, Upload } from "lucide-react";
+import { Download, RefreshCw } from "lucide-react";
 import { openUrl } from "@tauri-apps/plugin-opener";
 import { GithubIcon } from "../icons";
 import { SettingRow } from "./SettingRow";
 
-/** The open-source projects Bloom Enhanced is built from. */
+/** The open-source projects LotusNotch is built from. */
 const CREDITS = [
 	["Bloom", "SehajveerSingh2005", "The notch, dock and overlays this app is built on", "https://github.com/SehajveerSingh2005/bloom"],
 	["Edge-Drop", "Deepender25", "The edge shelf for what you copy and drag", "https://github.com/Deepender25/Edge-Drop"],
@@ -20,10 +20,6 @@ interface AboutTabProps {
 	updateVersion: string;
 	checkForUpdates: () => void;
 	installUpdate: () => void;
-	exportStatus: string;
-	importStatus: string;
-	handleExportSettings: () => void;
-	handleImportSettings: () => void;
 }
 
 export function AboutTab({
@@ -33,11 +29,7 @@ export function AboutTab({
 	updateStatus,
 	updateVersion,
 	checkForUpdates,
-	installUpdate,
-	exportStatus,
-	importStatus,
-	handleExportSettings,
-	handleImportSettings
+	installUpdate
 }: AboutTabProps) {
 	const getUpdateLabel = () => {
 		switch (updateStatus) {
@@ -46,7 +38,7 @@ export function AboutTab({
 			case "available":
 				return `Update Available (v${updateVersion})`;
 			case "uptodate":
-				return "Bloom Enhanced is up to date";
+				return "LotusNotch is up to date";
 			case "downloading":
 				return "Downloading Update...";
 			case "installing":
@@ -63,25 +55,11 @@ export function AboutTab({
 			? "Click to install and restart"
 			: `Currently running v${appVersion}`;
 
-	const getExportLabel = () => {
-		if (exportStatus === "exporting") return "Exporting...";
-		if (exportStatus === "success") return "Exported!";
-		if (exportStatus === "error") return "Export failed. Try again.";
-		return "Export Settings";
-	};
-
-	const getImportLabel = () => {
-		if (importStatus === "importing") return "Importing...";
-		if (importStatus === "success") return "Imported!";
-		if (importStatus === "error") return "Import failed. Check the file and try again.";
-		return "Import Settings";
-	};
-
 	return (
 		<div className="about-tab-container">
 			<div className="about-header">
-				<img src="/bloom-biscuit.png" className="about-logo" alt="Bloom Enhanced logo" draggable={false} />
-				<h1 className="about-title">Bloom Enhanced</h1>
+				<img src="/lotusnotch.png" className="about-logo" alt="LotusNotch logo" draggable={false} />
+				<h1 className="about-title">LotusNotch</h1>
 				<p className="about-version">Version {appVersion}</p>
 				<p className="about-credit">
 					Made with <span className="about-heart">❤️</span> by{" "}
@@ -108,25 +86,6 @@ export function AboutTab({
 					action
 					divider={false}
 					onClick={() => (updateStatus === "available" ? installUpdate() : checkForUpdates())}
-				/>
-			</div>
-
-			<div className="setting-group-label setting-group-label--spaced">Data</div>
-			<div className="setting-group">
-				<SettingRow
-					icon={FileDown}
-					label={getExportLabel()}
-					desc="Every preference (notch, dock, shelf, radial menu…), pinned dock apps and custom icons"
-					action
-					onClick={handleExportSettings}
-				/>
-				<SettingRow
-					icon={Upload}
-					label={getImportLabel()}
-					desc="From a Bloom Enhanced or Bloom settings file; applies right away"
-					action
-					divider={false}
-					onClick={handleImportSettings}
 				/>
 			</div>
 

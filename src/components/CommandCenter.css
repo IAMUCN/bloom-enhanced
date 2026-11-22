@@ -1,0 +1,232 @@
+/* Command Center: design file › 3a Command Center (edit me), default frame
+   as the user edited it. Round tiles, white = on, Wi-Fi / Bluetooth pills
+   showing only their status, rows of seven, volume over brightness. */
+.cc {
+	position: absolute;
+	top: calc(36px + var(--tab-bar-space, 0px));
+	left: 0;
+	right: 0;
+	bottom: 0;
+	z-index: 2;
+	box-sizing: border-box;
+	/* 16 px in from the sides, the same as the bottom. */
+	padding: 4px 16px 16px;
+	display: flex;
+	flex-direction: column;
+	gap: 12px;
+	color: #fff;
+}
+
+.cc button {
+	font: inherit;
+	color: inherit;
+	border: none;
+	cursor: pointer;
+}
+
+.cc button:focus-visible {
+	outline: 2px solid var(--bloom-accent, #0a84ff);
+	outline-offset: 2px;
+}
+
+/* Wide pills: the circle switches, the text half opens the list. */
+.cc-wide-row {
+	display: grid;
+	grid-template-columns: 1fr 1fr;
+	gap: 10px;
+	flex: none;
+}
+
+.cc-wide {
+	display: flex;
+	align-items: center;
+	height: 52px;
+	padding-left: 6px;
+	border-radius: 999px;
+	background: #1c1c20;
+	color: #fff;
+	overflow: hidden;
+	transition: background 0.15s ease, color 0.15s ease;
+}
+
+.cc-wide.on {
+	background: #fff;
+	color: #000;
+}
+
+.cc-wide-toggle {
+	flex: none;
+	display: grid;
+	place-items: center;
+	width: 40px;
+	height: 40px;
+	border-radius: 50%;
+	background: #26262b !important;
+	color: #fff !important;
+}
+
+.cc-wide.on .cc-wide-toggle {
+	background: #000 !important;
+}
+
+.cc-wide-more {
+	flex: 1;
+	min-width: 0;
+	height: 100%;
+	display: flex;
+	align-items: center;
+	gap: 8px;
+	padding: 0 14px 0 10px;
+	background: none;
+	text-align: left;
+}
+
+.cc-wide-status {
+	flex: 1;
+	min-width: 0;
+	overflow: hidden;
+	white-space: nowrap;
+	text-overflow: ellipsis;
+	font-size: 13px;
+	font-weight: 500;
+	color: #a1a1aa;
+}
+
+.cc-wide.on .cc-wide-status {
+	color: #3a3a40;
+}
+
+/* Round tiles: seven columns lined up across both rows */
+.cc-icons {
+	display: grid;
+	grid-template-columns: repeat(7, 48px);
+	grid-auto-rows: 48px;
+	justify-content: space-between;
+	row-gap: 10px;
+	flex: none;
+}
+
+.cc-icon {
+	display: grid;
+	place-items: center;
+	width: 48px;
+	height: 48px;
+	border-radius: 50%;
+	background: #1c1c20;
+	transition: background-color 0.2s ease, color 0.2s ease;
+}
+
+.cc-icon.on {
+	background: #fff;
+	color: #000;
+	transition: background-color 0.16s ease, color 0.12s ease;
+}
+
+.cc-icon:hover {
+	background: #26262b;
+}
+
+.cc-icon.on:hover {
+	background: #ededed;
+}
+
+.cc-icon.captioned {
+	display: flex;
+	flex-direction: column;
+	align-items: center;
+	justify-content: center;
+	gap: 1px;
+}
+
+.cc-icon-caption {
+	font-size: 8.5px;
+	font-weight: 600;
+	line-height: 1;
+	letter-spacing: 0.01em;
+}
+
+.cc-icon-glyph {
+	display: grid;
+	place-items: center;
+}
+
+/* Sliders: volume over brightness */
+.cc-sliders {
+	display: flex;
+	flex-direction: column;
+	gap: 8px;
+	flex: none;
+	margin-top: auto;
+}
+
+.cc-slider {
+	display: flex;
+	align-items: center;
+	gap: 12px;
+	height: 28px;
+}
+
+.cc-slider-label {
+	flex: none;
+	display: flex;
+	align-items: center;
+	gap: 8px;
+	width: 110px;
+	padding: 0;
+	background: none;
+	font-size: 13px !important;
+	font-weight: 500 !important;
+	text-align: left;
+}
+
+.cc-slider-label svg {
+	color: #a1a1aa;
+	transition: color 0.15s ease;
+}
+
+.cc-slider:hover .cc-slider-label svg {
+	color: #fff;
+}
+
+.cc-slider-label:hover svg {
+	color: #fff;
+}
+
+.cc-slider-track {
+	position: relative;
+	flex: 1;
+	height: 6px;
+	border-radius: 3px;
+	background: #26262b;
+}
+
+/* The fill scales (transform only) and follows the value at once: an eased
+   fill looked glitchy on 5 % wheel steps (user, 2026-11-15). */
+.cc-slider-fill {
+	position: absolute;
+	inset: 0;
+	border-radius: 3px;
+	background: #fff;
+	pointer-events: none;
+	transform-origin: left center;
+}
+
+.cc-slider-track input {
+	position: absolute;
+	inset: -10px 0;
+	width: 100%;
+	margin: 0;
+	opacity: 0;
+	cursor: pointer;
+}
+
+.cc-slider-value {
+	flex: none;
+	width: 40px;
+	text-align: right;
+	font-size: 11px;
+	font-weight: 500;
+	font-variant-numeric: tabular-nums;
+	color: #a1a1aa;
+}
+

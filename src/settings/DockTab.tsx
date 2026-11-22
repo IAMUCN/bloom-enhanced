@@ -2,7 +2,6 @@ import { useEffect, useState, type ChangeEvent, type CSSProperties } from "react
 import { invoke } from "@tauri-apps/api/core";
 import { Choice } from "./Choice";
 import {
-	Monitor,
 	Eye,
 	EyeOff,
 	Circle,
@@ -81,7 +80,7 @@ function DrivePicker({
 }
 
 const START_ICON_PRESETS = [
-	{ key: "default", src: "/bloom.png", label: "Bloom" },
+	{ key: "default", src: "/lotusnotch.png", label: "LotusNotch" },
 	{ key: "bloom-colorful", src: "/bloom-colorful.png", label: "Colorful" },
 	{ key: "bloom-golden", src: "/bloom-golden.png", label: "Golden" },
 	{ key: "bloom-biscuit", src: "/bloom-biscuit.png", label: "Orange" },
@@ -105,7 +104,6 @@ const startIconTileStyle = (active: boolean): CSSProperties => ({
 
 interface DockTabProps {
 	dockEnabled: boolean;
-	toggleDock: () => void;
 	dockMode: string;
 	setDockModeValue: (mode: string) => void;
 	dockEdgeDelay: number;
@@ -143,7 +141,6 @@ interface DockTabProps {
 
 export function DockTab({
 	dockEnabled,
-	toggleDock,
 	dockMode,
 	setDockModeValue,
 	dockEdgeDelay,
@@ -191,15 +188,8 @@ export function DockTab({
 
 	return (
 		<>
-			<div className="setting-group-label">Dock</div>
+			<div className="setting-group-label">Showing</div>
 			<div className="setting-group">
-				<SettingRow icon={Monitor} label="Bloom Dock" desc="Replace Windows taskbar">
-					<label className="toggle-switch">
-						<input type="checkbox" checked={dockEnabled} onChange={toggleDock} />
-						<span className="slider"></span>
-					</label>
-				</SettingRow>
-
 				{dockEnabled && (
 					<>
 						<SettingRow
@@ -247,6 +237,28 @@ export function DockTab({
 							</SettingRow>
 						)}
 
+						{dockMode === "fixed" && (
+							<SettingRow
+								icon={Maximize2}
+								label="Adaptive Mode"
+								desc="Stretch to full width when a window is maximized"
+								divider={false}
+							>
+								<label className="toggle-switch">
+									<input type="checkbox" checked={dockAdaptive} onChange={toggleDockAdaptive} />
+									<span className="slider"></span>
+								</label>
+							</SettingRow>
+						)}
+
+						</>
+				)}
+			</div>
+
+			<div className="setting-group-label">Look</div>
+			<div className="setting-group">
+				{dockEnabled && (
+					<>
 						<SettingRow icon={Maximize2} label="Dock Size" desc="Size of the dock only; the notch keeps its own">
 							<ScaleStepper value={dockScale} onChange={handleDockScaleChange} label="dock size" />
 						</SettingRow>
@@ -258,7 +270,7 @@ export function DockTab({
 							</label>
 						</SettingRow>
 
-						<SettingRow icon={Circle} label="Icon Only" desc="Remove icon background and padding">
+						<SettingRow icon={Circle} label="Icon Only" desc="Draw app icons bare, without the rounded tile behind each one, so the dock looks lighter">
 							<label className="toggle-switch">
 								<input type="checkbox" checked={dockIconOnly} onChange={toggleDockIconOnly} />
 								<span className="slider"></span>
@@ -280,6 +292,14 @@ export function DockTab({
 							</label>
 						</SettingRow>
 
+						</>
+				)}
+			</div>
+
+			<div className="setting-group-label">Buttons</div>
+			<div className="setting-group">
+				{dockEnabled && (
+					<>
 						<SettingRow icon={Copy} label="Task View" desc="Show the Task View button beside Start">
 							<label className="toggle-switch">
 								<input type="checkbox" checked={dockTaskView} onChange={toggleDockTaskView} />
@@ -303,20 +323,15 @@ export function DockTab({
 							</label>
 						</SettingRow>
 
-						{dockMode === "fixed" && (
-							<SettingRow
-								icon={Maximize2}
-								label="Adaptive Mode"
-								desc="Stretch to full width when a window is maximized"
-								divider={false}
-							>
-								<label className="toggle-switch">
-									<input type="checkbox" checked={dockAdaptive} onChange={toggleDockAdaptive} />
-									<span className="slider"></span>
-								</label>
-							</SettingRow>
-						)}
 
+						</>
+				)}
+			</div>
+
+			<div className="setting-group-label">Extras</div>
+			<div className="setting-group">
+				{dockEnabled && (
+					<>
 						<SettingRow
 							icon={LayoutPanelLeft}
 							label="Dock Extras"

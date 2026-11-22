@@ -64,6 +64,23 @@ static TASKBAR_OWNER_HWND: std::sync::atomic::AtomicIsize = std::sync::atomic::A
 static TASKBAR_MARKER: OnceLock<PathBuf> = OnceLock::new();
 static TASKBAR_WATCHDOG_STARTED: std::sync::Mutex<bool> = std::sync::Mutex::new(false);
 
+/// Hands memory a finished job freed back to Windows at once. Freed heap
+/// blocks otherwise stay committed (and in Task Manager's "Memory") for
+/// minutes after a big conversion.
+pub fn release_freed_memory() {
+    use windows::Win32::System::Memory::{GetProcessHeaps, HeapCompact, HEAP_FLAGS};
+    use windows::Win32::System::ProcessStatus::EmptyWorkingSet;
+    use windows::Win32::System::Threading::GetCurrentProcess;
+    unsafe {
+        let mut heaps = [windows::Win32::Foundation::HANDLE::default(); 64];
+        let n = (GetProcessHeaps(&mut heaps) as usize).min(heaps.len());
+        for heap in &heaps[..n] {
+            HeapCompact(*heap, HEAP_FLAGS(0));
+        }
+        let _ = EmptyWorkingSet(GetCurrentProcess());
+    }
+}
+
 /// Point the crash-recovery marker at this user's app config dir (called from setup).
 pub fn init_taskbar_marker(app: &tauri::AppHandle) {
     if let Ok(dir) = app.path().app_config_dir() {
@@ -89,13 +106,40 @@ pub fn start_taskbar_watchdog() -> std::io::Result<()> {
     if let Some(dir) = marker.parent() {
         std::fs::create_dir_all(dir)?;
     }
-    std::process::Command::new(std::env::current_exe()?)
-        .arg("--taskbar-watchdog")
-        .arg(std::process::id().to_string())
-        .arg(marker)
-        .spawn()?;
+    // Through a launcher that exits at once: the watchdog then has no living
+    // parent, so killing Bloom's process tree (Task Manager's "End task" ends
+    // the whole group) no longer kills the watchdog with it.
+    spawn_detached(&[
+        "--taskbar-watchdog-launch".as_ref(),
+        std::process::id().to_string().as_ref(),
+        marker.as_os_str(),
+    ])?;
     *started = true;
     Ok(())
+}
+
+/// Starts this exe with `args`, outside Bloom's console, process group and,
+/// where the job allows it, job object (a job that kills its processes when
+/// Bloom's launcher closes it would take the watchdog down too).
+pub fn spawn_detached(args: &[&std::ffi::OsStr]) -> std::io::Result<()> {
+    use std::os::windows::process::CommandExt;
+    const DETACHED_PROCESS: u32 = 0x0000_0008;
+    const CREATE_NEW_PROCESS_GROUP: u32 = 0x0000_0200;
+    const CREATE_BREAKAWAY_FROM_JOB: u32 = 0x0100_0000;
+    let exe = std::env::current_exe()?;
+    let flags = DETACHED_PROCESS | CREATE_NEW_PROCESS_GROUP;
+    std::process::Command::new(&exe)
+        .args(args)
+        .creation_flags(flags | CREATE_BREAKAWAY_FROM_JOB)
+        .spawn()
+        // A job that forbids breaking away refuses the whole spawn.
+        .or_else(|_| {
+            std::process::Command::new(&exe)
+                .args(args)
+                .creation_flags(flags)
+                .spawn()
+        })
+        .map(|_| ())
 }
 
 pub fn run_taskbar_watchdog(parent_pid: u32, marker: PathBuf) {
@@ -1221,16 +1265,23 @@ pub fn save_setting_file(
     Ok(settings)
 }
 
-/// Bloom Enhanced ran under Bloom's app ID (com.sehaz.bloom) before it had
-/// its own. On the first start under the new ID, those files (settings,
-/// pinned apps, clipboard history, custom icons) are copied over, once.
+/// App IDs this app ran under before, newest first: Bloom Enhanced, then
+/// Bloom. On the first start under the current ID, the newest one's files
+/// (settings, pinned apps, clipboard history, custom icons) are copied over,
+/// once.
+const PREVIOUS_IDS: [&str; 2] = ["com.ucnindustries.bloomenhanced", "com.sehaz.bloom"];
+
 pub fn migrate_from_bloom(app: &tauri::AppHandle) {
     let Ok(new_dir) = app.path().app_config_dir() else {
         return;
     };
-    if let Some(old_dir) = new_dir.parent().map(|p| p.join("com.sehaz.bloom")) {
-        if migrate_dir(&old_dir, &new_dir) {
-            crate::diagnostics::record("migrated", "copied com.sehaz.bloom files");
+    let Some(parent) = new_dir.parent() else {
+        return;
+    };
+    for id in PREVIOUS_IDS {
+        if migrate_dir(&parent.join(id), &new_dir) {
+            crate::diagnostics::record("migrated", &format!("copied {id} files"));
+            return;
         }
     }
 }
@@ -1444,6 +1495,52 @@ pub fn set_click_through(hwnd: HWND, ignore: bool) -> bool {
         }
         SetWindowLongPtrW(hwnd, GWL_EXSTYLE, wanted as isize);
         true
+    }
+}
+
+/// LotusNotch's own executable: `LotusNotch.exe`, or `bloom.exe` (dev
+/// builds, and installs from before the rename).
+pub fn is_own_exe_name(name: &str) -> bool {
+    name.eq_ignore_ascii_case("LotusNotch.exe") || name.eq_ignore_ascii_case("bloom.exe")
+}
+
+/// Drops and re-adds WS_EX_LAYERED on a layered window so Windows hit-tests
+/// it at its current size (see the resize handler in main.rs), but only when
+/// the window grew past its biggest size so far: hit-testing is only stuck
+/// at a smaller size. Rare on purpose: for that instant the window isn't
+/// layered, and with a region (window_region.rs) its clear pixels paint
+/// opaque; done on every resize, white boxes sometimes stuck beside the notch
+/// pill. A repaint afterwards clears anything painted meanwhile. Windows that
+/// aren't layered are left alone.
+pub fn refresh_layered(hwnd: HWND, width: u32, height: u32) {
+    use windows::Win32::Graphics::Gdi::{
+        RedrawWindow, RDW_ALLCHILDREN, RDW_FRAME, RDW_INVALIDATE, RDW_UPDATENOW,
+    };
+    use windows::Win32::UI::WindowsAndMessaging::{
+        GetWindowLongPtrW, SetWindowLongPtrW, GWL_EXSTYLE, WS_EX_LAYERED,
+    };
+    static BIGGEST: std::sync::Mutex<Vec<(isize, u32, u32)>> = std::sync::Mutex::new(Vec::new());
+    unsafe {
+        let style = GetWindowLongPtrW(hwnd, GWL_EXSTYLE);
+        if style as u32 & WS_EX_LAYERED.0 == 0 {
+            return;
+        }
+        {
+            let mut biggest = BIGGEST.lock().unwrap_or_else(|e| e.into_inner());
+            match biggest.iter_mut().find(|b| b.0 == hwnd.0 as isize) {
+                Some(b) if width <= b.1 && height <= b.2 => return,
+                Some(b) => (b.1, b.2) = (b.1.max(width), b.2.max(height)),
+                None => biggest.push((hwnd.0 as isize, width, height)),
+            }
+        }
+        SetWindowLongPtrW(hwnd, GWL_EXSTYLE, style & !(WS_EX_LAYERED.0 as isize));
+        SetWindowLongPtrW(hwnd, GWL_EXSTYLE, style);
+        let _ = RedrawWindow(
+            Some(hwnd),
+            None,
+            None,
+            RDW_INVALIDATE | RDW_ALLCHILDREN | RDW_FRAME | RDW_UPDATENOW,
+        );
     }
 }
 

@@ -1,6 +1,8 @@
 // Icons of the radial menu's tool and action options (orbitOps.ts › icon),
 // shared by the menu and its Settings preview.
 import {
+	CaseLower,
+	CaseUpper,
 	ClipboardPlus,
 	Contrast,
 	Copy,
@@ -17,10 +19,19 @@ import {
 	Scissors,
 	SquareTerminal,
 	Type,
+	Crop,
+	EyeOff,
+	FileText,
+	Hash,
+	Scaling,
+	Search,
+	SunMoon,
 	Wallpaper
 } from "lucide-react";
 
 export const ORBIT_ICONS: Record<string, typeof Copy> = {
+	CaseLower,
+	CaseUpper,
 	ClipboardPlus,
 	Contrast,
 	Copy,
@@ -37,5 +48,12 @@ export const ORBIT_ICONS: Record<string, typeof Copy> = {
 	Scissors,
 	SquareTerminal,
 	Type,
+	Crop,
+	EyeOff,
+	FileText,
+	Hash,
+	Scaling,
+	Search,
+	SunMoon,
 	Wallpaper
 };

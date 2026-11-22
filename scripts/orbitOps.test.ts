@@ -1,11 +1,15 @@
 import { expect, test } from "bun:test";
 import {
 	HUB,
+	chainAfter,
+	chainValid,
 	OUTSIDE,
 	formatRanges,
 	hitTest,
 	modesFor,
 	opsFor,
+	opsForKind,
+	ordered,
 	parseLayout,
 	parseRanges,
 	splitPresets,
@@ -32,8 +36,16 @@ test("options fit every file in the set", () => {
 	expect(ids(files("C:\\x.zip"), "tools")).toEqual(["tool.archive.extract"]);
 	// PDFs merge (with images too) and split, one or several at a time.
 	expect(ids(files("C:\\a.pdf", "C:\\b.pdf", "C:\\c.png"), "tools")).toEqual(["tool.pdf.merge"]);
-	expect(ids(files("C:\\a.pdf", "C:\\b.pdf"), "tools")).toEqual(["tool.pdf.merge", "tool.pdf.split"]);
-	expect(ids(files("C:\\a.pdf"), "tools")).toEqual(["tool.pdf.split"]);
+	expect(ids(files("C:\\a.pdf", "C:\\b.pdf"), "tools")).toEqual([
+		"tool.pdf.merge",
+		"tool.pdf.split",
+		"tool.pdf.compress",
+		"tool.pdf.rotate-right",
+		"tool.pdf.rotate-left",
+		"tool.pdf.invert",
+		"tool.pdf.grayscale"
+	]);
+	expect(ids(files("C:\\a.pdf"), "tools")).toEqual(["tool.pdf.split", "tool.pdf.compress", "tool.pdf.rotate-right", "tool.pdf.rotate-left", "tool.pdf.invert", "tool.pdf.grayscale"]);
 	expect(ids(files("C:\\a.png", "C:\\b.png"), "tools")).not.toContain("tool.pdf.merge");
 	expect(ids(files("C:\\a.png"), "actions")).toContain("action.wallpaper");
 	expect(ids(files("C:\\a.png", "C:\\b.png"), "actions")).not.toContain("action.wallpaper");
@@ -58,9 +70,14 @@ test("Split's page ranges", () => {
 	expect(splitPresets(1, 1)).toEqual([]);
 });
 
-test("dragged text has one option: To shelf", () => {
-	expect(modesFor({ paths: [], text: "hi" })).toEqual(["actions"]);
-	expect(ids({ paths: [], text: "hi" }, "actions")).toEqual(["action.shelf"]);
+test("dragged text: case, word count, search, save and To shelf; no file options", () => {
+	const t = { paths: [], text: "hi" };
+	expect(modesFor(t)).toEqual(["convert", "tools", "actions"]);
+	expect(ids(t, "convert")).toEqual(["text.upper", "text.lower"]);
+	expect(ids(t, "tools")).toEqual(["text.count"]);
+	expect(ids(t, "actions")).toEqual(["action.shelf", "text.search", "text.save"]);
+	// Files never get the text options.
+	expect(ids(files("C:\a.png"), "tools")).not.toContain("text.count");
 });
 
 test("the layout hides, reorders and sets the Shift order", () => {
@@ -88,4 +105,52 @@ test("slices run clockwise from 12 o'clock", () => {
 	expect(hitTest(0, -165, 4)).toBe(0); // the rim still counts
 	expect(hitTest(0, -200, 4)).toBe(OUTSIDE);
 	expect(hitTest(0, -100, 0)).toBe(HUB);
+});
+
+test("Settings shows each menu as it looks for one kind of drag", () => {
+	expect(opsForKind("text", "convert").map((o) => o.id)).toEqual(["text.upper", "text.lower"]);
+	expect(opsForKind("pdfs", "tools").map((o) => o.id)).toContain("tool.pdf.compress");
+	expect(opsForKind("pdfs", "tools").map((o) => o.id)).not.toContain("tool.image.resize");
+	expect(opsForKind("images", "tools").map((o) => o.id)).toContain("tool.image.resize");
+	// Every option shows for at least one kind, so none is out of reach.
+	for (const mode of ["convert", "tools", "actions"] as const) {
+		const all = new Set((["images", "pdfs", "files", "text"] as const).flatMap((k) => opsForKind(k, mode).map((o) => o.id)));
+		expect(ordered(mode).filter((o) => !all.has(o.id)).map((o) => o.id)).toEqual([]);
+	}
+});
+
+test("chains: each step lists what fits the files made so far", () => {
+	const png = files("C:\a.png");
+	// Invert a PNG, then PDF: the next options are for the image just made.
+	expect(chainValid(png, ["tool.image.invert", "convert.pdf"])).toBe(true);
+	expect(chainAfter(png, ["tool.image.invert", "convert.pdf"])?.paths.map((p) => p.split(".").pop())).toEqual(["pdf"]);
+	// After PDF, PDF tools fit and image tools do not.
+	const afterPdf = chainAfter(png, ["convert.pdf"])!;
+	expect(ids(afterPdf, "tools")).toContain("tool.pdf.compress");
+	expect(ids(afterPdf, "tools")).not.toContain("tool.image.invert");
+	// Several images into one PDF, then invert that PDF (PDFs can be inverted now).
+	expect(chainValid(files("C:\a.png", "C:\b.png"), ["tool.image.pdf-combine", "tool.pdf.invert"])).toBe(true);
+	expect(chainValid(files("C:\a.png", "C:\b.png"), ["tool.image.invert", "tool.image.pdf-combine"])).toBe(true);
+	// Image invert still does not take a PDF.
+	expect(chainAfter(files("C:\a.png", "C:\b.png"), ["tool.image.pdf-combine"])?.paths.length).toBe(1);
+	expect(chainValid(files("C:\r.pdf"), ["tool.image.invert"])).toBe(false);
+	expect(chainValid(files("C:\r.pdf"), ["tool.pdf.invert"])).toBe(true);
+	expect(chainValid(png, ["convert.pdf", "tool.image.invert"])).toBe(false);
+	// Copy path leaves the file as it is, so the image can still be converted.
+	expect(chainValid(png, ["action.copy-path", "convert.webp"])).toBe(true);
+	// Split and Extract can only be last; Split cannot follow a step that made new files.
+	expect(chainValid(files("C:\r.pdf"), ["tool.pdf.split"])).toBe(true);
+	expect(chainValid(files("C:\r.pdf"), ["tool.pdf.split", "tool.pdf.compress"])).toBe(false);
+	expect(chainValid(files("C:\r.pdf"), ["tool.pdf.compress", "tool.pdf.split"])).toBe(false);
+	expect(chainValid(files("C:\r.pdf"), ["action.copy-path", "tool.pdf.split"])).toBe(true);
+	// Text: upper-case it, then search.
+	expect(chainValid({ paths: [], text: "hi" }, ["text.upper", "text.search"])).toBe(true);
+	expect(chainValid({ paths: [], text: "hi" }, ["text.count", "text.upper"])).toBe(false);
+	// Text to a file: save it, then act on the .txt (copy its path, zip it).
+	expect(chainValid({ paths: [], text: "hi" }, ["text.upper", "text.save", "action.copy-path"])).toBe(true);
+	expect(chainValid({ paths: [], text: "hi" }, ["text.save", "action.zip"])).toBe(true);
+	expect(chainValid({ paths: [], text: "hi" }, ["text.save", "convert.png"])).toBe(false);
+	// Resize can sit mid-chain (its size rides after a colon).
+	expect(chainValid(files("C:\a.png"), ["tool.image.resize:1200", "convert.pdf"])).toBe(true);
+	expect(chainValid(files("C:\a.png"), ["tool.image.resize:1200", "tool.image.invert", "convert.webp"])).toBe(true);
 });

@@ -10,6 +10,7 @@ import { AnimatePresence, motion } from "framer-motion";
 import { invoke } from "@tauri-apps/api/core";
 import { emitTo, listen } from "@tauri-apps/api/event";
 import { writeText } from "@tauri-apps/plugin-clipboard-manager";
+import { openUrl } from "@tauri-apps/plugin-opener";
 import { CircleAlert, CircleCheck, CircleSlash, X } from "lucide-react";
 import {
 	HUB,
@@ -30,10 +31,13 @@ import {
 	type OrbitResult,
 	type OrbitStatus
 } from "./orbitOps";
+import { SPEEDS, lag, timing } from "./orbitMotion";
+import { chainAfter, chainStep, chainValid, makesFiles, opById, opLabel } from "./orbitOps";
 import { ORBIT_ICONS } from "./orbitIcons";
 import { useSettingsSync } from "./hooks/useSettingsSync";
 import { initTheme } from "./theme";
 import "./Orbit.css";
+import { useHideFromCapture } from "./hooks/useHideFromCapture";
 
 
 const SIZE = 360;
@@ -41,6 +45,10 @@ const C = SIZE / 2;
 const GAP = 2.5; // degrees between slices
 const STATUS = { width: 300, height: 64 };
 // Bloom's springy micro-motion.
+/** OrbitDrop's wheel: it opens by growing from 0.4 to full size with a small
+ *  overshoot in 170 ms while fading in over 110 ms (WPF BackEase 0.3). */
+const BLOOM = timing(1).bloom;
+/** OrbitDrop's confirmed pick: the wheel pops to 104% and fades in 90 ms. */
 const SPRING = { type: "spring", stiffness: 480, damping: 24 } as const;
 const ORIGIN = { transformOrigin: `${C}px ${C}px`, transformBox: "view-box" } as const;
 
@@ -60,6 +68,8 @@ type Phase =
 	| { kind: "running"; op: OrbitOp; percent: number | null }
 	/** Split asks which pages first; pages is null while they are counted. */
 	| { kind: "ranges"; op: OrbitOp; input: OrbitInput; pages: number | null }
+	/** Resize asks for the size first. */
+	| { kind: "size"; op: OrbitOp; input: OrbitInput; /** adding Resize to a chain, not running it */ add?: boolean }
 	| { kind: "done"; text: string; result: Result };
 
 const point = (r: number, deg: number) => {
@@ -88,6 +98,7 @@ const inputOf = (p: DragPayload): OrbitInput => (p.paths ? { paths: p.paths } : 
 const RESULT_ICON = { ok: CircleCheck, failed: CircleAlert, canceled: CircleSlash };
 
 function Orbit() {
+	useHideFromCapture("bloom-files-hide-from-capture", true);
 	const [phase, setPhase] = useState<Phase>({ kind: "closed" });
 	const [input, setInput] = useState<OrbitInput>({ paths: [] });
 	const [mode, setMode] = useState<OrbitMode>("convert");
@@ -99,10 +110,22 @@ function Orbit() {
 	const inNotch =
 		raw["bloom-files-status-at"] === "notch" && raw["bloom-notch-enabled"] !== false && raw["bloom-notch-enabled"] !== "false";
 	const seconds = Number(raw["bloom-files-status-seconds"]) || 2;
+	// Bumped on every open and menu switch: the whole wheel is made again, so the
+	// disc grows in and the slices turn in each time (OrbitDrop).
+	const [bloomKey, setBloomKey] = useState(0);
+	// A chain: options added with Ctrl, run one after another on what the one before made.
+	const [chain, setChain] = useState<string[]>([]);
+	const [chainNote, setChainNote] = useState<string | null>(null);
+	// The pointer inside the wheel: the chain follows it as a small tag.
+	const [ptr, setPtr] = useState<{ x: number; y: number } | null>(null);
 	const phaseRef = useRef(phase);
 	phaseRef.current = phase;
-	const state = useRef({ input, mode, layout, inNotch, seconds });
-	state.current = { input, mode, layout, inNotch, seconds };
+	const hoverRef = useRef(hover);
+	hoverRef.current = hover;
+	const state = useRef({ input, mode, layout, inNotch, seconds, chain });
+	state.current = { input, mode, layout, inNotch, seconds, chain };
+	/** What the options are listed for: the files after the chain so far. */
+	const viewOf = () => chainAfter(state.current.input, state.current.chain) ?? state.current.input;
 
 	useEffect(() => initTheme(), []);
 	useEffect(() => {
@@ -117,27 +140,62 @@ function Orbit() {
 		"bloom-files-mode-order": keep("bloom-files-mode-order"),
 		"bloom-files-status-at": keep("bloom-files-status-at"),
 		"bloom-notch-enabled": keep("bloom-notch-enabled"),
-		"bloom-files-status-seconds": keep("bloom-files-status-seconds")
+		"bloom-files-status-seconds": keep("bloom-files-status-seconds"),
+		"bloom-files-anim-open": keep("bloom-files-anim-open"),
+		"bloom-files-anim-switch": keep("bloom-files-anim-switch"),
+		"bloom-files-anim-close": keep("bloom-files-anim-close"),
+		"bloom-files-anim-speed": keep("bloom-files-anim-speed"),
+		"bloom-files-chain-at": keep("bloom-files-chain-at")
 	});
+	// Animations (Settings › Radial Menu › Menu Animation), each on by default.
+	const animOf = (key: string) => raw[key] !== false && raw[key] !== "false";
+	const animOpen = animOf("bloom-files-anim-open");
+	const animSwitch = animOf("bloom-files-anim-switch");
+	const animClose = animOf("bloom-files-anim-close");
+	// Where the chain shows while it is built: on the notch or by the cursor, never both.
+	const chainOnNotch = raw["bloom-files-chain-at"] !== "cursor" && raw["bloom-notch-enabled"] !== false && raw["bloom-notch-enabled"] !== "false";
+	const chainOnNotchRef = useRef(chainOnNotch);
+	chainOnNotchRef.current = chainOnNotch;
+	const speed = (SPEEDS as Record<string, number>)[String(raw["bloom-files-anim-speed"])] ?? 1;
+	const T = timing(speed);
+	const popMsRef = useRef(T.pop);
+	popMsRef.current = T.pop;
+	const animCloseRef = useRef(animClose);
+	animCloseRef.current = animClose;
+	// A confirmed pick: the wheel pops (grows 4%) and fades for 90 ms before the job starts.
+	const [popping, setPopping] = useState(false);
+	// Set when the user cancels a job: whatever the job returns afterwards is not shown (no red flash).
+	const cancelledJob = useRef(false);
 
 	/** Modes for the current input; before a drag has entered, every mode. */
 	const modesNow = useCallback(() => {
-		const { input, layout } = state.current;
-		return hasInput(input) ? modesFor(input, layout) : layout.modes;
+		const { input, layout, chain } = state.current;
+		const view = chainAfter(input, chain) ?? input;
+		return hasInput(view) ? modesFor(view, layout) : layout.modes;
 	}, []);
 	const modes = modesNow();
-	const ops = opsFor(input, mode, layout);
+	const viewInput = chainAfter(input, chain) ?? input;
+	const ops = opsFor(viewInput, mode, layout);
 
 	const close = useCallback(() => {
+		setChain([]);
 		setPhase({ kind: "closed" });
 		invoke("orbit_close").catch(() => {});
 	}, []);
 
 	const cycle = useCallback(() => {
 		const list = modesNow();
+		setBloomKey((k) => k + 1);
 		setMode((m) => list[(list.indexOf(m) + 1) % list.length] ?? m);
 		setHover(HUB);
 	}, [modesNow]);
+
+	// The chain being built shows on the notch ("Invert › PDF ›") while the wheel is open.
+	useEffect(() => {
+		if (!chainOnNotchRef.current || phase.kind !== "wheel") return;
+		const status: OrbitStatus = chain.length ? { text: `${chain.map(opLabel).join(" › ")} ›`, percent: null, result: null } : null;
+		emitTo("main", "orbit-status", status).catch(() => {});
+	}, [chain, phase.kind, chainOnNotch]);
 
 	// The status goes to the notch instead: this window steps out of the way.
 	useEffect(() => {
@@ -152,6 +210,8 @@ function Orbit() {
 
 	const finish = useCallback(
 		(text: string, result: Result) => {
+			// After a cancel nothing else may report: no failure over "Canceled".
+			if (cancelledJob.current && result !== "canceled") return;
 			setPhase({ kind: "done", text, result });
 			if (!state.current.inNotch) shrink();
 			const s = state.current.seconds;
@@ -163,17 +223,67 @@ function Orbit() {
 		[close]
 	);
 
+	/** A short message in the hub ("Cannot perform the action"). */
+	const flash = useCallback((text: string) => {
+		setChainNote(text);
+		window.setTimeout(() => setChainNote((n) => (n === text ? null : n)), 1500);
+	}, []);
+
 	const run = useCallback(
-		async (op: OrbitOp, input: OrbitInput) => {
+		async (op: OrbitOp, input: OrbitInput, steps: string[] = state.current.chain, popped = false) => {
+			if (!popped && animCloseRef.current && phaseRef.current.kind === "wheel") {
+				setPopping(true);
+				await new Promise((done) => setTimeout(done, popMsRef.current));
+				setPopping(false);
+			}
 			// Dragged text: copying it is what records it, so it lands in the
 			// shelf once and is also on the clipboard.
+			const ids = [...steps, op.id];
+			if (!chainValid(input, ids)) {
+				setPopping(false);
+				flash("Cannot perform the action");
+				return;
+			}
 			if (input.text) {
+				// Text chains: the upper/lower steps are applied in turn, then the last option acts.
+				let t = input.text;
+				// Save .txt in the middle: the text is saved, then the rest acts on the file.
+				const saveAt = ids.indexOf("text.save");
+				for (const id of saveAt < 0 ? steps : ids.slice(0, saveAt))
+					t = id === "text.upper" ? t.toUpperCase() : id === "text.lower" ? t.toLowerCase() : t;
 				try {
-					await writeText(input.text);
-					finish("Added to the shelf and copied", "ok");
+					if (saveAt >= 0 && saveAt < ids.length - 1) {
+						const path = await invoke<string>("orbit_save_text", { text: t });
+						const rest = ids.slice(saveAt + 1);
+						const last = opById(rest[rest.length - 1]);
+						if (last) return run(last, { paths: [path] }, rest.slice(0, -1), true);
+					}
+					if (op.id === "text.upper") {
+						await writeText(t.toUpperCase());
+						finish("Copied in UPPER CASE", "ok");
+					} else if (op.id === "text.lower") {
+						await writeText(t.toLowerCase());
+						finish("Copied in lower case", "ok");
+					} else if (op.id === "text.count") {
+						const words = t.trim() ? t.trim().split(/\s+/).length : 0;
+						finish(`${words} word${words === 1 ? "" : "s"} · ${t.length} characters`, "ok");
+					} else if (op.id === "text.search") {
+						await openUrl(`https://www.google.com/search?q=${encodeURIComponent(t.trim().slice(0, 500))}`);
+						finish("Searching the web", "ok");
+					} else if (op.id === "text.save") {
+						const path = await invoke<string>("orbit_save_text", { text: t });
+						finish(`Saved ${fileName(path)}`, "ok");
+					} else {
+						await writeText(t);
+						finish("Added to the shelf and copied", "ok");
+					}
 				} catch (e) {
 					finish(String(e), "failed");
 				}
+				return;
+			}
+			if (op.id === "tool.image.resize") {
+				setPhase({ kind: "size", op, input });
 				return;
 			}
 			// Split asks for the page ranges first (the colon form carries them).
@@ -188,14 +298,15 @@ function Orbit() {
 				return;
 			}
 			const picking = PICKS_FOLDER.includes(op.id);
+			cancelledJob.current = false;
 			setPhase({ kind: "running", op, percent: picking ? null : 0 });
 			if (!picking && !state.current.inNotch) shrink();
 			let text: string;
 			let result: Result = "ok";
 			try {
-				const outcomes = await invoke<Outcome[]>("orbit_run", { op: op.id, paths: input.paths });
+				const outcomes = await invoke<Outcome[]>("orbit_run", { ops: ids, paths: input.paths });
 				// Already shown as Canceled (Esc or ×): the rest finished quietly.
-				if (phaseRef.current.kind !== "running") return;
+				if (cancelledJob.current || phaseRef.current.kind !== "running") return;
 				const errors = outcomes.filter((o) => o.error);
 				const outputs = outcomes.flatMap((o) => (o.output ? [o.output] : []));
 				if (errors.length && errors.every((o) => o.error === "Canceled")) {
@@ -210,39 +321,102 @@ function Orbit() {
 							: `${errors.length} of ${outcomes.length} failed. ${name}: ${errors[0].error}`;
 				} else if (outputs.length === 1) text = `Saved ${fileName(outputs[0])}`;
 				else if (outputs.length) text = `Saved ${outputs.length} files`;
-				else text = op.id === "action.shelf" ? "Added to the shelf and copied" : `${op.label}: done`;
+				else text = op.id === "action.shelf" ? "Added to the shelf and copied" : ids.length > 1 ? `${ids.map(opLabel).join(" › ")}: done` : `${op.label}: done`;
 			} catch (e) {
 				result = "failed";
 				text = String(e);
 			}
 			finish(text, result);
 		},
-		[finish]
+		[finish, flash]
 	);
 
 	useEffect(() => {
 		// Points arrive in physical client pixels.
-		const hitAt = (x: number, y: number, input = state.current.input) => {
+		const hitAt = (x: number, y: number, input = viewOf()) => {
 			const { mode, layout } = state.current;
 			return hitTest(x / devicePixelRatio - C, y / devicePixelRatio - C, opsFor(input, mode, layout).length);
+		};
+		/** Runs the steps chosen so far (the last one acts as the option). False when there are none. */
+		const runChainNow = (input = state.current.input) => {
+			const { chain } = state.current;
+			const last = chain.length ? opById(chain[chain.length - 1]) : undefined;
+			if (!last) return false;
+			// The steps are passed along: re-rendering would reset state.current.chain.
+			run(last, input, chain.slice(0, -1));
+			return true;
 		};
 		const offs = [
 			listen<{ paths: string[]; drag: boolean }>("orbit-open", (e) => {
 				const next = { paths: e.payload.paths };
 				setInput(next);
 				state.current.input = next;
+				cancelledJob.current = false;
+				state.current.chain = [];
+				setChain([]);
+				setChainNote(null);
 				setMode(modesNow()[0] ?? "convert");
 				setHover(HUB);
+				setBloomKey((k) => k + 1);
+				setPopping(false);
 				setPhase({ kind: "wheel" });
 			}),
 			listen("orbit-canceled", () => {
-				if (phaseRef.current.kind === "running") finish("Canceled", "canceled");
+				if (phaseRef.current.kind === "running") {
+					cancelledJob.current = true;
+					finish("Canceled", "canceled");
+				}
 			}),
 			listen("orbit-close", () => {
 				if (phaseRef.current.kind === "wheel" || phaseRef.current.kind === "ranges") setPhase({ kind: "closed" });
 			}),
 			listen("orbit-shift", () => {
 				if (phaseRef.current.kind === "wheel") cycle();
+			}),
+			// Backspace: one step back.
+			listen("orbit-back", () => {
+				if (phaseRef.current.kind !== "wheel" || !state.current.chain.length) return;
+				const next = state.current.chain.slice(0, -1);
+				state.current.chain = next;
+				setChain(next);
+				setHover(HUB);
+				setBloomKey((k) => k + 1);
+				const after = chainAfter(state.current.input, next) ?? state.current.input;
+				setMode(hasInput(after) ? (modesFor(after, state.current.layout)[0] ?? "convert") : "convert");
+			}),
+			// The chain key is let go: on an option it joins the chain; in the middle it
+			// runs the chain as it is. (Backspace takes the last step back.)
+			listen("orbit-add", () => {
+				if (phaseRef.current.kind !== "wheel") return;
+				const { input, mode, layout, chain } = state.current;
+				if (!hasInput(input)) return;
+				const view = chainAfter(input, chain) ?? input;
+				const list = opsFor(view, mode, layout);
+				const at = hoverRef.current;
+				const setTo = (next: string[]) => {
+					state.current.chain = next;
+					setChain(next);
+					setHover(HUB);
+					setBloomKey((k) => k + 1);
+					const after = chainAfter(input, next) ?? input;
+					setMode(hasInput(after) ? (modesFor(after, layout)[0] ?? "convert") : "convert");
+				};
+				if (at === HUB) {
+					runChainNow(input);
+					return;
+				}
+				const op = list[at];
+				if (!op) return;
+				if (op.id === "tool.pdf.split") return flash("Click it to run it last");
+				if (op.id === "tool.image.resize") {
+					if (chainStep(view, op.id, chain.some(makesFiles)) === false) return flash("Cannot perform the action");
+					return setPhase({ kind: "size", op, input: view, add: true });
+				}
+				const changed = chain.some(makesFiles);
+				const next = chainStep(view, op.id, changed);
+				if (next === false) return flash("Cannot perform the action");
+				if (next === null) return flash("Click it to run it last");
+				setTo([...chain, op.id]);
 			}),
 			listen<number>("orbit-progress", (e) => {
 				const p = phaseRef.current;
@@ -262,19 +436,23 @@ function Orbit() {
 				}
 				setHover(hitAt(e.payload.position.x, e.payload.position.y));
 			}),
-			listen<{ x: number; y: number }>("orbit-drag-over", (e) => setHover(hitAt(e.payload.x, e.payload.y))),
+			listen<{ x: number; y: number }>("orbit-drag-over", (e) => {
+				setHover(hitAt(e.payload.x, e.payload.y));
+				setPtr({ x: e.payload.x / devicePixelRatio, y: e.payload.y / devicePixelRatio });
+			}),
 			listen<DragPayload>("orbit-drag-drop", (e) => {
 				if (phaseRef.current.kind !== "wheel") return;
 				const dropped = inputOf(e.payload);
 				const { mode, layout } = state.current;
-				const i = hitAt(e.payload.position.x, e.payload.position.y, dropped);
-				if (i >= 0) run(opsFor(dropped, mode, layout)[i], dropped);
-				else close();
+				const i = hitAt(e.payload.position.x, e.payload.position.y, chainAfter(dropped, state.current.chain) ?? dropped);
+				if (i >= 0) run(opsFor(chainAfter(dropped, state.current.chain) ?? dropped, mode, layout)[i], dropped);
+				// Let go anywhere else: the steps chosen so far run; with none, it closes.
+				else if (!runChainNow(dropped)) close();
 			}),
 			// The drag ended: unless it landed on an option, close.
 			listen("orbit-release", () =>
 				setTimeout(() => {
-					if (phaseRef.current.kind === "wheel") close();
+					if (phaseRef.current.kind === "wheel" && !runChainNow()) close();
 				}, 300)
 			)
 		];
@@ -296,6 +474,33 @@ function Orbit() {
 				files={phase.input.paths.length}
 				onPick={(ranges) => run({ ...phase.op, id: `${phase.op.id}:${ranges}` }, phase.input)}
 				onCancel={close}
+			/>
+		);
+
+	if (phase.kind === "size")
+		return (
+			<PickRing
+				title="Resize"
+				placeholder="1200"
+				presets={SIZE_PRESETS}
+				check={(t) =>
+					!t
+						? { value: null, note: "Longest side, px", bad: false }
+						: /^\d+$/.test(t) && +t >= 16 && +t <= 20000
+							? { value: t, note: `Longest side ${t} px`, bad: false }
+							: { value: null, note: "A size like 1200", bad: true }
+				}
+				onPick={(px) => {
+					if (!phase.add) return run({ ...phase.op, id: `${phase.op.id}:${px}` }, phase.input);
+					// Resize in the middle of a chain: it joins the chain and the wheel comes back.
+					const next = [...state.current.chain, `${phase.op.id}:${px}`];
+					state.current.chain = next;
+					setChain(next);
+					setHover(HUB);
+					setBloomKey((k) => k + 1);
+					setPhase({ kind: "wheel" });
+				}}
+				onCancel={phase.add ? () => setPhase({ kind: "wheel" }) : close}
 			/>
 		);
 
@@ -348,6 +553,7 @@ function Orbit() {
 						<button
 							title="Cancel (Esc)"
 							onClick={() => {
+								cancelledJob.current = true;
 								invoke("orbit_cancel").catch(() => {});
 								finish("Canceled", "canceled");
 							}}
@@ -364,15 +570,19 @@ function Orbit() {
 	const count = input.paths.length;
 	return (
 		<motion.div
+			key={bloomKey}
 			className="orbit"
-			initial={{ scale: 0.5, opacity: 0, rotate: -30 }}
-			animate={{ scale: 1, opacity: 1, rotate: 0 }}
-			transition={SPRING}
+			initial={animOpen ? { scale: 0.4, opacity: 0 } : false}
+			animate={popping ? { scale: 1.04, opacity: 0 } : { scale: 1, opacity: 1 }}
+			transition={popping ? { duration: T.pop / 1000, ease: "easeIn" } : T.bloom}
 		>
 			<svg
 				width={SIZE}
 				height={SIZE}
-				onPointerMove={(e) => setHover(hitTest(e.clientX - C, e.clientY - C, ops.length))}
+				onPointerMove={(e) => {
+					setHover(hitTest(e.clientX - C, e.clientY - C, ops.length));
+					if (state.current.chain.length) setPtr({ x: e.clientX, y: e.clientY });
+				}}
 				onPointerLeave={() => setHover(HUB)}
 				onClick={(e) => {
 					const i = hitTest(e.clientX - C, e.clientY - C, ops.length);
@@ -385,9 +595,6 @@ function Orbit() {
 				<motion.g
 					key={`${mode}|${ops.length}`}
 					style={ORIGIN}
-					initial={{ rotate: -40, scale: 0.85 }}
-					animate={{ rotate: 0, scale: 1 }}
-					transition={SPRING}
 				>
 					{ops.map((op, i) => {
 						const mid = -90 + i * step;
@@ -400,9 +607,14 @@ function Orbit() {
 								key={op.id}
 								className={`orbit-slice${hover === i ? " hover" : ""}`}
 								style={ORIGIN}
-								initial={{ opacity: 0, scale: 0.6 }}
-								animate={{ opacity: 1, scale: hover === i ? 1.06 : 1 }}
-								transition={{ ...SPRING, opacity: { delay: i * 0.025, duration: 0.15 } }}
+								// Each slice swings in on its own, past its place and back, one after another.
+								initial={animSwitch ? { rotate: -16, opacity: 0 } : false}
+								animate={{ rotate: 0, opacity: 1, scale: hover === i ? 1.06 : 1 }}
+								transition={{
+									...SPRING,
+									rotate: { ...T.slice, delay: lag(i, ops.length, speed) },
+									opacity: { delay: lag(i, ops.length, speed), duration: 0.12 * speed }
+								}}
 							>
 								{ops.length === 1 ? (
 									<path d={`${slicePath(-90, 89.99)} ${slicePath(90, 269.99)}`} />
@@ -430,7 +642,14 @@ function Orbit() {
 					>
 						<strong>{input.text ? "Text" : count ? MODE_LABEL[mode] : "Files"}</strong>
 						<span>
-							{input.text ? "Selected text" : count ? `${count} file${count > 1 ? "s" : ""}` : "Move to choose"}
+							{chainNote ??
+								(chain.length
+									? `${chain.map(opLabel).join(" › ")} ›`
+									: input.text
+										? "Selected text"
+										: count
+											? `${count} file${count > 1 ? "s" : ""}`
+											: "Move to choose")}
 						</span>
 						<div className="orbit-dots">
 							{modes.map((m) => (
@@ -440,12 +659,30 @@ function Orbit() {
 					</motion.div>
 				</foreignObject>
 			</svg>
+			{chain.length > 0 && ptr && !chainOnNotch && (
+				<span
+					className="orbit-tag"
+					style={{ top: Math.min(SIZE - 22, ptr.y + 14), ...(ptr.x > C ? { right: SIZE - ptr.x + 12 } : { left: ptr.x + 12 }) }}
+				>
+					{chain.map(opLabel).join(" › ")} ›
+				</span>
+			)}
 		</motion.div>
 	);
 }
 
-/** Split's second ring: one-click page choices around a hub where any
- *  ranges can be typed ("1-5, 6-20"); Enter splits. */
+/** Resize's sizes: the longest side, never made bigger. */
+const SIZE_PRESETS = [
+	{ label: "4K", hint: "3840 px", value: "3840" },
+	{ label: "Full HD", hint: "1920 px", value: "1920" },
+	{ label: "HD", hint: "1280 px", value: "1280" },
+	{ label: "Small", hint: "800 px", value: "800" },
+	{ label: "Thumbnail", hint: "320 px", value: "320" }
+];
+
+type Check = { value: string | null; note: string; bad: boolean };
+
+/** Split's page ranges: one-click choices plus typed ranges ("1-5, 6-20"). */
 function RangeRing({
 	pages,
 	files,
@@ -455,6 +692,40 @@ function RangeRing({
 	pages: number | null;
 	files: number;
 	onPick: (ranges: string) => void;
+	onCancel: () => void;
+}) {
+	const presets = pages ? splitPresets(pages, files).map((p) => ({ label: p.label, hint: p.hint, value: p.ranges })) : [];
+	const check = (text: string): Check => {
+		if (pages === null) return { value: null, note: "Counting pages…", bad: false };
+		const parsed = parseRanges(text, pages);
+		if (typeof parsed === "string") return { value: null, note: parsed, bad: true };
+		if (pages < 2 && !text) return { value: formatRanges(parsed), note: "Only one page", bad: false };
+		return {
+			value: formatRanges(parsed),
+			note: `${parsed.length} PDF${parsed.length === 1 ? "" : "s"} · ${files > 1 ? `${files} files` : `${pages} pages`}`,
+			bad: false
+		};
+	};
+	return <PickRing title="Split" placeholder="1-5, 6-20" presets={presets} disabled={pages === null} check={check} onPick={onPick} onCancel={onCancel} />;
+}
+
+/** A second ring that asks for one value: one-click choices around a hub
+ *  where it can be typed; Enter takes it (Split's ranges, Resize's size). */
+function PickRing({
+	title,
+	placeholder,
+	presets,
+	disabled = false,
+	check,
+	onPick,
+	onCancel
+}: {
+	title: string;
+	placeholder: string;
+	presets: { label: string; hint: string; value: string }[];
+	disabled?: boolean;
+	check: (text: string) => Check;
+	onPick: (value: string) => void;
 	onCancel: () => void;
 }) {
 	const [text, setText] = useState("");
@@ -469,19 +740,10 @@ function RangeRing({
 	useEffect(() => {
 		grab();
 	}, []);
-	const presets = pages ? splitPresets(pages, files) : [];
-	const parsed = pages ? parseRanges(text, pages) : null;
+	const { value, note, bad } = check(text);
 	const step = 360 / Math.max(1, presets.length);
-	const note =
-		pages === null
-			? "Counting pages…"
-			: typeof parsed === "string"
-				? parsed
-				: pages < 2 && !text
-					? "Only one page"
-					: `${parsed?.length} PDF${parsed?.length === 1 ? "" : "s"} · ${files > 1 ? `${files} files` : `${pages} pages`}`;
 	return (
-		<motion.div className="orbit" initial={{ scale: 0.5, opacity: 0, rotate: 30 }} animate={{ scale: 1, opacity: 1, rotate: 0 }} transition={SPRING}>
+		<motion.div className="orbit" initial={localStorage.getItem("bloom-files-anim-open") === "false" ? false : { scale: 0.4, opacity: 0 }} animate={{ scale: 1, opacity: 1 }} transition={BLOOM}>
 			<svg
 				width={SIZE}
 				height={SIZE}
@@ -489,7 +751,7 @@ function RangeRing({
 				onPointerLeave={() => setHover(HUB)}
 				onClick={(e) => {
 					const i = hitTest(e.clientX - C, e.clientY - C, presets.length);
-					if (i >= 0) onPick(presets[i].ranges);
+					if (i >= 0) onPick(presets[i].value);
 					else if (i !== HUB) onCancel();
 				}}
 			>
@@ -502,7 +764,7 @@ function RangeRing({
 							key={p.label}
 							className={`orbit-slice${hover === i ? " hover" : ""}`}
 							style={ORIGIN}
-							initial={{ opacity: 0, scale: 0.6 }}
+							initial={false}
 							animate={{ opacity: 1, scale: hover === i ? 1.06 : 1 }}
 							transition={{ ...SPRING, opacity: { delay: i * 0.03, duration: 0.15 } }}
 						>
@@ -519,22 +781,22 @@ function RangeRing({
 				<circle className="orbit-hub" cx={C} cy={C} r={INNER_R - 6} />
 				<foreignObject x={C - 52} y={C - 34} width={104} height={68}>
 					<div className="orbit-hub-label orbit-ranges">
-						<strong>Split</strong>
+						<strong>{title}</strong>
 						<input
 							ref={field}
 							value={text}
-							placeholder="1-5, 6-20"
+							placeholder={placeholder}
 							spellCheck={false}
-							disabled={pages === null}
-							className={typeof parsed === "string" ? "bad" : ""}
+							disabled={disabled}
+							className={bad ? "bad" : ""}
 							onPointerDown={grab}
 							onChange={(e) => setText(e.target.value)}
 							onKeyDown={(e) => {
-								if (e.key === "Enter" && Array.isArray(parsed)) onPick(formatRanges(parsed));
+								if (e.key === "Enter" && value) onPick(value);
 								if (e.key === "Escape") onCancel();
 							}}
 						/>
-						<motion.span key={note} initial={{ y: 4, opacity: 0 }} animate={{ y: 0, opacity: 1 }} className={typeof parsed === "string" ? "bad" : ""}>
+						<motion.span key={note} initial={{ y: 4, opacity: 0 }} animate={{ y: 0, opacity: 1 }} className={bad ? "bad" : ""}>
 							{note}
 						</motion.span>
 					</div>
