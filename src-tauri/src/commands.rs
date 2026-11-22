@@ -2310,10 +2310,38 @@ pub fn close_settings_window(app: AppHandle) {
     }
 }
 
+/// The overlay window only draws the splash and the update screen, so it is
+/// created when one is due (tauri.conf.json: `create: false`) and destroyed
+/// when it ends. True when it was just created (its page is still loading).
+/// Call off the main thread.
+pub fn ensure_overlay(app: &AppHandle) -> bool {
+    let Some((win, created)) = crate::utils::ensure_window(app, "overlay") else {
+        return false;
+    };
+    if created {
+        // Layered from the start, like the notch and dock (see set_click_through).
+        let _ = win.set_ignore_cursor_events(true);
+        let handle = app.clone();
+        win.on_window_event(move |e| {
+            if let tauri::WindowEvent::CloseRequested { api, .. } = e {
+                api.prevent_close();
+                restore_taskbar_and_exit(&handle);
+            }
+        });
+    }
+    created
+}
+
+/// The notch calls this when it knows a splash is due (first run, new version).
+#[tauri::command]
+pub async fn show_splash_overlay(app: AppHandle) {
+    let _ = tauri::async_runtime::spawn_blocking(move || ensure_overlay(&app)).await;
+}
+
 #[tauri::command]
 pub fn hide_overlay(app: AppHandle) {
     if let Some(win) = app.get_webview_window("overlay") {
-        let _ = win.hide();
+        crate::utils::release_window(&win, true);
     }
 }
 
@@ -2333,6 +2361,8 @@ pub fn set_splash_fullscreen(app: AppHandle, fullscreen: bool) {
         } else {
             let _ = win.hide();
             crate::services::sync_overlays(&app);
+            // Splash or update screen over: free its renderer.
+            crate::utils::release_window(&win, true);
         }
     }
 }

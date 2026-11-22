@@ -165,6 +165,7 @@ fn main() {
             set_ignore_cursor_events,
             set_window_height,
             hide_overlay,
+            show_splash_overlay,
             set_splash_fullscreen,
             sync_overlay_position,
             media_play_pause,
@@ -479,24 +480,6 @@ fn main() {
             });
 
             sync_overlays(app.handle());
-
-            // Initialize the overlay window — on Windows, set_position doesn't
-            // take effect on a window that has never been shown. Show it once
-            // to register it with the compositor, then hide immediately.
-            if let Some(ov_win) = app.get_webview_window("overlay") {
-                // Layered from the start, like the notch and dock (see
-                // set_click_through): the overlay has a window region too.
-                let _ = ov_win.set_ignore_cursor_events(true);
-                let _ = ov_win.show();
-                let _ = ov_win.hide();
-                let overlay_handle = app.handle().clone();
-                ov_win.on_window_event(move |e| {
-                    if let tauri::WindowEvent::CloseRequested { api, .. } = e {
-                        api.prevent_close();
-                        restore_taskbar_and_exit(&overlay_handle);
-                    }
-                });
-            }
 
             watch_webview_processes(app.handle());
             setup_mouse_hook(app.handle().clone());

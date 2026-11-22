@@ -100,7 +100,7 @@ function OverlayApp() {
 				}
 				if (mode === "idle") {
 					// Wait for the exit animation to finish before hiding
-					hideWindowTimeoutRef.current = setTimeout(() => appWindow.hide(), 400);
+					hideWindowTimeoutRef.current = setTimeout(() => invoke("hide_overlay"), 400);
 				} else {
 					await invoke("sync_overlay_position");
 					await appWindow.show();

@@ -61,6 +61,7 @@
       {
         "additionalBrowserArgs": "--disable-features=msWebOOUI,msPdfOOUI,msSmartScreenProtection --autoplay-policy=no-user-gesture-required",
         "label": "overlay",
+        "create": false,
         "title": "",
         "url": "overlay.html",
         "width": 1920,

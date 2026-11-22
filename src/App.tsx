@@ -1026,6 +1026,8 @@ function App() {
 		const storedVersion = localStorage.getItem("bloom-app-version");
 
 		const waitForSplash = () => {
+			// The overlay window only exists for the splash: ask for it.
+			invoke("show_splash_overlay").catch(() => {});
 			// Splash is definitely coming — register listener now (2800ms animation gives us plenty of time)
 			let started = false;
 			let interval: any;

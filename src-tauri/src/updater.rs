@@ -238,6 +238,7 @@ async fn install_inner(app: &AppHandle) -> Result<(), String> {
         .map_err(|e| e.to_string())?
         .ok_or_else(|| "no update available".to_string())?;
 
+    show_update_screen(app).await;
     let _ = app.emit(
         "auto-update-status",
         serde_json::json!({ "status": "downloading", "progress": 0 }),
@@ -293,6 +294,18 @@ async fn install_inner(app: &AppHandle) -> Result<(), String> {
     Ok(())
 }
 
+/// The update screen lives in the overlay window, which only exists while it
+/// is needed: create it and give its page time to start listening.
+async fn show_update_screen(app: &AppHandle) {
+    let handle = app.clone();
+    let _ = tauri::async_runtime::spawn_blocking(move || {
+        if crate::commands::ensure_overlay(&handle) {
+            std::thread::sleep(Duration::from_millis(1500));
+        }
+    })
+    .await;
+}
+
 /// Startup entry point: always checks so the UI can show an update badge, and
 /// auto-installs only when the user enabled it and the release has aged.
 pub async fn run_startup_check(app: AppHandle) {
@@ -300,6 +313,7 @@ pub async fn run_startup_check(app: AppHandle) {
         crate::utils::get_setting_str(&app, "bloom-auto-update").as_deref() == Some("true");
 
     if auto_update {
+        show_update_screen(&app).await;
         let _ = app.emit(
             "auto-update-status",
             serde_json::json!({ "status": "checking" }),
