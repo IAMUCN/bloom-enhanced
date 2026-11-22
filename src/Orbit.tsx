@@ -316,6 +316,15 @@ function Orbit() {
 			const { mode, layout } = state.current;
 			return hitTest(x / devicePixelRatio - C, y / devicePixelRatio - C, opsFor(input, mode, layout).length);
 		};
+		/** Runs the steps chosen so far (the last one acts as the option). False when there are none. */
+		const runChainNow = (input = state.current.input) => {
+			const { chain } = state.current;
+			const last = chain.length ? opById(chain[chain.length - 1]) : undefined;
+			if (!last) return false;
+			state.current.chain = chain.slice(0, -1);
+			run(last, input);
+			return true;
+		};
 		const offs = [
 			listen<{ paths: string[]; drag: boolean }>("orbit-open", (e) => {
 				const next = { paths: e.payload.paths };
@@ -368,11 +377,7 @@ function Orbit() {
 					setMode(hasInput(after) ? (modesFor(after, layout)[0] ?? "convert") : "convert");
 				};
 				if (at === HUB) {
-					const last = chain.length ? opById(chain[chain.length - 1]) : undefined;
-					if (last) {
-						state.current.chain = chain.slice(0, -1);
-						run(last, input);
-					}
+					runChainNow(input);
 					return;
 				}
 				const op = list[at];
@@ -409,12 +414,13 @@ function Orbit() {
 				const { mode, layout } = state.current;
 				const i = hitAt(e.payload.position.x, e.payload.position.y, chainAfter(dropped, state.current.chain) ?? dropped);
 				if (i >= 0) run(opsFor(chainAfter(dropped, state.current.chain) ?? dropped, mode, layout)[i], dropped);
-				else close();
+				// Let go anywhere else: the steps chosen so far run; with none, it closes.
+				else if (!runChainNow(dropped)) close();
 			}),
 			// The drag ended: unless it landed on an option, close.
 			listen("orbit-release", () =>
 				setTimeout(() => {
-					if (phaseRef.current.kind === "wheel") close();
+					if (phaseRef.current.kind === "wheel" && !runChainNow()) close();
 				}, 300)
 			)
 		];

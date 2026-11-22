@@ -153,7 +153,7 @@ export function FilesTab({ saveSetting }: { saveSetting: (key: string, value: st
 		<>
 			<div className="setting-group-label">Opening</div>
 			<div className="setting-group">
-				<p className="radial-hint">{`Files selected in Explorer or on the desktop: press ${keyName} twice. Dragging a file or text: press ${keyName} once. To chain options (invert, then PDF), hold ${keyName === "Ctrl" ? "Shift" : "Ctrl"}, move to one and let go on it to add it. Let go in the middle, or click or drop on an option, to run them all. Backspace takes the last step back; Esc drops them all.`}</p>
+				<p className="radial-hint">{`Files selected in Explorer or on the desktop: press ${keyName} twice. Dragging a file or text: press ${keyName} once. To chain options (invert, then PDF), hold ${keyName === "Ctrl" ? "Shift" : "Ctrl"}, move to one and let go on it to add it. Let go of the mouse (or the key) in the middle or anywhere off the options, or click or drop on an option, to run all the steps. Backspace takes the last step back; Esc drops them all.`}</p>
 				{enabled && (
 					<>
 						<SettingRow icon={Keyboard} label="Trigger Key" desc={`Tap it while dragging, or press it twice with files selected; it also switches menus`}>
