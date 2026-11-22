@@ -22,6 +22,7 @@ import {
 } from "../clipboardModel";
 import "./QuickPanel.css";
 import "../effects.css";
+import { useNewKeys } from "../hooks/useNewKeys";
 import "./ClipboardPanel.css";
 
 interface ClipboardPanelProps {
@@ -60,6 +61,7 @@ const openLink = (url: string) => openUrl(/^https?:/i.test(url) ? url : `https:/
 export function ClipboardPanel({ dragIcon, dropEvent, onDragStart, onDragEnd, onBusy, dragOver, layout = "notch", onClose }: ClipboardPanelProps) {
 	const options = useClipboardSettings();
 	const [items, setItems] = useState<ClipItem[]>([]);
+	const newTiles = useNewKeys(items.length ? items.map((i) => i.id) : null);
 	const [query, setQuery] = useState("");
 	const [filter, setFilter] = useState<ClipFilter>("all");
 	const [copiedId, setCopiedId] = useState<string | null>(null);
@@ -241,6 +243,7 @@ export function ClipboardPanel({ dragIcon, dropEvent, onDragStart, onDragEnd, on
 			notes={options.notes}
 			richText={options.richText}
 			copied={copiedId === key}
+			fresh={newTiles.has(key)}
 			selected={selected.has(key)}
 			onPointerDown={(e) => beginPointer(e, key)}
 			onPointerMove={(e) => movePointer(e, key, onClick ? null : it, paths, it.kind === "text" ? it.text : undefined)}

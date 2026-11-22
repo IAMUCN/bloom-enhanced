@@ -2,6 +2,9 @@ import { useEffect, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import { invoke } from "@tauri-apps/api/core";
 import { listen } from "@tauri-apps/api/event";
+import "../effects.css";
+import { Roll } from "./Roll";
+import { useNewKeys } from "../hooks/useNewKeys";
 import { ArrowLeft, Check, LogOut, Plus, Radio, Settings2, TriangleAlert, UserPlus, Users, X } from "lucide-react";
 
 type Peer = { id: string; name: string; trusted: boolean; online: boolean };
@@ -255,6 +258,7 @@ export function ShareColumn({
 	const nearby = known.filter((p) => !p.trusted);
 	const others = nearby.filter((p) => !hidden.includes(p.id));
 	const hiddenNearby = nearby.length - others.length;
+	const fresh = useNewKeys(peers ? [...known.map((p) => p.id), ...groups.map((g) => g.gid)] : null);
 	const onlineIds = new Set(known.filter((p) => p.online).map((p) => p.id));
 	const act = (call: Promise<unknown>) => call.then(loadGroups).catch((e) => setNote(String(e)));
 	const managed = sheet && typeof sheet === "object" ? groups.find((g) => g.gid === sheet.group) : undefined;
@@ -334,7 +338,7 @@ export function ShareColumn({
 				{back("Paired devices")}
 				{trusted.length ? (
 					trusted.map((p) => (
-						<div key={p.id} className="clip-share-person">
+						<div key={p.id} className={`clip-share-person${fresh.has(p.id) ? " fx-new fx-ripple" : ""}`}>
 							<span className={`clip-share-dot${p.online ? " on" : ""}`} />
 							<span className="clip-share-name">{p.name}</span>
 							{removing === p.id ? (
@@ -386,7 +390,7 @@ export function ShareColumn({
 				)}
 				{others.length ? (
 					others.map((p) => (
-						<div key={p.id} role="button" tabIndex={0} className="clip-share-person can-pair" title={`Pair with ${p.name}`} onClick={() => pair(p)} onKeyDown={(e) => e.key === "Enter" && pair(p)}>
+						<div key={p.id} role="button" tabIndex={0} className={`clip-share-person can-pair${fresh.has(p.id) ? " fx-new fx-ripple" : ""}`} title={`Pair with ${p.name}`} onClick={() => pair(p)} onKeyDown={(e) => e.key === "Enter" && pair(p)}>
 							<span className="clip-share-dot on" />
 							<span className="clip-share-name">{p.name}</span>
 							<UserPlus size={13} />
@@ -549,7 +553,7 @@ export function ShareColumn({
 			<div
 				key={id}
 				data-share-peer={id}
-				className={`clip-share-chip${selected.length ? " can-send" : ""}${st?.error ? " failed" : ""}${busy ? " fx-beam" : ""}`}
+				className={`clip-share-chip${selected.length ? " can-send" : ""}${st?.error ? " failed fx-flash fx-flash-bad" : st?.sent ? " fx-flash" : ""}${busy ? " fx-beam" : ""}${fresh.has(id) ? " fx-new fx-ripple" : ""}`}
 				title={st?.error ?? (selected.length ? `Send ${selected.length} to ${name}` : `${name} · ${online ? "online" : "offline"} · drop here to send`)}
 				onClick={() => {
 					if (!selected.length || busy) return;
@@ -603,7 +607,13 @@ export function ShareColumn({
 					)}
 					{(incoming || note) && (
 						<div className="clip-share-note">
-							{incoming ? `From ${incoming.from} · ${Math.floor((incoming.done / Math.max(1, incoming.total)) * 100)}%` : note}
+							{incoming ? (
+								<>
+									From {incoming.from} · <Roll value={Math.floor((incoming.done / Math.max(1, incoming.total)) * 100)} />%
+								</>
+							) : (
+								note
+							)}
 						</div>
 					)}
 					{hasPeople || waiting ? (

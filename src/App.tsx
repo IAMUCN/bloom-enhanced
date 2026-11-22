@@ -38,6 +38,7 @@ import { useAnnouncement } from "./hooks/useAnnouncement";
 import { NotchTabBar } from "./components/NotchTabBar";
 import { BloomTip } from "./components/BloomTip";
 import { BODY_VARIANTS, CC_EXIT, LIST_MOTION, LIVELY, bodyMotion } from "./motion";
+import { Roll } from "./components/Roll";
 import { CopyEffect, LotusSignature, ProgressEffect, asProgressStyle } from "./components/ProgressEffect";
 import { EXTRA_BY_ID, GRID_H, MAX_TABS, OPEN_WIDTH, TAB_BAR_HEIGHT, openingTool, pomodoroLength, orderTabs, TOOLS, parseEnabledTools, type ExtraToolId, type Tool } from "./tools";
 import { SEGMENT_BAR_HEIGHT, ToolHost, showPart } from "./notchTools/ToolHost";
@@ -4293,7 +4294,11 @@ function App() {
 																	style={{ minWidth: 0, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}
 																>
 																	{fileStatus.text}
-																	{fileStatus.percent !== null && ` • ${fileStatus.percent}%`}
+																	{fileStatus.percent !== null && (
+															<>
+																 {" • "}<Roll value={fileStatus.percent} />%
+															</>
+														)}
 																</span>
 															</motion.div>
 														) : showCopyPulse ? (

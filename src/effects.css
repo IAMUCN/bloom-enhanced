@@ -157,3 +157,106 @@
 :root.fx-off .pick-start:hover::before {
 	animation: none;
 }
+
+/* New row: a one-off accent wash. New device: also one ripple ring. */
+.fx-new {
+	position: relative;
+}
+
+.fx-new::before {
+	content: "";
+	position: absolute;
+	inset: 0;
+	border-radius: inherit;
+	pointer-events: none;
+	background: color-mix(in srgb, var(--fx-1) 40%, transparent);
+	opacity: 0;
+	animation: fx-hilite 0.9s ease-out 1;
+}
+
+.fx-ripple::after {
+	content: "";
+	position: absolute;
+	inset: 0;
+	border-radius: inherit;
+	border: 1.5px solid var(--fx-1);
+	pointer-events: none;
+	opacity: 0;
+	animation: fx-ripple 0.9s ease-out 1;
+}
+
+/* A send finished (accent) or failed (red): one edge flash, opacity only. */
+.fx-flash {
+	position: relative;
+}
+
+.fx-flash::before {
+	content: "";
+	position: absolute;
+	inset: 0;
+	border-radius: inherit;
+	pointer-events: none;
+	box-shadow: inset 0 0 0 2px var(--fx-flash, var(--fx-1)), 0 0 8px var(--fx-flash, var(--fx-1));
+	opacity: 0;
+	animation: fx-flash 0.7s ease-out 1;
+}
+
+.fx-flash-bad {
+	--fx-flash: #ff453a;
+}
+
+@keyframes fx-hilite {
+	from {
+		opacity: 1;
+	}
+	to {
+		opacity: 0;
+	}
+}
+
+@keyframes fx-ripple {
+	from {
+		opacity: 0.8;
+		transform: scale(1);
+	}
+	to {
+		opacity: 0;
+		transform: scale(1.3, 1.6);
+	}
+}
+
+@keyframes fx-flash {
+	0% {
+		opacity: 0;
+	}
+	30% {
+		opacity: 1;
+	}
+	100% {
+		opacity: 0;
+	}
+}
+
+.roll {
+	display: inline-flex;
+	font-variant-numeric: tabular-nums;
+}
+
+.roll-d {
+	display: inline-block;
+	animation: roll-in 0.25s ease-out 1;
+}
+
+@keyframes roll-in {
+	from {
+		opacity: 0;
+		transform: translateY(70%);
+	}
+}
+
+:root.fx-off .fx-new::before,
+:root.fx-off .fx-ripple::after,
+:root.fx-off .fx-flash::before,
+:root.fx-off .roll-d {
+	animation: none;
+}
