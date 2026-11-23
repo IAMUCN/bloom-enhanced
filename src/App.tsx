@@ -887,6 +887,7 @@ function App() {
 	const lastLiveKey = useRef("");
 	const animatingRef = useRef(false);
 	const prevLive = useRef<{ width: number; height: number } | null>(null);
+	const aheadRef = useRef(0);
 	const sendNotchRegion = useMemo(
 		() =>
 			// No hold: while the pill shrinks, its live box is followed frame by frame
@@ -922,10 +923,16 @@ function App() {
 			// growing pill gets that much extra on each side and below: otherwise
 			// the region clips its newest edge square (the cut-off tiles at both
 			// sides, seen in the 23:30 video). The extra is black beside black.
+			// Measured only when the size changed: several callers run per frame, and
+			// recomputing for each made the region jump between two sizes (the
+			// flicker in the 00:05 log).
 			const prev = prevLive.current;
-			const grow = prev ? Math.max(0, live.width - prev.width, live.height - prev.height) : 0;
-			prevLive.current = { width: live.width, height: live.height };
-			const ahead = Math.min(80, grow * 3);
+			if (!prev || prev.width !== live.width || prev.height !== live.height) {
+				const grow = prev ? Math.max(0, live.width - prev.width, live.height - prev.height) : 0;
+				prevLive.current = { width: live.width, height: live.height };
+				aheadRef.current = Math.min(80, grow * 3);
+			}
+			const ahead = animatingRef.current ? aheadRef.current : 0;
 			wanted.push(
 				padRect({ x: live.left - ahead / 2, y: live.top, width: live.width + ahead, height: live.height + ahead }, 24 * pillZoom)
 			);
