@@ -2084,9 +2084,9 @@ pub async fn load_pinned_apps(app: AppHandle) -> Vec<AppInfo> {
             all_hwnds: None,
         },
         AppInfo {
-            name: "Settings".into(),
+            name: "LotusNotch Settings".into(),
             path: "bloom-settings".into(),
-            icon: None,
+            icon: Some("/lotusnotch.png".into()),
             is_running: false,
             hwnd: None,
             executable: None,

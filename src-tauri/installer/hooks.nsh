@@ -19,6 +19,9 @@
     ; every network type (home Wi-Fi, a phone hotspot, Bluetooth).
     ; Needs admin: one UAC prompt; declining only leaves
     ; sharing to Windows' prompt.
+    ; An option, not a surprise: the installer asks first.
+    MessageBox MB_YESNO|MB_ICONQUESTION "Add LotusNotch to the Windows Firewall exceptions?$\r$\n$\r$\nThis lets nearby PCs find this one and pair for sharing. Windows will ask for permission (administrator)." /SD IDYES IDNO lotus_skip_firewall
     ExecShell "runas" "$SYSDIR\cmd.exe" '/c netsh advfirewall firewall delete rule name=all program="$INSTDIR\${MAINBINARYNAME}.exe" & netsh advfirewall firewall add rule name="LotusNotch sharing" dir=in action=allow program="$INSTDIR\${MAINBINARYNAME}.exe" profile=any enable=yes' SW_HIDE
+    lotus_skip_firewall:
   ${EndIf}
 !macroend

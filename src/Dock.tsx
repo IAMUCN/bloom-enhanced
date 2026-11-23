@@ -1667,6 +1667,7 @@ const Dock = memo(function Dock() {
 
 														const isBloomOrSettings =
 															app.name.toLowerCase() === "settings" ||
+															app.name.toLowerCase() === "lotusnotch settings" ||
 															app.name.toLowerCase() === "bloom" ||
 															app.path.toLowerCase().includes("bloom.exe");
 
