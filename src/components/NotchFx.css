@@ -74,6 +74,8 @@
 /* Progress: lit lengths come from the dash array; they glide as it changes. */
 .nfx-edge path,
 .nfx-center path {
+	/* Flat ends: a round cap draws a dot at length 0 (stray light at the start and middle). */
+	stroke-linecap: butt;
 	transition: stroke-dasharray 0.3s linear, stroke-dashoffset 0.3s linear;
 }
 

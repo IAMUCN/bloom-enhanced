@@ -297,7 +297,7 @@ impl TrayExposure {
     unsafe fn new() -> Result<Self, String> {
         use std::sync::atomic::Ordering;
         if crate::state::SHUTTING_DOWN.load(Ordering::Relaxed) {
-            return Err("Bloom is shutting down.".into());
+            return Err("LotusNotch is shutting down.".into());
         }
         let hwnd = FindWindowW(w!("Shell_TrayWnd"), PCWSTR::null())
             .map_err(|_| "Windows taskbar is unavailable.")?;

@@ -3363,17 +3363,22 @@ fn end_task_targets(hwnds: &[isize]) -> Result<Vec<TaskProcess>, String> {
             continue;
         }
         if pid == std::process::id() {
-            return Err("Bloom can't end its own task. Quit it from the tray menu.".into());
+            // Ending LotusNotch's own task is a clean quit (see `end_task`).
+            targets.push(TaskProcess {
+                pid,
+                name: "LotusNotch".into(),
+            });
+            continue;
         }
         let path = unsafe { process_image_path(pid) }
-            .ok_or("This app runs with higher privileges, so Bloom can't end it.")?;
+            .ok_or("This app runs with higher privileges, so LotusNotch can't end it.")?;
         let name = std::path::Path::new(&path)
             .file_name()
             .map(|n| n.to_string_lossy().into_owned())
             .unwrap_or(path.clone());
         if is_shared_host(&path) {
             return Err(format!(
-                "{name} also runs Windows or other apps, so Bloom won't end it. Close the window instead."
+                "{name} also runs Windows or other apps, so LotusNotch won't end it. Close the window instead."
             ));
         }
         targets.push(TaskProcess { pid, name });
@@ -3401,7 +3406,7 @@ fn end_tasks(hwnds: &[isize], pids: &[u32]) -> Result<(), String> {
     let mut failed = Vec::new();
     for target in end_task_targets(hwnds)?
         .into_iter()
-        .filter(|t| pids.contains(&t.pid))
+        .filter(|t| pids.contains(&t.pid) && t.pid != std::process::id())
     {
         let ended = unsafe {
             OpenProcess(PROCESS_TERMINATE, false, target.pid).is_ok_and(|handle| {
@@ -3425,10 +3430,15 @@ fn end_tasks(hwnds: &[isize], pids: &[u32]) -> Result<(), String> {
 }
 
 #[tauri::command]
-pub async fn end_task(hwnds: Vec<isize>, pids: Vec<u32>) -> Result<(), String> {
-    tauri::async_runtime::spawn_blocking(move || end_tasks(&hwnds, &pids))
+pub async fn end_task(handle: AppHandle, hwnds: Vec<isize>, pids: Vec<u32>) -> Result<(), String> {
+    let quit_self = pids.contains(&std::process::id());
+    let result = tauri::async_runtime::spawn_blocking(move || end_tasks(&hwnds, &pids))
         .await
-        .map_err(|e| e.to_string())?
+        .map_err(|e| e.to_string())?;
+    if quit_self {
+        restore_taskbar_and_exit(&handle);
+    }
+    result
 }
 
 /// Show or remove the notch after `bloom-notch-enabled` changes. A hidden notch
