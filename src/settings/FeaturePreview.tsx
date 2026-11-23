@@ -17,7 +17,6 @@ import type { useSettings } from "./useSettings";
 import type { SettingsTab } from "./types";
 import { PreviewMediaPlayer } from "./PreviewMediaPlayer";
 import { PreviewDock } from "./PreviewDock";
-import { OpenEffectPreview } from "./EffectPreviews";
 import { RadialPreview, type RadialScene } from "./RadialPreview";
 import { ClipboardPreview, type ClipScene } from "./ClipboardPreview";
 import "../App.css";
@@ -32,7 +31,6 @@ type Feature =
 	| "device"
 	| "music"
 	| "dock"
-	| "open"
 	| ClipScene
 	| RadialScene;
 
@@ -55,8 +53,7 @@ const FEATURES: Partial<Record<SettingsTab, { id: Feature; label: string; descri
 	notch: [
 		{ id: "resting", label: "Resting", description: "The same compact notch shown on your desktop." },
 		{ id: "device", label: "Device alert", description: "The USB alert wakes the notch, even when it was hidden." },
-		{ id: "music", label: "Music", description: "Music controls appear when a player is active." },
-		{ id: "open", label: "Open effect", description: "The lotus signature as the notch opens." }
+		{ id: "music", label: "Music", description: "Music controls appear when a player is active." }
 	],
 	dock: [{ id: "dock", label: "Dock", description: "The dock rises from the bottom edge." }],
 	files: [
@@ -407,8 +404,7 @@ export function FeaturePreview({ tab, settings, focus }: FeaturePreviewProps) {
 				"Compact Mode": "music",
 				"Media Layout": "music",
 				"Ambient Glow": "music",
-				"Compact Glow": "music",
-				"Open Effect": "open"
+				"Compact Glow": "music"
 			},
 			dock: {
 				"Dock": "dock",
@@ -520,8 +516,7 @@ export function FeaturePreview({ tab, settings, focus }: FeaturePreviewProps) {
 						onBlur={() => setRevealed(false)}
 						tabIndex={0}
 					>
-						{tab === "notch" && selected.id === "open" && <OpenEffectPreview />}
-						{(tab === "general" || (tab === "notch" && selected.id !== "open") || tab === "appearance") && (
+						{(tab === "general" || tab === "notch" || tab === "appearance") && (
 							<>
 								<DeviceArtDefs />
 								<NotchPreview feature={selected.id} settings={settings} runId={replay} revealed={revealed} />

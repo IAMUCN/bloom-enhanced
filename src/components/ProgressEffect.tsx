@@ -40,11 +40,6 @@ export function CopyEffect({ full, shape }: { full?: boolean; shape?: NotchShape
 	);
 }
 
-/** Lotus signature while the notch is open (Settings › Notch › Open Effect). */
-export function LotusSignature({ full, shape }: { full?: boolean; shape?: NotchShape }) {
-	if (localStorage.getItem("bloom-open-effect") === "off") return null;
-	return shape ? <NotchFx kind="lotus" shape={shape} /> : <div className={`notch-lotus${full ? " full" : ""}`} aria-hidden />;
-}
 
 export const asProgressStyle = (v: unknown): ProgressStyle =>
 	PROGRESS_STYLES.some(([s]) => s === v) ? (v as ProgressStyle) : "edge";

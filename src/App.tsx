@@ -41,7 +41,7 @@ import { NotchTabBar } from "./components/NotchTabBar";
 import { BloomTip } from "./components/BloomTip";
 import { BODY_VARIANTS, CC_EXIT, LIST_MOTION, LIVELY, bodyMotion } from "./motion";
 import { Roll } from "./components/Roll";
-import { CopyEffect, LotusSignature, ProgressEffect, asProgressStyle } from "./components/ProgressEffect";
+import { CopyEffect, ProgressEffect, asProgressStyle } from "./components/ProgressEffect";
 import { EXTRA_BY_ID, GRID_H, MAX_TABS, OPEN_WIDTH, TAB_BAR_HEIGHT, openingTool, pomodoroLength, orderTabs, TOOLS, parseEnabledTools, type ExtraToolId, type Tool } from "./tools";
 import { SEGMENT_BAR_HEIGHT, ToolHost, showPart } from "./notchTools/ToolHost";
 import { CommandCenter, ccBodyHeight, parseCcTiles, type CcTileId, type CcTileState } from "./components/CommandCenter";
@@ -76,7 +76,6 @@ import { ConnectedDevicesPanel } from "./components/ConnectedDevicesPanel";
 import { requestSend, sharePeerAt } from "./components/ShareColumn";
 import { useHideFromCapture } from "./hooks/useHideFromCapture";
 import { DeadlineList, dayKey, useDeadlines } from "./notchTools/Deadlines";
-import { NotchOutline } from "./components/NotchOutline";
 import { ClipboardPanel } from "./components/ClipboardPanel";
 import { useClipboardSettings } from "./hooks/useClipboardSettings";
 import { clipSounds } from "./clipboardSounds";
@@ -4226,14 +4225,10 @@ function App() {
 					}}
 				>
 					<EdgeSurface edge="top" flares={attachedToEdge} />
-					{setupPreview && isVisible && (
-						<NotchOutline width={pillTargetWidth} height={pillTargetHeight} radius={minimalIdle ? 4 : isCalendarMode ? 28 : 18} flares={attachedToEdge} />
-					)}
 					{fileStatus && !isOpen && (
 						<ProgressEffect style={progressStyle} percent={fileStatus.percent} result={fileStatus.result} full={!attachedToEdge} shape={fxShape} />
 					)}
 					{showCopyPulse && !fileStatus && !isOpen && <CopyEffect full={!attachedToEdge} shape={fxShape} />}
-					{isOpen && <LotusSignature full={!attachedToEdge} shape={fxShape} />}
 					{toolTimer && !fileStatus && !isOpen && (timerDisplay === "edge" || timerDisplay === "both") && (
 						<ProgressEffect style="edge" percent={((toolTimer.total - toolTimer.left) / toolTimer.total) * 100} />
 					)}
