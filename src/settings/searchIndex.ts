@@ -35,7 +35,7 @@ export const SETTINGS_INDEX: SettingEntry[] = [
 		["Hide the Shelf", "Recordings, screen shares and screenshots leave the Shelf on a screen edge out"],
 		["Hide the Radial Menu", "Recordings, screen shares and screenshots leave the radial menu out"],
 		["Export Settings", "Save your whole setup (every preference, pinned dock apps, custom icons) to a file: a backup"],
-		["Import Settings", "Load a LotusNotch, Bloom Enhanced or Bloom settings file; applies right away"],
+		["Import Settings", "Load a LotusNotch, Bloom Enhanced or Bloom settings file; LotusNotch restarts to apply it"],
 		["Run Setup Again", "Pick your modules, then size the notch and dock with a live preview"],
 		["Reset to Defaults", "Restore all settings and restart LotusNotch"],
 		["Restart LotusNotch", "Reinitialize all components"],

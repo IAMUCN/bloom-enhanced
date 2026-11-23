@@ -1281,7 +1281,16 @@ pub fn low_memory_mode() -> bool {
         .unwrap_or(true)
 }
 
-/// Load settings.json into the in-memory cache. Call once at startup.
+/// The author's own setup (colours, sizes, positions, layouts) from
+/// `default-settings.json`: a fresh install starts from it, "Reset to defaults"
+/// restores it, and an import fills in what an older file lacks. Personal data
+/// (name, city) and state are not in it.
+pub fn default_settings() -> std::collections::HashMap<String, serde_json::Value> {
+    serde_json::from_str(include_str!("../default-settings.json")).unwrap_or_default()
+}
+
+/// Load settings.json into the in-memory cache. Call once at startup. A fresh
+/// install (no file yet) gets the default setup written to it.
 pub fn init_settings_cache(app: &tauri::AppHandle) {
     use crate::state::SETTINGS_CACHE;
     use tauri::Manager;
@@ -1293,6 +1302,12 @@ pub fn init_settings_cache(app: &tauri::AppHandle) {
         .ok()
         .map(|p| p.join("settings.json"))
     {
+        if !path.exists() {
+            if let Some(dir) = path.parent() {
+                let _ = std::fs::create_dir_all(dir);
+            }
+            let _ = write_settings_file(&path, &default_settings());
+        }
         if let Ok(settings) = read_settings_file(&path) {
             if let Ok(mut cache) = cache.lock() {
                 *cache = settings;
@@ -2161,5 +2176,25 @@ mod tests {
         assert!(!module_setting_enabled(Some(&serde_json::json!("false"))));
         assert!(!module_setting_enabled(Some(&serde_json::json!("invalid"))));
         assert!(!module_setting_enabled(Some(&serde_json::json!(true))));
+    }
+
+    #[test]
+    fn default_settings_hold_the_setup_but_no_personal_data_or_state() {
+        let defaults = super::default_settings();
+        assert!(defaults.len() > 50);
+        for key in [
+            "bloom-share-name",
+            "bloom-weather-city",
+            "bloom-setup-done",
+            "bloom-tools-picked",
+            "bloom-first-run",
+            "bloom-announcement-dismissed",
+            "bloom-notch-monitor",
+            "bloom-dock-monitor",
+        ] {
+            assert!(!defaults.contains_key(key), "{key} must not be a default");
+        }
+        assert!(defaults.values().all(|v| v.is_string()));
+        assert!(defaults.contains_key("bloom-theme-color"));
     }
 }

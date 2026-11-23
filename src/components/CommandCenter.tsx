@@ -1,5 +1,6 @@
+import { useEffect, useRef } from "react";
 import type { MouseEvent, WheelEvent } from "react";
-import { motion } from "framer-motion";
+import { motion, useSpring, useTransform } from "framer-motion";
 import { BOUNCY, SNAP } from "../motion";
 import { shortcutHint } from "../shortcutKeys";
 import {
@@ -172,10 +173,29 @@ function Slider({
 	onChange: (value: number) => void;
 	onIcon: () => void;
 }) {
+	// The fill and the number glide to the value (a stiff spring with no bounce), so
+	// 2 % wheel steps flow instead of jumping; a drag follows the pointer at once.
+	const glide = useSpring(value, { stiffness: 420, damping: 42, mass: 0.5 });
+	const dragging = useRef(false);
+	useEffect(() => {
+		if (dragging.current) glide.jump(value);
+		else glide.set(value);
+	}, [value, glide]);
+	const scale = useTransform(glide, (v) => v / 100);
+	const shown = useTransform(glide, (v) => `${Math.round(v)}%`);
+	// Wheel steps add up from the last value asked for, not from the prop, which
+	// is a render behind when notches arrive quickly; a trackpad's small deltas count in proportion.
+	const wanted = useRef(value);
+	useEffect(() => {
+		wanted.current = value;
+	}, [value]);
 	const wheel = (e: WheelEvent) => {
 		e.stopPropagation();
 		if (e.deltaY === 0) return;
-		onChange(Math.max(0, Math.min(100, value + (e.deltaY < 0 ? step : -step))));
+		const notches = Math.max(-1, Math.min(1, -e.deltaY / 100)) || Math.sign(-e.deltaY) * 0.2;
+		const next = Math.max(0, Math.min(100, wanted.current + notches * step));
+		wanted.current = next;
+		if (Math.round(next) !== value) onChange(Math.round(next));
 	};
 	return (
 		<div className="cc-slider" onWheel={wheel}>
@@ -192,7 +212,7 @@ function Slider({
 				<span>{label}</span>
 			</button>
 			<motion.div className="cc-slider-track" whileTap={{ scaleY: 1.25 }} transition={BOUNCY}>
-				<div className="cc-slider-fill" style={{ transform: `scaleX(${value / 100})` }} />
+				<motion.div className="cc-slider-fill" style={{ scaleX: scale }} />
 				<input
 					type="range"
 					min={0}
@@ -201,11 +221,15 @@ function Slider({
 					value={value}
 					aria-label={label}
 					onChange={(e) => onChange(Number(e.target.value))}
-					onPointerDown={(e) => e.stopPropagation()}
+					onPointerDown={(e) => {
+						e.stopPropagation();
+						dragging.current = true;
+						window.addEventListener("pointerup", () => (dragging.current = false), { once: true });
+					}}
 					onClick={(e) => e.stopPropagation()}
 				/>
 			</motion.div>
-			<span className="cc-slider-value">{value}%</span>
+			<motion.span className="cc-slider-value">{shown}</motion.span>
 		</div>
 	);
 }

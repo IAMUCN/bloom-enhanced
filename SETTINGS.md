@@ -311,3 +311,11 @@ with open(path, 'w') as f: json.dump(settings, f)
 - Changing `bloom-scale` or `bloom-dock-scale` re-registers the dock AppBar (fixed dock mode) to adjust its reserved screen space. The notch never reserves screen space: it is an overlay in every mode.
 - Settings → General → Reset to Defaults removes every `bloom-` key from `settings.json` and `localStorage` (except the `bloom-first-run` / `bloom-app-version` lifecycle sentinels), then restarts Bloom. Pinned apps (`pinned_apps.json`) and uploaded icons (`custom_icons/`) are preserved.
 - Theme changes (`bloom-theme-*`) are applied by reading all theme values from `localStorage` and calling `applyTheme()` — the theme system depends on all five theme keys being in sync.
+
+## Default setup
+
+`src-tauri/default-settings.json` holds the author's own setup (theme colours, accents, sizes, positions, layouts, tool order, Command Center tiles, effects). A fresh install writes it as `settings.json`; "Reset to defaults" and "Reset this page" restore it; an imported file from an older version gets it for the keys it lacks. It has no personal data (name, city, pinned apps), no state (first-run, setup-done, last panel, weather cache), no shortcuts and no display names. To change the defaults, copy the wanted values from a `settings.json` into that file.
+
+## Export and import
+
+Export writes every `bloom-*` preference grouped by page (general, appearance, notch, dock, shelf, radialMenu) plus the dock's pinned apps and custom icons. Left out on purpose: state keys, removed features (the volume/brightness edge HUDs) and the display names (`bloom-*-monitor`, they belong to one PC). History, notes, to-dos and pairings are data, not settings, and stay on the PC. Import keeps this PC's state and display keys, fills missing keys from the default setup, drops removed features and restarts LotusNotch.

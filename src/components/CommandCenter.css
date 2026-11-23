@@ -200,8 +200,8 @@
 	background: #26262b;
 }
 
-/* The fill scales (transform only) and follows the value at once: an eased
-   fill looked glitchy on 5 % wheel steps (user, 2026-11-15). */
+/* The fill scales (transform only); the spring in CommandCenter.tsx glides it
+   (a CSS ease looked glitchy on 5 % wheel steps, user 2026-11-15). */
 .cc-slider-fill {
 	position: absolute;
 	inset: 0;

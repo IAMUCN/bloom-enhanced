@@ -4161,21 +4161,32 @@ const SETTINGS_EXPORT_FORMAT: u64 = 2;
 
 /// Settings-file keys that are state, not preferences: never exported, and
 /// kept from the current file on import.
-const STATE_KEYS: [&str; 6] = [
+const STATE_KEYS: [&str; 9] = [
     "bloom-first-run",
     "bloom-app-version",
     "bloom-announcement-dismissed",
     "bloom-notch-last-panel",
     "bloom-weather-cached-condition",
     "bloom-weather-cached-temp",
+    // Which display a surface sits on belongs to this PC's displays.
+    "bloom-notch-monitor",
+    "bloom-dock-monitor",
+    "bloom-clipboard-monitor",
 ];
 
 /// Keys of removed features: dropped on export and import.
-const OBSOLETE_KEYS: [&str; 2] = ["bloom-corners-enabled", "bloom-files-first-mode"];
+const OBSOLETE_KEYS: [&str; 6] = [
+    "bloom-corners-enabled",
+    "bloom-files-first-mode",
+    "bloom-volume-edge-enabled",
+    "bloom-volume-overlay-enabled",
+    "bloom-brightness-edge-enabled",
+    "bloom-brightness-overlay-enabled",
+];
 
 /// The Settings page a preference lives on: the sections of the exported file.
 fn preference_section(key: &str) -> &'static str {
-    const SECTIONS: [(&str, &[&str]); 6] = [
+    const SECTIONS: [(&str, &[&str]); 5] = [
         (
             "notch",
             &[
@@ -4189,13 +4200,30 @@ fn preference_section(key: &str) -> &'static str {
                 "bloom-status-widgets",
                 "bloom-shelf-persist",
                 "bloom-device-looks",
+                // The notch's tools, Command Center and effects.
+                "bloom-cc-",
+                "bloom-tab-",
+                "bloom-tools-",
+                "bloom-timer-",
+                "bloom-game-",
+                "bloom-open-effect",
+                "bloom-progress-",
+                "bloom-copy-",
             ],
         ),
         ("dock", &["bloom-dock-", "bloom-start-icon"]),
-        ("shelf", &["bloom-clipboard-"]),
+        ("shelf", &["bloom-clipboard-", "bloom-share-"]),
         ("radialMenu", &["bloom-files-"]),
-        ("overlays", &["bloom-volume-", "bloom-brightness-"]),
-        ("appearance", &["bloom-theme-", "bloom-scale"]),
+        (
+            "appearance",
+            &[
+                "bloom-theme-",
+                "bloom-scale",
+                "bloom-accent",
+                "bloom-motion",
+                "bloom-settings-theme",
+            ],
+        ),
     ];
     SECTIONS
         .iter()
@@ -4208,7 +4236,7 @@ fn is_preference(key: &str) -> bool {
 }
 
 /// The exported file: every preference grouped by Settings page (general,
-/// appearance, notch, dock, shelf, radialMenu, overlays), and the dock's
+/// appearance, notch, dock, shelf, radialMenu), and the dock's
 /// pinned apps and custom icons.
 fn build_settings_export(
     settings: &HashMap<String, serde_json::Value>,
@@ -4372,6 +4400,19 @@ fn apply_imported_settings(
     preferences: &HashMap<String, serde_json::Value>,
 ) -> Result<(), String> {
     let mut imported = preferences.clone();
+    // A file from an older version lacks the newer settings: they get the defaults.
+    for (key, value) in crate::utils::default_settings() {
+        imported.entry(key).or_insert(value);
+    }
+    // Removed battery-saver option.
+    if let Some(serde_json::Value::String(text)) = imported.get_mut("bloom-battery-saver-pauses") {
+        if let Ok(mut pauses) = serde_json::from_str::<serde_json::Value>(text) {
+            if let Some(object) = pauses.as_object_mut() {
+                object.remove("glass");
+                *text = pauses.to_string();
+            }
+        }
+    }
 
     let path = app
         .path()
@@ -4457,6 +4498,18 @@ pub fn reset_settings(app: AppHandle, prefixes: Option<Vec<String>>) -> Result<(
     for key in &removed {
         settings.remove(key);
     }
+    // Back to the default setup (default-settings.json), not to nothing.
+    let restored: Vec<(String, serde_json::Value)> = crate::utils::default_settings()
+        .into_iter()
+        .filter(|(key, _)| {
+            prefixes
+                .as_ref()
+                .is_none_or(|list| list.iter().any(|p| key.starts_with(p.as_str())))
+        })
+        .collect();
+    for (key, value) in &restored {
+        settings.insert(key.clone(), value.clone());
+    }
 
     crate::utils::write_settings_file(&path, &settings)?;
     crate::utils::replace_settings_cache(settings);
@@ -4466,9 +4519,13 @@ pub fn reset_settings(app: AppHandle, prefixes: Option<Vec<String>>) -> Result<(
     // keys from localStorage. The caller restarts Bloom right after, but this
     // keeps the reset correct even if a window lingers.
     for key in removed {
+        let value = restored
+            .iter()
+            .find(|(k, _)| *k == key)
+            .map_or(serde_json::Value::Null, |(_, v)| v.clone());
         let _ = app.emit(
             "settings-external-changed",
-            serde_json::json!({ "key": key, "value": null }),
+            serde_json::json!({ "key": key, "value": value }),
         );
     }
     Ok(())
@@ -4619,6 +4676,9 @@ mod settings_import_tests {
             ("bloom-clipboard-position", "left"),
             ("bloom-files-key", "ctrl"),
             ("bloom-volume-edge-enabled", "true"),
+            ("bloom-accent", "#fff"),
+            ("bloom-cc-accent", "#000"),
+            ("bloom-dock-monitor", "DISPLAY2"),
             ("bloom-theme-mode", "light"),
             ("bloom-time-format-24h", "true"),
             ("bloom-weather-cached-temp", "21"),
@@ -4647,16 +4707,20 @@ mod settings_import_tests {
         assert_eq!(p["dock"]["bloom-start-icon"], "bloom-biscuit");
         assert_eq!(p["shelf"]["bloom-clipboard-position"], "left");
         assert_eq!(p["radialMenu"]["bloom-files-key"], "ctrl");
-        assert_eq!(p["overlays"]["bloom-volume-edge-enabled"], "true");
+        assert_eq!(p["appearance"]["bloom-accent"], "#fff");
+        assert_eq!(p["notch"]["bloom-cc-accent"], "#000");
         assert_eq!(p["appearance"]["bloom-theme-mode"], "light");
         assert_eq!(p["general"]["bloom-time-format-24h"], "true");
         // State and removed features stay out; pins lose their live icon.
         assert!(p["notch"].get("bloom-weather-cached-temp").is_none());
         assert!(p["general"].get("bloom-corners-enabled").is_none());
+        assert!(p["general"].get("bloom-volume-edge-enabled").is_none());
+        assert!(p["dock"].get("bloom-dock-monitor").is_none());
         assert!(file["dock"]["pinnedApps"][0]["icon"].is_null());
 
         let back = parse_settings_import(&file.to_string()).unwrap();
-        assert_eq!(back.preferences.len(), 8);
+        assert_eq!(back.preferences.len(), 9);
+        assert_eq!(back.preferences["bloom-cc-accent"], "#000");
         assert_eq!(back.preferences["bloom-files-key"], "ctrl");
         assert_eq!(back.pinned_apps.unwrap()[0].name, "Notepad");
         assert_eq!(back.custom_icons.len(), 1);

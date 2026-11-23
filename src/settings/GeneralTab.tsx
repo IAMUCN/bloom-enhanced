@@ -215,7 +215,7 @@ export function GeneralTab({
 				<SettingRow
 					icon={Upload}
 					label={importStatus === "importing" ? "Importing..." : importStatus === "success" ? "Imported!" : importStatus === "error" ? "Import failed. Check the file and try again." : "Import Settings"}
-					desc="Load a LotusNotch, Bloom Enhanced or Bloom settings file; applies right away"
+					desc="Load a LotusNotch, Bloom Enhanced or Bloom settings file; LotusNotch restarts to apply it"
 					action
 					onClick={handleImportSettings}
 				/>

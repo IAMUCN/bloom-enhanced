@@ -1030,9 +1030,11 @@ export function useSettings() {
 		try {
 			const filePath = await invoke<string | null>("import_settings_from_file");
 			if (filePath) {
+				// Every window and the notch, dock and overlay take the new setup
+				// up cleanly on a restart.
 				await loadAllSettings();
 				setImportStatus("success");
-				setTimeout(() => setImportStatus("idle"), 2000);
+				setTimeout(() => invoke("restart_bloom").catch(console.error), 900);
 			} else {
 				setImportStatus("idle");
 			}
