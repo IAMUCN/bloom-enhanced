@@ -47,7 +47,11 @@ export function NotchFx({ kind, shape, colour, percent = 0 }: { kind: FxKind; sh
 		<>
 			{sides.map(({ side, d }) => {
 				const l = progress ? lit(side) : null;
-				const extra = l ? { strokeDasharray: l.dash, strokeDashoffset: l.off } : undefined;
+				// Edge: the right half waits for the left one's glide (0.3 s in NotchFx.css), so a jump
+				// in progress sweeps from the left end across, not from both ends at once.
+				const extra = l
+					? { strokeDasharray: l.dash, strokeDashoffset: l.off, transitionDelay: kind === "edge" && side === 1 ? "0.3s" : undefined }
+					: undefined;
 				return (
 					<g key={side} opacity={l && l.dash.startsWith("0 ") ? 0 : undefined}>
 						<path d={d} pathLength={1} className="halo" style={extra} />
