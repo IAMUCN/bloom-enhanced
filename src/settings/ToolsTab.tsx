@@ -5,6 +5,7 @@ import { Choice } from "./Choice";
 import { ask } from "@tauri-apps/plugin-dialog";
 import { invoke } from "@tauri-apps/api/core";
 import { SettingRow } from "./SettingRow";
+import { Section } from "./Section";
 import {
 	EXTRA_BY_ID,
 	EXTRA_TOOLS,
@@ -258,14 +259,12 @@ function ToolPage(props: ToolsTabProps & { tool: Tool }) {
 
 			{tool.id === "command-center" && (
 				<>
-					<div className="setting-group-label">Tiles</div>
-					<div className="setting-group">
+					<Section title="Tiles">
 						<div className="page-order-wrap">
 							<CcTilePicker saveSetting={saveSetting} />
 						</div>
-					</div>
-					<div className="setting-group-label">Tile shortcuts</div>
-					<div className="setting-group">
+					</Section>
+					<Section title="Tile shortcuts">
 						<details className="settings-disclosure">
 							<summary>
 								Set a key for a quick setting <span>Wi-Fi, Bluetooth, Do not disturb…</span>
@@ -274,31 +273,29 @@ function ToolPage(props: ToolsTabProps & { tool: Tool }) {
 								<ShortcutRow key={id} action={`tile:${id}`} label={label} />
 							))}
 						</details>
-					</div>
+					</Section>
 				</>
 			)}
 
 			{tool.id === "stopwatch" && (
 				<>
-					<div className="setting-group-label">Timer</div>
-					<div className="setting-group">
+					<Section title="Timer">
 						<SettingRow icon={BellRing} label="Timer Sound" desc="Play a chime when the timer finishes" divider={false}>
 							<label className="toggle-switch">
 								<input type="checkbox" checked={timerSoundEnabled} onChange={toggleTimerSound} />
 								<span className="slider"></span>
 							</label>
 						</SettingRow>
-					</div>
+					</Section>
 				</>
 			)}
 
-			<div className="setting-group-label">Shortcut</div>
-			<div className="setting-group">
-				<ShortcutRow action={`tool:${tool.id}`} label="Open this tool" desc="Opens the notch on {tool.label}" />
+			<Section title="Shortcut">
+				<ShortcutRow action={`tool:${tool.id}`} label="Open this tool" desc={`Opens the notch on ${tool.label}`} />
 				{(TOOL_EXTRA_ACTIONS[tool.id] ?? []).map((a) => (
 					<ShortcutRow key={a.id} action={a.id} label={a.label} />
 				))}
-			</div>
+			</Section>
 
 			{tool.id === "music" && <MusicOptions {...props} />}
 
@@ -306,14 +303,13 @@ function ToolPage(props: ToolsTabProps & { tool: Tool }) {
 
 			{extra && (
 				<>
-					<div className="setting-group-label">Data</div>
-					<div className="setting-group">
+					<Section title="Data">
 						<SettingRow icon={Trash2} label="Erase Data" desc={`Delete what ${tool.label} has saved on this PC`} divider={false}>
 							<button type="button" className="tools-erase" onClick={erase}>
 								Erase
 							</button>
 						</SettingRow>
-					</div>
+					</Section>
 				</>
 			)}
 		</>
@@ -332,8 +328,7 @@ function TimerDisplayRow({ saveSetting }: { saveSetting: Save }) {
 	const [value, setValue] = useState(() => localStorage.getItem("bloom-timer-display") ?? "both");
 	return (
 		<>
-			<div className="setting-group-label">On the closed notch</div>
-			<div className="setting-group">
+			<Section title="On the closed notch">
 				<SettingRow icon={Timer} label="Countdown" desc={TIMER_DISPLAY.find(([v]) => v === value)?.[2] ?? ""} divider={false}>
 					<Choice
 						value={value}
@@ -345,7 +340,7 @@ function TimerDisplayRow({ saveSetting }: { saveSetting: Save }) {
 						label="Countdown on the closed notch"
 					/>
 				</SettingRow>
-			</div>
+			</Section>
 		</>
 	);
 }

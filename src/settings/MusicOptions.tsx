@@ -1,5 +1,6 @@
 import { Music, Minimize2, LayoutList, Sparkles, Circle } from "lucide-react";
 import { SettingRow } from "./SettingRow";
+import { Section } from "./Section";
 
 const Switch = ({ on, onChange, label }: { on: boolean; onChange: () => void; label: string }) => (
 	<label className="toggle-switch">
@@ -25,8 +26,7 @@ export interface MusicOptionsProps {
 export function MusicOptions(p: MusicOptionsProps) {
 	return (
 		<>
-			<div className="setting-group-label">Now Playing</div>
-			<div className="setting-group">
+			<Section title="Now Playing">
 				<SettingRow icon={Music} label="Music Mode" desc="Interactive live music widget" divider={p.musicModeEnabled}>
 					<Switch on={p.musicModeEnabled} onChange={p.toggleMusicMode} label="Music mode" />
 				</SettingRow>
@@ -52,7 +52,7 @@ export function MusicOptions(p: MusicOptionsProps) {
 						</SettingRow>
 					</>
 				)}
-			</div>
+			</Section>
 		</>
 	);
 }
