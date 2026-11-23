@@ -21,6 +21,7 @@ import {
 	X
 } from "lucide-react";
 import { SettingRow } from "./SettingRow";
+import { Section } from "./Section";
 import { ScaleStepper } from "./ScaleStepper";
 import {
 	KNOWN_FOLDER_OPTIONS,
@@ -188,8 +189,7 @@ export function DockTab({
 
 	return (
 		<>
-			<div className="setting-group-label">Showing</div>
-			<div className="setting-group">
+			<Section title="Showing">
 				{dockEnabled && (
 					<>
 						<SettingRow
@@ -253,10 +253,9 @@ export function DockTab({
 
 						</>
 				)}
-			</div>
+			</Section>
 
-			<div className="setting-group-label">Look</div>
-			<div className="setting-group">
+			<Section title="Look">
 				{dockEnabled && (
 					<>
 						<SettingRow icon={Maximize2} label="Dock Size" desc="Size of the dock only; the notch keeps its own">
@@ -294,10 +293,9 @@ export function DockTab({
 
 						</>
 				)}
-			</div>
+			</Section>
 
-			<div className="setting-group-label">Buttons</div>
-			<div className="setting-group">
+			<Section title="Buttons">
 				{dockEnabled && (
 					<>
 						<SettingRow icon={Copy} label="Task View" desc="Show the Task View button beside Start">
@@ -326,10 +324,9 @@ export function DockTab({
 
 						</>
 				)}
-			</div>
+			</Section>
 
-			<div className="setting-group-label">Extras</div>
-			<div className="setting-group">
+			<Section title="Extras">
 				{dockEnabled && (
 					<>
 						<SettingRow
@@ -563,7 +560,7 @@ export function DockTab({
 						</div>
 					</>
 				)}
-			</div>
+			</Section>
 		</>
 	);
 }

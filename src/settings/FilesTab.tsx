@@ -10,6 +10,7 @@ import { Choice } from "./Choice";
 import { ColourRow } from "./ColourRow";
 import { PROGRESS_STYLES, asProgressStyle } from "../components/ProgressEffect";
 import { SettingRow } from "./SettingRow";
+import { Section } from "./Section";
 
 const TRIGGER_KEYS = [
 	["shift", "Shift"],
@@ -155,8 +156,7 @@ export function FilesTab({ saveSetting }: { saveSetting: (key: string, value: st
 
 	return (
 		<>
-			<div className="setting-group-label">Opening</div>
-			<div className="setting-group">
+			<Section title="Opening">
 				<p className="radial-hint">{`Files selected in Explorer or on the desktop: press ${keyName} twice. Dragging a file or text: press ${keyName} once. To do several options in one go, see Chain Actions below.`}</p>
 				{enabled && (
 					<>
@@ -212,12 +212,11 @@ export function FilesTab({ saveSetting }: { saveSetting: (key: string, value: st
 						)}
 					</>
 				)}
-			</div>
+			</Section>
 
 			{enabled && (
 				<>
-					<div className="setting-group-label">Menu Animation</div>
-					<div className="setting-group">
+					<Section title="Menu Animation">
 						{(
 							[
 								["bloom-files-anim-open", "Opening", "The circle grows in from 40% with a small bounce each time the menu opens or changes"],
@@ -240,10 +239,9 @@ export function FilesTab({ saveSetting }: { saveSetting: (key: string, value: st
 								label="Animation speed"
 							/>
 						</SettingRow>
-					</div>
+					</Section>
 
-					<div className="setting-group-label">Chain Actions</div>
-					<div className="setting-group">
+					<Section title="Chain Actions">
 						<SettingRow icon={Link2} label="Chain Actions" desc="Do several options in one go, for example Invert an image and make it a PDF" divider={false}>
 							<span />
 						</SettingRow>
@@ -275,10 +273,9 @@ export function FilesTab({ saveSetting }: { saveSetting: (key: string, value: st
 								The menu only lists options that fit what the steps before will make. If something can't follow, it says "Cannot perform the action" and nothing runs. Resize can sit anywhere in a chain; Split and Extract can only be last, so click them to run. Text can be upper-cased, then saved as .txt, then zipped or copied by path.
 							</p>
 						</div>
-					</div>
+					</Section>
 
-					<div className="setting-group-label">Progress</div>
-					<div className="setting-group">
+					<Section title="Progress">
 						<SettingRow
 							icon={MapPin}
 							label="Show Progress"
@@ -326,7 +323,7 @@ export function FilesTab({ saveSetting }: { saveSetting: (key: string, value: st
 								format={(v) => `${v} s`}
 							/>
 						</SettingRow>
-					</div>
+					</Section>
 
 					<div className="setting-group-label">Your Menu</div>
 					<div className="setting-group radial-designer">

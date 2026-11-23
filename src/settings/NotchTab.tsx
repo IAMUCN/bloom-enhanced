@@ -12,6 +12,7 @@ import {
 } from "lucide-react";
 import { useState } from "react";
 import { SettingRow } from "./SettingRow";
+import { Section } from "./Section";
 
 /** Notch behavior (`bloom-notch-mode`): name and what it does. */
 const NOTCH_MODES = [
@@ -244,8 +245,7 @@ export function NotchTab({
 				<>
 					{section === "look" && (
 					<>
-					<div className="setting-group-label">Shape</div>
-					<div className="setting-group">
+					<Section title="Shape">
 						<SettingRow
 							icon={PanelTop}
 							label="Style"
@@ -280,10 +280,9 @@ export function NotchTab({
 						<OpenSizeRow saveSetting={saveSetting} />
 
 
-					</div>
+					</Section>
 
-					<div className="setting-group-label">Weather</div>
-					<div className="setting-group">
+					<Section title="Weather">
 						<SettingRow
 							icon={CloudSun}
 							label="Weather Status"
@@ -353,10 +352,9 @@ export function NotchTab({
 								)}
 							</div>
 						)}
-					</div>
+					</Section>
 
-					<div className="setting-group-label">Clock Bar</div>
-					<div className="setting-group">
+					<Section title="Clock Bar">
 						<div className="settings-disclosure-standalone widgets-open">
 							<div className="widgets-heading">
 								Choose status widgets <span>Arrange what appears beside the clock</span>
@@ -364,13 +362,12 @@ export function NotchTab({
 							<StatusWidgetConfig value={statusWidgets} onChange={handleWidgetsChange} />
 						</div>
 						<RowSizes saveSetting={saveSetting} />
-					</div>
+					</Section>
 					</>
 					)}
 					{section === "open" && (
 					<>
-					<div className="setting-group-label">Opening</div>
-					<div className="setting-group">
+					<Section title="Opening">
 						<SettingRow
 							icon={PanelTop}
 							label="When It Shows"
@@ -409,10 +406,9 @@ export function NotchTab({
 						<OpenOnRows saveSetting={saveSetting} />
 
 						<OpeningRows saveSetting={saveSetting} />
-					</div>
+					</Section>
 
-					<div className="setting-group-label">Shortcuts</div>
-					<div className="setting-group">
+					<Section title="Shortcuts">
 						<ShortcutRow action="notch" label="Open or close the notch" desc="Works anywhere; press Backspace while setting to clear it" />
 						<details className="settings-disclosure">
 							<summary>
@@ -422,7 +418,7 @@ export function NotchTab({
 								<ShortcutRow key={i} action={`tool-${i + 1}`} label={`Tab ${i + 1}`} />
 							))}
 						</details>
-					</div>
+					</Section>
 
 					</>
 					)}

@@ -25,6 +25,7 @@ import {
 } from "lucide-react";
 import { useClipboardSettings } from "../hooks/useClipboardSettings";
 import { SettingRow } from "./SettingRow";
+import { Section } from "./Section";
 import { CopyEffectRows } from "./CopyEffectRows";
 import { Choice } from "./Choice";
 import { ScaleStepper } from "./ScaleStepper";
@@ -214,8 +215,7 @@ export function ClipboardTab({
 		<>
 			{enabled && (
 				<>
-					<div className="setting-group-label">Position &amp; Opening</div>
-					<div className="setting-group">
+					<Section title="Position &amp; Opening">
 						<SettingRow icon={Archive} label="Keep Items" desc="Keep items dropped on the notch shelf after LotusNotch closes">
 							<label className="toggle-switch">
 								<input type="checkbox" checked={shelfPersist} onChange={toggleShelfPersist} />
@@ -287,12 +287,11 @@ export function ClipboardTab({
 								}}
 							/>
 						</SettingRow>
-					</div>
+					</Section>
 				</>
 			)}
 
-			<div className="setting-group-label">Items</div>
-			<div className="setting-group">
+			<Section title="Items">
 				<SettingRow
 					icon={Layers}
 					label="Group Copied Files"
@@ -316,34 +315,25 @@ export function ClipboardTab({
 						label="Thumbnail size"
 					/>
 				</SettingRow>
-			</div>
+			</Section>
 
 			{enabled && (
 				<>
-					<div className="setting-group-label">Features</div>
-					<div className="setting-group">
-						{FEATURE_TOGGLES.slice(0, 4).map(featureRow)}
-						<details className="settings-disclosure">
-							<summary>
-								More <span>Sounds and the Copied badge</span>
-							</summary>
-							{FEATURE_TOGGLES.slice(4).map(featureRow)}
-						</details>
-					</div>
+					<Section title="Features">
+						{FEATURE_TOGGLES.map(featureRow)}
+					</Section>
 				</>
 			)}
 
 			{enabled && options.copyIndicator && (
 				<>
-					<div className="setting-group-label">Copy Effect</div>
-					<div className="setting-group">
+					<Section title="Copy Effect">
 						<CopyEffectRows />
-					</div>
+					</Section>
 				</>
 			)}
 
-			<div className="setting-group-label">History</div>
-			<div className="setting-group">
+			<Section title="History">
 				<SettingRow icon={History} label="History Size" desc="Oldest items go first; pinned items stay">
 					<ScaleStepper
 						value={Math.max(0, LIMITS.indexOf(LIMITS.includes(limit) ? limit : 200))}
@@ -377,9 +367,8 @@ export function ClipboardTab({
 					divider={false}
 					onClick={clearHistory}
 				/>
-			</div>
-			<div className="setting-group-label">Privacy</div>
-			<div className="setting-group">
+			</Section>
+			<Section title="Privacy">
 				{enabled && (
 					<SettingRow
 						icon={EyeOff}
@@ -393,14 +382,13 @@ export function ClipboardTab({
 						</label>
 					</SettingRow>
 				)}
-			</div>
+			</Section>
 
 			{enabled && (
 				<>
-					<div className="setting-group-label">Sharing</div>
-					<div className="setting-group">
+					<Section title="Sharing">
 						<SharePortRow saveSetting={saveSetting} />
-					</div>
+					</Section>
 				</>
 			)}
 

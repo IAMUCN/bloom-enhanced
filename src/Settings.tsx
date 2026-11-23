@@ -108,9 +108,9 @@ const PAGE_KEYS: Partial<Record<SettingsTab, string[]>> = {
 function rowFor(root: HTMLElement | null, hit: SettingEntry): HTMLElement | null {
 	if (!root) return null;
 	const labelOf = (el: HTMLElement) =>
-		(el.matches(".setting-item") ? el.querySelector(".setting-label")?.textContent : el.firstChild?.textContent)?.trim() ?? "";
+		(el.matches(".setting-item") ? el.querySelector(".setting-label")?.textContent : el.matches(".gsec-head") ? el.textContent : el.firstChild?.textContent)?.trim() ?? "";
 	const rows = Array.from(
-		root.querySelectorAll<HTMLElement>(".setting-item, .settings-disclosure > summary, .setting-group-label")
+		root.querySelectorAll<HTMLElement>(".setting-item, .settings-disclosure > summary, .setting-group-label, .gsec-head")
 	).filter((el) => (hit.match ? labelOf(el).startsWith(hit.match) : labelOf(el) === hit.label));
 	const desc = hit.desc.toLowerCase();
 	return (
@@ -148,11 +148,16 @@ function SettingsApp() {
 			if (!row) return;
 			for (let el = row.parentElement; el; el = el.parentElement)
 				if (el instanceof HTMLDetailsElement) el.open = true;
-			row.scrollIntoView({ block: "center", behavior: "smooth" });
-			row.classList.remove("search-hit");
-			void row.offsetWidth;
-			row.classList.add("search-hit");
-			row.querySelector<HTMLElement>("input, button, [tabindex='0']")?.focus({ preventScroll: true });
+			// A folded section opens first, then the row scrolls into view.
+			const folded = row.closest(".gsec:not(.open)");
+			folded?.querySelector<HTMLElement>(".gsec-head")?.click();
+			setTimeout(() => {
+				row.scrollIntoView({ block: "center", behavior: "smooth" });
+				row.classList.remove("search-hit");
+				void row.offsetWidth;
+				row.classList.add("search-hit");
+				row.querySelector<HTMLElement>("input, button, [tabindex='0']")?.focus({ preventScroll: true });
+			}, folded ? 260 : 0);
 		}, 60);
 	};
 
