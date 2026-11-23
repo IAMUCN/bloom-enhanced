@@ -13,7 +13,7 @@
   "app": {
     "windows": [
       {
-        "additionalBrowserArgs": "--disable-features=msWebOOUI,msPdfOOUI,msSmartScreenProtection --autoplay-policy=no-user-gesture-required",
+        "additionalBrowserArgs": "--disable-features=msWebOOUI,msPdfOOUI,msSmartScreenProtection --autoplay-policy=no-user-gesture-required --in-process-gpu",
         "label": "main",
         "title": "",
         "width": 1920,
@@ -35,7 +35,7 @@
         "dragDropEnabled": true
       },
       {
-        "additionalBrowserArgs": "--disable-features=msWebOOUI,msPdfOOUI,msSmartScreenProtection --autoplay-policy=no-user-gesture-required",
+        "additionalBrowserArgs": "--disable-features=msWebOOUI,msPdfOOUI,msSmartScreenProtection --autoplay-policy=no-user-gesture-required --in-process-gpu",
         "label": "settings",
         "create": false,
         "title": "Settings",
@@ -59,7 +59,7 @@
         "center": true
       },
       {
-        "additionalBrowserArgs": "--disable-features=msWebOOUI,msPdfOOUI,msSmartScreenProtection --autoplay-policy=no-user-gesture-required",
+        "additionalBrowserArgs": "--disable-features=msWebOOUI,msPdfOOUI,msSmartScreenProtection --autoplay-policy=no-user-gesture-required --in-process-gpu",
         "label": "overlay",
         "create": false,
         "title": "",
@@ -82,7 +82,7 @@
         "visible": false
       },
       {
-        "additionalBrowserArgs": "--disable-features=msWebOOUI,msPdfOOUI,msSmartScreenProtection --autoplay-policy=no-user-gesture-required",
+        "additionalBrowserArgs": "--disable-features=msWebOOUI,msPdfOOUI,msSmartScreenProtection --autoplay-policy=no-user-gesture-required --in-process-gpu",
         "label": "dock",
         "title": "",
         "url": "dock.html",
@@ -104,7 +104,7 @@
         "visible": false
       },
       {
-        "additionalBrowserArgs": "--disable-features=msWebOOUI,msPdfOOUI,msSmartScreenProtection --autoplay-policy=no-user-gesture-required",
+        "additionalBrowserArgs": "--disable-features=msWebOOUI,msPdfOOUI,msSmartScreenProtection --autoplay-policy=no-user-gesture-required --in-process-gpu",
         "label": "clipshelf",
         "create": false,
         "title": "",
@@ -127,7 +127,7 @@
         "visible": false
       },
       {
-        "additionalBrowserArgs": "--disable-features=msWebOOUI,msPdfOOUI,msSmartScreenProtection --autoplay-policy=no-user-gesture-required",
+        "additionalBrowserArgs": "--disable-features=msWebOOUI,msPdfOOUI,msSmartScreenProtection --autoplay-policy=no-user-gesture-required --in-process-gpu",
         "label": "orbit",
         "create": false,
         "title": "",
