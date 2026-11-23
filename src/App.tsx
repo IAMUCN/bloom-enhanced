@@ -3601,7 +3601,10 @@ function App() {
 		isOpen && !wasOpen.current
 			? { type: "spring" as const, visualDuration: 0.45, bounce: 0.4 }
 			: !isOpen
-				? { type: "spring" as const, visualDuration: 0.3, bounce: 0.15 }
+				? // Closing: quick and without a bounce. The content fades in 0.1 s, so a slow
+					// shell left a blank black block around the clock for several frames (the
+					// "white box", seen in the 2026-11-23 23:2x videos).
+					{ type: "spring" as const, visualDuration: 0.18, bounce: 0 }
 				: LIVELY;
 	useEffect(() => {
 		wasOpen.current = isOpen;
