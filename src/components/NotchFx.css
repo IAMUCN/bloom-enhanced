@@ -14,6 +14,33 @@
 	stroke-width: 2;
 }
 
+/* The signature beam: three layers share one leading edge, so the comet fades
+   from a white head through the colour to a faint tail. Flat ends keep the start clean. */
+.nfx-signature path {
+	stroke-linecap: butt;
+	stroke-dasharray: var(--l) 3;
+	stroke-dashoffset: var(--l);
+	animation: nfx-sig 1.1s cubic-bezier(0.45, 0, 0.55, 1) 1 both, nfx-sig-hue 1.1s ease-in-out 1 both;
+}
+.nfx-signature .sig-tail { --l: 0.34; stroke: var(--fx-2, #ff4fd8); stroke-width: 6; opacity: 0.3; }
+.nfx-signature .sig-body { --l: 0.2; stroke: var(--fx-1, var(--bloom-accent, #6a55ff)); stroke-width: 3; }
+.nfx-signature .sig-head { --l: 0.05; stroke: #fff; stroke-width: 2; }
+
+@keyframes nfx-sig {
+	from {
+		stroke-dashoffset: var(--l);
+	}
+	to {
+		stroke-dashoffset: calc(var(--l) - 1.4);
+	}
+}
+
+@keyframes nfx-sig-hue {
+	to {
+		filter: hue-rotate(70deg);
+	}
+}
+
 /* One comet sweeps out from the bottom centre along both sides. */
 .nfx-beam path,
 .nfx-beam-loop path {

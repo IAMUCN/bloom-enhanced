@@ -11,7 +11,7 @@ export function CopyEffectRows() {
 	const [effect, setEffect] = useState(() => localStorage.getItem("bloom-copy-effect") ?? "beam");
 	return (
 		<>
-			<SettingRow icon={Sparkles} label="Copy Effect" desc="Light on the notch's edge when something is copied: one lap of light, a neon flash or a soft glow" divider={effect !== "off"}>
+			<SettingRow icon={Sparkles} label="Copy Effect" desc="Light on the notch's edge when something is copied: the signature beam (both ways from the centre), one lap of light, a neon flash or a soft glow" divider={effect !== "off"}>
 				<Choice
 					value={effect}
 					options={COPY_EFFECTS}

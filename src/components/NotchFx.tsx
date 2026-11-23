@@ -12,7 +12,7 @@ export interface NotchShape {
 	flares: boolean;
 }
 
-export type FxKind = "beam" | "beam-loop" | "neon" | "glow" | "lotus" | "edge" | "center";
+export type FxKind = "signature" | "beam" | "beam-loop" | "neon" | "glow" | "lotus" | "edge" | "center";
 
 // The lotus (viewBox 200x120, drawn at 150 px tall), centred on the bottom edge.
 const LOTUS = [
@@ -43,7 +43,20 @@ export function NotchFx({ kind, shape, colour, percent = 0 }: { kind: FxKind; sh
 	const style = colour
 		? ({ "--fx-1": colour, "--fx-2": `color-mix(in srgb, ${colour}, #ff4fd8 55%)` } as React.CSSProperties)
 		: undefined;
-	const paths = (
+	// The signature beam: a gradient comet (faint tail, colour body, white head)
+	// leaving the bottom centre along both sides at once, its colour drifting.
+	const signature = (
+		<>
+			{sides.map(({ side, d }) => (
+				<g key={side}>
+					<path d={d} pathLength={1} className="sig-tail" />
+					<path d={d} pathLength={1} className="sig-body" />
+					<path d={d} pathLength={1} className="sig-head" />
+				</g>
+			))}
+		</>
+	);
+	const paths = kind === "signature" ? signature : (
 		<>
 			{sides.map(({ side, d }) => {
 				const l = progress ? lit(side) : null;

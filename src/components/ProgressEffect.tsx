@@ -14,6 +14,7 @@ export const PROGRESS_STYLES: readonly (readonly [ProgressStyle, string])[] = [
 ];
 
 export const COPY_EFFECTS = [
+	["signature", "Signature"],
 	["beam", "Beam"],
 	["neon", "Neon"],
 	["glow", "Glow"],
@@ -30,10 +31,10 @@ const tint = (c: string | null): React.CSSProperties | undefined =>
 export function CopyEffect({ full, shape }: { full?: boolean; shape?: NotchShape }) {
 	const effect = localStorage.getItem("bloom-copy-effect") ?? "beam";
 	if (effect === "off") return null;
-	if (shape) return <NotchFx kind={effect as "beam" | "neon" | "glow"} shape={shape} colour={localStorage.getItem("bloom-copy-color")} />;
+	if (shape) return <NotchFx kind={effect as "signature" | "beam" | "neon" | "glow"} shape={shape} colour={localStorage.getItem("bloom-copy-color")} />;
 	return (
 		<div
-			className={`progress-beam copy-${effect}${effect === "beam" ? " fx-beam fast" : ""}${full ? " full" : ""}`}
+			className={`progress-beam copy-${effect}${effect === "beam" ? " fx-beam fast" : effect === "signature" ? " fx-beam fx-once hue" : ""}${full ? " full" : ""}`}
 			style={tint(localStorage.getItem("bloom-copy-color"))}
 			aria-hidden
 		/>

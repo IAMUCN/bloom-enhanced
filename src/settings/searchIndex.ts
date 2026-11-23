@@ -118,7 +118,7 @@ export const SETTINGS_INDEX: SettingEntry[] = [
 		["Sound Effects", "Short sounds when you copy, pin, group or delete in the clipboard"],
 		["Copy Indicator", 'The notch shows a brief "Copied" when something is recorded'],
 		["Opening Beam", "A gradient beam runs once round the edge shelf's outline each time it opens"],
-		["Copy Effect", "Light on the notch's edge when something is copied: one lap of light, a neon flash or a soft glow"],
+		["Copy Effect", "Light on the notch's edge when something is copied: the signature beam (both ways from the centre), one lap of light, a neon flash or a soft glow"],
 		["Effect Colour", "The first swatch follows your accent colour"],
 		["History Size", "Oldest items go first; pinned items stay"],
 		["Auto-Delete", "Remove unpinned items after a while"],
