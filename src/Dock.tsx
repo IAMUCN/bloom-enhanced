@@ -319,11 +319,22 @@ const Dock = memo(function Dock() {
 
 		// Keep polling until visible — no time cap, since the dock can be
 		// enabled at runtime from settings after any delay.
-		const interval = setInterval(async () => {
+		// Fast for the first 10 s, then every 2 s (a hidden dock used to cost 5 checks a second).
+		let ticks = 0;
+		let interval = setInterval(async () => {
 			if (cleared) return;
 			if (await checkVisibility()) {
 				clearInterval(interval);
 				cleared = true;
+			} else if (++ticks === 50) {
+				clearInterval(interval);
+				interval = setInterval(async () => {
+					if (cleared) return;
+					if (await checkVisibility()) {
+						clearInterval(interval);
+						cleared = true;
+					}
+				}, 2000);
 			}
 		}, 200);
 
@@ -534,7 +545,7 @@ const Dock = memo(function Dock() {
 
 		// Drives can be plugged in or removed at any time; converge like the
 		// window list does instead of trusting a one-shot fetch.
-		const interval = setInterval(load, 10000);
+		const interval = setInterval(load, 30000);
 		return () => {
 			stopped = true;
 			clearInterval(interval);
@@ -597,7 +608,7 @@ const Dock = memo(function Dock() {
 		});
 
 		// Safety net: even if a window event is missed, converge on the real state
-		const interval = setInterval(poll, 10000);
+		const interval = setInterval(poll, 30000);
 
 		return () => {
 			stopped = true;

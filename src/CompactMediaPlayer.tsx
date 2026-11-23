@@ -162,6 +162,7 @@ export function CompactMediaPlayer({
 			setDisplayPosition(pos);
 		};
 		tick();
+		if (!isPlaying) return; // a paused track doesn't move: no timer
 		const interval = setInterval(tick, 250);
 		return () => clearInterval(interval);
 	}, [isPlaying, durationMs]);

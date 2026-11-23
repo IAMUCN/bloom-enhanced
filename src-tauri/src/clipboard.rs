@@ -549,7 +549,8 @@ fn watch(app: AppHandle) {
     let mut last_cleanup = Instant::now() - CLEANUP_EVERY;
 
     loop {
-        std::thread::sleep(POLL);
+        // Off or incognito: nothing to watch, so check the setting only once a second.
+        std::thread::sleep(if active { POLL } else { Duration::from_secs(1) });
 
         if last_cleanup.elapsed() >= CLEANUP_EVERY {
             last_cleanup = Instant::now();

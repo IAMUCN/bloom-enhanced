@@ -1476,7 +1476,14 @@ pub fn set_memory_low(win: &tauri::WebviewWindow, low: bool) {
             ICoreWebView2_19, COREWEBVIEW2_MEMORY_USAGE_TARGET_LEVEL_LOW,
             COREWEBVIEW2_MEMORY_USAGE_TARGET_LEVEL_NORMAL,
         };
-        let Ok(core) = webview.controller().CoreWebView2() else {
+        let controller = webview.controller();
+        // Tauri's hide() hides the native window but the page still counts
+        // itself as visible: its timers and animations keep running. Hidden
+        // for real, they pause. Visible again before the level goes back up.
+        if !low {
+            let _ = controller.SetIsVisible(true);
+        }
+        let Ok(core) = controller.CoreWebView2() else {
             return;
         };
         if let Ok(core) = core.cast::<ICoreWebView2_19>() {
@@ -1485,6 +1492,9 @@ pub fn set_memory_low(win: &tauri::WebviewWindow, low: bool) {
             } else {
                 COREWEBVIEW2_MEMORY_USAGE_TARGET_LEVEL_NORMAL
             });
+        }
+        if low {
+            let _ = controller.SetIsVisible(false);
         }
     });
 }

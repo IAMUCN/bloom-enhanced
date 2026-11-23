@@ -1011,8 +1011,16 @@ function App() {
 				return false;
 			};
 
+			// Fast at first so the notch appears at once; if the window stays hidden
+			// (notch turned off) it backs off to a check every 2 s instead of 10 a second.
+			let ticks = 0;
 			const interval = setInterval(async () => {
-				if (await checkVisibility()) clearInterval(interval);
+				if (await checkVisibility()) return clearInterval(interval);
+				if (++ticks < 100) return;
+				clearInterval(interval);
+				const slow = window.setInterval(async () => {
+					if (await checkVisibility()) clearInterval(slow);
+				}, 2000);
 			}, 100);
 
 			checkVisibility();
@@ -3455,7 +3463,8 @@ function App() {
 	const saverOn =
 		!isCharging && (saverMode === "battery" || (saverMode === "below" && batteryLevel <= saverThreshold));
 	const visualizerOn = settingsVisualizerEnabled && !(saverOn && saverPauses.visualizer);
-	visualizerWantedRef.current = visualizerOn && settingsMusicModeEnabled;
+	// Capturing the audio costs ~30 wakeups a second, so only while something plays.
+	visualizerWantedRef.current = visualizerOn && settingsMusicModeEnabled && mediaInfo.is_playing;
 
 	// The open notch's tab bar: every enabled panel in the user's order, then
 	// Media while something is playing. Shown on the panels (the music view

@@ -384,7 +384,15 @@ fn detector(app: AppHandle) {
                 is_down(vk_add),
                 is_down(0x08),
             );
-            wait(if shift_held { 15 } else { 50 });
+            // The radial menu off (or both its triggers off): nothing to sample.
+            let idle_ms = if !shift_tap_on() && !drag_gesture_on() {
+                1000
+            } else if shift_held {
+                15
+            } else {
+                50
+            };
+            wait(idle_ms);
             continue;
         }
         let (now_shift, now_escape, now_button) =
