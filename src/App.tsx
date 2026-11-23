@@ -3944,12 +3944,29 @@ function App() {
 		if (windowLabel !== "main") return;
 		const end = performance.now() + 900;
 		animatingRef.current = true;
+		const shell = () => bloomRef.current;
+		// A page body shows only once the shell is near its final size (App.css
+		// [data-settling]): it used to be wiped in by a growing clip, which showed
+		// as hard-edged purple tiles at both sides while the notch opened, and on
+		// close as a wide body holding a narrow column of tiles.
+		const settle = () => {
+			const el = shell();
+			if (!el) return;
+			const r = el.getBoundingClientRect();
+			const w = pillTargetWidth * pillZoom;
+			const h = pillTargetHeight * pillZoom;
+			const off = Math.abs(r.width - w) > w * 0.1 || Math.abs(r.height - h) > h * 0.1;
+			if (off) el.dataset.settling = "1";
+			else delete el.dataset.settling;
+		};
 		let raf = requestAnimationFrame(function tick() {
 			if (performance.now() < end) {
+				settle();
 				updateNotchRegion();
 				raf = requestAnimationFrame(tick);
 			} else {
 				animatingRef.current = false;
+				delete shell()?.dataset.settling;
 				updateNotchRegion();
 			}
 		});

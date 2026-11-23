@@ -2291,6 +2291,15 @@ button.calendar-day:focus-visible {
 	pointer-events: auto;
 }
 
+/* While the shell is still growing or shrinking toward its size (set from App.tsx),
+   the page body stays hidden, then fades in: no wipe of hard-edged tiles. */
+.notch-body {
+	transition: opacity 0.12s ease;
+}
+.bloom[data-settling] .notch-body {
+	opacity: 0 !important;
+}
+
 /* An extra tool's body, animated as a whole (motion.ts bodyMotion). */
 .tool-host-motion {
 	flex: 1;
