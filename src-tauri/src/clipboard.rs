@@ -1639,6 +1639,8 @@ pub fn keyboard_focus(window: tauri::WebviewWindow, focus: bool) {
             let _ = unsafe { SetForegroundWindow(HWND(previous as *mut _)) };
         }
     }
+    // Activation makes the clear parts of the window's region show light.
+    crate::window_region::repaint_after_focus(hwnd);
 }
 
 #[cfg(test)]

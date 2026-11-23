@@ -89,6 +89,33 @@ pub fn set_window_region(window: Window, rects: Vec<IntRect>) {
     }
 }
 
+/// Gives a window that just changed focus a full repaint, children included.
+/// Found 2026-11-23 by reproducing it live (CDP + screen capture): clicking a
+/// text field in the notch makes it the active window, and the strips of its
+/// region that the page leaves clear (the flare corners beside the open
+/// notch) show as light boxes until a full erase-and-redraw. Repainted a few
+/// times because the activation settles over a few hundred ms.
+pub fn repaint_after_focus(hwnd: windows::Win32::Foundation::HWND) {
+    use windows::Win32::Graphics::Gdi::{
+        RedrawWindow, RDW_ALLCHILDREN, RDW_ERASE, RDW_INVALIDATE, RDW_UPDATENOW,
+    };
+    let raw = hwnd.0 as isize;
+    std::thread::spawn(move || {
+        let hwnd = windows::Win32::Foundation::HWND(raw as *mut _);
+        for wait in [30u64, 170, 400] {
+            std::thread::sleep(std::time::Duration::from_millis(wait));
+            unsafe {
+                let _ = RedrawWindow(
+                    Some(hwnd),
+                    None,
+                    None,
+                    RDW_INVALIDATE | RDW_ERASE | RDW_ALLCHILDREN | RDW_UPDATENOW,
+                );
+            }
+        }
+    });
+}
+
 /// Logs (diagnostics.log) every time the notch window stops or starts being
 /// layered: an un-layered moment with a region paints its clear pixels
 /// opaque, the suspect for the white boxes that still sometimes show beside
