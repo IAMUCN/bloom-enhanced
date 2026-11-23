@@ -4353,7 +4353,11 @@ function App() {
 									flexDirection: "column",
 									alignItems: "center",
 									position: "relative",
-									borderRadius: "inherit"
+									borderRadius: "inherit",
+									// The body grows more slowly than its content lays out: clip the content to
+									// the body (its 12 px side padding allowed) so tiles never show beside or
+									// below it while it opens (the purple blocks in the 23:48 video).
+									clipPath: "inset(0 -12px 0 -12px)"
 								}}
 							>
 								{/* Faster Waiting Transition Area */}
