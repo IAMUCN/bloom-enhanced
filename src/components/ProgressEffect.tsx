@@ -1,3 +1,4 @@
+import { useLayoutEffect, useRef } from "react";
 import "../effects.css";
 import "./ProgressEffect.css";
 import { NotchFx, type NotchShape } from "./NotchFx";
@@ -25,16 +26,58 @@ export const COPY_EFFECTS = [
 const tint = (c: string | null): React.CSSProperties | undefined =>
 	c ? ({ "--fx-1": c, "--fx-2": `color-mix(in srgb, ${c}, #ff4fd8 55%)`, color: c } as React.CSSProperties) : undefined;
 
+/** The conic angle (0 = up, clockwise) of the point `s` (0..1) of the way along
+ *  the left half of a W x H box's outline, from the bottom centre up the left
+ *  side to the top centre. Angles from the box centre bend with the shape, so the
+ *  beam's head is steered by distance, not by angle, to keep its speed even. */
+export function leftHalfAngle(w: number, h: number, s: number): number {
+	const d = s * (w + h);
+	let x: number, y: number;
+	if (d <= w / 2) [x, y] = [-d, h / 2];
+	else if (d <= w / 2 + h) [x, y] = [-w / 2, h / 2 - (d - w / 2)];
+	else [x, y] = [-w / 2 + (d - w / 2 - h), -h / 2];
+	const a = ((Math.atan2(x, -y) * 180) / Math.PI + 360) % 360;
+	return a < 180 ? a + 360 : a;
+}
+
+/** The signature copy effect: the gradient beam of the Shelf's opening, leaving
+ *  the bottom centre and running both ways round the notch (the right half is
+ *  the left one mirrored), at an even speed whatever the notch's shape. */
+function SignatureBeam({ colour }: { colour: string | null }) {
+	const ref = useRef<HTMLDivElement>(null);
+	useLayoutEffect(() => {
+		const box = ref.current;
+		if (!box) return;
+		const { width: w, height: h } = box.getBoundingClientRect();
+		const N = 28;
+		const frames = Array.from({ length: N + 1 }, (_, i) => {
+			const t = i / N;
+			return { "--fx-a": `${leftHalfAngle(w || 170, h || 32, t * t * (3 - 2 * t))}deg` };
+		});
+		const anims = [...box.querySelectorAll(".sig-half")].map((el) =>
+			el.animate(frames, { duration: 1300, fill: "both", easing: "linear", pseudoElement: "::after" })
+		);
+		return () => anims.forEach((a) => a.cancel());
+	}, []);
+	return (
+		<div ref={ref} className="sig-beam" style={tint(colour)} aria-hidden>
+			<div className="progress-beam fx-beam hue sig-half" />
+			<div className="progress-beam fx-beam hue sig-half sig-right" />
+		</div>
+	);
+}
+
 /** What the closed notch draws while "Copied" shows (Settings › Shelf › Copy
  *  Effect): one lap of light, a neon flash or a soft glow, in the chosen
  *  colour (default: the accent). Read from localStorage when it appears. */
 export function CopyEffect({ full, shape }: { full?: boolean; shape?: NotchShape }) {
 	const effect = localStorage.getItem("bloom-copy-effect") ?? "beam";
 	if (effect === "off") return null;
-	if (shape) return <NotchFx kind={effect as "signature" | "beam" | "neon" | "glow"} shape={shape} colour={localStorage.getItem("bloom-copy-color")} />;
+	if (effect === "signature") return <SignatureBeam colour={localStorage.getItem("bloom-copy-color")} />;
+	if (shape) return <NotchFx kind={effect as "beam" | "neon" | "glow"} shape={shape} colour={localStorage.getItem("bloom-copy-color")} />;
 	return (
 		<div
-			className={`progress-beam copy-${effect}${effect === "beam" ? " fx-beam fast" : effect === "signature" ? " fx-beam fx-once hue" : ""}${full ? " full" : ""}`}
+			className={`progress-beam copy-${effect}${effect === "beam" ? " fx-beam fast" : ""}${full ? " full" : ""}`}
 			style={tint(localStorage.getItem("bloom-copy-color"))}
 			aria-hidden
 		/>

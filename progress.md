@@ -304,3 +304,10 @@ White box: dev build saves 16 frames (burst-<set>-<n>.bmp) when the notch region
 - NEXT (user, 2026-11-24): "on to the toggle functionality". Start from "LATER" above: verify the fixed toggles by hand (Timer Sound, Tools cards slide, Animations Off dock/shelf/radial, Launch at Login, accent colour), then the open ones: No Glass only affects the notch, Tools tab has no preview, Ambient Glow has no preview. Ask the user which toggles still do nothing for them.
 - Still to ask: what the "dock problem" is (problem list item 6).
 - Also open: pairing / second display / light mode / accent need real-device tests by the user.
+
+
+## 2026-11-24 (later): Settings audit, section by section
+- Done and tested with real clicks: General (collapsible cards, switches fixed), Appearance (collapsible cards, Command Center Accent Colour `bloom-cc-accent` with hex box, readable text colour `--cc-on`), Notch / Dock / Shelf / Radial toggles (21, all saved and read by their module), Tools (card switches, Timer Sound, Music options all saved; tool pages use collapsible cards). Shelf Features no longer hide behind "More". Search opens a folded card before jumping.
+- Shared pieces: `settings/Section.tsx` (collapsible card, diamond toggles it), `settings/ColourPicker.tsx` (swatches + picker + hex), `readableOn.ts`.
+- **The Opening Beam is the signature effect** (see context.md); never remove it.
+- Next: About tab check; Tools list headers ("In your notch", "Available") are still plain labels; the user's "dock problem" is still undefined.

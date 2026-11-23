@@ -157,3 +157,38 @@
 .full {
 	--fx-top: solid;
 }
+
+/* Signature copy effect: the gradient beam, left half running from the bottom
+   centre up the left side; the right half is its mirror. The head's angle is set
+   from ProgressEffect.tsx (even speed); the CSS only fades it and drifts the hue. */
+.sig-beam {
+	position: absolute;
+	inset: 0;
+	border-radius: inherit;
+	pointer-events: none;
+	z-index: 3;
+}
+.sig-beam .sig-half {
+	clip-path: inset(0 50% 0 0);
+	--fx-a: 180deg;
+	--fx-w: 2.5px;
+}
+.sig-beam .sig-right {
+	transform: scaleX(-1);
+}
+.sig-beam .sig-half::after {
+	animation: sig-fade 1.3s ease-in-out 1 both, fx-hue 1.3s ease-in-out 1 both;
+}
+@keyframes sig-fade {
+	from,
+	75% {
+		opacity: 1;
+	}
+	to {
+		opacity: 0;
+	}
+}
+:root.fx-off .sig-beam .sig-half::after {
+	animation: none;
+	opacity: 0;
+}
