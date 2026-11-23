@@ -152,6 +152,24 @@ fn main() {
                 }
             }
         })
+        // A page that is (re)loading, or failed to load, can't set its window's
+        // region: the window would show its default page (white, or "can't
+        // reach this page") across the whole rectangle. Empty the region when a
+        // load starts; the page sets its own once it runs.
+        .on_page_load(|webview, payload| {
+            if matches!(payload.event(), tauri::webview::PageLoadEvent::Started)
+                && matches!(webview.label(), "main" | "dock" | "overlay")
+            {
+                if let Ok(hwnd) = webview.window().hwnd() {
+                    window_region::clear_region(hwnd);
+                }
+                if webview.label() == "main" {
+                    if let Ok(mut region) = crate::state::NOTCH_REGION.lock() {
+                        *region = None;
+                    }
+                }
+            }
+        })
         .plugin(tauri_plugin_opener::init())
         .plugin(tauri_plugin_dialog::init())
         .plugin(tauri_plugin_clipboard_manager::init())

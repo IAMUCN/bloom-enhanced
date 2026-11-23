@@ -32,11 +32,23 @@ fn physical_rects(rects: &[IntRect], scale: f64) -> Vec<RECT> {
         .collect()
 }
 
+/// Bumped on every region update of the notch window; a delayed growth only
+/// lands if nothing newer arrived meanwhile.
+static NOTCH_GEN: std::sync::atomic::AtomicU64 = std::sync::atomic::AtomicU64::new(0);
+
+/// How long a growing notch region waits so the page has painted into the new
+/// area first. The region used to jump to the notch's final open size at the
+/// click, before the page had drawn a frame there, and the newly exposed
+/// pixels showed white for a frame (seen in the user's phone video, 2026-11-23).
+const GROW_DELAY_MS: u64 = 40;
+
 /// Sets the calling window's region to the union of `rects` (CSS pixels of
 /// the window). An empty list leaves the window with an empty region: it draws
-/// nothing and takes no input until the next call.
+/// nothing and takes no input until the next call. The notch's region, when it
+/// grows, is applied a moment late (see GROW_DELAY_MS).
 #[tauri::command]
 pub fn set_window_region(window: Window, rects: Vec<IntRect>) {
+    use std::sync::atomic::Ordering;
     let Ok(hwnd) = window.hwnd() else {
         return;
     };
@@ -50,20 +62,49 @@ pub fn set_window_region(window: Window, rects: Vec<IntRect>) {
                 rects.iter().map(|r| r.y + r.height).max().unwrap_or(0),
             )
         });
+        let area = |b: Option<(i32, i32, i32, i32)>| {
+            b.map_or(0i64, |(l, t, r, bt)| i64::from(r - l) * i64::from(bt - t))
+        };
+        let mut grows = false;
         if let Ok(mut region) = crate::state::NOTCH_REGION.lock() {
+            grows = area(bbox) > area(*region) * 11 / 10;
             *region = bbox;
         }
+        let generation = NOTCH_GEN.fetch_add(1, Ordering::Relaxed) + 1;
         // Debug builds: a region that grows is the notch opening; record it.
         #[cfg(debug_assertions)]
-        if let Some((l, t, r, b)) = bbox {
-            use std::sync::atomic::{AtomicI64, Ordering};
-            static LAST: AtomicI64 = AtomicI64::new(0);
-            let area = i64::from(r - l) * i64::from(b - t);
-            if area > LAST.swap(area, Ordering::Relaxed) * 6 / 5 {
-                crate::diagnostics::snapshot_burst();
-            }
+        if grows {
+            crate::diagnostics::snapshot_burst();
+        }
+        if grows {
+            let hwnd_value = hwnd.0 as isize;
+            std::thread::spawn(move || {
+                std::thread::sleep(std::time::Duration::from_millis(GROW_DELAY_MS));
+                if NOTCH_GEN.load(Ordering::Relaxed) == generation {
+                    let hwnd = windows::Win32::Foundation::HWND(hwnd_value as *mut _);
+                    apply_region(hwnd, &rects, scale);
+                }
+            });
+            return;
         }
     }
+    apply_region(hwnd, &rects, scale);
+}
+
+/// Empties a window's region, so it draws nothing until its page sets one. A
+/// page that is loading or reloading (or failed to load) can't set a region,
+/// and the window would otherwise show its default page, white or an error,
+/// across the whole rectangle.
+pub fn clear_region(hwnd: windows::Win32::Foundation::HWND) {
+    unsafe {
+        let region = CreateRectRgn(0, 0, 0, 0);
+        if SetWindowRgn(hwnd, Some(region), true) == 0 {
+            let _ = DeleteObject(region.into());
+        }
+    }
+}
+
+fn apply_region(hwnd: windows::Win32::Foundation::HWND, rects: &[IntRect], scale: f64) {
     // A region on a window that isn't layered turns its transparent pixels
     // opaque (see set_click_through). Make sure it's layered before the region
     // lands, keeping whatever click-through state it has.
@@ -76,7 +117,7 @@ pub fn set_window_region(window: Window, rects: Vec<IntRect>) {
     crate::utils::set_click_through(hwnd, click_through);
     unsafe {
         let region = CreateRectRgn(0, 0, 0, 0);
-        for rect in physical_rects(&rects, scale) {
+        for rect in physical_rects(rects, scale) {
             let part = CreateRectRgn(rect.left, rect.top, rect.right, rect.bottom);
             CombineRgn(Some(region), Some(region), Some(part), RGN_OR);
             let _ = DeleteObject(part.into());
