@@ -3374,3 +3374,5 @@ button.shortcut-icon:hover {
 .settings-container .gsec-body > .setting-group { min-height: 0; overflow: hidden; background: none; border: 0; border-radius: 0; box-shadow: none; }
 .settings-container .gsec-body .setting-divider { background: var(--v2-border); }
 .settings-container .settings-main section > .gsec:first-child { margin-top: 0; }
+
+.settings-container .hex-input { width: 84px; flex: none; font-family: ui-monospace, Consolas, monospace; text-transform: lowercase; }

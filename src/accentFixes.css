@@ -9,14 +9,14 @@
 
 :root .cc-icon.on,
 :root .cc-wide.on {
-	background: var(--user-accent, #6a55ff);
+	background: var(--cc-accent, var(--user-accent, #6a55ff));
 	color: #fff;
 }
 :root .cc-icon.on:hover {
-	background: color-mix(in srgb, var(--user-accent, #6a55ff) 82%, #fff);
+	background: color-mix(in srgb, var(--cc-accent, var(--user-accent, #6a55ff)) 82%, #fff);
 }
 :root .cc-wide.on .cc-wide-toggle {
-	background: color-mix(in srgb, var(--user-accent, #6a55ff) 55%, #000) !important;
+	background: color-mix(in srgb, var(--cc-accent, var(--user-accent, #6a55ff)) 55%, #000) !important;
 }
 :root .cc-wide.on .cc-wide-status {
 	color: rgba(255, 255, 255, 0.85);
@@ -24,8 +24,8 @@
 
 :root .qp-switch.on,
 :root .qp-chip.on {
-	background: var(--user-accent, #6a55ff);
-	border-color: var(--user-accent, #6a55ff);
+	background: var(--cc-accent, var(--user-accent, #6a55ff));
+	border-color: var(--cc-accent, var(--user-accent, #6a55ff));
 }
 :root .qp-chip.on {
 	color: #fff;

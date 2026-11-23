@@ -43,6 +43,7 @@ export const SETTINGS_INDEX: SettingEntry[] = [
 	]),
 	...page("appearance", [
 		["Accent Colour", "Shows on the notch's progress light, active buttons and the Settings window"],
+		["Command Center Accent Colour", "Its own colour for the Command Center's active tiles and switches"],
 		["Theme Mode", "Dark, light, a custom colour or your Windows accent"],
 		["Animations", "On or off: springy motion in the notch, dock and menus"],
 		["Custom Theme Color", "Choose layout background color"],

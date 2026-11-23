@@ -120,6 +120,7 @@ export async function applyTheme(
 	const revision = ++themeRevision;
 	const root = document.documentElement;
 	root.style.setProperty("--user-accent", userAccent());
+	root.style.setProperty("--cc-accent", localStorage.getItem("bloom-cc-accent") || userAccent());
 	// Animations off freezes the effects (effects.css).
 	root.classList[localStorage.getItem("bloom-motion") === "off" ? "add" : "remove"]("fx-off");
 
@@ -259,6 +260,8 @@ const THEME_DEFAULTS: Record<string, string> = {
 	"bloom-theme-color": "#007aff",
 	// The accent: progress light, active states, the Settings window (user can change it).
 	"bloom-accent": "#6a55ff",
+	// The Command Center's own accent; empty = same as the accent.
+	"bloom-cc-accent": "",
 	// Re-applies the theme so effects freeze/resume (effects.css).
 	"bloom-motion": "on",
 	// Solid black by default (design: Glass is opt-in).

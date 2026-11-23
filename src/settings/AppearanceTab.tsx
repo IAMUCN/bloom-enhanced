@@ -5,6 +5,7 @@ import { SettingRow } from "./SettingRow";
 import { ScaleStepper } from "./ScaleStepper";
 import { Choice } from "./Choice";
 import { Section } from "./Section";
+import { ColourPicker } from "./ColourPicker";
 
 const THEME_MODES = [
 	["dark", "Black", "Black surfaces; solid at 100% opacity"],
@@ -26,23 +27,27 @@ const MOTION = [
 const ACCENTS = ["#6a55ff", "#0a84ff", "#14b8a6", "#22c55e", "#f59e0b", "#ec4899", "#ef4444"];
 const DEFAULT_ACCENT = ACCENTS[0];
 
-/** The accent colour (`bloom-accent`): progress light, active states, the Settings window. */
-function AccentRow() {
-	const [value, setValue] = useState(() => localStorage.getItem("bloom-accent") || DEFAULT_ACCENT);
+/** An accent colour: `bloom-accent` (progress light, active states, the
+ *  Settings window) or `bloom-cc-accent` (the Command Center only; empty =
+ *  same as the accent). */
+function AccentRow({ storeKey, label, desc, divider }: { storeKey: string; label: string; desc: string; divider?: boolean }) {
+	const isCc = storeKey === "bloom-cc-accent";
+	const [value, setValue] = useState(() => localStorage.getItem(storeKey) ?? (isCc ? "" : DEFAULT_ACCENT));
 	const pick = (v: string) => {
 		setValue(v);
-		localStorage.setItem("bloom-accent", v);
-		invoke("save_setting", { key: "bloom-accent", value: v }).catch(() => {});
+		localStorage.setItem(storeKey, v);
+		invoke("save_setting", { key: storeKey, value: v }).catch(() => {});
 		window.dispatchEvent(new Event("settings-theme-changed"));
 	};
 	return (
-		<SettingRow icon={Palette} label="Accent Colour" desc="Shows on the notch's progress light, active buttons and this window">
-			<div className="accent-swatches">
-				{ACCENTS.map((c) => (
-					<button key={c} type="button" className={`accent-swatch${c === value ? " on" : ""}`} style={{ background: c }} aria-label={`Accent ${c}`} aria-pressed={c === value} onClick={() => pick(c)} />
-				))}
-				<input type="color" value={value} onChange={(e) => pick(e.target.value)} className="color-picker-input" aria-label="Custom accent colour" />
-			</div>
+		<SettingRow icon={Palette} label={label} desc={desc} divider={divider}>
+			<ColourPicker
+				value={value}
+				presets={ACCENTS}
+				onPick={pick}
+				label={label}
+				follow={isCc ? { colour: localStorage.getItem("bloom-accent") || DEFAULT_ACCENT, title: "Same as the accent colour" } : undefined}
+			/>
 		</SettingRow>
 	);
 }
@@ -121,7 +126,8 @@ export function AppearanceTab({
 	return (
 		<>
 			<Section title="Accent">
-				<AccentRow />
+				<AccentRow storeKey="bloom-accent" label="Accent Colour" desc="Shows on the notch's progress light, active buttons and this window" />
+				<AccentRow storeKey="bloom-cc-accent" label="Command Center Accent Colour" desc="Its own colour for the Command Center's active tiles and switches; the first swatch follows the accent" divider={false} />
 			</Section>
 
 			<Section title="Settings Window">
