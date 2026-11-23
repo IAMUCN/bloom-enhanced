@@ -1373,6 +1373,13 @@ pub fn setup_system_worker(app_handle: AppHandle) -> Sender<SystemCommand> {
             Err(_) => 50,
         };
         CURRENT_BRIGHTNESS.store(last_brightness, Ordering::Relaxed);
+        // The reader starts late; tell a notch that already asked for the default.
+        let _ = handle_brightness.emit(
+            "brightness-change",
+            BrightnessChangeEvent {
+                brightness: last_brightness,
+            },
+        );
         // Brightness keys are handled by Windows or the firmware, so follow the
         // resulting changes as they happen; the overlay then appears at once.
         // Changes Bloom made itself (its slider) are skipped like the poll did.
@@ -2704,19 +2711,29 @@ fn update_main_interaction(
         (GetAsyncKeyState(VK_LBUTTON.0 as i32) as u16 & 0x8000) != 0
     };
 
+    // The extra reach around the notch (click slack, hysteresis, the top-edge
+    // approach band) exists only while it is open, being hovered or carrying a
+    // drag. A closed notch (fixed or minimal) takes clicks on its own pixels
+    // only, so whatever lies beside it stays clickable.
+    let pad_on = crate::state::NOTCH_OPEN.load(Ordering::Relaxed)
+        || is_notch_hovered
+        || now < MH_TOPBAR_EXPIRY_MS.load(Ordering::Relaxed)
+        || drag_held;
+    let reach = |px: f64| if pad_on { (px * scale) as i32 } else { 0 };
+
     let mut is_click_interactive = false;
     let main_rect_val = MAIN_WINDOW_RECT.lock().ok().and_then(|g| *g);
 
     if let Some((win_pos, _)) = main_rect_val {
         if let Ok(region) = NOTCH_RECT.try_lock() {
             if let Some(r) = *region {
-                let pad_x = (20.0 * scale) as i32;
-                let pad_y_bottom = (5.0 * scale) as i32;
+                let pad_x = reach(20.0);
+                let pad_y_bottom = reach(5.0);
                 // Hysteresis keeps the notch interactive a little past its
                 // bounds once grabbed, so removing the edge-forced
                 // interactivity doesn't reintroduce boundary flicker.
                 let hyst = if MH_LAST_MAIN_IGNORE.load(Ordering::Relaxed) == 0 {
-                    (10.0 * scale) as i32
+                    reach(10.0)
                 } else {
                     0
                 };
@@ -2760,7 +2777,7 @@ fn update_main_interaction(
                 // makes the notch expand/contract repeatedly. It is gated on
                 // the notch being on screen (or a live hover) so a hidden
                 // notch still can't swallow pass-by clicks.
-                let edge_pad = (60.0 * scale) as i32;
+                let edge_pad = reach(60.0);
                 let in_top_span = in_top_edge_band(cursor, scale)
                     && cursor.x >= rx - edge_pad
                     && cursor.x <= rx + rw + edge_pad;

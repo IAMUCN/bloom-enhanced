@@ -70,7 +70,7 @@ const TAB_COPY: Record<SettingsTab, string> = {
 	dock: "The taskbar replacement at the bottom of the screen.",
 	clipboard: "Everything you copy, kept on this PC.",
 	files: "Convert and act on files from a ring around the pointer.",
-	about: "Version, updates and your settings data."
+	about: "Version, updates, source code and how to reach the author."
 };
 
 /** Notch rows that live under the Opening segment. */

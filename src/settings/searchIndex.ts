@@ -149,6 +149,8 @@ export const SETTINGS_INDEX: SettingEntry[] = [
 	...page("about", [
 		["Auto Update", "Update automatically on startup"],
 		["Check for Updates", "See if a newer LotusNotch is available"],
+		["Contact", "X, Instagram, Reddit, LinkedIn, GitHub and email"],
+		["Source code", "The LotusNotch repository on GitHub"],
 		["Built On", "Bloom, Edge-Drop and OrbitDrop, with links to their GitHub pages"]
 	])
 ];

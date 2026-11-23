@@ -1,6 +1,7 @@
-import { Download, RefreshCw } from "lucide-react";
+import { Download, RefreshCw, Bug, Mail } from "lucide-react";
 import { openUrl } from "@tauri-apps/plugin-opener";
 import { GithubIcon } from "../icons";
+import { XIcon, InstagramIcon, RedditIcon, LinkedinIcon } from "../icons/BrandIcons";
 import { SettingRow } from "./SettingRow";
 
 /** The open-source projects LotusNotch is built from. */
@@ -11,6 +12,23 @@ const CREDITS = [
 ] as const;
 
 const AUTHOR_URL = "https://github.com/IAMUCN";
+const REPO_URL = "https://github.com/IAMUCN/bloom-enhanced";
+
+/** The code and where to report a problem. */
+const LINKS = [
+	[GithubIcon, "Source code", "github.com/IAMUCN/bloom-enhanced", REPO_URL],
+	[Bug, "Report a problem or suggest something", "Open an issue on GitHub", `${REPO_URL}/issues`]
+] as const;
+
+/** The author's contacts. */
+const CONTACTS = [
+	[GithubIcon, "GitHub", "IAMUCN", AUTHOR_URL],
+	[XIcon, "X", "@UCN_SACHIN", "https://x.com/UCN_SACHIN"],
+	[InstagramIcon, "Instagram", "editor_ucn", "https://www.instagram.com/editor_ucn"],
+	[RedditIcon, "Reddit", "u/sachin_ucn", "https://www.reddit.com/u/sachin_ucn"],
+	[LinkedinIcon, "LinkedIn", "iamucn", "https://www.linkedin.com/in/iamucn"],
+	[Mail, "Email", "ucnstudios.help@gmail.com", "mailto:ucnstudios.help@gmail.com"]
+] as const;
 
 interface AboutTabProps {
 	appVersion: string;
@@ -89,6 +107,22 @@ export function AboutTab({
 				/>
 			</div>
 
+			<div className="setting-group-label setting-group-label--spaced">Links</div>
+			<div className="setting-group">
+				{LINKS.map(([icon, label, desc, url], i) => (
+					<SettingRow key={label} icon={icon} label={label} desc={desc} action divider={i < LINKS.length - 1} onClick={() => openUrl(url)} />
+				))}
+			</div>
+
+			<div className="setting-group-label setting-group-label--spaced">Contact</div>
+			<div className="about-contacts">
+				{CONTACTS.map(([Icon, label, desc, url]) => (
+					<button key={label} className="about-contact" title={`${label}: ${desc}`} aria-label={label} onClick={() => openUrl(url)}>
+						<Icon size={20} />
+					</button>
+				))}
+			</div>
+
 			<div className="setting-group-label setting-group-label--spaced">Built On</div>
 			<div className="setting-group">
 				{CREDITS.map(([name, owner, desc, url], i) => (
@@ -104,6 +138,7 @@ export function AboutTab({
 				))}
 			</div>
 
+			<p className="about-thanks">Thank you for using LotusNotch. It stands on the work of the projects above.</p>
 			<p className="about-footer">
 				A product of{" "}
 				<button className="about-author" onClick={() => openUrl(AUTHOR_URL)} title="IAMUCN on GitHub">

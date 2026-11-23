@@ -2363,9 +2363,12 @@ function App() {
 	// The Game strip glance: CPU · GPU · RAM in the clock's place, read every
 	// 2 s only while it shows.
 	// Hidden while hovered: the hover widgets beside the clock would land on it.
-	const showGlance = glanceOn && !isOpen && !isHovered && !timesUp && !toolTimer && timerSeconds === 0 && !isTimerFinished;
+	// The notch keeps its glance width while hovered, so it opens from there
+	// instead of shrinking first.
+	const glanceIdle = glanceOn && !isOpen && !timesUp && !toolTimer && timerSeconds === 0 && !isTimerFinished;
+	const showGlance = glanceIdle && !isHovered;
 	useEffect(() => {
-		if (windowLabel !== "main" || !showGlance) return setGlance(null);
+		if (windowLabel !== "main" || !glanceIdle) return setGlance(null);
 		const read = () =>
 			Promise.all([
 				invoke<{ cpu: number; mem_used: number; mem_total: number }>("system_stats"),
@@ -2376,7 +2379,7 @@ function App() {
 		read();
 		const t = window.setInterval(read, 2000);
 		return () => window.clearInterval(t);
-	}, [showGlance, windowLabel]);
+	}, [glanceIdle, windowLabel]);
 	// The Timer tool's countdown takes the clock's place on the closed notch.
 	const showToolTimer =
 		!!toolTimer && !isOpen && timerSeconds === 0 && !isTimerFinished && (timerDisplay === "pill" || timerDisplay === "both");
@@ -2879,6 +2882,19 @@ function App() {
 		invoke<boolean>("get_battery_saver_state")
 			.then(setBatterySaverEnabled)
 			.catch(() => {});
+		// Poll battery saver state every 5s (since we can't listen for changes)
+		const interval = setInterval(() => {
+			invoke<boolean>("get_battery_saver_state")
+				.then(setBatterySaverEnabled)
+				.catch(() => {});
+		}, 5000);
+		return () => clearInterval(interval);
+	}, []);
+
+	// Volume and brightness sliders: the audio device and the WMI brightness
+	// reader are not ready in the first seconds after start, so ask again a few
+	// times, and every time the notch opens.
+	const seedLevels = useCallback(() => {
 		invoke<{ volume: number; is_muted: boolean }>("get_volume_state")
 			.then((state) => {
 				setVolume(state.volume);
@@ -2888,15 +2904,15 @@ function App() {
 		invoke<number>("get_brightness")
 			.then(setCurrentBrightness)
 			.catch(() => {});
-
-		// Poll battery saver state every 5s (since we can't listen for changes)
-		const interval = setInterval(() => {
-			invoke<boolean>("get_battery_saver_state")
-				.then(setBatterySaverEnabled)
-				.catch(() => {});
-		}, 5000);
-		return () => clearInterval(interval);
 	}, []);
+	useEffect(() => {
+		seedLevels();
+		const timers = [1500, 4000, 9000].map((ms) => setTimeout(seedLevels, ms));
+		return () => timers.forEach(clearTimeout);
+	}, [seedLevels]);
+	useEffect(() => {
+		if (isOpen) seedLevels();
+	}, [isOpen, seedLevels]);
 
 	// Refresh Wi-Fi status while the command center is open so changes made
 	// outside Bloom (keyboard toggle, Windows quick settings) show up.
@@ -2907,8 +2923,12 @@ function App() {
 		return () => clearInterval(interval);
 	}, [bloomMode, refreshWifiStatus]);
 
-	// Poll system metrics for status widgets
+	// Poll system metrics only while a status widget that shows one is chosen.
+	const needsMetrics = [...statusWidgets.left, ...statusWidgets.right].some((w) =>
+		["cpu", "ram", "disk", "net"].includes(String(w))
+	);
 	useEffect(() => {
+		if (!needsMetrics) return;
 		const fetchMetrics = () => {
 			invoke<number>("get_cpu_usage")
 				.then(setCpuUsage)
@@ -2929,7 +2949,7 @@ function App() {
 		fetchMetrics();
 		const interval = setInterval(fetchMetrics, 3000);
 		return () => clearInterval(interval);
-	}, []);
+	}, [needsMetrics]);
 
 	// Listen for brightness changes
 	useEffect(() => {
@@ -3657,7 +3677,7 @@ function App() {
 		if (toolShowing && isOpen) return OPEN_WIDTH;
 		if (minimalIdle) return 72;
 		if (fileStatus && !isOpen) return 300;
-		if (showGlance && glance) return 300;
+		if (glanceIdle && glance) return 380;
 		if (bloomMode === "announcement" && announcement && !announcementDismissed) return 380;
 		if (bloomMode === "device" && deviceAlert) return 330;
 		if (isCalendarMode) return 480;
