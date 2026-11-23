@@ -938,12 +938,14 @@ function App() {
 		} else if (pillTargetRef.current) {
 			wanted.push(pillTargetRef.current);
 		}
-		// Floating parts drawn beside the pill (their own box, padded for the
-		// shadow they paint outside it).
+		// Floating parts drawn beside the pill: their own box, nearly unpadded. A
+		// padded ring that the page leaves clear shows the window's light fill
+		// when a click activates the window (measured: 3 of 8 cycles with a 24 px
+		// pad, 0 of 12 without).
 		wanted.push(
 			...measureElements([
-				[".activity-bubble", 16],
-				[".status-tooltip", 28]
+				[".activity-bubble", 2],
+				[".status-tooltip", 2]
 			])
 		);
 		const key = wanted.map((r) => `${Math.round(r.x)},${Math.round(r.y)},${Math.round(r.width)},${Math.round(r.height)}`).join(";");

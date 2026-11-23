@@ -147,6 +147,20 @@ fn apply_region(hwnd: windows::Win32::Foundation::HWND, rects: &[IntRect], scale
 /// region that the page leaves clear (the flare corners beside the open
 /// notch) show as light boxes until a full erase-and-redraw. Repainted a few
 /// times because the activation settles over a few hundred ms.
+fn redraw_now(hwnd: windows::Win32::Foundation::HWND) {
+    use windows::Win32::Graphics::Gdi::{
+        RedrawWindow, RDW_ALLCHILDREN, RDW_ERASE, RDW_INVALIDATE, RDW_UPDATENOW,
+    };
+    unsafe {
+        let _ = RedrawWindow(
+            Some(hwnd),
+            None,
+            None,
+            RDW_INVALIDATE | RDW_ERASE | RDW_ALLCHILDREN | RDW_UPDATENOW,
+        );
+    }
+}
+
 pub fn repaint_after_focus(hwnd: windows::Win32::Foundation::HWND) {
     use windows::Win32::Graphics::Gdi::{
         RedrawWindow, RDW_ALLCHILDREN, RDW_ERASE, RDW_INVALIDATE, RDW_UPDATENOW,
@@ -248,11 +262,19 @@ unsafe extern "system" fn erase_proc(
         msg,
         WM_ACTIVATE | WM_NCACTIVATE | WM_SETFOCUS | WM_KILLFOCUS | WM_SHOWWINDOW
     ) {
+        // Debug builds: the white box was seen right as a click activated the window.
+        #[cfg(debug_assertions)]
+        if msg == WM_ACTIVATE {
+            crate::diagnostics::snapshot_burst();
+        }
         crate::diagnostics::trace(
             "win.activity",
             &format!("hwnd={:?} msg={msg:#x} wparam={}", hwnd.0, wparam.0),
         );
         let result = DefSubclassProc(hwnd, msg, wparam, lparam);
+        // At once, not only 30 ms later: the light fill an activation leaves in
+        // the clear parts of the region is on screen for those first frames.
+        redraw_now(hwnd);
         repaint_after_focus(hwnd);
         return result;
     }
