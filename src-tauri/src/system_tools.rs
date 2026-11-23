@@ -229,7 +229,7 @@ fn cpu_utility() -> Option<f64> {
     }
 }
 
-#[tauri::command]
+#[tauri::command(async)]
 pub fn system_stats() -> SystemStats {
     use windows::Win32::System::SystemInformation::{GlobalMemoryStatusEx, MEMORYSTATUSEX};
     use windows::Win32::System::Threading::GetSystemTimes;
@@ -1370,7 +1370,7 @@ pub fn set_capture_excluded(window: tauri::WebviewWindow, excluded: bool) -> Res
 /// GPU 3D load like Task Manager: the 3D engines' "Utilization Percentage",
 /// summed over their per-process instances. None until a second sample, or
 /// when the counter isn't available.
-#[tauri::command]
+#[tauri::command(async)]
 pub fn gpu_usage() -> Option<f64> {
     use windows::Win32::System::Performance::{
         PdhAddEnglishCounterW, PdhCloseQuery, PdhCollectQueryData, PdhGetFormattedCounterArrayW,
