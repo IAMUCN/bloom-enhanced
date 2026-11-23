@@ -1,4 +1,6 @@
 # Progress — LotusNotch (currently named Bloom Enhanced 0.1.0)
+**▶ RAM RESULT (2026-11-23, branch `perf/in-process-gpu`, NOT merged, installer NOT rebuilt): LotusNotch idle 478 MB (control) → 286 (`--in-process-gpu`, static in tauri.conf.json) → 211 (+ `--process-per-site` = Low Memory Mode, setting `bloom-low-memory`, default on, set from settings.json in main.rs before windows; General › More › Memory and speed). Dev build with both: 7 processes, 1 renderer, 280 MB (dev JS is bigger). No help: low-end mode, renderer limit, jitless, NetworkServiceInProcess, audio in-process. Also on this branch: white-box repaint fix (activation/focus/show subclass + keyboard_focus), installer images with the new logo. Next idea (web search): WebView2 MemoryUsageTargetLevel=Low for parked windows (ICoreWebView2_19 via with_webview). Caveat: Microsoft says flags may change in WebView2 updates; if a flag breaks, remove it.**
+
 
 Last updated: 2026-11-15. Code branch **`main`** = `548410c` = origin/main
 (old phase branches merged and deleted 2026-11-15; from now on branches are
