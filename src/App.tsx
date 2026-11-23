@@ -595,6 +595,8 @@ function App() {
 	const [timesUp, setTimesUp] = useState(false);
 	const [enabledTools, setEnabledTools] = useState(() => parseEnabledTools(localStorage.getItem("bloom-tools-enabled")));
 	// Game strip glance (`bloom-game-glance`): its readings on the closed notch.
+	// Notch module off: its timers and polls stop (the window is hidden).
+	const [notchOn, setNotchOn] = useState(() => localStorage.getItem("bloom-notch-enabled") !== "false");
 	const [gameGlance, setGameGlance] = useState(() => localStorage.getItem("bloom-game-glance") === "on");
 	const [glance, setGlance] = useState<{ cpu: number; gpu: number | null; ram: number } | null>(null);
 	const isOpenRef = useRef(false);
@@ -902,7 +904,7 @@ function App() {
 	// An open notch never hides (Peek / Smart): the shortcut opens it without
 	// the pointer touching the edge.
 	// A running Timer shown on the notch keeps it on screen (Peek / Smart).
-	const glanceOn = gameGlance && enabledTools.includes("game");
+	const glanceOn = notchOn && gameGlance && enabledTools.includes("game");
 	const timerShowing = (!!toolTimer && timerDisplay !== "off") || timesUp || (glanceOn && !isOpen);
 	const [fileStatus, setFileStatus] = useState<OrbitStatus>(null);
 	const isHidden =
@@ -1100,7 +1102,7 @@ function App() {
 	const [settingsDevicesPanelEnabled, setSettingsDevicesPanelEnabled] = useState(
 		() => localStorage.getItem("bloom-notch-devices-enabled") === "true"
 	);
-	const connectedDevices = useConnectedDevices(windowLabel === "main" && settingsDevicesPanelEnabled);
+	const connectedDevices = useConnectedDevices(windowLabel === "main" && notchOn && settingsDevicesPanelEnabled);
 	// The clipboard module (capture runs in the backend) and its panel.
 	const [settingsClipboardEnabled, setSettingsClipboardEnabled] = useState(
 		() => localStorage.getItem("bloom-clipboard-enabled") !== "false"
@@ -1243,7 +1245,7 @@ function App() {
 	const rungRef = useRef(new Set<string>());
 	useEffect(() => {
 		const watch = (["reminders", "stopwatch"] as const).filter((t) => enabledTools.includes(t));
-		if (windowLabel !== "main" || !watch.length) return;
+		if (windowLabel !== "main" || !watch.length || !notchOn) return;
 		const ring = (tool: ExtraToolId, key: string) => {
 			if (rungRef.current.has(key)) return;
 			rungRef.current.add(key);
@@ -1296,7 +1298,7 @@ function App() {
 		check();
 		const timer = window.setInterval(check, 1000);
 		return () => window.clearInterval(timer);
-	}, [windowLabel, enabledTools]);
+	}, [windowLabel, enabledTools, notchOn]);
 	// OCR's one-step snip ends here (the notch may have closed meanwhile):
 	// keep the text for the OCR page and open it, like a ring does.
 	useEffect(() => {
@@ -1357,7 +1359,7 @@ function App() {
 		weatherIcon: WeatherIcon,
 		cityName,
 		tempUnit
-	} = useWeather(settingsWeatherEnabled);
+	} = useWeather(settingsWeatherEnabled && notchOn);
 
 	useEffect(() => {
 		if (!windowLabel) return;
@@ -1564,6 +1566,7 @@ function App() {
 			"bloom-notch-favourite": (v: unknown) => setFavourite(String(v)),
 			"bloom-notch-quick-return": (v: unknown) => setQuickReturnMin(Number(v) || 0),
 			"bloom-game-glance": (v: unknown) => setGameGlance(v === "on"),
+			"bloom-notch-enabled": (v: unknown) => setNotchOn(v !== "false" && v !== false),
 			"bloom-tab-order": setTabOrder,
 			"bloom-progress-effect": (v: unknown) => setProgressStyle(asProgressStyle(v)),
 			"bloom-battery-saver": (v: unknown) => setSaverMode(String(v ?? "below")),
@@ -2752,6 +2755,7 @@ function App() {
 
 	// Update time
 	useEffect(() => {
+		if (!notchOn) return;
 		const updateTime = () => {
 			const now = new Date();
 			setTime(
@@ -2769,7 +2773,7 @@ function App() {
 		return () => {
 			clearInterval(interval);
 		};
-	}, [timeFormat24h]);
+	}, [timeFormat24h, notchOn]);
 
 	// Battery API
 	useEffect(() => {
@@ -2891,13 +2895,14 @@ function App() {
 			.then(setBatterySaverEnabled)
 			.catch(() => {});
 		// Poll battery saver state every 5s (since we can't listen for changes)
+		if (!notchOn) return;
 		const interval = setInterval(() => {
 			invoke<boolean>("get_battery_saver_state")
 				.then(setBatterySaverEnabled)
 				.catch(() => {});
 		}, 5000);
 		return () => clearInterval(interval);
-	}, []);
+	}, [notchOn]);
 
 	// Volume and brightness sliders: the audio device and the WMI brightness
 	// reader are not ready in the first seconds after start, so ask again a few
@@ -2936,7 +2941,7 @@ function App() {
 		["cpu", "ram", "disk", "net"].includes(String(w))
 	);
 	useEffect(() => {
-		if (!needsMetrics) return;
+		if (!needsMetrics || !notchOn) return;
 		const fetchMetrics = () => {
 			invoke<number>("get_cpu_usage")
 				.then(setCpuUsage)
@@ -2957,7 +2962,7 @@ function App() {
 		fetchMetrics();
 		const interval = setInterval(fetchMetrics, 3000);
 		return () => clearInterval(interval);
-	}, [needsMetrics]);
+	}, [needsMetrics, notchOn]);
 
 	// Listen for brightness changes
 	useEffect(() => {

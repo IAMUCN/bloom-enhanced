@@ -540,6 +540,10 @@ unsafe extern "system" fn focus_event_proc(
 
     // Keep the thumbnail cache warm for the focused window so that hovering a
     // later-minimized window uses the cached image instead of restoring it.
+    // Only the dock shows thumbnails: with it off there is nothing to warm.
+    if !crate::utils::dock_enabled() {
+        return;
+    }
     std::thread::spawn(move || {
         use windows::Win32::UI::WindowsAndMessaging::{GetWindowTextW, IsIconic, IsWindow};
 
@@ -653,6 +657,9 @@ unsafe extern "system" fn thumbnail_capture_proc(
     // overwrite a good cached thumbnail; the focus hook keeps the cache warm
     // before a window is minimized.
     if event != windows::Win32::UI::WindowsAndMessaging::EVENT_SYSTEM_MINIMIZEEND {
+        return;
+    }
+    if !crate::utils::dock_enabled() {
         return;
     }
 
@@ -1070,6 +1077,9 @@ pub fn setup_system_worker(app_handle: AppHandle) -> Sender<SystemCommand> {
             )> = None;
             let mut last_volume: f32 = -1.0;
             let mut last_muted: bool = false;
+            // Fast (64 ms) while commands or volume changes are coming in, then
+            // 250 ms once things have been quiet for 3 s.
+            let mut busy_until = std::time::Instant::now() + std::time::Duration::from_secs(3);
 
             loop {
                 // Check for device change
@@ -1103,6 +1113,7 @@ pub fn setup_system_worker(app_handle: AppHandle) -> Sender<SystemCommand> {
                         .ok();
                 }
                 while let Ok(cmd) = rx.try_recv() {
+                    busy_until = std::time::Instant::now() + std::time::Duration::from_secs(3);
                     // Only the volume commands need the audio endpoint. Media, brightness and
                     // visibility commands must keep working when there is no output device.
                     match (cmd, audio_endpoint_volume.as_ref()) {
@@ -1164,6 +1175,8 @@ pub fn setup_system_worker(app_handle: AppHandle) -> Sender<SystemCommand> {
                         if (vol - last_volume).abs() > 0.001 || is_muted != last_muted {
                             last_volume = vol;
                             last_muted = is_muted;
+                            busy_until =
+                                std::time::Instant::now() + std::time::Duration::from_secs(3);
                             crate::state::CURRENT_VOLUME
                                 .store((vol * 100.0) as u32, Ordering::Relaxed);
                             let _ = handle_system.emit(
@@ -1350,7 +1363,13 @@ pub fn setup_system_worker(app_handle: AppHandle) -> Sender<SystemCommand> {
                         last_emitted_info = Some((current.title, current.artist, current.is_playing, current.has_media, art_str, current.position_ms, current.duration_ms));
                     }
                 }
-                std::thread::sleep(std::time::Duration::from_millis(64));
+                std::thread::sleep(std::time::Duration::from_millis(
+                    if std::time::Instant::now() < busy_until {
+                        64
+                    } else {
+                        250
+                    },
+                ));
             }
         }
     });

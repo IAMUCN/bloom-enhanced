@@ -176,6 +176,8 @@ const Dock = memo(function Dock() {
 	const pendingIconsRef = useRef(new Set<string>());
 	const iconGenerationRef = useRef(0);
 	const [, setIconsTick] = useState(0);
+	// Dock module off: its window polls stop.
+	const [dockOn, setDockOn] = useState(() => localStorage.getItem("bloom-dock-enabled") !== "false");
 	const [dockMode, setDockMode] = useState(() => {
 		const raw = localStorage.getItem("bloom-dock-mode") || "smart";
 		if (raw === "auto-hide") return "smart";
@@ -507,6 +509,7 @@ const Dock = memo(function Dock() {
 	}, []);
 
 	useSettingsSync({
+		"bloom-dock-enabled": (v: unknown) => setDockOn(v !== "false" && v !== false),
 		"bloom-dock-mode": setDockMode,
 		"bloom-dock-preview-enabled": setDockPreviewEnabled,
 		"bloom-dock-icon-only": setDockIconOnly,
@@ -529,6 +532,7 @@ const Dock = memo(function Dock() {
 			setDockExtras([]);
 			return;
 		}
+		if (!dockOn) return;
 		let stopped = false;
 		let loadSeq = 0;
 		const load = async () => {
@@ -550,9 +554,10 @@ const Dock = memo(function Dock() {
 			stopped = true;
 			clearInterval(interval);
 		};
-	}, [dockExtrasPosition, dockExtrasRevision]);
+	}, [dockExtrasPosition, dockExtrasRevision, dockOn]);
 
 	useEffect(() => {
+		if (!dockOn) return;
 		let pollSeq = 0;
 		let stopped = false;
 
@@ -615,7 +620,7 @@ const Dock = memo(function Dock() {
 			clearInterval(interval);
 			unlistenWindowChange.then((f) => f());
 		};
-	}, [isDragging, pinnedApps]);
+	}, [isDragging, pinnedApps, dockOn]);
 
 	const fetchIcon = async (path: string, name?: string, hwnd?: number) => {
 		const isHost = isBrowserHost(path);
