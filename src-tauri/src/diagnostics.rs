@@ -35,6 +35,22 @@ pub fn initialize() {
     record("startup", concat!("version=", env!("CARGO_PKG_VERSION")));
 }
 
+/// Debug builds only: one timestamped line for a moment that could matter to a
+/// visual glitch (region changes, page loads, hover and click, show/hide). Read
+/// them next to the burst frames in the same log, by time. Free in releases.
+pub fn trace(event: &str, detail: &str) {
+    #[cfg(debug_assertions)]
+    record(&format!("t.{event}"), detail);
+    #[cfg(not(debug_assertions))]
+    let _ = (event, detail);
+}
+
+/// The frontend's side of `trace` (its hover, click and state changes).
+#[tauri::command]
+pub fn trace_event(event: String, detail: String) {
+    trace(&format!("ui.{event}"), &detail);
+}
+
 pub fn record(event: &str, detail: &str) {
     let Some(path) = LOG_PATH.get() else {
         return;
@@ -161,12 +177,57 @@ pub fn snapshot_burst() {
     std::thread::spawn(move || {
         for frame in 0..16 {
             let file = path.with_file_name(format!("burst-{set}-{frame}.bmp"));
-            let _ = std::fs::write(&file, capture_bmp(560, 0, 800, 360));
+            let bmp = capture_bmp(560, 0, 800, 360);
+            record(
+                "burst",
+                &format!("set={set} f={frame:02} {}", frame_stats(&bmp)),
+            );
+            let _ = std::fs::write(&file, bmp);
             std::thread::sleep(std::time::Duration::from_millis(25));
         }
         record("burst", &format!("set={set} done"));
         BUSY.store(false, Ordering::Relaxed);
     });
+}
+
+/// Per frame: the pure-white and pure-black pixels (count and box, screen
+/// coordinates) and the region the page last asked for, so a box that flashes
+/// shows in the log without opening the images.
+#[cfg(debug_assertions)]
+fn frame_stats(bmp: &[u8]) -> String {
+    const W: usize = 800;
+    let px = &bmp[54..];
+    let mut white = (0usize, usize::MAX, usize::MAX, 0usize, 0usize);
+    let mut black = white;
+    for (i, p) in px.as_chunks::<4>().0.iter().enumerate() {
+        let (x, y) = (i % W + 560, i / W);
+        let (b, g, r) = (p[0], p[1], p[2]);
+        let t = if r >= 240 && g >= 240 && b >= 240 {
+            &mut white
+        } else if r < 4 && g < 4 && b < 4 {
+            &mut black
+        } else {
+            continue;
+        };
+        t.0 += 1;
+        t.1 = t.1.min(x);
+        t.2 = t.2.min(y);
+        t.3 = t.3.max(x);
+        t.4 = t.4.max(y);
+    }
+    let show = |t: (usize, usize, usize, usize, usize)| {
+        if t.0 == 0 {
+            "0".to_string()
+        } else {
+            format!("{}[{},{},{},{}]", t.0, t.1, t.2, t.3, t.4)
+        }
+    };
+    let region = crate::state::NOTCH_REGION.lock().ok().and_then(|g| *g);
+    format!(
+        "white={} black={} region={region:?}",
+        show(white),
+        show(black)
+    )
 }
 
 /// The screen area (x, y, w, h), layered windows included, as a 32-bit BMP.

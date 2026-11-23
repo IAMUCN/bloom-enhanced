@@ -5,6 +5,7 @@ import { invoke } from "@tauri-apps/api/core";
 import { getCurrentWebviewWindow } from "@tauri-apps/api/webviewWindow";
 import { getVersion } from "@tauri-apps/api/app";
 import type { UpdateCheckResult } from "./updater";
+import { trace } from "./trace";
 import { batteryTooltip, type BatteryDetails } from "./batteryTooltip";
 import {
 	createRegionSender,
@@ -883,6 +884,7 @@ function App() {
 	// The pill's target box in window CSS px, and the sender that applies the
 	// notch window's region (holding earlier regions while it shrinks).
 	const pillTargetRef = useRef<RegionRect | null>(null);
+	const lastLiveKey = useRef("");
 	const sendNotchRegion = useMemo(
 		() =>
 			// No hold: while the pill shrinks, its live box is followed frame by frame
@@ -902,6 +904,13 @@ function App() {
 		if (pillTargetRef.current) wanted.push(pillTargetRef.current);
 		// Where the pill is drawn right now (it animates toward the target).
 		const live = bloomRef.current?.getBoundingClientRect();
+		if (import.meta.env.DEV && live) {
+			const key = [live.left, live.top, live.width, live.height].map(Math.round).join(",");
+			if (key !== lastLiveKey.current) {
+				lastLiveKey.current = key;
+				trace("pill.live", { x: Math.round(live.left), y: Math.round(live.top), w: Math.round(live.width), h: Math.round(live.height) });
+			}
+		}
 		if (live && live.width > 0) {
 			wanted.push(padRect({ x: live.left, y: live.top, width: live.width, height: live.height }, 24 * pillZoom));
 		}
@@ -3883,6 +3892,22 @@ function App() {
 	// hugs what is drawn (the target alone clips a shrinking pill's tail, a held
 	// old box shows the window's black around it).
 	const pillKey = `${pillTargetWidth}x${pillTargetHeight}@${pillTargetY}`;
+	// Dev trace (diagnostics.log, see trace.ts): the states and pointer events
+	// around a visual glitch, to read next to the Rust side's lines by time.
+	useEffect(() => {
+		if (windowLabel !== "main") return;
+		trace("state", { isOpen, isExpanded, isHidden, isHovered, isNotchHovered, isEdgeHovered, mode: bloomMode, pill: pillKey });
+	}, [isOpen, isExpanded, isHidden, isHovered, isNotchHovered, isEdgeHovered, bloomMode, pillKey, windowLabel]);
+	useEffect(() => {
+		if (windowLabel !== "main") return;
+		const log = (e: PointerEvent) => {
+			const el = e.target instanceof Element ? e.target.closest("[class]")?.className : "";
+			trace(`pointer.${e.type}`, { x: Math.round(e.clientX), y: Math.round(e.clientY), target: String(el).slice(0, 60) });
+		};
+		const types = ["pointerdown", "pointerup", "pointerenter", "pointerleave"] as const;
+		types.forEach((t) => window.addEventListener(t, log, true));
+		return () => types.forEach((t) => window.removeEventListener(t, log, true));
+	}, [windowLabel]);
 	useEffect(() => {
 		if (windowLabel !== "main") return;
 		const end = performance.now() + 900;

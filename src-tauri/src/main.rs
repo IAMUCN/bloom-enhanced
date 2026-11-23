@@ -157,6 +157,15 @@ fn main() {
         // reach this page") across the whole rectangle. Empty the region when a
         // load starts; the page sets its own once it runs.
         .on_page_load(|webview, payload| {
+            diagnostics::trace(
+                "page",
+                &format!(
+                    "win={} event={:?} url={}",
+                    webview.label(),
+                    payload.event(),
+                    payload.url()
+                ),
+            );
             if matches!(payload.event(), tauri::webview::PageLoadEvent::Started)
                 && matches!(webview.label(), "main" | "dock" | "overlay")
             {
@@ -211,6 +220,7 @@ fn main() {
             update_dock_rect,
             update_notch_rect,
             window_region::set_window_region,
+            diagnostics::trace_event,
             set_dock_hovered,
             set_notch_hovered,
             set_notch_visible,

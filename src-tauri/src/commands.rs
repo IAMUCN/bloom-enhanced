@@ -26,6 +26,7 @@ pub fn set_visualizer_wanted(wanted: bool) {
 /// it on Esc (the notch window never takes keyboard focus).
 #[tauri::command]
 pub fn set_notch_open(open: bool) {
+    crate::diagnostics::trace("notch.open", &format!("open={open}"));
     crate::state::NOTCH_OPEN.store(open, Ordering::Relaxed);
     crate::utils::poke();
     // Debug builds log every window's state a moment after the notch opens, so
@@ -54,6 +55,7 @@ pub async fn set_dock_hovered(hovered: bool) {
 
 #[tauri::command]
 pub async fn set_notch_hovered(app: AppHandle, hovered: bool) {
+    crate::diagnostics::trace("notch.hovered", &format!("hovered={hovered}"));
     NOTCH_IS_HOVERED.store(hovered, Ordering::Relaxed);
     // Re-evaluate right away. During a native drag the webview never sees the
     // pointer leave, so waiting for the next mouse move can leave the notch
@@ -63,6 +65,7 @@ pub async fn set_notch_hovered(app: AppHandle, hovered: bool) {
 
 #[tauri::command]
 pub async fn set_notch_visible(visible: bool) {
+    crate::diagnostics::trace("notch.visible", &format!("visible={visible}"));
     NOTCH_IS_VISIBLE.store(visible, Ordering::Relaxed);
 }
 

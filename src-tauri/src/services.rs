@@ -2828,6 +2828,13 @@ fn update_main_interaction(
     let prev = MH_LAST_TOP_EDGE_HOVER.load(Ordering::Relaxed);
     let new_val = if final_notch_hover { 1 } else { 0 };
     if prev != new_val {
+        crate::diagnostics::trace(
+            "edge.hover",
+            &format!(
+                "hover={final_notch_hover} cursor=({},{})",
+                cursor.x, cursor.y
+            ),
+        );
         let _ = app_handle.emit("notch-edge-hover", final_notch_hover);
         MH_LAST_TOP_EDGE_HOVER.store(new_val, Ordering::Relaxed);
     }

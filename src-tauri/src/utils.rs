@@ -1500,6 +1500,10 @@ pub fn set_click_through(hwnd: HWND, ignore: bool) -> bool {
         if wanted == current {
             return false;
         }
+        crate::diagnostics::trace(
+            "click_through",
+            &format!("hwnd={:?} ignore={ignore}", hwnd.0),
+        );
         SetWindowLongPtrW(hwnd, GWL_EXSTYLE, wanted as isize);
         true
     }

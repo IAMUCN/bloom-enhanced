@@ -53,6 +53,17 @@ pub fn set_window_region(window: Window, rects: Vec<IntRect>) {
         return;
     };
     let scale = window.scale_factor().unwrap_or(1.0);
+    crate::diagnostics::trace(
+        "region.set",
+        &format!(
+            "win={} scale={scale} rects={:?}",
+            window.label(),
+            rects
+                .iter()
+                .map(|r| (r.x, r.y, r.width, r.height))
+                .collect::<Vec<_>>()
+        ),
+    );
     if window.label() == "main" {
         let bbox = (!rects.is_empty()).then(|| {
             (
@@ -66,21 +77,30 @@ pub fn set_window_region(window: Window, rects: Vec<IntRect>) {
             b.map_or(0i64, |(l, t, r, bt)| i64::from(r - l) * i64::from(bt - t))
         };
         let mut grows = false;
+        let mut shrinks = false;
         if let Ok(mut region) = crate::state::NOTCH_REGION.lock() {
             grows = area(bbox) > area(*region) * 11 / 10;
+            shrinks = area(bbox) * 11 / 10 < area(*region);
             *region = bbox;
         }
+        crate::diagnostics::trace(
+            "region.main",
+            &format!("bbox={bbox:?} grows={grows} shrinks={shrinks}"),
+        );
         let generation = NOTCH_GEN.fetch_add(1, Ordering::Relaxed) + 1;
         // Debug builds: a region that grows is the notch opening; record it.
+        // (A shrink is the notch closing: the box was also seen there.)
         #[cfg(debug_assertions)]
-        if grows {
+        if grows || shrinks {
             crate::diagnostics::snapshot_burst();
         }
         if grows {
             let hwnd_value = hwnd.0 as isize;
             std::thread::spawn(move || {
                 std::thread::sleep(std::time::Duration::from_millis(GROW_DELAY_MS));
-                if NOTCH_GEN.load(Ordering::Relaxed) == generation {
+                let current = NOTCH_GEN.load(Ordering::Relaxed) == generation;
+                crate::diagnostics::trace("region.delayed", &format!("applied={current}"));
+                if current {
                     let hwnd = windows::Win32::Foundation::HWND(hwnd_value as *mut _);
                     apply_region(hwnd, &rects, scale);
                 }
@@ -96,6 +116,7 @@ pub fn set_window_region(window: Window, rects: Vec<IntRect>) {
 /// and the window would otherwise show its default page, white or an error,
 /// across the whole rectangle.
 pub fn clear_region(hwnd: windows::Win32::Foundation::HWND) {
+    crate::diagnostics::trace("region.clear", &format!("hwnd={:?}", hwnd.0));
     unsafe {
         let region = CreateRectRgn(0, 0, 0, 0);
         if SetWindowRgn(hwnd, Some(region), true) == 0 {
@@ -249,11 +270,16 @@ unsafe extern "system" fn erase_proc(
         msg,
         WM_ACTIVATE | WM_NCACTIVATE | WM_SETFOCUS | WM_KILLFOCUS | WM_SHOWWINDOW
     ) {
+        crate::diagnostics::trace(
+            "win.activity",
+            &format!("hwnd={:?} msg={msg:#x} wparam={}", hwnd.0, wparam.0),
+        );
         let result = DefSubclassProc(hwnd, msg, wparam, lparam);
         repaint_after_focus(hwnd);
         return result;
     }
     if msg == WM_ERASEBKGND {
+        crate::diagnostics::trace("win.erase", &format!("hwnd={:?}", hwnd.0));
         let mut rc = RECT::default();
         if GetClientRect(hwnd, &mut rc).is_ok() {
             FillRect(
