@@ -1150,3 +1150,24 @@ button.clip-share-person,
 	color: #30d158;
 	font-size: 11px;
 }
+
+/* "Search again" and the help under the new-device list. */
+.clip-share-help {
+	display: flex;
+	flex-direction: column;
+	gap: 6px;
+	margin-top: 6px;
+}
+.clip-share-help .clip-share-input {
+	margin-bottom: 0;
+	flex: 1;
+	min-width: 0;
+}
+.clip-share-help .spin {
+	animation: clip-share-spin 1s linear infinite;
+}
+@keyframes clip-share-spin {
+	to {
+		transform: rotate(360deg);
+	}
+}

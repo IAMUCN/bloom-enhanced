@@ -19,6 +19,8 @@ import {
 	panelZoom
 } from "./notchLayout";
 import "./App.css";
+import "./lightFixes.css";
+import "./accentFixes.css";
 import { initTheme } from "./theme";
 import {
 	PlayIcon,
@@ -809,11 +811,25 @@ function App() {
 	}, [windowLabel, notchMode, triggerEventPeek]);
 
 	// Remote announcement shown as a persistent notch card until dismissed.
-	const {
-		announcement,
-		dismissed: announcementDismissed,
-		dismiss: dismissAnnouncement
-	} = useAnnouncement();
+	const remoteAnnouncement = useAnnouncement();
+	// Someone asks to pair: a card on the notch with the code and Accept /
+	// Decline, on whatever page is showing and wherever the Shelf lives.
+	const [pairReq, setPairReq] = useState<{ id: string; name: string; code: number } | null>(null);
+	const announcement = pairReq
+		? {
+				id: `pair-${pairReq.id}`,
+				severity: "info" as const,
+				title: `${pairReq.name} wants to pair`,
+				body: `Code ${String(pairReq.code).padStart(4, "0")}. Accept only if their screen shows the same code.`,
+				url: undefined as string | undefined
+			}
+		: remoteAnnouncement.announcement;
+	const announcementDismissed = pairReq ? false : remoteAnnouncement.dismissed;
+	const answerPair = (accept: boolean) => {
+		if (pairReq) invoke("share_answer", { id: pairReq.id, accept }).catch(() => {});
+		setPairReq(null);
+	};
+	const dismissAnnouncement = pairReq ? () => answerPair(false) : remoteAnnouncement.dismiss;
 	const [deviceAlert, setDeviceAlert] = useState<DeviceAlert | null>(null);
 	// Each connected earbud's own levels, as last reported, for Connected devices.
 	const [budsById, setBudsById] = useState<Record<string, BudsBattery>>({});
@@ -2490,7 +2506,21 @@ function App() {
 			setIsOpen(true);
 			setBloomMode("clipboard");
 		};
-		const offs = [listen("share-pair-request", show), listen("share-group-invite", show)];
+		const offs = [
+			listen<{ id: string; name: string; code: number }>("share-pair-request", (e) => {
+				autoOpenedRef.current = true;
+				setIsOpen(true);
+				setPairReq(e.payload);
+				setBloomMode("announcement");
+			}),
+			// Answered elsewhere (the Shelf's column) or run out: the card goes.
+			listen("share-peers-changed", () =>
+				invoke<{ id: string }[]>("share_requests")
+					.then((all) => setPairReq((cur) => (cur && all.some((r) => r.id === cur.id) ? cur : null)))
+					.catch(() => {})
+			),
+			listen("share-group-invite", show)
+		];
 		return () => offs.forEach((o) => void o.then((f) => f()));
 	}, [windowLabel]);
 
@@ -4883,6 +4913,16 @@ function App() {
 											</div>
 											{announcement.body && (
 												<p className="announcement-body">{announcement.body}</p>
+											)}
+											{pairReq && (
+												<div className="announcement-actions">
+													<button className="announcement-link" onClick={() => answerPair(true)}>
+														Accept
+													</button>
+													<button className="announcement-link" onClick={() => answerPair(false)}>
+														Decline
+													</button>
+												</div>
 											)}
 											{announcement.url && (
 												<button

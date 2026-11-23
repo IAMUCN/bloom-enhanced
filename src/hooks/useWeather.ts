@@ -106,7 +106,7 @@ async function fetchWeatherForCoords(
 
 	const data = await response.json();
 
-	if (!data?.current?.temperature_2m) {
+	if (data?.current?.temperature_2m == null) {
 		throw new Error("Invalid weather API response shape");
 	}
 
@@ -276,27 +276,17 @@ export function useWeather(enabled: boolean) {
 			.catch(() => {});
 	}, []);
 
-	// Listen for temp unit changes
+	// The unit and the city, from Settings (the keys carry the bloom- prefix:
+	// "temp-unit" and "weather-city" never matched, so the C/F switch did
+	// nothing until a restart).
 	useEffect(() => {
-		const unlisten = listen<{ key: string; value: any }>("settings-changed", (event) => {
+		const onSetting = (event: { payload: { key: string; value: any } }) => {
 			const { key, value } = event.payload;
-			if (key === "temp-unit") {
-				setTempUnit(value ? "fahrenheit" : "celsius");
-			}
-		});
-		const unlistenExternal = listen<{ key: string; value: any }>(
-			"settings-external-changed",
-			(event) => {
-				const { key, value } = event.payload;
-				if (key === "bloom-temp-unit") {
-					setTempUnit(String(value));
-				}
-			}
-		);
-		return () => {
-			unlisten.then((fn) => fn());
-			unlistenExternal.then((fn) => fn());
+			if (key === "bloom-temp-unit") setTempUnit(value === "fahrenheit" ? "fahrenheit" : "celsius");
+			if (key === "bloom-weather-city") setCityName(String(value || ""));
 		};
+		const offs = [listen("settings-changed", onSetting), listen("settings-external-changed", onSetting)];
+		return () => offs.forEach((o) => void o.then((fn) => fn()));
 	}, []);
 
 	// Listen for instant refresh from Settings (direct Tauri event with coords)
@@ -315,19 +305,6 @@ export function useWeather(enabled: boolean) {
 			unlisten.then((fn) => fn());
 		};
 	}, [enabled, doFetch]);
-
-	// Listen for city name changes from Settings
-	useEffect(() => {
-		const unlisten = listen<{ key: string; value: any }>("settings-changed", (event) => {
-			const { key, value } = event.payload;
-			if (key === "weather-city") {
-				setCityName(String(value || ""));
-			}
-		});
-		return () => {
-			unlisten.then((fn) => fn());
-		};
-	}, []);
 
 	// Initial fetch + 30-min interval
 	useEffect(() => {

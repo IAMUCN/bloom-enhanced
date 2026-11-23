@@ -37,6 +37,8 @@ import { ORBIT_ICONS } from "./orbitIcons";
 import { useSettingsSync } from "./hooks/useSettingsSync";
 import { initTheme } from "./theme";
 import "./Orbit.css";
+import "./lightFixes.css";
+import "./accentFixes.css";
 import { useHideFromCapture } from "./hooks/useHideFromCapture";
 
 

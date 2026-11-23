@@ -4357,6 +4357,17 @@ fn reposition_all_windows(app_handle: &AppHandle) {
         return;
     }
     reconcile_main_appbar(app_handle);
+    // The notch spans the primary monitor: follow it when the primary display
+    // changes (switching primary, a monitor plugged in or removed). A DPI
+    // change can resize the window right after, so size it again shortly.
+    crate::commands::resize_notch_window(app_handle);
+    let again = app_handle.clone();
+    tauri::async_runtime::spawn(async move {
+        tokio::time::sleep(Duration::from_millis(400)).await;
+        if !SHUTTING_DOWN.load(Ordering::Relaxed) {
+            crate::commands::resize_notch_window(&again);
+        }
+    });
     // Only reposition the dock if it's enabled in settings.
     // Without this guard, power events (plug/unplug, wake) would re-show
     // a dock that the user had previously disabled.

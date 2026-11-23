@@ -47,6 +47,81 @@ const Ring = ({ value, done }: { value: number; done?: boolean }) => (
 	</svg>
 );
 
+/** Under the list of new devices: search again, and what to do when nobody
+ *  shows up (Windows Firewall, a network that drops broadcasts). */
+function ScanHelp({ onFound }: { onFound: (p: Peer[]) => void }) {
+	const [diag, setDiag] = useState<{ ips: string[]; port: number; firewall: boolean } | null>(null);
+	const [ip, setIp] = useState("");
+	const [busy, setBusy] = useState<"" | "fw" | "ip" | "scan">("");
+	const [msg, setMsg] = useState("");
+	const load = () => invoke<{ ips: string[]; port: number; firewall: boolean }>("share_diag").then(setDiag).catch(() => {});
+	useEffect(() => void load(), []);
+	const scan = () => {
+		setBusy("scan");
+		invoke<Peer[]>("share_peers")
+			.then(onFound)
+			.catch(() => {})
+			.finally(() => setBusy(""));
+	};
+	return (
+		<div className="clip-share-help">
+			<button type="button" className="clip-share-btn primary" disabled={busy === "scan"} onClick={scan}>
+				<Radio size={13} className={busy === "scan" ? "spin" : ""} /> {busy === "scan" ? "Searching…" : "Search again"}
+			</button>
+			<span className="clip-share-hint">Nobody showing? The other PC needs LotusNotch open on the same Wi-Fi.</span>
+			{diag && !diag.firewall && (
+				<button
+					type="button"
+					className="clip-share-btn"
+					disabled={busy === "fw"}
+					onClick={() => {
+						setBusy("fw");
+						setMsg("");
+						invoke("share_allow_firewall")
+							.then(() => setMsg("Allowed. Do the same on the other PC, then search again."))
+							.catch((e) => setMsg(String(e)))
+							.finally(() => (setBusy(""), load()));
+					}}
+				>
+					Allow in Windows Firewall
+				</button>
+			)}
+			<div className="clip-share-row">
+				<input
+					className="clip-share-input"
+					placeholder="Their address, e.g. 192.168.1.20"
+					value={ip}
+					onChange={(e) => setIp(e.target.value)}
+					onKeyDown={(e) => e.key === "Enter" && ip.trim() && document.getElementById("share-find")?.click()}
+				/>
+				<button
+					id="share-find"
+					type="button"
+					className="clip-share-btn"
+					disabled={!ip.trim() || busy === "ip"}
+					onClick={() => {
+						setBusy("ip");
+						setMsg("");
+						invoke<Peer[]>("share_find", { ip })
+							.then((list) => (onFound(list), setMsg(list.some((p) => !p.trusted) ? "Found." : "No answer from that address.")))
+							.catch((e) => setMsg(String(e)))
+							.finally(() => setBusy(""));
+					}}
+				>
+					Find
+				</button>
+			</div>
+			{msg && <span className="clip-share-hint">{msg}</span>}
+			{diag && (
+				<span className="clip-share-hint">
+					This PC: {diag.ips.join(", ") || "no network"} · port {diag.port}
+					{diag.firewall ? " · firewall allowed" : ""}
+				</span>
+			)}
+		</div>
+	);
+}
+
 /** Shelf sharing (.grill/shelf-share.md, prototype R26): Pair, Groups and
  *  Live are icons at the end of the filter row (`tools`); each opens a sheet
  *  over the history. The bottom row lists paired people by name with a green
@@ -231,6 +306,14 @@ export function ShareColumn({
 		invoke<Peer[]>("share_peers").then(setPeers).catch(() => {});
 	};
 
+	// While the scan sheet is open, ask again every few seconds: a PC that
+	// opened a moment ago, or a slow Wi-Fi, shows up without a tap.
+	useEffect(() => {
+		if (sheet !== "scan") return;
+		const t = window.setInterval(() => invoke<Peer[]>("share_peers").then(setPeers).catch(() => {}), 4000);
+		return () => window.clearInterval(t);
+	}, [sheet]);
+
 	const pair = (p: Peer) => {
 		setNote("");
 		setPairing({ id: p.id, name: p.name });
@@ -406,10 +489,9 @@ export function ShareColumn({
 						</div>
 					))
 				) : (
-					<div className="clip-share-empty">
-						No other LotusNotch on this network. They need it open, on the same network (Wi-Fi, hotspot or Bluetooth).
-					</div>
+					<div className="clip-share-empty">No other LotusNotch found yet.</div>
 				)}
+				<ScanHelp onFound={setPeers} />
 			</div>
 		);
 	} else if (sheet === "live" && !warned) {

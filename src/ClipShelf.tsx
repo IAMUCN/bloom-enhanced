@@ -15,6 +15,8 @@ import { useSettingsSync } from "./hooks/useSettingsSync";
 import { panelZoom } from "./notchLayout";
 import { initTheme } from "./theme";
 import "./ClipShelf.css";
+import "./lightFixes.css";
+import "./accentFixes.css";
 import { useHideFromCapture } from "./hooks/useHideFromCapture";
 
 document.addEventListener("contextmenu", (e) => e.preventDefault());

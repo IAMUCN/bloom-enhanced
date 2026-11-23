@@ -202,6 +202,81 @@ pub async fn share_peers() -> Result<Vec<PeerView>, String> {
     .map_err(|e| e.to_string())
 }
 
+/// Asks one address directly (when the network drops broadcasts), waits
+/// briefly, returns the list.
+#[tauri::command]
+pub async fn share_find(ip: String) -> Result<Vec<PeerView>, String> {
+    let ip: std::net::Ipv4Addr = ip
+        .trim()
+        .parse()
+        .map_err(|_| "That is not an address like 192.168.1.20".to_string())?;
+    let s = share()?.clone();
+    tauri::async_runtime::spawn_blocking(move || {
+        s.query_addr(ip);
+        std::thread::sleep(std::time::Duration::from_millis(1200));
+        s.peers()
+    })
+    .await
+    .map_err(|e| e.to_string())
+}
+
+const FIREWALL_RULE: &str = "LotusNotch Sharing";
+
+fn hidden(cmd: &mut std::process::Command) -> &mut std::process::Command {
+    use std::os::windows::process::CommandExt;
+    cmd.creation_flags(0x0800_0000)
+}
+
+/// What the "can't find them" help shows: this PC's addresses, the port, and
+/// whether Windows Firewall has a rule letting LotusNotch in.
+#[tauri::command(async)]
+pub fn share_diag() -> Result<serde_json::Value, String> {
+    let (ips, port) = share()?.addresses();
+    let rule = hidden(std::process::Command::new("netsh").args([
+        "advfirewall",
+        "firewall",
+        "show",
+        "rule",
+        &format!("name={FIREWALL_RULE}"),
+    ]))
+    .output()
+    .map(|o| o.status.success())
+    .unwrap_or(false);
+    Ok(serde_json::json!({
+        "ips": ips.iter().map(|a| a.to_string()).collect::<Vec<_>>(),
+        "port": port,
+        "firewall": rule,
+    }))
+}
+
+/// Adds the inbound firewall rule for this program (Windows asks the user to
+/// allow it: the rule needs administrator rights).
+#[tauri::command(async)]
+pub fn share_allow_firewall() -> Result<(), String> {
+    let exe = std::env::current_exe().map_err(|e| e.to_string())?;
+    let args = format!(
+        "advfirewall firewall add rule name=\"{FIREWALL_RULE}\" dir=in action=allow program=\"{}\" enable=yes profile=any",
+        exe.display()
+    );
+    let script = format!(
+        "Start-Process -FilePath netsh -Verb RunAs -WindowStyle Hidden -Wait -ArgumentList '{}'",
+        args.replace('\'', "''")
+    );
+    let ok = hidden(std::process::Command::new("powershell").args([
+        "-NoProfile",
+        "-NonInteractive",
+        "-Command",
+        &script,
+    ]))
+    .status()
+    .map_err(|e| e.to_string())?
+    .success();
+    if !ok {
+        return Err("Windows did not allow it".into());
+    }
+    Ok(())
+}
+
 /// The list as it is now (after a `share-peers-changed`), no new query.
 #[tauri::command]
 pub fn share_list() -> Result<Vec<PeerView>, String> {

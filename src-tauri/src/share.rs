@@ -695,6 +695,22 @@ impl Share {
         self.announce("query");
     }
 
+    /// Asks one address directly (typed in by the user): when broadcast and
+    /// multicast don't cross the network (some Wi-Fi), a direct datagram
+    /// still does. Their hello comes back like any other.
+    pub fn query_addr(&self, ip: Ipv4Addr) {
+        let msg = self.datagram("query");
+        let _ = self.udp.send_to(&msg, (ip, self.cfg.listen_port));
+    }
+
+    /// This PC's addresses (for the "can't find them" help) and the port.
+    pub fn addresses(&self) -> (Vec<Ipv4Addr>, u16) {
+        (
+            local_nets().into_iter().map(|(a, _)| a).collect(),
+            self.cfg.listen_port,
+        )
+    }
+
     pub fn on_datagram(&self, buf: &[u8], from: SocketAddr) {
         let Ok(v) = serde_json::from_slice::<serde_json::Value>(buf) else {
             return;

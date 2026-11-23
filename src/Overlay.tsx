@@ -6,6 +6,8 @@ import { invoke } from "@tauri-apps/api/core";
 import { getVersion } from "@tauri-apps/api/app";
 import { getCurrentWebviewWindow } from "@tauri-apps/api/webviewWindow";
 import "./Overlay.css";
+import "./lightFixes.css";
+import "./accentFixes.css";
 import { initTheme } from "./theme";
 import { createRegionSender } from "./windowRegion";
 
