@@ -99,7 +99,17 @@ pub fn repaint_after_focus(hwnd: windows::Win32::Foundation::HWND) {
     use windows::Win32::Graphics::Gdi::{
         RedrawWindow, RDW_ALLCHILDREN, RDW_ERASE, RDW_INVALIDATE, RDW_UPDATENOW,
     };
+    // One repaint burst per window at a time: activation sends several
+    // messages at once.
+    static BUSY: std::sync::Mutex<Vec<isize>> = std::sync::Mutex::new(Vec::new());
     let raw = hwnd.0 as isize;
+    {
+        let mut busy = BUSY.lock().unwrap_or_else(|e| e.into_inner());
+        if busy.contains(&raw) {
+            return;
+        }
+        busy.push(raw);
+    }
     std::thread::spawn(move || {
         let hwnd = windows::Win32::Foundation::HWND(raw as *mut _);
         for wait in [30u64, 170, 400] {
@@ -113,6 +123,9 @@ pub fn repaint_after_focus(hwnd: windows::Win32::Foundation::HWND) {
                 );
             }
         }
+        BUSY.lock()
+            .unwrap_or_else(|e| e.into_inner())
+            .retain(|h| *h != raw);
     });
 }
 
@@ -171,7 +184,21 @@ unsafe extern "system" fn erase_proc(
 ) -> windows::Win32::Foundation::LRESULT {
     use windows::Win32::Graphics::Gdi::{FillRect, GetStockObject, BLACK_BRUSH, HBRUSH, HDC};
     use windows::Win32::UI::Shell::DefSubclassProc;
-    use windows::Win32::UI::WindowsAndMessaging::{GetClientRect, WM_ERASEBKGND};
+    use windows::Win32::UI::WindowsAndMessaging::{
+        GetClientRect, WM_ACTIVATE, WM_ERASEBKGND, WM_KILLFOCUS, WM_NCACTIVATE, WM_SETFOCUS,
+        WM_SHOWWINDOW,
+    };
+    // Whatever way the window is activated, deactivated or shown (a click into
+    // a text field, a shortcut, the shell, another app), the clear parts of its
+    // region can show light until it is fully repainted.
+    if matches!(
+        msg,
+        WM_ACTIVATE | WM_NCACTIVATE | WM_SETFOCUS | WM_KILLFOCUS | WM_SHOWWINDOW
+    ) {
+        let result = DefSubclassProc(hwnd, msg, wparam, lparam);
+        repaint_after_focus(hwnd);
+        return result;
+    }
     if msg == WM_ERASEBKGND {
         let mut rc = RECT::default();
         if GetClientRect(hwnd, &mut rc).is_ok() {
