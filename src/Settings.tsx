@@ -351,16 +351,10 @@ function SettingsApp() {
 					</button>
 				</div>
 
-				<div className={`settings-content${shown && hasPreview(shown) && (!modules[shown] || modules[shown]!.on) ? " has-preview" : ""}`} ref={contentRef} onChangeCapture={(event) => {
-					const target = event.target as HTMLElement;
-					const row = target.closest(".setting-item");
-					let label = row?.querySelector(".setting-label")?.textContent;
-					if (!label && target.closest(".settings-disclosure-standalone")) label = "Status Widgets";
-					if (label) setPreviewFocus(activeTab + ":" + label + ":" + Date.now());
-				}} onClickCapture={(event) => {
+				<div className={`settings-content${shown && hasPreview(shown) && (!modules[shown] || modules[shown]!.on) ? " has-preview" : ""}`} ref={contentRef} onClickCapture={(event) => {
 					const label = (event.target as HTMLElement).closest(".setting-item")?.querySelector(".setting-label")?.textContent;
 					if (label) {
-						setPreviewFocus(activeTab + ":" + label + ":" + Date.now());
+						window.setTimeout(() => setPreviewFocus(activeTab + ":" + label + ":" + Date.now()), 0);
 					}
 				}}>
 					{settings.saveError && (
