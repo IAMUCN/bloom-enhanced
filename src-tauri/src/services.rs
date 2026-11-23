@@ -2198,6 +2198,23 @@ const TOP_EDGE_DWELL_MS: i64 = 200;
 /// The mouse hook only fires on WM_MOUSEMOVE, so a pending dwell is completed
 /// by a watchdog that re-checks at this cadence.
 const TOP_EDGE_POLL_MS: u64 = 40;
+/// How long an edge watchdog sleeps before its next check. While anything is
+/// live (the cursor moved, a dwell or drag is pending, a hover is showing) it
+/// keeps the fast rate; after a second of nothing it slows down, because the
+/// mouse hook reports real movement itself and this is only the backstop.
+fn edge_watchdog_sleep_ms(busy: bool, idle_ticks: u32) -> u64 {
+    if busy || idle_ticks < 25 {
+        TOP_EDGE_POLL_MS
+    } else {
+        250
+    }
+}
+
+fn left_button_down() -> bool {
+    use windows::Win32::UI::Input::KeyboardAndMouse::{GetAsyncKeyState, VK_LBUTTON};
+    (unsafe { GetAsyncKeyState(VK_LBUTTON.0 as i32) } as u16 & 0x8000) != 0
+}
+
 static MH_TOP_EDGE_ENTER_MS: AtomicI64 = AtomicI64::new(0);
 static MH_TOP_EDGE_ARMED: AtomicBool = AtomicBool::new(false);
 
@@ -2805,21 +2822,45 @@ fn update_main_interaction(
 /// catches boundary crossings the movement-only hook misses (so the click-
 /// through flip — and its hover-clear — always happens).
 fn setup_top_edge_watchdog(app_handle: AppHandle) {
-    std::thread::spawn(move || loop {
-        std::thread::sleep(Duration::from_millis(TOP_EDGE_POLL_MS));
-        if CAPTURE_UI_ACTIVE.load(Ordering::Relaxed) || SHUTTING_DOWN.load(Ordering::Relaxed) {
-            continue;
-        }
-        let mut pt = windows::Win32::Foundation::POINT::default();
-        if unsafe { windows::Win32::UI::WindowsAndMessaging::GetCursorPos(&mut pt) }.is_err() {
-            continue;
-        }
-        let fg_fs = CURRENT_FOREGROUND_FULLSCREEN.load(Ordering::Relaxed);
-        update_main_interaction(&app_handle, pt, now_ms(), fg_fs);
-        // The edge Shelf too, while it's open or the cursor rests on its
-        // edge (no mouse events then; also none over elevated apps).
-        if crate::clipboard::shelf_needs_tick(pt.x, pt.y) {
-            queue_cursor(pt);
+    std::thread::spawn(move || {
+        let mut last = windows::Win32::Foundation::POINT::default();
+        let mut idle_ticks = 0u32;
+        let mut wait = TOP_EDGE_POLL_MS;
+        loop {
+            std::thread::sleep(Duration::from_millis(wait));
+            if CAPTURE_UI_ACTIVE.load(Ordering::Relaxed) || SHUTTING_DOWN.load(Ordering::Relaxed) {
+                continue;
+            }
+            let mut pt = windows::Win32::Foundation::POINT::default();
+            if unsafe { windows::Win32::UI::WindowsAndMessaging::GetCursorPos(&mut pt) }.is_err() {
+                continue;
+            }
+            let moved = (pt.x, pt.y) != (last.x, last.y);
+            last = pt;
+            let shelf = crate::clipboard::shelf_needs_tick(pt.x, pt.y);
+            let busy = moved
+                || shelf
+                || MH_TOP_EDGE_ENTER_MS.load(Ordering::Relaxed) != 0
+                || NOTCH_IS_HOVERED.load(Ordering::Relaxed)
+                || NOTCH_OPEN.load(Ordering::Relaxed)
+                || left_button_down();
+            idle_ticks = if busy {
+                0
+            } else {
+                idle_ticks.saturating_add(1)
+            };
+            wait = edge_watchdog_sleep_ms(busy, idle_ticks);
+            // Slowed down: still refresh about once a second.
+            if !busy && idle_ticks >= 25 && !idle_ticks.is_multiple_of(4) {
+                continue;
+            }
+            let fg_fs = CURRENT_FOREGROUND_FULLSCREEN.load(Ordering::Relaxed);
+            update_main_interaction(&app_handle, pt, now_ms(), fg_fs);
+            // The edge Shelf too, while it's open or the cursor rests on its
+            // edge (no mouse events then; also none over elevated apps).
+            if shelf {
+                queue_cursor(pt);
+            }
         }
     });
 }
@@ -3056,17 +3097,38 @@ fn update_dock_interaction(
 /// pending bottom-edge dwell and catches boundary crossings the movement-only
 /// hook misses (so the click-through flip always happens).
 fn setup_dock_edge_watchdog(app_handle: AppHandle) {
-    std::thread::spawn(move || loop {
-        std::thread::sleep(Duration::from_millis(BOTTOM_EDGE_POLL_MS));
-        if CAPTURE_UI_ACTIVE.load(Ordering::Relaxed) || SHUTTING_DOWN.load(Ordering::Relaxed) {
-            continue;
+    std::thread::spawn(move || {
+        let mut last = windows::Win32::Foundation::POINT::default();
+        let mut idle_ticks = 0u32;
+        let mut wait = BOTTOM_EDGE_POLL_MS;
+        loop {
+            std::thread::sleep(Duration::from_millis(wait));
+            if CAPTURE_UI_ACTIVE.load(Ordering::Relaxed) || SHUTTING_DOWN.load(Ordering::Relaxed) {
+                continue;
+            }
+            let mut pt = windows::Win32::Foundation::POINT::default();
+            if unsafe { windows::Win32::UI::WindowsAndMessaging::GetCursorPos(&mut pt) }.is_err() {
+                continue;
+            }
+            let moved = (pt.x, pt.y) != (last.x, last.y);
+            last = pt;
+            let busy = moved
+                || MH_DOCK_EDGE_ENTER_MS.load(Ordering::Relaxed) != 0
+                || MH_DOCK_EDGE_ARMED.load(Ordering::Relaxed)
+                || MENU_IS_OPEN.load(Ordering::Relaxed)
+                || left_button_down();
+            idle_ticks = if busy {
+                0
+            } else {
+                idle_ticks.saturating_add(1)
+            };
+            wait = edge_watchdog_sleep_ms(busy, idle_ticks);
+            if !busy && idle_ticks >= 25 && !idle_ticks.is_multiple_of(4) {
+                continue;
+            }
+            let fg_fs = CURRENT_FOREGROUND_FULLSCREEN.load(Ordering::Relaxed);
+            update_dock_interaction(&app_handle, pt, now_ms(), fg_fs);
         }
-        let mut pt = windows::Win32::Foundation::POINT::default();
-        if unsafe { windows::Win32::UI::WindowsAndMessaging::GetCursorPos(&mut pt) }.is_err() {
-            continue;
-        }
-        let fg_fs = CURRENT_FOREGROUND_FULLSCREEN.load(Ordering::Relaxed);
-        update_dock_interaction(&app_handle, pt, now_ms(), fg_fs);
     });
 }
 
@@ -4703,5 +4765,17 @@ mod tests {
             "Brave",
             "C:\\Program Files\\Brave\\brave.exe"
         ));
+    }
+}
+
+#[cfg(test)]
+mod watchdog_tests {
+    use super::*;
+
+    #[test]
+    fn edge_watchdog_slows_only_after_a_quiet_second() {
+        assert_eq!(edge_watchdog_sleep_ms(true, 500), TOP_EDGE_POLL_MS);
+        assert_eq!(edge_watchdog_sleep_ms(false, 24), TOP_EDGE_POLL_MS);
+        assert_eq!(edge_watchdog_sleep_ms(false, 25), 250);
     }
 }
