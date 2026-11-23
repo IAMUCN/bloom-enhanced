@@ -10,6 +10,7 @@ import {
 	createRegionSender,
 	measureElements,
 	notchPillBox,
+	padRect,
 	type RegionRect
 } from "./windowRegion";
 import {
@@ -884,9 +885,12 @@ function App() {
 	const pillTargetRef = useRef<RegionRect | null>(null);
 	const sendNotchRegion = useMemo(
 		() =>
+			// No hold: while the pill shrinks, its live box is followed frame by frame
+			// (see the effect below), so no stale area is left showing the window's own
+			// black behind the smaller pill (the "white box", seen 2026-11-23 22:57).
 			createRegionSender((rects) => {
 				invoke("set_window_region", { rects }).catch(() => {});
-			}),
+			}, 0),
 		[]
 	);
 
@@ -896,6 +900,11 @@ function App() {
 	const updateNotchRegion = () => {
 		const wanted: RegionRect[] = [];
 		if (pillTargetRef.current) wanted.push(pillTargetRef.current);
+		// Where the pill is drawn right now (it animates toward the target).
+		const live = bloomRef.current?.getBoundingClientRect();
+		if (live && live.width > 0) {
+			wanted.push(padRect({ x: live.left, y: live.top, width: live.width, height: live.height }, 24 * pillZoom));
+		}
 		// Each floating part, padded to cover what it paints outside its box: a
 		// tooltip card's shadow reaches 20px out plus a 6px drop, a bubble's
 		// glow less.
@@ -3869,6 +3878,20 @@ function App() {
 	useEffect(() => {
 		if (windowLabel === "main") updateNotchRegion();
 	});
+
+	// While the pill animates to a new size, follow it every frame so the region
+	// hugs what is drawn (the target alone clips a shrinking pill's tail, a held
+	// old box shows the window's black around it).
+	const pillKey = `${pillTargetWidth}x${pillTargetHeight}@${pillTargetY}`;
+	useEffect(() => {
+		if (windowLabel !== "main") return;
+		const end = performance.now() + 900;
+		let raf = requestAnimationFrame(function tick() {
+			updateNotchRegion();
+			if (performance.now() < end) raf = requestAnimationFrame(tick);
+		});
+		return () => cancelAnimationFrame(raf);
+	}, [pillKey, windowLabel]);
 
 	// The music player (compact or classic): the whole notch while the tab
 	// bar is hidden, otherwise the Media tab's body.
