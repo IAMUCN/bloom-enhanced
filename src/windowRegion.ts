@@ -99,7 +99,7 @@ export function measureElements(selectors: [string, number][]): RegionRect[] {
  * expires or the display scale changes. Rectangles are clipped to the window
  * first. Meant to live as long as its window.
  */
-export function createRegionSender(send: (rects: RegionRect[]) => void, holdMs = 700) {
+export function createRegionSender(send: (rects: RegionRect[]) => void, holdMs = 700, lagMs = 0) {
 	let state: RegionState = { key: "", current: [], held: [] };
 	let latest: RegionRect[] = [];
 	let timer: ReturnType<typeof setTimeout> | null = null;
@@ -118,7 +118,10 @@ export function createRegionSender(send: (rects: RegionRect[]) => void, holdMs =
 				: setTimeout(() => update(latest), next.nextExpiry - performance.now() + 5);
 	};
 	onPixelRatioChange(() => update(latest));
-	return update;
+	// A window region applied the instant the page asks can expose pixels the
+	// compositor hasn't shown yet, which flash light for a frame. With a lag,
+	// each region is applied after the frame it was measured from is on screen.
+	return lagMs > 0 ? (wanted: RegionRect[]) => void setTimeout(() => update(wanted), lagMs) : update;
 }
 
 function regionKey(rects: RegionRect[]): string {

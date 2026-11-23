@@ -175,7 +175,7 @@ pub fn snapshot_burst() {
     let set = SET.fetch_add(1, Ordering::Relaxed) % 4;
     record("burst", &format!("set={set} start"));
     std::thread::spawn(move || {
-        for frame in 0..16 {
+        for frame in 0..24 {
             let file = path.with_file_name(format!("burst-{set}-{frame}.bmp"));
             let bmp = capture_bmp(560, 0, 800, 360);
             record(
@@ -183,7 +183,7 @@ pub fn snapshot_burst() {
                 &format!("set={set} f={frame:02} {}", frame_stats(&bmp)),
             );
             let _ = std::fs::write(&file, bmp);
-            std::thread::sleep(std::time::Duration::from_millis(25));
+            std::thread::sleep(std::time::Duration::from_millis(4));
         }
         record("burst", &format!("set={set} done"));
         BUSY.store(false, Ordering::Relaxed);

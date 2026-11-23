@@ -11,7 +11,6 @@ import {
 	createRegionSender,
 	measureElements,
 	notchPillBox,
-	padRect,
 	type RegionRect
 } from "./windowRegion";
 import {
@@ -885,9 +884,7 @@ function App() {
 	// notch window's region (holding earlier regions while it shrinks).
 	const pillTargetRef = useRef<RegionRect | null>(null);
 	const lastLiveKey = useRef("");
-	const animatingRef = useRef(false);
-	const prevLive = useRef<{ width: number; height: number } | null>(null);
-	const aheadRef = useRef(0);
+
 	const sendNotchRegion = useMemo(
 		() =>
 			// No hold: while the pill shrinks, its live box is followed frame by frame
@@ -899,18 +896,32 @@ function App() {
 		[]
 	);
 
-	// Recomputes the notch window's region from the pill's target box and the
-	// floating parts drawn around it, and sends it if it changed. Reads only
-	// refs and the DOM, so it is safe to call from any callback.
+	// The notch window's region (window_region.rs) is exactly what the pill
+	// draws, no padding: any region area the page isn't painting yet shows as a
+	// light box for a frame (the "white box", traced 2026-11-23/24 across ten
+	// recordings), so the region is the pill's measured box plus the thin strip
+	// the top flares need, and it is applied REGION_LAG_MS late, after the
+	// compositor has shown the frame it was measured from. Both directions are
+	// then safe: it never exposes unpainted pixels, and clips at most ~2 frames
+	// of growth (black beside black).
+	const REGION_LAG_MS = 34;
+	const regionQueue = useRef<{ t: number; rects: RegionRect[]; key: string }[]>([]);
+	const regionRaf = useRef(0);
+	const flushRegion = () => {
+		regionRaf.current = 0;
+		const q = regionQueue.current;
+		const due = performance.now() - REGION_LAG_MS;
+		let idx = -1;
+		for (let i = 0; i < q.length; i++) if (q[i].t <= due) idx = i;
+		if (idx >= 0) {
+			sendNotchRegion(q[idx].rects);
+			q.splice(0, idx); // keeps the one just sent as the marker
+		}
+		if (q.some((e) => e.t > due)) regionRaf.current = requestAnimationFrame(flushRegion);
+	};
 	const updateNotchRegion = () => {
 		const wanted: RegionRect[] = [];
-		// Where the pill is drawn right now (it animates toward the target).
 		const live = bloomRef.current?.getBoundingClientRect();
-		// While it animates the region is only what is drawn now: the final size
-		// would expose area the page hasn't painted yet (the box at both ends of
-		// the pill, seen 2026-11-23 23:14 in the log: the target was applied
-		// while the pill was still 96 px wide of 284).
-		if (pillTargetRef.current && !(animatingRef.current && live && live.width > 0)) wanted.push(pillTargetRef.current);
 		if (import.meta.env.DEV && live) {
 			const key = [live.left, live.top, live.width, live.height].map(Math.round).join(",");
 			if (key !== lastLiveKey.current) {
@@ -919,34 +930,27 @@ function App() {
 			}
 		}
 		if (live && live.width > 0) {
-			// The compositor shows a frame or two ahead of this measurement, so a
-			// growing pill gets that much extra on each side and below: otherwise
-			// the region clips its newest edge square (the cut-off tiles at both
-			// sides, seen in the 23:30 video). The extra is black beside black.
-			// Measured only when the size changed: several callers run per frame, and
-			// recomputing for each made the region jump between two sizes (the
-			// flicker in the 00:05 log).
-			const prev = prevLive.current;
-			if (!prev || prev.width !== live.width || prev.height !== live.height) {
-				const grow = prev ? Math.max(0, live.width - prev.width, live.height - prev.height) : 0;
-				prevLive.current = { width: live.width, height: live.height };
-				aheadRef.current = Math.min(80, grow * 3);
-			}
-			const ahead = animatingRef.current ? aheadRef.current : 0;
-			wanted.push(
-				padRect({ x: live.left - ahead / 2, y: live.top, width: live.width + ahead, height: live.height + ahead }, 24 * pillZoom)
-			);
+			wanted.push({ x: live.left, y: live.top, width: live.width, height: live.height });
+			// The flares at the top corners (13 px, see NotchOutline) and the light
+			// that runs along them.
+			const flare = 19 * pillZoom;
+			wanted.push({ x: live.left - flare, y: live.top, width: live.width + flare * 2, height: flare });
+		} else if (pillTargetRef.current) {
+			wanted.push(pillTargetRef.current);
 		}
-		// Each floating part, padded to cover what it paints outside its box: a
-		// tooltip card's shadow reaches 20px out plus a 6px drop, a bubble's
-		// glow less.
+		// Floating parts drawn beside the pill (their own box, padded for the
+		// shadow they paint outside it).
 		wanted.push(
 			...measureElements([
 				[".activity-bubble", 16],
 				[".status-tooltip", 28]
 			])
 		);
-		sendNotchRegion(wanted);
+		const key = wanted.map((r) => `${Math.round(r.x)},${Math.round(r.y)},${Math.round(r.width)},${Math.round(r.height)}`).join(";");
+		const q = regionQueue.current;
+		if (q.length > 0 && q[q.length - 1].key === key) return;
+		q.push({ t: performance.now(), rects: wanted, key });
+		if (!regionRaf.current) regionRaf.current = requestAnimationFrame(flushRegion);
 	};
 	const [systemSettingsReady, setSystemSettingsReady] = useState(false);
 	const [waitForStartupSplash, setWaitForStartupSplash] = useState(false);
@@ -3918,12 +3922,6 @@ function App() {
 	// hugs what is drawn (the target alone clips a shrinking pill's tail, a held
 	// old box shows the window's black around it).
 	const pillKey = `${pillTargetWidth}x${pillTargetHeight}@${pillTargetY}`;
-	// Set during render so even the first region of a new size is "animating".
-	const lastPillKey = useRef(pillKey);
-	if (lastPillKey.current !== pillKey) {
-		lastPillKey.current = pillKey;
-		animatingRef.current = true;
-	}
 	// Dev trace (diagnostics.log, see trace.ts): the states and pointer events
 	// around a visual glitch, to read next to the Rust side's lines by time.
 	useEffect(() => {
@@ -3943,7 +3941,6 @@ function App() {
 	useEffect(() => {
 		if (windowLabel !== "main") return;
 		const end = performance.now() + 900;
-		animatingRef.current = true;
 		const shell = () => bloomRef.current;
 		// A page body shows only once the shell is near its final size (App.css
 		// [data-settling]): it used to be wiped in by a growing clip, which showed
@@ -3965,13 +3962,10 @@ function App() {
 				updateNotchRegion();
 				raf = requestAnimationFrame(tick);
 			} else {
-				animatingRef.current = false;
 				delete shell()?.dataset.settling;
 				updateNotchRegion();
 			}
 		});
-		// (No reset here: this cleanup runs before the next effects of the same
-		// commit, and the first region of a new size must still count as animating.)
 		return () => cancelAnimationFrame(raf);
 	}, [pillKey, windowLabel]);
 

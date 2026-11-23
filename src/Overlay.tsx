@@ -122,7 +122,7 @@ function OverlayApp() {
 		() =>
 			createRegionSender((rects) => {
 				invoke("set_window_region", { rects }).catch(() => {});
-			}),
+			}, 700, 34),
 		[]
 	);
 
