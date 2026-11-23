@@ -49,7 +49,7 @@ export function NotchFx({ kind, shape, colour, percent = 0 }: { kind: FxKind; sh
 				const l = progress ? lit(side) : null;
 				const extra = l ? { strokeDasharray: l.dash, strokeDashoffset: l.off } : undefined;
 				return (
-					<g key={side}>
+					<g key={side} opacity={l && l.dash.startsWith("0 ") ? 0 : undefined}>
 						<path d={d} pathLength={1} className="halo" style={extra} />
 						<path d={d} pathLength={1} className="core" style={extra} />
 					</g>
