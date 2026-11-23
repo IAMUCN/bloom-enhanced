@@ -2363,9 +2363,12 @@ function App() {
 	// The Game strip glance: CPU · GPU · RAM in the clock's place, read every
 	// 2 s only while it shows.
 	// Hidden while hovered: the hover widgets beside the clock would land on it.
-	const showGlance = glanceOn && !isOpen && !isHovered && !timesUp && !toolTimer && timerSeconds === 0 && !isTimerFinished;
+	// The notch keeps its glance width while hovered, so it opens from there
+	// instead of shrinking first.
+	const glanceIdle = glanceOn && !isOpen && !timesUp && !toolTimer && timerSeconds === 0 && !isTimerFinished;
+	const showGlance = glanceIdle && !isHovered;
 	useEffect(() => {
-		if (windowLabel !== "main" || !showGlance) return setGlance(null);
+		if (windowLabel !== "main" || !glanceIdle) return setGlance(null);
 		const read = () =>
 			Promise.all([
 				invoke<{ cpu: number; mem_used: number; mem_total: number }>("system_stats"),
@@ -2376,7 +2379,7 @@ function App() {
 		read();
 		const t = window.setInterval(read, 2000);
 		return () => window.clearInterval(t);
-	}, [showGlance, windowLabel]);
+	}, [glanceIdle, windowLabel]);
 	// The Timer tool's countdown takes the clock's place on the closed notch.
 	const showToolTimer =
 		!!toolTimer && !isOpen && timerSeconds === 0 && !isTimerFinished && (timerDisplay === "pill" || timerDisplay === "both");
@@ -3670,7 +3673,7 @@ function App() {
 		if (toolShowing && isOpen) return OPEN_WIDTH;
 		if (minimalIdle) return 72;
 		if (fileStatus && !isOpen) return 300;
-		if (showGlance && glance) return 380;
+		if (glanceIdle && glance) return 380;
 		if (bloomMode === "announcement" && announcement && !announcementDismissed) return 380;
 		if (bloomMode === "device" && deviceAlert) return 330;
 		if (isCalendarMode) return 480;
