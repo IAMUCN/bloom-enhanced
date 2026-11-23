@@ -3935,10 +3935,9 @@ function App() {
 				updateNotchRegion();
 			}
 		});
-		return () => {
-			cancelAnimationFrame(raf);
-			animatingRef.current = false;
-		};
+		// (No reset here: this cleanup runs before the next effects of the same
+		// commit, and the first region of a new size must still count as animating.)
+		return () => cancelAnimationFrame(raf);
 	}, [pillKey, windowLabel]);
 
 	// The music player (compact or classic): the whole notch while the tab
