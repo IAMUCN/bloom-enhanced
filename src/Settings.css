@@ -3360,3 +3360,17 @@ button.shortcut-icon:hover {
 	transform: translateY(-2px);
 	color: var(--bloom-accent, #6a55ff);
 }
+
+/* General: each section is one card; its diamond opens and closes it. */
+.settings-container .gsec { margin: 16px 0 0; background: var(--v2-card); border: 1px solid var(--v2-border); border-radius: 18px; box-shadow: 0 8px 28px rgba(0, 0, 0, 0.18); overflow: hidden; }
+.settings-container .gsec-head { all: unset; box-sizing: border-box; display: flex; align-items: center; gap: 10px; width: 100%; padding: 14px 16px 8px; cursor: pointer; font-size: var(--fs-small); font-weight: 700; letter-spacing: 0.6px; text-transform: uppercase; color: var(--v2-text); }
+.settings-container .gsec-head:focus-visible { outline: 2px solid var(--v2-accent2); outline-offset: -2px; border-radius: 18px; }
+.settings-container .gsec-diamond { width: 9px; height: 9px; flex: none; border: 2px solid var(--v2-accent2); border-radius: 2px; transform: rotate(45deg); transition: background-color 0.15s ease, transform 0.2s ease; }
+.settings-container .gsec.open .gsec-diamond { background: var(--v2-accent2); }
+.settings-container .gsec:not(.open) .gsec-diamond { transform: rotate(45deg) scale(0.85); }
+.settings-container .gsec:not(.open) .gsec-head { padding-bottom: 14px; }
+.settings-container .gsec-body { display: grid; grid-template-rows: 1fr; transition: grid-template-rows 0.2s ease; }
+.settings-container .gsec:not(.open) .gsec-body { grid-template-rows: 0fr; }
+.settings-container .gsec-body > .setting-group { min-height: 0; overflow: hidden; background: none; border: 0; border-radius: 0; box-shadow: none; }
+.settings-container .gsec-body .setting-divider { background: var(--v2-border); }
+.settings-container .settings-main section > .gsec:first-child { margin-top: 0; }

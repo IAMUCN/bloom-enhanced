@@ -5,6 +5,23 @@ import { Choice } from "./Choice";
 import { SettingRow } from "./SettingRow";
 import { HideFromCaptureRow } from "./HideFromCaptureRow";
 
+/** One card: a title (its diamond opens and closes it) over the rows. The rows
+ *  stay in the page when closed so search can still find them. */
+function Section({ title, children }: { title: string; children: React.ReactNode }) {
+	const [open, setOpen] = useState(true);
+	return (
+		<div className={`gsec${open ? " open" : ""}`}>
+			<button type="button" className="gsec-head" aria-expanded={open} onClick={() => setOpen(!open)}>
+				<span className="gsec-diamond" />
+				{title}
+			</button>
+			<div className="gsec-body" inert={!open}>
+				<div className="setting-group">{children}</div>
+			</div>
+		</div>
+	);
+}
+
 type Pauses = { visualizer: boolean; motion: boolean };
 const PAUSES: [keyof Pauses, typeof Leaf, string, string][] = [
 	["visualizer", AudioLines, "Pause Visualizer", "The music bars stop listening to your audio"],
@@ -29,8 +46,7 @@ function BatterySaver({ saveSetting }: { saveSetting: (key: string, value: strin
 	});
 	return (
 		<>
-			<div className="setting-group-label">Battery Saver</div>
-			<div className="setting-group">
+			<Section title="Battery Saver">
 				<SettingRow
 					icon={Leaf}
 					label="Battery Saver"
@@ -89,7 +105,7 @@ function BatterySaver({ saveSetting }: { saveSetting: (key: string, value: strin
 							</label>
 						</SettingRow>
 					))}
-			</div>
+			</Section>
 		</>
 	);
 }
@@ -137,8 +153,7 @@ export function GeneralTab({
 	const [lowMemory, setLowMemory] = useState(() => localStorage.getItem("bloom-low-memory") !== "false");
 	return (
 		<>
-			<div className="setting-group-label">System</div>
-			<div className="setting-group">
+			<Section title="System">
 				<SettingRow icon={UserRound} label="Your Name" desc="Shown to people you share your Shelf with">
 					<input
 						className="setting-text-input"
@@ -196,18 +211,16 @@ export function GeneralTab({
 						className="settings-slider"
 					/>
 				</SettingRow>
-			</div>
+			</Section>
 
-			<div className="setting-group-label">Privacy: leave out of recordings, screen shares and screenshots</div>
-			<div className="setting-group">
+			<Section title="Privacy: leave out of recordings, screen shares and screenshots">
 				<HideFromCaptureRow label="Hide the Notch" settingKey="bloom-notch-hide-from-capture" byDefault what="the notch (and the Shelf inside it)" />
 				<HideFromCaptureRow label="Hide the Dock" settingKey="bloom-dock-hide-from-capture" byDefault={false} what="the dock" />
 				<HideFromCaptureRow label="Hide the Shelf" settingKey="bloom-clipboard-hide-from-capture" byDefault={false} what="the Shelf on a screen edge (in the notch it follows the notch)" />
 				<HideFromCaptureRow label="Hide the Radial Menu" settingKey="bloom-files-hide-from-capture" byDefault what="the radial menu" />
-			</div>
+			</Section>
 
-			<div className="setting-group-label">Backup &amp; Setup</div>
-			<div className="setting-group">
+			<Section title="Backup &amp; Setup">
 				<SettingRow
 					icon={FileDown}
 					label={exportStatus === "exporting" ? "Exporting..." : exportStatus === "success" ? "Exported!" : exportStatus === "error" ? "Export failed. Try again." : "Export Settings"}
@@ -227,16 +240,11 @@ export function GeneralTab({
 						Start
 					</button>
 				</SettingRow>
-			</div>
+			</Section>
 
 			<BatterySaver saveSetting={saveSetting} />
 
-			<div className="setting-group-label">Advanced</div>
-			<div className="setting-group">
-				<details className="settings-disclosure">
-					<summary>
-						More <span>Memory and speed</span>
-					</summary>
+			<Section title="Advanced">
 					<SettingRow
 					icon={Gauge}
 					label="Keep Windows Loaded"
@@ -276,11 +284,9 @@ export function GeneralTab({
 							<span className="slider"></span>
 						</label>
 					</SettingRow>
-				</details>
-			</div>
+			</Section>
 
-			<div className="setting-group-label">App</div>
-			<div className="setting-group">
+			<Section title="App">
 				<SettingRow
 					icon={RotateCcw}
 					label="Reset to Defaults"
@@ -305,7 +311,7 @@ export function GeneralTab({
 					onClick={quitBloom}
 					divider={false}
 				/>
-			</div>
+			</Section>
 		</>
 	);
 }
