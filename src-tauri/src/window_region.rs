@@ -53,6 +53,16 @@ pub fn set_window_region(window: Window, rects: Vec<IntRect>) {
         if let Ok(mut region) = crate::state::NOTCH_REGION.lock() {
             *region = bbox;
         }
+        // Debug builds: a region that grows is the notch opening; record it.
+        #[cfg(debug_assertions)]
+        if let Some((l, t, r, b)) = bbox {
+            use std::sync::atomic::{AtomicI64, Ordering};
+            static LAST: AtomicI64 = AtomicI64::new(0);
+            let area = i64::from(r - l) * i64::from(b - t);
+            if area > LAST.swap(area, Ordering::Relaxed) * 6 / 5 {
+                crate::diagnostics::snapshot_burst();
+            }
+        }
     }
     // A region on a window that isn't layered turns its transparent pixels
     // opaque (see set_click_through). Make sure it's layered before the region

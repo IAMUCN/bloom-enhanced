@@ -4099,7 +4099,12 @@ pub unsafe extern "system" fn enum_windows_proc(hwnd: HWND, lparam: LPARAM) -> B
             }
 
             // Filter out system containers and background stuff
-            if title == "Program Manager" || title == "Bloom" || title == "Bloom Dock" {
+            if title == "Program Manager"
+                || title == "Bloom"
+                || title == "Bloom Dock"
+                || title == "LotusNotch"
+                || title == "LotusNotch Dock"
+            {
                 return true.into();
             }
 
@@ -4141,7 +4146,8 @@ pub unsafe extern "system" fn enum_windows_proc(hwnd: HWND, lparam: LPARAM) -> B
                     // Filter out Bloom itself (except the Settings window) and some common background processes
                     if ((lowercase_path.contains("bloom.exe")
                         || lowercase_path.contains("lotusnotch.exe"))
-                        && title != "Settings")
+                        && title != "Settings"
+                        && title != "LotusNotch Settings")
                         || lowercase_path.contains("conhost.exe")
                         || (lowercase_path.contains("explorer.exe") && !is_explorer_window)
                         || lowercase_path.contains("shellexperiencehost.exe")

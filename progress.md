@@ -279,3 +279,16 @@ Next if the box still shows: user points at it, clicks tray "Log windows", we re
 Fixed: Timer Sound now mutes the Timer's ring (row moved to the Timer tool, never greyed by Calendar); Tools cards animate between lists (layoutId); Animations Off now stills dock/edge Shelf/radial springs (MotionPref); Launch at Login switch moves at once; preview text and search-jump map cleaned; accent rules got :root specificity (the Command Center sheet beat them).
 Left: No Glass only affects the notch (text only), Tools tab has no preview, Low Memory / Auto Update apply on startup by design.
 White box: dev build saves 16 frames (burst-<set>-<n>.bmp) when the notch region grows, plus a window dump 450 ms after open (diagnostics.log). Waiting for the user's next repro time.
+
+## LATER (user: "I have to take care of that later", 2026-11-23): toggle follow-ups
+- Verify each fixed toggle by hand: Timer Sound, Tools cards slide, Animations Off in dock/shelf/radial, Launch at Login, accent colour on the Command Center pills/sliders.
+- Open: No Glass only affects the notch; Tools tab has no live preview; Ambient Glow has no preview; Low Memory / Auto Update apply on startup (by design).
+- Pairing, display centring, light-mode and accent coverage on a real second PC / second display still need the user's test.
+
+## PROBLEM LIST (user's order, 2026-11-23 15:15)
+1. Toggles (which exist / which do nothing) - audited (Opus): see "Toggle audit"; fixes committed, user to verify.
+2. Toggle functionality - Timer Sound, Animations Off (dock/shelf/radial), Launch at Login fixed; No Glass notch-only.
+3. Toggle animation - switch CSS typo fixed, Tools cards slide (layoutId); user to verify.
+4. White box. Evidence from the user's phone video (Downloads\WhatsApp Video 2026-11-23 at 15.06.23.mp4): (a) a big dark rectangle over the lower screen showing the WebView2 error page "Hmm... can't reach this page - localhost refused to connect": a window (dock-sized, full width, region lost) whose page failed to load in the DEV build (vite server gone/restarting); same mechanism as a white box in the installed build: a window reloads (reloadIfMirrorWasStale -> location.reload) or loads slowly and shows its opaque default page because the window region is only set by the page's JS. (b) ONE frame of white "ears" at both ends of the notch pill at the very start of opening: the region jumps to the TARGET size (windowRegion.ts notchPillBox uses the size it animates toward) before the page paints, so the new area shows the window's own white. Fix ideas: clear region while a window's page is not ready (set an empty region at creation and on navigation start); grow the region only after the first painted frame (double rAF) or step it with the animation; never let a window show before its page set a region.
+5. Bloom naming ("bloom in bloom"): the dev exe is bloom.exe (Cargo name; release is LotusNotch.exe via mainBinaryName), old Start Menu shortcut "Bloom Enhanced" (old install at %LOCALAPPDATA%\Bloom Enhanced) still exists next to "LotusNotch"; tray said Quit/Restart Bloom; window titles Bloom / Bloom Dock / Bloom Settings. Renamed the titles and tray (2026-11-23).
+6. Dock problem: not yet defined by the user (the default dock item "Settings" showed an S: renamed LotusNotch Settings with the lotus icon). Ask which dock problem.

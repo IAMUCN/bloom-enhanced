@@ -38,7 +38,7 @@
         "additionalBrowserArgs": "--disable-features=msWebOOUI,msPdfOOUI,msSmartScreenProtection --autoplay-policy=no-user-gesture-required --in-process-gpu",
         "label": "settings",
         "create": false,
-        "title": "Settings",
+        "title": "LotusNotch Settings",
         "url": "settings.html",
         "width": 1040,
         "height": 720,

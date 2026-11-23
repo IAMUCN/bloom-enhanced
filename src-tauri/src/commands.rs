@@ -28,6 +28,15 @@ pub fn set_visualizer_wanted(wanted: bool) {
 pub fn set_notch_open(open: bool) {
     crate::state::NOTCH_OPEN.store(open, Ordering::Relaxed);
     crate::utils::poke();
+    // Debug builds log every window's state a moment after the notch opens, so
+    // a white box that shows on open can be traced without a tray click.
+    #[cfg(debug_assertions)]
+    if open {
+        std::thread::spawn(|| {
+            std::thread::sleep(std::time::Duration::from_millis(450));
+            crate::diagnostics::dump_windows();
+        });
+    }
 }
 
 #[tauri::command]

@@ -138,6 +138,92 @@ pub fn dump_windows() {
     }
 }
 
+/// Debug builds: right after the notch's region grows (it is opening), saves
+/// 16 frames, about 25 ms apart, of the area around the notch (layered windows
+/// included) as BMPs next to diagnostics.log: burst-<set>-<frame>.bmp, the last
+/// 4 sets kept. A white box that flashes for a few frames shows up in them.
+#[cfg(debug_assertions)]
+pub fn snapshot_burst() {
+    use std::sync::atomic::{AtomicBool, AtomicUsize, Ordering};
+    static BUSY: AtomicBool = AtomicBool::new(false);
+    static SET: AtomicUsize = AtomicUsize::new(0);
+    let Some(path) = LOG_PATH
+        .get()
+        .and_then(|p| p.lock().ok().map(|p| p.clone()))
+    else {
+        return;
+    };
+    if BUSY.swap(true, Ordering::Relaxed) {
+        return;
+    }
+    let set = SET.fetch_add(1, Ordering::Relaxed) % 4;
+    record("burst", &format!("set={set} start"));
+    std::thread::spawn(move || {
+        for frame in 0..16 {
+            let file = path.with_file_name(format!("burst-{set}-{frame}.bmp"));
+            let _ = std::fs::write(&file, capture_bmp(560, 0, 800, 360));
+            std::thread::sleep(std::time::Duration::from_millis(25));
+        }
+        record("burst", &format!("set={set} done"));
+        BUSY.store(false, Ordering::Relaxed);
+    });
+}
+
+/// The screen area (x, y, w, h), layered windows included, as a 32-bit BMP.
+#[cfg(debug_assertions)]
+fn capture_bmp(x: i32, y: i32, w: i32, h: i32) -> Vec<u8> {
+    use windows::Win32::Graphics::Gdi::{
+        BitBlt, CreateCompatibleBitmap, CreateCompatibleDC, DeleteDC, DeleteObject, GetDC,
+        GetDIBits, ReleaseDC, SelectObject, BITMAPINFO, BITMAPINFOHEADER, BI_RGB, CAPTUREBLT,
+        DIB_RGB_COLORS, SRCCOPY,
+    };
+    let mut px = vec![0u8; (w * h * 4) as usize];
+    unsafe {
+        let screen = GetDC(None);
+        let dc = CreateCompatibleDC(Some(screen));
+        let bmp = CreateCompatibleBitmap(screen, w, h);
+        let old = SelectObject(dc, bmp.into());
+        let _ = BitBlt(dc, 0, 0, w, h, Some(screen), x, y, SRCCOPY | CAPTUREBLT);
+        let mut info = BITMAPINFO {
+            bmiHeader: BITMAPINFOHEADER {
+                biSize: std::mem::size_of::<BITMAPINFOHEADER>() as u32,
+                biWidth: w,
+                biHeight: -h, // top-down
+                biPlanes: 1,
+                biBitCount: 32,
+                biCompression: BI_RGB.0,
+                ..Default::default()
+            },
+            ..Default::default()
+        };
+        GetDIBits(
+            dc,
+            bmp,
+            0,
+            h as u32,
+            Some(px.as_mut_ptr().cast()),
+            &mut info,
+            DIB_RGB_COLORS,
+        );
+        SelectObject(dc, old);
+        let _ = DeleteObject(bmp.into());
+        let _ = DeleteDC(dc);
+        ReleaseDC(None, screen);
+    }
+    // 14-byte file header, 40-byte info header, top-down rows.
+    let mut out = Vec::with_capacity(54 + px.len());
+    out.extend_from_slice(b"BM");
+    out.extend_from_slice(&((54 + px.len()) as u32).to_le_bytes());
+    out.extend_from_slice(&[0, 0, 0, 0, 54, 0, 0, 0, 40, 0, 0, 0]);
+    out.extend_from_slice(&w.to_le_bytes());
+    out.extend_from_slice(&(-h).to_le_bytes());
+    out.extend_from_slice(&[1, 0, 32, 0, 0, 0, 0, 0]);
+    out.extend_from_slice(&(px.len() as u32).to_le_bytes());
+    out.extend_from_slice(&[0; 16]);
+    out.extend_from_slice(&px);
+    out
+}
+
 #[cfg(test)]
 mod tests {
     use super::{append_line, MAX_LOG_BYTES};
