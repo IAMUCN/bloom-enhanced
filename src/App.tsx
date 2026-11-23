@@ -2923,8 +2923,12 @@ function App() {
 		return () => clearInterval(interval);
 	}, [bloomMode, refreshWifiStatus]);
 
-	// Poll system metrics for status widgets
+	// Poll system metrics only while a status widget that shows one is chosen.
+	const needsMetrics = [...statusWidgets.left, ...statusWidgets.right].some((w) =>
+		["cpu", "ram", "disk", "net"].includes(String(w))
+	);
 	useEffect(() => {
+		if (!needsMetrics) return;
 		const fetchMetrics = () => {
 			invoke<number>("get_cpu_usage")
 				.then(setCpuUsage)
@@ -2945,7 +2949,7 @@ function App() {
 		fetchMetrics();
 		const interval = setInterval(fetchMetrics, 3000);
 		return () => clearInterval(interval);
-	}, []);
+	}, [needsMetrics]);
 
 	// Listen for brightness changes
 	useEffect(() => {
