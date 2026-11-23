@@ -274,3 +274,8 @@ Ranked causes (full text in the session): 1) tao `show()` = SW_SHOW activates th
 DONE: `utils::show_without_activating` (SW_SHOWNOACTIVATE, no-op if visible) at the 3 notch show sites; region redraw now ERASE|ALLCHILDREN|UPDATENOW; tray item "Log windows (for bug reports)" -> `diagnostics::dump_windows` (class, rect, visible, ex-style, region, foreground, cursor) into diagnostics.log.
 NOT DONE (risk to typing in notes): `focusable:false` + toggling `set_focusable` in `keyboard_focus`; refresh_layered region save/restore; record BIGGEST size at startup.
 Next if the box still shows: user points at it, clicks tray "Log windows", we read diagnostics.log.
+
+## Toggle audit (Opus, 2026-11-23): ~58 controls traced, all live except
+Fixed: Timer Sound now mutes the Timer's ring (row moved to the Timer tool, never greyed by Calendar); Tools cards animate between lists (layoutId); Animations Off now stills dock/edge Shelf/radial springs (MotionPref); Launch at Login switch moves at once; preview text and search-jump map cleaned; accent rules got :root specificity (the Command Center sheet beat them).
+Left: No Glass only affects the notch (text only), Tools tab has no preview, Low Memory / Auto Update apply on startup by design.
+White box: dev build saves 16 frames (burst-<set>-<n>.bmp) when the notch region grows, plus a window dump 450 ms after open (diagnostics.log). Waiting for the user's next repro time.

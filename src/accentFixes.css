@@ -1,53 +1,53 @@
 /* The accent colour (Settings > Appearance) on the notch, dock and shelf:
    active states, progress fills and switches. --user-accent is set by
    applyTheme in every window. */
-.slider-progress-fill,
-.cmp-track-fill,
-.cmp-volume-fill {
+:root .slider-progress-fill,
+:root .cmp-track-fill,
+:root .cmp-volume-fill {
 	background: var(--user-accent, #6a55ff);
 }
 
-.cc-icon.on,
-.cc-wide.on {
+:root .cc-icon.on,
+:root .cc-wide.on {
 	background: var(--user-accent, #6a55ff);
 	color: #fff;
 }
-.cc-icon.on:hover {
+:root .cc-icon.on:hover {
 	background: color-mix(in srgb, var(--user-accent, #6a55ff) 82%, #fff);
 }
-.cc-wide.on .cc-wide-toggle {
+:root .cc-wide.on .cc-wide-toggle {
 	background: color-mix(in srgb, var(--user-accent, #6a55ff) 55%, #000) !important;
 }
-.cc-wide.on .cc-wide-status {
+:root .cc-wide.on .cc-wide-status {
 	color: rgba(255, 255, 255, 0.85);
 }
 
-.qp-switch.on,
-.qp-chip.on {
+:root .qp-switch.on,
+:root .qp-chip.on {
 	background: var(--user-accent, #6a55ff);
 	border-color: var(--user-accent, #6a55ff);
 }
-.qp-chip.on {
+:root .qp-chip.on {
 	color: #fff;
 }
-.qp-switch.on span {
+:root .qp-switch.on span {
 	background: #fff;
 }
 
-.active-indicator {
+:root .active-indicator {
 	background: var(--user-accent, #fff);
 	box-shadow: 0 0 4px var(--user-accent, rgba(255, 255, 255, 0.8));
 }
 
-.notch-tab-chip {
+:root .notch-tab-chip {
 	background: color-mix(in srgb, var(--user-accent, #6a55ff) 28%, transparent);
 }
-.timer-preset-segment.active {
+:root .timer-preset-segment.active {
 	background: color-mix(in srgb, var(--user-accent, #6a55ff) 30%, transparent);
 }
-.nt-chip.on {
+:root .nt-chip.on {
 	background: color-mix(in srgb, var(--user-accent, #6a55ff) 26%, transparent);
 }
-.drag-hover {
+:root .drag-hover {
 	outline-color: var(--user-accent, #6a55ff);
 }

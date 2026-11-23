@@ -38,6 +38,7 @@ import { useSettingsSync } from "./hooks/useSettingsSync";
 import { initTheme } from "./theme";
 import "./Orbit.css";
 import "./lightFixes.css";
+import { MotionPref } from "./MotionPref";
 import "./accentFixes.css";
 import { useHideFromCapture } from "./hooks/useHideFromCapture";
 
@@ -810,7 +811,9 @@ function PickRing({
 
 ReactDOM.createRoot(document.getElementById("root") as HTMLElement).render(
 	<React.StrictMode>
-		<Orbit />
+		<MotionPref>
+			<Orbit />
+		</MotionPref>
 	</React.StrictMode>
 );
 

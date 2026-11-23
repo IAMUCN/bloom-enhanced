@@ -16,6 +16,7 @@ import { panelZoom } from "./notchLayout";
 import { initTheme } from "./theme";
 import "./ClipShelf.css";
 import "./lightFixes.css";
+import { MotionPref } from "./MotionPref";
 import "./accentFixes.css";
 import { useHideFromCapture } from "./hooks/useHideFromCapture";
 
@@ -99,6 +100,8 @@ function ClipShelf() {
 
 ReactDOM.createRoot(document.getElementById("root") as HTMLElement).render(
 	<React.StrictMode>
-		<ClipShelf />
+		<MotionPref>
+			<ClipShelf />
+		</MotionPref>
 	</React.StrictMode>
 );

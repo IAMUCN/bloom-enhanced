@@ -327,9 +327,7 @@ function previewDescription(feature: Feature, settings: Settings, fallback: stri
 				" mode · " +
 				(settings.notchMode === "fixed" ? "Always visible" : "Edge delay " + settings.notchEdgeDelay + "ms") +
 				" · Weather " +
-				(settings.weatherEnabled ? (settings.tempUnitFahrenheit ? "°F" : "°C") : "off") +
-				" · Panel " +
-				(settings.notchRememberPanel ? "remembered" : settings.notchDefaultPanel)
+				(settings.weatherEnabled ? (settings.tempUnitFahrenheit ? "°F" : "°C") : "off")
 			);
 		case "music":
 			return (
@@ -391,13 +389,11 @@ export function FeaturePreview({ tab, settings, focus }: FeaturePreviewProps) {
 				"UI & Font Scale": "theme"
 			},
 			notch: {
-				"Notch Behavior": "resting",
+				"When It Shows": "resting",
 				"Peek Delay": "resting",
-				"Remember Last Panel": "resting",
-				"Default Panel": "resting",
-				"Calendar": "resting",
-				"Timer Sound": "resting",
-				"Keep Items": "resting",
+				"Open On": "resting",
+				"Favourite": "resting",
+				"Quick Return": "resting",
 				"Weather Status": "resting",
 				"Status Widgets": "resting",
 				"Music Mode": "music",

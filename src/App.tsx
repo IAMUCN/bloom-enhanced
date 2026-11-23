@@ -1264,7 +1264,8 @@ function App() {
 		const ring = (tool: ExtraToolId, key: string) => {
 			if (rungRef.current.has(key)) return;
 			rungRef.current.add(key);
-			playTimerChime();
+			// Timer Sound (Tools > Timer) mutes the Timer's ring, not reminders.
+			if (tool !== "stopwatch" || localStorage.getItem("bloom-timer-sound-enabled") !== "false") playTimerChime();
 			const open = () => {
 				autoOpenedRef.current = true;
 				setTimesUp(false);

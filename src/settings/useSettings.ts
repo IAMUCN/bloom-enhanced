@@ -543,16 +543,15 @@ export function useSettings() {
 
 	// ── Autostart ──
 	const toggleAutostart = async () => {
+		// The switch moves at once; a failed call puts it back to the truth.
+		const next = !autostart;
+		setAutostart(next);
 		try {
-			const currentlyEnabled = await isEnabled();
-			if (currentlyEnabled) {
-				await disable();
-				setAutostart(false);
-			} else {
-				await enable();
-				setAutostart(true);
-			}
-		} catch (err) {}
+			if (next) await enable();
+			else await disable();
+		} catch (err) {
+			setAutostart(await isEnabled().catch(() => !next));
+		}
 	};
 
 	// ── Simple boolean toggles ──

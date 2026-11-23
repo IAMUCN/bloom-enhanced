@@ -1,5 +1,5 @@
 import { useRef, useState } from "react";
-import { Reorder } from "framer-motion";
+import { Reorder, motion } from "framer-motion";
 import { ArrowLeft, BellRing, ChevronRight, GripVertical, Plus, Star, Timer, Trash2, X } from "lucide-react";
 import { Choice } from "./Choice";
 import { ask } from "@tauri-apps/plugin-dialog";
@@ -195,6 +195,7 @@ export function ToolsTab(props: ToolsTabProps) {
 		return draggable ? (
 			<Reorder.Item
 				key={tool.id}
+				layoutId={tool.id}
 				value={tool.id}
 				className="tools-card on"
 				whileDrag={{ scale: 1.02, zIndex: 2, boxShadow: "0 8px 24px rgba(0,0,0,0.35)" }}
@@ -203,9 +204,9 @@ export function ToolsTab(props: ToolsTabProps) {
 				{body}
 			</Reorder.Item>
 		) : (
-			<div key={tool.id} className={`tools-card${on ? " on" : ""}`}>
+			<motion.div key={tool.id} layoutId={tool.id} layout className={`tools-card${on ? " on" : ""}`}>
 				{body}
-			</div>
+			</motion.div>
 		);
 	};
 
@@ -228,7 +229,7 @@ export function ToolsTab(props: ToolsTabProps) {
 
 /** A tool's own page: back to Tools, then its options. */
 function ToolPage(props: ToolsTabProps & { tool: Tool }) {
-	const { tool, setPage, saveSetting, timerSoundEnabled, toggleTimerSound, calendarEnabled } = props;
+	const { tool, setPage, saveSetting, timerSoundEnabled, toggleTimerSound } = props;
 	const extra = tool.id in EXTRA_BY_ID ? EXTRA_BY_ID[tool.id as ExtraToolId] : null;
 	const Icon = tool.icon;
 	const erase = async () => {
@@ -277,13 +278,13 @@ function ToolPage(props: ToolsTabProps & { tool: Tool }) {
 				</>
 			)}
 
-			{tool.id === "calendar" && (
+			{tool.id === "stopwatch" && (
 				<>
 					<div className="setting-group-label">Timer</div>
 					<div className="setting-group">
 						<SettingRow icon={BellRing} label="Timer Sound" desc="Play a chime when the timer finishes" divider={false}>
 							<label className="toggle-switch">
-								<input type="checkbox" checked={timerSoundEnabled} disabled={!calendarEnabled} onChange={toggleTimerSound} />
+								<input type="checkbox" checked={timerSoundEnabled} onChange={toggleTimerSound} />
 								<span className="slider"></span>
 							</label>
 						</SettingRow>
