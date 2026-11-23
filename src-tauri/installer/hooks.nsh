@@ -21,7 +21,27 @@
     ; sharing to Windows' prompt.
     ; An option, not a surprise: the installer asks first.
     MessageBox MB_YESNO|MB_ICONQUESTION "Add LotusNotch to the Windows Firewall exceptions?$\r$\n$\r$\nThis lets nearby PCs find this one and pair for sharing. Windows will ask for permission (administrator)." /SD IDYES IDNO lotus_skip_firewall
-    ExecShell "runas" "$SYSDIR\cmd.exe" '/c netsh advfirewall firewall delete rule name=all program="$INSTDIR\${MAINBINARYNAME}.exe" & netsh advfirewall firewall add rule name="LotusNotch sharing" dir=in action=allow program="$INSTDIR\${MAINBINARYNAME}.exe" profile=any enable=yes' SW_HIDE
+    ExecShellWait "runas" "$SYSDIR\cmd.exe" '/c netsh advfirewall firewall delete rule name=all program="$INSTDIR\${MAINBINARYNAME}.exe" & netsh advfirewall firewall add rule name="LotusNotch sharing" dir=in action=allow program="$INSTDIR\${MAINBINARYNAME}.exe" profile=any enable=yes' SW_HIDE
+    ; Say so if it did not take (UAC declined, rule refused): looking the rule up
+    ; needs no administrator rights.
+    nsExec::Exec 'netsh advfirewall firewall show rule name="LotusNotch sharing"'
+    Pop $0
+    ${If} $0 <> 0
+      MessageBox MB_OK|MB_ICONINFORMATION "The firewall exception was not added.$\r$\n$\r$\nLotusNotch works without it. To share with nearby PCs later, open the Shelf's sharing and choose Allow in Windows Firewall." /SD IDOK
+    ${EndIf}
     lotus_skip_firewall:
+  ${EndIf}
+!macroend
+
+; Uninstall (not an update, which keeps the same path and so the same rule):
+; remove this app's firewall rule. Administrator rights are only asked for when
+; there is a rule to remove.
+!macro NSIS_HOOK_POSTUNINSTALL
+  ${If} $UpdateMode <> 1
+    nsExec::Exec 'netsh advfirewall firewall show rule name="LotusNotch sharing"'
+    Pop $0
+    ${If} $0 = 0
+      ExecShellWait "runas" "$SYSDIR\cmd.exe" '/c netsh advfirewall firewall delete rule name=all program="$INSTDIR\${MAINBINARYNAME}.exe"' SW_HIDE
+    ${EndIf}
   ${EndIf}
 !macroend
