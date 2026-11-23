@@ -2302,6 +2302,18 @@ pub fn refresh_main_interaction(app_handle: &AppHandle) {
     update_main_interaction(app_handle, pt, now_ms(), fg_fs);
 }
 
+/// The process that owns the foreground window (0 if none). A Snipping Tool
+/// window left open in the background must not hide the notch and dock: only
+/// one the user is using (it has the focus) counts.
+fn foreground_pid() -> u32 {
+    let mut pid = 0u32;
+    unsafe {
+        let fg = windows::Win32::UI::WindowsAndMessaging::GetForegroundWindow();
+        GetWindowThreadProcessId(fg, Some(&mut pid));
+    }
+    pid
+}
+
 /// True while a screen-capture UI (Windows Snipping Tool) has a visible window.
 /// Bloom's notch sits exactly where that toolbar lives, so it must get out of
 /// the way even if the capture window isn't recognised as fullscreen.
@@ -2320,6 +2332,7 @@ unsafe extern "system" fn capture_ui_enum_proc(hwnd: HWND, lparam: LPARAM) -> BO
     if pid != 0
         && pid != std::process::id()
         && crate::commands::process_image_path(pid).is_some_and(|p| is_capture_tool_name(&p))
+        && foreground_pid() == pid
     {
         *found = true;
     }
