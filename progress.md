@@ -317,3 +317,9 @@ White box: dev build saves 16 frames (burst-<set>-<n>.bmp) when the notch region
 - Names: window titles (LotusNotch, LotusNotch Dock/Shelf/Radial Menu/Overlay), dock menu (LotusNotch Options / Restart / Quit), bundle description. Installer already carried the logo + name (sidebar/header bmp). Dev exe is still bloom.exe (release is LotusNotch.exe).
 - Copy Effect "Gradient Beam" (key `signature`).
 - First-run setup window: opens maximized (Rust) and no longer gets shrunk by the saved-size restore (that was the full screen then back flash).
+
+## 2026-11-24 (last): Shelf sharing over Wi-Fi, final check
+- Found: `share_diag` said "firewall allowed" when a rule with the NAME existed, even if it was for another exe. The only rule was for `...\LotusNotch\LotusNotch.exe`, so the dev `bloom.exe` was blocked inbound (others couldn't find or pair with it). Now it checks the rule is for the running exe (path in `netsh ... verbose`), so "Allow in Windows Firewall" shows when it is not.
+- Found: a paired person's saved name never updated after they renamed themselves (names came from pairing time; unsigned hellos must not rename). Now an authenticated connection updates it (`note_name`), test added.
+- New: force refresh (`share_refresh`, RefreshCw icon in the Shelf's tool row, and in the Paired devices sheet): ask on every adapter twice, ask paired people directly at their last address, confirm names over a verified connection. "Search again" uses it too.
+- Not verified on two real PCs; the user's peer "dinesh" was visible during the check.

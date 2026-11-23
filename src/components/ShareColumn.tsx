@@ -5,7 +5,7 @@ import { listen } from "@tauri-apps/api/event";
 import "../effects.css";
 import { Roll } from "./Roll";
 import { useNewKeys } from "../hooks/useNewKeys";
-import { ArrowLeft, Check, LogOut, Plus, Radio, Settings2, TriangleAlert, UserPlus, Users, X } from "lucide-react";
+import { ArrowLeft, Check, LogOut, Plus, Radio, RefreshCw, Settings2, TriangleAlert, UserPlus, Users, X } from "lucide-react";
 
 type Peer = { id: string; name: string; trusted: boolean; online: boolean };
 type Request = { id: string; name: string; code?: number; missed?: boolean };
@@ -58,7 +58,7 @@ function ScanHelp({ onFound }: { onFound: (p: Peer[]) => void }) {
 	useEffect(() => void load(), []);
 	const scan = () => {
 		setBusy("scan");
-		invoke<Peer[]>("share_peers")
+		invoke<Peer[]>("share_refresh")
 			.then(onFound)
 			.catch(() => {})
 			.finally(() => setBusy(""));
@@ -300,6 +300,22 @@ export function ShareColumn({
 		invoke("share_set_name", { name }).catch(() => {});
 		openPair();
 	};
+	// Force refresh: forget who answered, ask again on every adapter and directly,
+	// and confirm each paired person's name (Rust: Share::refresh).
+	const [refreshing, setRefreshing] = useState(false);
+	const refresh = () => {
+		if (refreshing) return;
+		setRefreshing(true);
+		setNote("");
+		invoke<Peer[]>("share_refresh")
+			.then((list) => {
+				setPeers(list);
+				invoke<Request[]>("share_requests").then(setRequests).catch(() => {});
+				loadGroups();
+			})
+			.catch((e) => setNote(String(e)))
+			.finally(() => setRefreshing(false));
+	};
 	const openPair = () => {
 		setNote("");
 		setSheet(localStorage.getItem("bloom-share-name")?.trim() ? "pair" : "name");
@@ -362,7 +378,7 @@ export function ShareColumn({
 		body = (
 			<div className="clip-share-card">
 				<b>What should people see?</b>
-				<span className="clip-share-hint">Your name is only shown to people you pair with. Change it later in Settings › Shelf.</span>
+				<span className="clip-share-hint">Your name is only shown to people you pair with. Change it later in Settings › General.</span>
 				<input
 					className="clip-share-input"
 					autoFocus
@@ -419,6 +435,9 @@ export function ShareColumn({
 		body = (
 			<div className="clip-share-list">
 				{back("Paired devices")}
+				<button type="button" className="clip-share-btn" disabled={refreshing} onClick={refresh}>
+					<RefreshCw size={13} className={refreshing ? "spin" : ""} /> {refreshing ? "Refreshing…" : "Refresh"}
+				</button>
 				{trusted.length ? (
 					trusted.map((p) => (
 						<div key={p.id} className={`clip-share-person${fresh.has(p.id) ? " fx-new fx-ripple" : ""}`}>
@@ -666,6 +685,7 @@ export function ShareColumn({
 		? createPortal(
 				<>
 					{icon("Paired devices", UserPlus, openPair, "clip-share-tool pair")}
+					{icon(refreshing ? "Searching…" : "Refresh people: search again and update names", RefreshCw, refresh, `clip-share-tool${refreshing ? " refreshing" : ""}`)}
 					{icon("Groups", Users, () => (setNote(""), setSheet("groups")), "clip-share-tool")}
 					{icon(liveCount ? `Live clipboard · on for ${liveCount}` : "Live clipboard", Radio, () => (setNote(""), setSheet("live")), `clip-share-tool${liveCount ? " lit" : ""}`, liveCount)}
 				</>,

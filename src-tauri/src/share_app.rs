@@ -202,6 +202,15 @@ pub async fn share_peers() -> Result<Vec<PeerView>, String> {
     .map_err(|e| e.to_string())
 }
 
+/// The "refresh" button: search again from scratch (see `Share::refresh`).
+#[tauri::command]
+pub async fn share_refresh() -> Result<Vec<PeerView>, String> {
+    let s = share()?.clone();
+    tauri::async_runtime::spawn_blocking(move || s.refresh())
+        .await
+        .map_err(|e| e.to_string())
+}
+
 /// Asks one address directly (when the network drops broadcasts), waits
 /// briefly, returns the list.
 #[tauri::command]
@@ -238,9 +247,21 @@ pub fn share_diag() -> Result<serde_json::Value, String> {
         "show",
         "rule",
         &format!("name={FIREWALL_RULE}"),
+        "verbose",
     ]))
     .output()
-    .map(|o| o.status.success())
+    .map(|o| {
+        // A rule by this name must be for THIS program: the installed app's
+        // rule does not cover a dev or portable copy (another path), which then
+        // can't be found or paired with. The path is the same in any language.
+        let exe = std::env::current_exe().map(|p| p.display().to_string().to_lowercase());
+        o.status.success()
+            && exe.is_ok_and(|e| {
+                String::from_utf8_lossy(&o.stdout)
+                    .to_lowercase()
+                    .contains(&e)
+            })
+    })
     .unwrap_or(false);
     Ok(serde_json::json!({
         "ips": ips.iter().map(|a| a.to_string()).collect::<Vec<_>>(),

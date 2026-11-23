@@ -1163,6 +1163,8 @@ button.clip-share-person,
 	flex: 1;
 	min-width: 0;
 }
+.clip-share-sheet .spin,
+.clip-share-tool.refreshing svg,
 .clip-share-help .spin {
 	animation: clip-share-spin 1s linear infinite;
 }

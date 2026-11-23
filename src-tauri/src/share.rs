@@ -565,6 +565,9 @@ pub struct Share {
     /// Groups this PC was added to, waiting for Join or Ignore.
     invites: Mutex<Vec<Group>>,
     seen: Mutex<HashMap<String, Seen>>,
+    /// Where each person was last heard from (kept when `seen` goes stale), so a
+    /// refresh can ask paired people directly when the network drops broadcasts.
+    last_addr: Mutex<HashMap<String, SocketAddr>>,
     last_query: Mutex<Instant>,
     /// Pairing requests waiting for an answer: id → (answer, name, code).
     pending: Mutex<HashMap<String, Pending>>,
@@ -621,6 +624,7 @@ impl Share {
             groups: Mutex::new(groups),
             invites: Mutex::new(Vec::new()),
             seen: Mutex::new(HashMap::new()),
+            last_addr: Mutex::new(HashMap::new()),
             last_query: Mutex::new(Instant::now()),
             pending: Mutex::new(HashMap::new()),
             missed: Mutex::new(HashMap::new()),
@@ -731,11 +735,13 @@ impl Share {
             if seen.len() > 256 {
                 seen.clear();
             }
+            let addr = SocketAddr::new(from.ip(), port);
+            self.last_addr.lock().unwrap().insert(id.to_string(), addr);
             seen.insert(
                 id.to_string(),
                 Seen {
                     name: short(v["name"].as_str().unwrap_or("Unknown")),
-                    addr: SocketAddr::new(from.ip(), port),
+                    addr,
                     at: Instant::now(),
                 },
             );
@@ -791,7 +797,70 @@ impl Share {
         if ch.peer_id != id {
             return Err("Someone else answered".into());
         }
+        self.note_name(&ch);
         Ok(ch)
+    }
+
+    /// A paired person renamed themselves: take the name they gave over the
+    /// verified connection (a hello on the network is unsigned, so it never
+    /// renames anyone saved here).
+    fn note_name(&self, ch: &Channel) {
+        let renamed = {
+            let mut trusted = self.trusted.lock().unwrap();
+            match trusted
+                .iter_mut()
+                .find(|p| p.id == ch.peer_id && p.key == hex(&ch.peer_key))
+            {
+                Some(p) if p.name != ch.peer_name && !ch.peer_name.trim().is_empty() => {
+                    p.name = ch.peer_name.clone();
+                    true
+                }
+                _ => false,
+            }
+        };
+        if renamed {
+            self.save_trusted();
+            (self.events)(Event::PeersChanged);
+        }
+    }
+
+    /// Search again from scratch: everyone counts as gone until they answer, ask
+    /// on every adapter twice, ask paired people at the address they were last
+    /// heard from (some Wi-Fi drops broadcasts but not a direct datagram), and
+    /// confirm each answering paired person's name over a verified connection.
+    pub fn refresh(self: &Arc<Self>) -> Vec<PeerView> {
+        self.query();
+        let known: Vec<SocketAddr> = {
+            let trusted = self.trusted.lock().unwrap();
+            let last = self.last_addr.lock().unwrap();
+            trusted
+                .iter()
+                .filter_map(|p| last.get(&p.id).copied())
+                .collect()
+        };
+        for addr in &known {
+            let _ = self
+                .udp
+                .send_to(&self.datagram("query"), (addr.ip(), self.cfg.listen_port));
+        }
+        std::thread::sleep(Duration::from_millis(500));
+        self.query();
+        std::thread::sleep(Duration::from_millis(900));
+        let online: Vec<String> = self
+            .peers()
+            .into_iter()
+            .filter(|p| p.trusted && p.online)
+            .map(|p| p.id)
+            .collect();
+        // Names come back as events; the list returned now is already the fresh one.
+        for id in online {
+            let me = self.clone();
+            std::thread::spawn(move || {
+                let _ = me.connect(&id);
+            });
+        }
+        self.sync_groups();
+        self.peers()
     }
 
     /// Asks `id` to pair; `on_code` gets the 4-digit code to show while the
@@ -1223,6 +1292,7 @@ impl Share {
     /// One incoming connection.
     fn serve(&self, stream: TcpStream) -> Result<(), String> {
         let mut ch = handshake(stream, &self.me, &self.name(), false)?;
+        self.note_name(&ch);
         let msg = ch.recv_json()?;
         match msg["t"].as_str() {
             Some("pair") => {
@@ -1796,6 +1866,20 @@ mod tests {
             .unwrap_err()
             .contains("removed you"));
         assert!(b.trusted.lock().unwrap().is_empty());
+    }
+
+    #[test]
+    fn a_paired_person_who_renames_shows_under_the_new_name() {
+        let (a, b, _rx) = paired("rename");
+        assert_eq!(a.peers()[0].name, "rename-b");
+        b.set_name("Dinesh");
+        // An unsigned hello never renames someone saved here...
+        a.on_datagram(&b.datagram("hello"), SocketAddr::from(([127, 0, 0, 1], 1)));
+        assert_eq!(a.trusted.lock().unwrap()[0].name, "rename-b");
+        // ...a verified connection does.
+        meet(&a, &b);
+        a.connect(b.id()).unwrap();
+        assert_eq!(a.peers()[0].name, "Dinesh");
     }
 
     #[test]

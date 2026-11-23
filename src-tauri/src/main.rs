@@ -287,6 +287,7 @@ fn main() {
             share_app::share_set_name,
             clipboard::clipboard_shelf_close,
             share_app::share_peers,
+            share_app::share_refresh,
             share_app::share_find,
             share_app::share_diag,
             share_app::share_allow_firewall,
