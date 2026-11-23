@@ -508,7 +508,7 @@ pub async fn change_notch_mode(app: AppHandle) {
         // Every mode is an overlay; the mode only decides whether the
         // notch hides itself (smart, peek) or stays visible (fixed).
         if crate::utils::notch_enabled() {
-            let _ = main_win.show();
+            crate::utils::show_without_activating(&main_win);
         }
         crate::services::reconcile_main_appbar(&app);
 
@@ -3427,7 +3427,7 @@ pub async fn end_task(hwnds: Vec<isize>, pids: Vec<u32>) -> Result<(), String> {
 fn apply_notch_enabled(app: &AppHandle) {
     if crate::utils::notch_enabled() {
         if let Some(main_win) = app.get_webview_window("main") {
-            let _ = main_win.show();
+            crate::utils::show_without_activating(&main_win);
         }
     }
     crate::services::reconcile_main_appbar(app);

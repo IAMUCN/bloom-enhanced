@@ -564,7 +564,17 @@ fn main() {
                     MenuItem::with_id(app, "restart", "Restart Bloom", true, None::<&str>)?;
                 let settings_item =
                     MenuItem::with_id(app, "settings", "Open Settings", true, None::<&str>)?;
-                let menu = Menu::with_items(app, &[&settings_item, &restart_item, &quit_item])?;
+                let dump_item = MenuItem::with_id(
+                    app,
+                    "dump",
+                    "Log windows (for bug reports)",
+                    true,
+                    None::<&str>,
+                )?;
+                let menu = Menu::with_items(
+                    app,
+                    &[&settings_item, &dump_item, &restart_item, &quit_item],
+                )?;
                 let ah = app.handle().clone();
                 TrayIconBuilder::new()
                     .icon(app.default_window_icon().unwrap().clone())
@@ -598,6 +608,7 @@ fn main() {
                         "settings" => {
                             crate::commands::open_settings_window(ah.clone());
                         }
+                        "dump" => diagnostics::dump_windows(),
                         _ => {}
                     })
                     .on_tray_icon_event(|tray, event| {

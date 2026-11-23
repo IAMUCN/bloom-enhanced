@@ -77,14 +77,16 @@ pub fn set_window_region(window: Window, rects: Vec<IntRect>) {
         if SetWindowRgn(hwnd, Some(region), true) == 0 {
             let _ = DeleteObject(region.into());
         }
+        // UPDATENOW + children: the newly exposed area is erased before this
+        // returns, not whenever the (often busy) main thread reaches WM_PAINT.
         use windows::Win32::Graphics::Gdi::{
-            RedrawWindow, RDW_ERASE, RDW_INVALIDATE, RDW_NOCHILDREN,
+            RedrawWindow, RDW_ALLCHILDREN, RDW_ERASE, RDW_INVALIDATE, RDW_UPDATENOW,
         };
         let _ = RedrawWindow(
             Some(hwnd),
             None,
             None,
-            RDW_INVALIDATE | RDW_ERASE | RDW_NOCHILDREN,
+            RDW_INVALIDATE | RDW_ERASE | RDW_ALLCHILDREN | RDW_UPDATENOW,
         );
     }
 }

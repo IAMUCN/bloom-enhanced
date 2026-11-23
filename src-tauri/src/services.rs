@@ -2407,7 +2407,7 @@ fn apply_capture_ui_state(app: &AppHandle, active: bool) {
             }
         } else {
             if crate::utils::notch_enabled() {
-                let _ = main_win.show();
+                crate::utils::show_without_activating(&main_win);
             }
             reconcile_main_appbar(app);
         }

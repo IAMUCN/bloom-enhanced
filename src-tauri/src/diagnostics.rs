@@ -87,6 +87,57 @@ fn append_line(path: &Path, line: &str) -> io::Result<()> {
     file.write_all(line.as_bytes())
 }
 
+/// Logs every top-level window of this process (class, rect, visible, extended
+/// style bits, region box, foreground) plus the cursor position, to
+/// diagnostics.log. Tray › "Log windows": point at a white box, then click it,
+/// to see which window owns it.
+pub fn dump_windows() {
+    use windows::core::BOOL;
+    use windows::Win32::Foundation::{HWND, LPARAM, POINT, RECT};
+    use windows::Win32::Graphics::Gdi::GetWindowRgnBox;
+    use windows::Win32::UI::WindowsAndMessaging::{
+        EnumWindows, GetClassNameW, GetCursorPos, GetForegroundWindow, GetWindowLongPtrW,
+        GetWindowRect, GetWindowThreadProcessId, IsWindowVisible, GWL_EXSTYLE,
+    };
+    unsafe extern "system" fn each(hwnd: HWND, _: LPARAM) -> BOOL {
+        let mut pid = 0u32;
+        GetWindowThreadProcessId(hwnd, Some(&mut pid));
+        if pid != std::process::id() {
+            return true.into();
+        }
+        let mut class = [0u16; 64];
+        let n = GetClassNameW(hwnd, &mut class) as usize;
+        let (mut r, mut region) = (RECT::default(), RECT::default());
+        let _ = GetWindowRect(hwnd, &mut r);
+        let kind = GetWindowRgnBox(hwnd, &mut region).0;
+        let ex = GetWindowLongPtrW(hwnd, GWL_EXSTYLE) as u32;
+        let flag = |bit: u32, s: &'static str| if ex & bit != 0 { s } else { "" };
+        record(
+            "window",
+            &format!(
+                "hwnd={:?} class={} rect=({},{},{},{}) visible={} fg={} ex=[{}{}{}{}] region={}({},{},{},{})",
+                hwnd.0,
+                String::from_utf16_lossy(&class[..n]),
+                r.left, r.top, r.right, r.bottom,
+                IsWindowVisible(hwnd).as_bool(),
+                GetForegroundWindow() == hwnd,
+                flag(0x80000, "LAYERED "),
+                flag(0x20, "TRANSPARENT "),
+                flag(0x8000000, "NOACTIVATE "),
+                flag(0x8, "TOPMOST "),
+                kind, region.left, region.top, region.right, region.bottom
+            ),
+        );
+        true.into()
+    }
+    let mut p = POINT::default();
+    unsafe {
+        let _ = GetCursorPos(&mut p);
+        record("window-dump", &format!("cursor=({},{})", p.x, p.y));
+        let _ = EnumWindows(Some(each), LPARAM(0));
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::{append_line, MAX_LOG_BYTES};

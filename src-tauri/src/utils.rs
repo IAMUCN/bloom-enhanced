@@ -1551,6 +1551,25 @@ pub fn refresh_layered(hwnd: HWND, width: u32, height: u32) {
     }
 }
 
+/// Shows the notch without activating it. tao's `show()` uses SW_SHOW, which
+/// activates the window every time (even when it is already visible), and an
+/// activated notch is the one that leaves light boxes beside it. A window that
+/// is already visible is left alone.
+pub fn show_without_activating(win: &tauri::WebviewWindow) {
+    use windows::Win32::UI::WindowsAndMessaging::{ShowWindow, SW_SHOWNOACTIVATE};
+    if win.is_visible().unwrap_or(false) {
+        return;
+    }
+    match win.hwnd() {
+        Ok(hwnd) => unsafe {
+            let _ = ShowWindow(hwnd, SW_SHOWNOACTIVATE);
+        },
+        Err(_) => {
+            let _ = win.show();
+        }
+    }
+}
+
 /// The extended style with WS_EX_LAYERED set and WS_EX_TRANSPARENT set only
 /// when ignoring input, every other bit kept.
 fn click_through_style(style: u32, ignore: bool) -> u32 {
