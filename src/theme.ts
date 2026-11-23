@@ -1,4 +1,5 @@
 import { invoke } from "@tauri-apps/api/core";
+import { readableOn } from "./readableOn";
 import { listen } from "@tauri-apps/api/event";
 import { reloadIfMirrorWasStale } from "./hooks/settingsMirror";
 import { mirrorSetting } from "./hooks/settingsEvents";
@@ -120,7 +121,11 @@ export async function applyTheme(
 	const revision = ++themeRevision;
 	const root = document.documentElement;
 	root.style.setProperty("--user-accent", userAccent());
-	root.style.setProperty("--cc-accent", localStorage.getItem("bloom-cc-accent") || userAccent());
+	const cc = localStorage.getItem("bloom-cc-accent") || userAccent();
+	root.style.setProperty("--cc-accent", cc);
+	// Text and icons on the Command Center's accent: black on a light colour, white on a dark one.
+	root.style.setProperty("--cc-on", readableOn(cc));
+	root.style.setProperty("--cc-on-soft", readableOn(cc) === "#000" ? "rgba(0,0,0,0.65)" : "rgba(255,255,255,0.85)");
 	// Animations off freezes the effects (effects.css).
 	root.classList[localStorage.getItem("bloom-motion") === "off" ? "add" : "remove"]("fx-off");
 
