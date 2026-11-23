@@ -1,6 +1,7 @@
-import { Download, RefreshCw, Bug, Mail, AtSign, Camera, MessageCircle, Briefcase } from "lucide-react";
+import { Download, RefreshCw, Bug, Mail } from "lucide-react";
 import { openUrl } from "@tauri-apps/plugin-opener";
 import { GithubIcon } from "../icons";
+import { XIcon, InstagramIcon, RedditIcon, LinkedinIcon } from "../icons/BrandIcons";
 import { SettingRow } from "./SettingRow";
 
 /** The open-source projects LotusNotch is built from. */
@@ -22,10 +23,10 @@ const LINKS = [
 /** The author's contacts. */
 const CONTACTS = [
 	[GithubIcon, "GitHub", "IAMUCN", AUTHOR_URL],
-	[AtSign, "X", "@UCN_SACHIN", "https://x.com/UCN_SACHIN"],
-	[Camera, "Instagram", "editor_ucn", "https://www.instagram.com/editor_ucn"],
-	[MessageCircle, "Reddit", "u/sachin_ucn", "https://www.reddit.com/u/sachin_ucn"],
-	[Briefcase, "LinkedIn", "iamucn", "https://www.linkedin.com/in/iamucn"],
+	[XIcon, "X", "@UCN_SACHIN", "https://x.com/UCN_SACHIN"],
+	[InstagramIcon, "Instagram", "editor_ucn", "https://www.instagram.com/editor_ucn"],
+	[RedditIcon, "Reddit", "u/sachin_ucn", "https://www.reddit.com/u/sachin_ucn"],
+	[LinkedinIcon, "LinkedIn", "iamucn", "https://www.linkedin.com/in/iamucn"],
 	[Mail, "Email", "ucnstudios.help@gmail.com", "mailto:ucnstudios.help@gmail.com"]
 ] as const;
 
@@ -117,7 +118,7 @@ export function AboutTab({
 			<div className="about-contacts">
 				{CONTACTS.map(([Icon, label, desc, url]) => (
 					<button key={label} className="about-contact" title={`${label}: ${desc}`} aria-label={label} onClick={() => openUrl(url)}>
-						<Icon size={20} strokeWidth={1.6} />
+						<Icon size={20} />
 					</button>
 				))}
 			</div>

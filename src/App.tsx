@@ -2879,6 +2879,19 @@ function App() {
 		invoke<boolean>("get_battery_saver_state")
 			.then(setBatterySaverEnabled)
 			.catch(() => {});
+		// Poll battery saver state every 5s (since we can't listen for changes)
+		const interval = setInterval(() => {
+			invoke<boolean>("get_battery_saver_state")
+				.then(setBatterySaverEnabled)
+				.catch(() => {});
+		}, 5000);
+		return () => clearInterval(interval);
+	}, []);
+
+	// Volume and brightness sliders: the audio device and the WMI brightness
+	// reader are not ready in the first seconds after start, so ask again a few
+	// times, and every time the notch opens.
+	const seedLevels = useCallback(() => {
 		invoke<{ volume: number; is_muted: boolean }>("get_volume_state")
 			.then((state) => {
 				setVolume(state.volume);
@@ -2888,15 +2901,15 @@ function App() {
 		invoke<number>("get_brightness")
 			.then(setCurrentBrightness)
 			.catch(() => {});
-
-		// Poll battery saver state every 5s (since we can't listen for changes)
-		const interval = setInterval(() => {
-			invoke<boolean>("get_battery_saver_state")
-				.then(setBatterySaverEnabled)
-				.catch(() => {});
-		}, 5000);
-		return () => clearInterval(interval);
 	}, []);
+	useEffect(() => {
+		seedLevels();
+		const timers = [1500, 4000, 9000].map((ms) => setTimeout(seedLevels, ms));
+		return () => timers.forEach(clearTimeout);
+	}, [seedLevels]);
+	useEffect(() => {
+		if (isOpen) seedLevels();
+	}, [isOpen, seedLevels]);
 
 	// Refresh Wi-Fi status while the command center is open so changes made
 	// outside Bloom (keyboard toggle, Windows quick settings) show up.
