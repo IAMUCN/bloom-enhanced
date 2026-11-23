@@ -885,6 +885,7 @@ function App() {
 	// notch window's region (holding earlier regions while it shrinks).
 	const pillTargetRef = useRef<RegionRect | null>(null);
 	const lastLiveKey = useRef("");
+	const animatingRef = useRef(false);
 	const sendNotchRegion = useMemo(
 		() =>
 			// No hold: while the pill shrinks, its live box is followed frame by frame
@@ -901,9 +902,13 @@ function App() {
 	// refs and the DOM, so it is safe to call from any callback.
 	const updateNotchRegion = () => {
 		const wanted: RegionRect[] = [];
-		if (pillTargetRef.current) wanted.push(pillTargetRef.current);
 		// Where the pill is drawn right now (it animates toward the target).
 		const live = bloomRef.current?.getBoundingClientRect();
+		// While it animates the region is only what is drawn now: the final size
+		// would expose area the page hasn't painted yet (the box at both ends of
+		// the pill, seen 2026-11-23 23:14 in the log: the target was applied
+		// while the pill was still 96 px wide of 284).
+		if (pillTargetRef.current && !(animatingRef.current && live && live.width > 0)) wanted.push(pillTargetRef.current);
 		if (import.meta.env.DEV && live) {
 			const key = [live.left, live.top, live.width, live.height].map(Math.round).join(",");
 			if (key !== lastLiveKey.current) {
@@ -3892,6 +3897,12 @@ function App() {
 	// hugs what is drawn (the target alone clips a shrinking pill's tail, a held
 	// old box shows the window's black around it).
 	const pillKey = `${pillTargetWidth}x${pillTargetHeight}@${pillTargetY}`;
+	// Set during render so even the first region of a new size is "animating".
+	const lastPillKey = useRef(pillKey);
+	if (lastPillKey.current !== pillKey) {
+		lastPillKey.current = pillKey;
+		animatingRef.current = true;
+	}
 	// Dev trace (diagnostics.log, see trace.ts): the states and pointer events
 	// around a visual glitch, to read next to the Rust side's lines by time.
 	useEffect(() => {
@@ -3911,11 +3922,20 @@ function App() {
 	useEffect(() => {
 		if (windowLabel !== "main") return;
 		const end = performance.now() + 900;
+		animatingRef.current = true;
 		let raf = requestAnimationFrame(function tick() {
-			updateNotchRegion();
-			if (performance.now() < end) raf = requestAnimationFrame(tick);
+			if (performance.now() < end) {
+				updateNotchRegion();
+				raf = requestAnimationFrame(tick);
+			} else {
+				animatingRef.current = false;
+				updateNotchRegion();
+			}
 		});
-		return () => cancelAnimationFrame(raf);
+		return () => {
+			cancelAnimationFrame(raf);
+			animatingRef.current = false;
+		};
 	}, [pillKey, windowLabel]);
 
 	// The music player (compact or classic): the whole notch while the tab

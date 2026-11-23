@@ -32,23 +32,13 @@ fn physical_rects(rects: &[IntRect], scale: f64) -> Vec<RECT> {
         .collect()
 }
 
-/// Bumped on every region update of the notch window; a delayed growth only
-/// lands if nothing newer arrived meanwhile.
-static NOTCH_GEN: std::sync::atomic::AtomicU64 = std::sync::atomic::AtomicU64::new(0);
-
-/// How long a growing notch region waits so the page has painted into the new
-/// area first. The region used to jump to the notch's final open size at the
-/// click, before the page had drawn a frame there, and the newly exposed
-/// pixels showed white for a frame (seen in the user's phone video, 2026-11-23).
-const GROW_DELAY_MS: u64 = 40;
-
 /// Sets the calling window's region to the union of `rects` (CSS pixels of
 /// the window). An empty list leaves the window with an empty region: it draws
-/// nothing and takes no input until the next call. The notch's region, when it
-/// grows, is applied a moment late (see GROW_DELAY_MS).
+/// nothing and takes no input until the next call. The notch page sends only
+/// what it has drawn so far while it animates (see App.tsx), so a growing
+/// region is applied at once: it never covers area the page hasn't painted.
 #[tauri::command]
 pub fn set_window_region(window: Window, rects: Vec<IntRect>) {
-    use std::sync::atomic::Ordering;
     let Ok(hwnd) = window.hwnd() else {
         return;
     };
@@ -87,26 +77,14 @@ pub fn set_window_region(window: Window, rects: Vec<IntRect>) {
             "region.main",
             &format!("bbox={bbox:?} grows={grows} shrinks={shrinks}"),
         );
-        let generation = NOTCH_GEN.fetch_add(1, Ordering::Relaxed) + 1;
-        // Debug builds: a region that grows is the notch opening; record it.
-        // (A shrink is the notch closing: the box was also seen there.)
+        // Debug builds: a region that grows is the notch opening, one that
+        // shrinks is it closing; record both.
         #[cfg(debug_assertions)]
         if grows || shrinks {
             crate::diagnostics::snapshot_burst();
         }
-        if grows {
-            let hwnd_value = hwnd.0 as isize;
-            std::thread::spawn(move || {
-                std::thread::sleep(std::time::Duration::from_millis(GROW_DELAY_MS));
-                let current = NOTCH_GEN.load(Ordering::Relaxed) == generation;
-                crate::diagnostics::trace("region.delayed", &format!("applied={current}"));
-                if current {
-                    let hwnd = windows::Win32::Foundation::HWND(hwnd_value as *mut _);
-                    apply_region(hwnd, &rects, scale);
-                }
-            });
-            return;
-        }
+        #[cfg(not(debug_assertions))]
+        let _ = (grows, shrinks);
     }
     apply_region(hwnd, &rects, scale);
 }
