@@ -783,6 +783,13 @@ body {
 	color: var(--text-muted);
 }
 
+/* A hint inside a settings card: padded like a row, never touching the card edge. */
+.setting-group > .radial-hint {
+	margin: 0;
+	padding: 10px 16px;
+	line-height: 1.4;
+}
+
 .radial-hint:last-child {
 	margin: 12px 0 0;
 }

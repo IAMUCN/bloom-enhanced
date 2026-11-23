@@ -1,14 +1,14 @@
 import { useState } from "react";
-import { Power, Download, Clock, BatteryWarning, RefreshCw, RotateCcw, LogOut, FileDown, Upload, Wand2, Gauge, Leaf, AudioLines, Sparkles, Droplets } from "lucide-react";
+import { Power, Download, Clock, BatteryWarning, RefreshCw, RotateCcw, LogOut, FileDown, Upload, Wand2, Gauge, Leaf, AudioLines, Sparkles, UserRound } from "lucide-react";
+import { invoke } from "@tauri-apps/api/core";
 import { Choice } from "./Choice";
 import { SettingRow } from "./SettingRow";
 import { HideFromCaptureRow } from "./HideFromCaptureRow";
 
-type Pauses = { visualizer: boolean; motion: boolean; glass: boolean };
+type Pauses = { visualizer: boolean; motion: boolean };
 const PAUSES: [keyof Pauses, typeof Leaf, string, string][] = [
 	["visualizer", AudioLines, "Pause Visualizer", "The music bars stop listening to your audio"],
-	["motion", Sparkles, "Calmer Motion", "Notch animations become shorter and simpler"],
-	["glass", Droplets, "No Glass", "Blur and glass effects are turned off"]
+	["motion", Sparkles, "Calmer Motion", "Notch animations become shorter and simpler"]
 ];
 
 /** Battery saver: when it turns on (`bloom-battery-saver`: off, on battery,
@@ -20,7 +20,7 @@ function BatterySaver({ saveSetting }: { saveSetting: (key: string, value: strin
 		() => parseInt(localStorage.getItem("bloom-battery-saver-threshold") ?? "", 10) || 30
 	);
 	const [pauses, setPauses] = useState<Pauses>(() => {
-		const all = { visualizer: true, motion: true, glass: true };
+		const all = { visualizer: true, motion: true };
 		try {
 			return { ...all, ...JSON.parse(localStorage.getItem("bloom-battery-saver-pauses") ?? "{}") };
 		} catch {
@@ -139,7 +139,23 @@ export function GeneralTab({
 		<>
 			<div className="setting-group-label">System</div>
 			<div className="setting-group">
-				<SettingRow icon={Power} label="Launch at Login" desc="Open LotusNotch automatically">
+				<SettingRow icon={UserRound} label="Your Name" desc="Shown to people you share your Shelf with">
+					<input
+						className="setting-text-input"
+						defaultValue={localStorage.getItem("bloom-share-name") ?? ""}
+						maxLength={48}
+						placeholder="Your name"
+						aria-label="Your name"
+						onBlur={(e) => {
+							const name = e.target.value.trim();
+							if (name === (localStorage.getItem("bloom-share-name") ?? "")) return;
+							saveSetting("bloom-share-name", name);
+							if (name) invoke("share_set_name", { name }).catch(() => {});
+						}}
+					/>
+				</SettingRow>
+
+				<SettingRow icon={Power} label="Launch at Startup" desc="Start LotusNotch when Windows starts">
 					<label className="toggle-switch">
 						<input type="checkbox" checked={autostart} onChange={toggleAutostart} />
 						<span className="slider"></span>
@@ -149,7 +165,7 @@ export function GeneralTab({
 				<SettingRow
 					icon={Download}
 					label="Update Indicator"
-					desc="Show green dot when update available"
+					desc="Green dot when a new release is out on GitHub"
 				>
 					<label className="toggle-switch">
 						<input type="checkbox" checked={showUpdateIndicator} onChange={toggleUpdateIndicator} />

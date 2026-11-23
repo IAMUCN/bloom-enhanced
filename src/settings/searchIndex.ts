@@ -19,15 +19,15 @@ const page = (tab: SettingsTab, rows: [string, string, string?][]): SettingEntry
 
 export const SETTINGS_INDEX: SettingEntry[] = [
 	...page("general", [
-		["Launch at Login", "Open LotusNotch automatically"],
-		["Update Indicator", "Show green dot when update available"],
+		["Your Name", "Shown to people you share your Shelf with"],
+		["Launch at Startup", "Start LotusNotch when Windows starts"],
+		["Update Indicator", "Green dot when a new release is out on GitHub"],
 		["24-Hour Time", "Use 24-hour clock format"],
 		["Low Battery Alert", "Battery level that triggers the alert"],
 		["Battery Saver", "Off, on battery, or below a battery level; a leaf shows on the notch"],
 		["Turn On Below", "Battery level that turns Battery saver on"],
 		["Pause Visualizer", "Battery saver stops listening to audio for the music bars"],
 		["Calmer Motion", "Battery saver uses shorter, simpler animations"],
-		["No Glass", "Battery saver turns off blur effects"],
 		["Keep Windows Loaded", "Settings, the radial menu and the shelf open instantly but use more memory"],
 		["Low Memory Mode", "Share one web engine process between the notch, dock, shelf and Settings to use about 75 MB less"],
 		["Hide the Notch", "Recordings, screen shares and screenshots leave the notch out"],
@@ -105,7 +105,6 @@ export const SETTINGS_INDEX: SettingEntry[] = [
 		["Quick Move Speed", "How fast the pointer must reach the edge to open the shelf"],
 		["Sharing Port", "Change it if another app uses it (the same on every PC)"],
 		["Incognito", "Pause recording; nothing copied meanwhile is kept"],
-		["Your Name", "Shown only to people you share your Shelf with"],
 		["Position", "In the notch, or a shelf on the left, right or top screen edge"],
 		["Shelf Monitor", "Which screen's edge the shelf slides out of"],
 		["Shortcut", "The key combination that opens the shelf"],

@@ -12,7 +12,6 @@ import {
 	Keyboard,
 	Layers,
 	ListChecks,
-	UserRound,
 	Monitor,
 	MousePointer2,
 	Network,
@@ -147,7 +146,7 @@ function SharePortRow({ saveSetting }: { saveSetting: (key: string, value: strin
 	const [changed, setChanged] = useState(false);
 	const valid = /^\d+$/.test(port) && Number(port) >= 1024 && Number(port) <= 65535;
 	return (
-		<SettingRow icon={Network} label="Sharing Port" desc={changed ? "Restart LotusNotch to use it; use the same port on every PC" : "Change it if another app uses it (the same on every PC)"}>
+		<SettingRow icon={Network} label="Sharing Port" desc={changed ? "Restart LotusNotch to use it; use the same port on every PC" : "Change it if another app uses it (the same on every PC)"} divider={false}>
 			<input
 				className="setting-text-input setting-port-input"
 				value={port}
@@ -400,21 +399,6 @@ export function ClipboardTab({
 				<>
 					<div className="setting-group-label">Sharing</div>
 					<div className="setting-group">
-						<SettingRow icon={UserRound} label="Your Name" desc="Shown only to people you share your Shelf with" divider={false}>
-							<input
-								className="setting-text-input"
-								defaultValue={localStorage.getItem("bloom-share-name") ?? ""}
-								maxLength={48}
-								placeholder="Your name"
-								aria-label="Your name"
-								onBlur={(e) => {
-									const name = e.target.value.trim();
-									if (name === (localStorage.getItem("bloom-share-name") ?? "")) return;
-									saveSetting("bloom-share-name", name);
-									if (name) invoke("share_set_name", { name }).catch(() => {});
-								}}
-							/>
-						</SettingRow>
 						<SharePortRow saveSetting={saveSetting} />
 					</div>
 				</>

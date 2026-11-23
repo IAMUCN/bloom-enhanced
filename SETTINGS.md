@@ -90,7 +90,7 @@ Edit `settings.json` with any text editor while Bloom is running. Changes are ap
 | `bloom-setup-done` | `"true"` / absent | absent | Set once the first-run setup (your name, notch size, Pick your tools) was finished or skipped; until then the notch opens Settings on start. |
 | `bloom-battery-saver` | `"off"` / `"battery"` / `"below"` | `"below"` | When Battery saver turns on: never, on battery, or on battery at or below `bloom-battery-saver-threshold`. A leaf shows on the notch while it's on. |
 | `bloom-battery-saver-threshold` | percent as string, `"10"`–`"80"` | `"30"` | Battery level for `"below"`. |
-| `bloom-battery-saver-pauses` | JSON `{"visualizer","motion","glass"}` booleans | all `true` | What Battery saver pauses: the audio visualizer (stops the capture), animations (reduced motion), blur. |
+| `bloom-battery-saver-pauses` | JSON `{"visualizer","motion"}` booleans | all `true` | What Battery saver pauses: the audio visualizer (stops the capture), animations (reduced motion). |
 | `bloom-files-anim-open` / `-anim-switch` / `-anim-close` | `"true"` / `"false"` | `"true"` | Radial Menu animations (OrbitDrop style): grow-in on open, slices turn in on a menu switch, pop and fade on a pick. |
 | `bloom-files-anim-speed` | `"slow"` / `"normal"` / `"fast"` | `"normal"` | How fast the radial menu animations play. |
 | `bloom-files-chain-at` | `"notch"` / `"cursor"` | `"notch"` | Where a radial chain shows while it is built (the notch, or a tag by the pointer; never both). Without a notch it is the pointer. |
@@ -126,7 +126,7 @@ Edit `settings.json` with any text editor while Bloom is running. Changes are ap
 | `bloom-clipboard-shortcut` | e.g. `"Alt+C"`, `"Ctrl+Shift+V"`, `"F9"` | `"Alt+C"` | Global shortcut that opens/closes the clipboard (notch panel or edge shelf). `""` = no shortcut. Letters, digits and Space need a modifier. |
 | `bloom-clipboard-monitor` | monitor device name as Windows reports it (ends in `DISPLAY2` etc.) | `""` | Screen whose edge the shelf uses; `""` = primary. Ignored when the clipboard is in the notch. |
 | `bloom-clipboard-notch-wide` | `"true"` / `"false"` | `"false"` | No longer used: the Shelf in the notch now always has the notch's one open width. |
-| `bloom-share-name` | string (≤ 48 chars) | (unset: the PC's name) | Your name, shown only to people you share your Shelf with (asked on first run; Settings › Shelf › Sharing). |
+| `bloom-share-name` | string (≤ 48 chars) | (unset: the PC's name) | Your name, shown only to people you share your Shelf with (asked on first run; Settings › General › System). |
 | `bloom-clipboard-rich-text` | `"true"` / `"false"` | `"true"` | Keep the HTML of formatted text (up to 64 KB) and paste it back formatted. |
 | `bloom-clipboard-link-previews` | `"true"` / `"false"` | `"true"` | Show a site badge, a title from the address and the domain for links. Made offline; nothing is fetched. |
 | `bloom-clipboard-notes` | `"true"` / `"false"` | `"true"` | Allow a note or #tags on items. Noted items are kept through cleanup and found by search. |

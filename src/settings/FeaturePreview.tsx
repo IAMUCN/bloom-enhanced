@@ -305,7 +305,7 @@ function previewDescription(feature: Feature, settings: Settings, fallback: stri
 		case "clock":
 			return (
 				(settings.timeFormat24h ? "24-hour time" : "12-hour time") +
-				" · Launch at login " +
+				" · Launch at startup " +
 				(settings.autostart ? "on" : "off") +
 				" · Update available: dot " +
 				(settings.showUpdateIndicator ? "on" : "off")
@@ -375,7 +375,8 @@ export function FeaturePreview({ tab, settings, focus }: FeaturePreviewProps) {
 		const label = focus.split(":")[1];
 		const next: Partial<Record<SettingsTab, Record<string, Feature>>> = {
 			general: {
-				"Launch at Login": "clock",
+				"Launch at Startup": "clock",
+				"Your Name": "clock",
 				"24-Hour Time": "clock",
 				"Update Indicator": "clock",
 				"Low Battery Alert": "battery"

@@ -116,11 +116,11 @@ import type { OrbitStatus } from "./orbitOps";
  */
 type NotchPanel = "calendar" | "command-center" | "devices" | "clipboard";
 const NOTCH_PANELS: readonly NotchPanel[] = ["calendar", "command-center", "devices", "clipboard"];
-/** What Battery saver pauses (`bloom-battery-saver-pauses`, JSON); all three
+/** What Battery saver pauses (`bloom-battery-saver-pauses`, JSON); both
  *  by default. */
-type SaverPauses = { visualizer: boolean; motion: boolean; glass: boolean };
+type SaverPauses = { visualizer: boolean; motion: boolean };
 function parseSaverPauses(raw: unknown): SaverPauses {
-	const all = { visualizer: true, motion: true, glass: true };
+	const all = { visualizer: true, motion: true };
 	try {
 		const v = JSON.parse(String(raw ?? ""));
 		return v && typeof v === "object" ? { ...all, ...v } : all;
@@ -4229,7 +4229,7 @@ function App() {
 		<MotionConfig
 			reducedMotion={(saverOn && saverPauses.motion) || motionPref === "off" ? "always" : "never"}
 		>
-		<div className={`screen${saverOn && saverPauses.glass ? " battery-saver" : ""}`} style={{ overflow: "hidden" }}>
+		<div className="screen" style={{ overflow: "hidden" }}>
 			<div
 				style={{
 					zoom: pillZoom,
