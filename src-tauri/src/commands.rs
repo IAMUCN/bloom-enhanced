@@ -27,6 +27,7 @@ pub fn set_visualizer_wanted(wanted: bool) {
 #[tauri::command]
 pub fn set_notch_open(open: bool) {
     crate::state::NOTCH_OPEN.store(open, Ordering::Relaxed);
+    crate::utils::poke();
 }
 
 #[tauri::command]

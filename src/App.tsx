@@ -2894,15 +2894,16 @@ function App() {
 		invoke<boolean>("get_battery_saver_state")
 			.then(setBatterySaverEnabled)
 			.catch(() => {});
-		// Poll battery saver state every 5s (since we can't listen for changes)
-		if (!notchOn) return;
+		// Poll battery saver state every 5s (no change event), only while the
+		// notch is open where the toggle shows; it is re-read on every open.
+		if (!notchOn || !isOpen) return;
 		const interval = setInterval(() => {
 			invoke<boolean>("get_battery_saver_state")
 				.then(setBatterySaverEnabled)
 				.catch(() => {});
 		}, 5000);
 		return () => clearInterval(interval);
-	}, [notchOn]);
+	}, [notchOn, isOpen]);
 
 	// Volume and brightness sliders: the audio device and the WMI brightness
 	// reader are not ready in the first seconds after start, so ask again a few

@@ -43,6 +43,7 @@ static KEYBOARD_HOOK: AtomicIsize = AtomicIsize::new(0);
 pub fn setup_keyboard_hook(app_handle: AppHandle) {
     let _ = KEYBOARD_HOOK_APP_HANDLE.set(app_handle.clone());
     std::thread::spawn(move || {
+        let mut seen = 0;
         // Exiting removes the hook with the process; never touch it mid-shutdown.
         while !SHUTTING_DOWN.load(Ordering::Relaxed) {
             // Win+Number needs it while the dock replaces the taskbar; Esc
@@ -58,7 +59,9 @@ pub fn setup_keyboard_hook(app_handle: AppHandle) {
                 // needs a message loop, so install and remove it on the main thread.
                 let _ = app_handle.run_on_main_thread(move || set_keyboard_hook(wanted));
             }
-            std::thread::sleep(Duration::from_millis(500));
+            // Woken by settings / notch / shelf changes; the taskbar flag has
+            // no signal, so a 2 s check covers it.
+            crate::utils::wait_poke(&mut seen, Duration::from_secs(2));
         }
     });
 }
@@ -1467,6 +1470,16 @@ pub fn setup_system_worker(app_handle: AppHandle) -> Sender<SystemCommand> {
         loop {
             if SHUTTING_DOWN.load(Ordering::Relaxed) {
                 std::thread::sleep(std::time::Duration::from_millis(150));
+                continue;
+            }
+            // Notch and dock both off and the taskbar left alone: there is no
+            // overlap or taskbar to track, so check once a second.
+            if !crate::utils::notch_enabled()
+                && !crate::utils::dock_enabled()
+                && !NATIVE_TASKBAR_HIDDEN.load(Ordering::Relaxed)
+                && !CAPTURE_RECHECK.load(Ordering::Relaxed)
+            {
+                std::thread::sleep(std::time::Duration::from_millis(1000));
                 continue;
             }
             unsafe {

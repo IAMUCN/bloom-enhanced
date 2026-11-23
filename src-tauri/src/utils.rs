@@ -1354,6 +1354,28 @@ pub fn replace_settings_cache(new_settings: std::collections::HashMap<String, se
     if let Ok(mut cache) = cache.lock() {
         *cache = new_settings;
     }
+    poke();
+}
+
+static POKE: (std::sync::Mutex<u64>, std::sync::Condvar) =
+    (std::sync::Mutex::new(0), std::sync::Condvar::new());
+
+/// Wakes the threads that sleep in `wait_poke` (settings or notch state changed).
+pub fn poke() {
+    if let Ok(mut n) = POKE.0.lock() {
+        *n += 1;
+        POKE.1.notify_all();
+    }
+}
+
+/// Sleeps up to `timeout`, or until a `poke()` newer than `seen` (each waiter
+/// keeps its own `seen`, so none misses a poke another consumed).
+pub fn wait_poke(seen: &mut u64, timeout: std::time::Duration) {
+    if let Ok(n) = POKE.0.lock() {
+        if let Ok((n, _)) = POKE.1.wait_timeout_while(n, timeout, |n| *n == *seen) {
+            *seen = *n;
+        }
+    }
 }
 
 pub fn get_bloom_scale(_app: &tauri::AppHandle) -> f64 {

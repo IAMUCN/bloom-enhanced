@@ -114,24 +114,28 @@ fn effective(saved: Option<&str>) -> Vec<Binding> {
 /// clipboard shortcut). The notch's own legacy key still works.
 pub fn start(app: AppHandle) {
     let _ = KEYBOARD_APP.set(app.clone());
-    std::thread::spawn(move || loop {
-        let mut saved = crate::utils::get_setting_str(&app, "bloom-shortcuts");
-        if saved.is_none() {
-            if let Some(notch) = crate::utils::get_setting_str(&app, "bloom-notch-shortcut") {
-                saved = Some(serde_json::json!({ "notch": notch }).to_string());
+    std::thread::spawn(move || {
+        let mut seen = 0;
+        loop {
+            let mut saved = crate::utils::get_setting_str(&app, "bloom-shortcuts");
+            if saved.is_none() {
+                if let Some(notch) = crate::utils::get_setting_str(&app, "bloom-notch-shortcut") {
+                    saved = Some(serde_json::json!({ "notch": notch }).to_string());
+                }
             }
-        }
-        let next = if crate::utils::notch_enabled() {
-            effective(saved.as_deref())
-        } else {
-            Vec::new()
-        };
-        if let Ok(mut b) = BINDINGS.lock() {
-            if *b != next {
-                *b = next;
+            let next = if crate::utils::notch_enabled() {
+                effective(saved.as_deref())
+            } else {
+                Vec::new()
+            };
+            if let Ok(mut b) = BINDINGS.lock() {
+                if *b != next {
+                    *b = next;
+                }
             }
+            // Settings saves (and file edits) poke; 5 s covers a missed edge.
+            crate::utils::wait_poke(&mut seen, Duration::from_secs(5));
         }
-        std::thread::sleep(Duration::from_millis(300));
     });
 }
 

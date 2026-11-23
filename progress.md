@@ -252,3 +252,10 @@ until the user approves. Track every step in "Implementation run" below.
 - 2026-11-20 round: 9a26653 white-box evidence (log notch_not_layered in diagnostics.log; dev WebView2 port 9333); ba8a926 Day = calendar + today panel (no timer); e6c4f03 OCR Clear + 7-day expiry, picker 7-day, snips restore Hide From Recordings; b1b0981 units even boxes, power modes saved per AC/DC + Balanced-plan check + slider UI; 3d8f6bb mic leak fix + Mirror layout (XL height) = 3d8f6bb. Open: white box root cause (waiting for it to recur with the log/port).
 - 2026-11-20: 3edb376 open-notch 40px grace + Mirror rows centred; eabb2cb deadlines (Calendar click-a-day + Reminders list, tools/deadlines.json).
 - 2026-11-20 437aea9 grace margin really works (framer onHoverEnd closed it; tested live 20px stays/80px closes); 9d2018b deadline day picker in the notch (Reminders XL). White boxes: diagnostics show the window never un-layered when the user saw them; blur-behind test showed nothing → both ruled out. Next time: user says "boxes now" while tauri dev runs → inspect page via CDP port 9333 (scratchpad shot2.ts).
+
+## Idle CPU round 2 (branch perf/idle-cpu, 2026-11-23)
+- Shortcut binding poll (300 ms) and keyboard-hook manager (500 ms) now sleep on `utils::wait_poke` (Condvar, per-waiter generation); poked by settings save/file change, `set_notch_open`, shelf open/close. Fallbacks 5 s / 2 s.
+- Battery-saver poll (5 s) runs only while the notch is open; re-read on every open.
+- Foreground loop sleeps 1 s when notch AND dock are off, taskbar not hidden, no capture recheck pending.
+- Not done: share listener (restart-only), full event-driven foreground loop (Smart dock risk), icon cache cap, lazy imports.
+- Idle CPU after round 1: 2.66% of one core (dev build). Round 2 not yet measured.

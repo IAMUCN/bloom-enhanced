@@ -1149,6 +1149,7 @@ fn set_shelf_open(app: &AppHandle, side: ShelfSide, open: bool) {
     if SHELF_OPEN.swap(open, Ordering::Relaxed) == open {
         return;
     }
+    crate::utils::poke();
     let Some(win) = app.get_webview_window("clipshelf") else {
         return;
     };
