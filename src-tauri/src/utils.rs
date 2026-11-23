@@ -1265,47 +1265,6 @@ pub fn save_setting_file(
     Ok(settings)
 }
 
-/// App IDs this app ran under before, newest first: Bloom Enhanced, then
-/// Bloom. On the first start under the current ID, the newest one's files
-/// (settings, pinned apps, clipboard history, custom icons) are copied over,
-/// once.
-const PREVIOUS_IDS: [&str; 2] = ["com.ucnindustries.bloomenhanced", "com.sehaz.bloom"];
-
-pub fn migrate_from_bloom(app: &tauri::AppHandle) {
-    let Ok(new_dir) = app.path().app_config_dir() else {
-        return;
-    };
-    let Some(parent) = new_dir.parent() else {
-        return;
-    };
-    for id in PREVIOUS_IDS {
-        if migrate_dir(&parent.join(id), &new_dir) {
-            crate::diagnostics::record("migrated", &format!("copied {id} files"));
-            return;
-        }
-    }
-}
-
-/// Copies `old` into `new` when `new` has no settings yet and `old` has.
-fn migrate_dir(old: &std::path::Path, new: &std::path::Path) -> bool {
-    fn copy(from: &std::path::Path, to: &std::path::Path) -> std::io::Result<()> {
-        std::fs::create_dir_all(to)?;
-        for entry in std::fs::read_dir(from)? {
-            let entry = entry?;
-            let target = to.join(entry.file_name());
-            if entry.file_type()?.is_dir() {
-                copy(&entry.path(), &target)?;
-            } else if entry.file_name() != "taskbar_hidden.flag" {
-                std::fs::copy(entry.path(), target)?;
-            }
-        }
-        Ok(())
-    }
-    !new.join("settings.json").exists()
-        && old.join("settings.json").exists()
-        && copy(old, new).is_ok()
-}
-
 /// `bloom-low-memory` (default on) read from settings.json before the app
 /// exists: the WebView2 flags it sets must be in place before any window.
 pub fn low_memory_mode() -> bool {
@@ -1775,33 +1734,6 @@ pub fn capture_hwnd_to_base64(hwnd: HWND, max_width: u32, max_height: u32) -> Op
         ReleaseDC(None, hdc_screen);
 
         result
-    }
-}
-
-#[cfg(test)]
-mod migrate_tests {
-    #[test]
-    fn copies_bloom_files_once_without_the_taskbar_flag() {
-        let root = std::path::Path::new(env!("CARGO_MANIFEST_DIR"))
-            .join("target")
-            .join(format!("migrate-{}", std::process::id()));
-        let (old, new) = (root.join("old"), root.join("new"));
-        let _ = std::fs::remove_dir_all(&root);
-        std::fs::create_dir_all(old.join("clipboard")).unwrap();
-        std::fs::write(old.join("settings.json"), "{}").unwrap();
-        std::fs::write(old.join("taskbar_hidden.flag"), "").unwrap();
-        std::fs::write(old.join("clipboard").join("history.json"), "[]").unwrap();
-        assert!(super::migrate_dir(&old, &new));
-        assert!(new.join("clipboard").join("history.json").exists());
-        assert!(!new.join("taskbar_hidden.flag").exists());
-        // Already migrated (or set up fresh): never again.
-        std::fs::write(old.join("settings.json"), "{\"x\":1}").unwrap();
-        assert!(!super::migrate_dir(&old, &new));
-        assert_eq!(
-            std::fs::read_to_string(new.join("settings.json")).unwrap(),
-            "{}"
-        );
-        std::fs::remove_dir_all(&root).unwrap();
     }
 }
 
