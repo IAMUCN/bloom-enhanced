@@ -4,6 +4,7 @@ import { invoke } from "@tauri-apps/api/core";
 import { SettingRow } from "./SettingRow";
 import { ScaleStepper } from "./ScaleStepper";
 import { Choice } from "./Choice";
+import { Section } from "./Section";
 
 const THEME_MODES = [
 	["dark", "Black", "Black surfaces; solid at 100% opacity"],
@@ -119,18 +120,15 @@ export function AppearanceTab({
 
 	return (
 		<>
-			<div className="setting-group-label">Accent</div>
-			<div className="setting-group">
+			<Section title="Accent">
 				<AccentRow />
-			</div>
+			</Section>
 
-			<div className="setting-group-label">Settings Window</div>
-			<div className="setting-group">
+			<Section title="Settings Window">
 				<SettingsWindowRow />
-			</div>
+			</Section>
 
-			<div className="setting-group-label">Notch, Dock &amp; Shelf Theme</div>
-			<div className="setting-group">
+			<Section title="Notch, Dock &amp; Shelf Theme">
 				<SettingRow
 					icon={Palette}
 					label="Theme Mode"
@@ -215,10 +213,9 @@ export function AppearanceTab({
 						</SettingRow>
 					</>
 				)}
-			</div>
+			</Section>
 
-			<div className="setting-group-label">Display</div>
-			<div className="setting-group">
+			<Section title="Display">
 				<AnimationsRow />
 				<SettingRow
 					icon={Maximize2}
@@ -228,7 +225,7 @@ export function AppearanceTab({
 				>
 					<ScaleStepper value={scale} onChange={handleScaleChange} label="Scale" />
 				</SettingRow>
-			</div>
+			</Section>
 		</>
 	);
 }
