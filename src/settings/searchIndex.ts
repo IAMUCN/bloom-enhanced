@@ -29,6 +29,7 @@ export const SETTINGS_INDEX: SettingEntry[] = [
 		["Calmer Motion", "Battery saver uses shorter, simpler animations"],
 		["No Glass", "Battery saver turns off blur effects"],
 		["Keep Windows Loaded", "Settings, the radial menu and the shelf open instantly but use more memory"],
+		["Low Memory Mode", "Share one web engine process between the notch, dock, shelf and Settings to use about 75 MB less"],
 		["Hide the Notch", "Recordings, screen shares and screenshots leave the notch out"],
 		["Hide the Dock", "Recordings, screen shares and screenshots leave the dock out"],
 		["Hide the Shelf", "Recordings, screen shares and screenshots leave the Shelf on a screen edge out"],

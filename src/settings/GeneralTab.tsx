@@ -134,6 +134,7 @@ export function GeneralTab({
 	// Settings, the radial menu and the edge shelf exist only while used,
 	// unless this keeps them (faster to open, more memory).
 	const [keepLoaded, setKeepLoaded] = useState(() => localStorage.getItem("bloom-keep-windows-loaded") === "true");
+	const [lowMemory, setLowMemory] = useState(() => localStorage.getItem("bloom-low-memory") !== "false");
 	return (
 		<>
 			<div className="setting-group-label">System</div>
@@ -228,7 +229,6 @@ export function GeneralTab({
 							? "Settings, the radial menu and the shelf open instantly; uses about 100–150 MB more memory"
 							: "Settings, the radial menu and the shelf load when you open them (a moment slower the first time) and free their memory after"
 					}
-					divider={false}
 				>
 					<label className="toggle-switch">
 						<input
@@ -242,6 +242,24 @@ export function GeneralTab({
 						<span className="slider"></span>
 					</label>
 				</SettingRow>
+					<SettingRow
+						icon={Gauge}
+						label="Low Memory Mode"
+						desc="The notch, dock, shelf and Settings share one web engine process: about 75 MB less. A busy window can slow the others a little. Applies after a restart."
+						divider={false}
+					>
+						<label className="toggle-switch">
+							<input
+								type="checkbox"
+								checked={lowMemory}
+								onChange={() => {
+									setLowMemory(!lowMemory);
+									saveSetting("bloom-low-memory", String(!lowMemory));
+								}}
+							/>
+							<span className="slider"></span>
+						</label>
+					</SettingRow>
 				</details>
 			</div>
 

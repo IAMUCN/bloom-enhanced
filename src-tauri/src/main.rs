@@ -74,12 +74,20 @@ fn main() {
     }
     // Dev builds: the pages can be inspected live (chasing the white boxes
     // beside the notch, 2026-11-20). Never in releases.
-    if cfg!(debug_assertions) && std::env::var_os("WEBVIEW2_ADDITIONAL_BROWSER_ARGUMENTS").is_none()
-    {
-        std::env::set_var(
-            "WEBVIEW2_ADDITIONAL_BROWSER_ARGUMENTS",
-            "--remote-debugging-port=9333",
-        );
+    if std::env::var_os("WEBVIEW2_ADDITIONAL_BROWSER_ARGUMENTS").is_none() {
+        let mut flags: Vec<&str> = Vec::new();
+        if cfg!(debug_assertions) {
+            flags.push("--remote-debugging-port=9333");
+        }
+        // Low Memory Mode (default on): every window shares one web page
+        // process, about 75 MB less. Read straight from settings.json: the
+        // web engine starts before the settings cache exists.
+        if utils::low_memory_mode() {
+            flags.push("--process-per-site");
+        }
+        if !flags.is_empty() {
+            std::env::set_var("WEBVIEW2_ADDITIONAL_BROWSER_ARGUMENTS", flags.join(" "));
+        }
     }
 
     // Single-instance enforcement

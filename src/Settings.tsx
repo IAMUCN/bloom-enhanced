@@ -82,7 +82,8 @@ const PAGE_KEYS: Partial<Record<SettingsTab, string[]>> = {
 		"bloom-time-format-24h",
 		"bloom-show-update-indicator",
 		"bloom-low-battery-threshold",
-		"bloom-keep-windows-loaded"
+		"bloom-keep-windows-loaded",
+		"bloom-low-memory"
 	],
 	appearance: ["bloom-theme-", "bloom-scale", "bloom-accent"],
 	notch: [

@@ -1306,6 +1306,22 @@ fn migrate_dir(old: &std::path::Path, new: &std::path::Path) -> bool {
         && copy(old, new).is_ok()
 }
 
+/// `bloom-low-memory` (default on) read from settings.json before the app
+/// exists: the WebView2 flags it sets must be in place before any window.
+pub fn low_memory_mode() -> bool {
+    let Some(dir) = std::env::var_os("APPDATA") else {
+        return true;
+    };
+    let path = std::path::Path::new(&dir)
+        .join("com.ucnindustries.lotusnotch")
+        .join("settings.json");
+    read_settings_file(&path)
+        .ok()
+        .and_then(|s| s.get("bloom-low-memory").cloned())
+        .map(|v| v.as_str() != Some("false"))
+        .unwrap_or(true)
+}
+
 /// Load settings.json into the in-memory cache. Call once at startup.
 pub fn init_settings_cache(app: &tauri::AppHandle) {
     use crate::state::SETTINGS_CACHE;

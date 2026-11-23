@@ -204,6 +204,7 @@ Example:
 | `bloom-scale`                  | float string         | `"1.0"`   | UI scale factor (0.5 to 1.5) for Settings and overlays, and for the dock/notch while `bloom-dock-scale` / `bloom-notch-scale` are unset. Changing this re-registers AppBars to resize the reserved screen area. |
 | `bloom-low-battery-threshold`  | integer string       | `"20"`    | Battery percentage that triggers the low-battery alert pulse (5 to 50, step 5).                      |
 | `bloom-keep-windows-loaded` | `"true"` / `"false"` | `"false"` | Keep the Settings, radial menu and edge shelf windows loaded once made (they open instantly; about 100–150 MB more memory). Off, they are created when used and closed after (the radial menu 30 s after it closes). |
+| `bloom-low-memory` | `"true"` / `"false"` | `"true"` | Low Memory Mode: all windows share one WebView2 page process (`--process-per-site`), about 75 MB less. Read from settings.json at startup, so a change applies after a restart. Off: each window has its own process (smoother when one is busy). |
 | `bloom-auto-update`            | `"true"` / `"false"` | `"false"` | Check for and download updates automatically on startup.                                             |
 | `bloom-show-update-indicator`  | `"true"` / `"false"` | `"true"`  | Show a green dot on the notch when an update is available.                                           |
 | `bloom-announcement-dismissed` | announcement id      | `""`      | ID of the last dismissed in-app announcement (published via `website/public/announcements.json`).    |
