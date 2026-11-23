@@ -54,6 +54,7 @@ export const SETTINGS_INDEX: SettingEntry[] = [
 	]),
 	...page("notch", [
 		["When It Shows", "Fixed, Smart or Peek: when the notch is on screen"],
+		["Notch Display", "Which screen the notch sits on; Primary follows Windows' main display"],
 		["Open On", "Click or hover opens the notch"],
 		["Hover Delay", "How long to rest on the notch before it opens"],
 		["Peek Delay", "How long to rest on the top edge before it shows"],
@@ -86,6 +87,7 @@ export const SETTINGS_INDEX: SettingEntry[] = [
 		EXTRA_TOOLS.map((t) => [t.label, `${t.desc} (Tools)`])
 	),
 	...page("dock", [
+		["Dock Display", "Which screen the dock sits on; Primary follows Windows' main display"],
 		["When It Shows", "Fixed, Smart or Peek: when the dock is on screen"],
 		["Peek Delay", "How long to rest on the bottom edge before it shows"],
 		["Dock Size", "Size of the dock only; the notch keeps its own"],
@@ -107,7 +109,7 @@ export const SETTINGS_INDEX: SettingEntry[] = [
 		["Sharing Port", "Change it if another app uses it (the same on every PC)"],
 		["Incognito", "Pause recording; nothing copied meanwhile is kept"],
 		["Position", "In the notch, or a shelf on the left, right or top screen edge"],
-		["Shelf Monitor", "Which screen's edge the shelf slides out of"],
+		["Shelf Display", "Which screen's edge the shelf slides out of"],
 		["Shortcut", "The key combination that opens the shelf"],
 		["Group Copied Files", "Several files or images copied at once stay one stack; off records each on its own"],
 		["Thumbnail Size", "Preview size of images and files"],
@@ -118,7 +120,7 @@ export const SETTINGS_INDEX: SettingEntry[] = [
 		["Sound Effects", "Short sounds when you copy, pin, group or delete in the clipboard"],
 		["Copy Indicator", 'The notch shows a brief "Copied" when something is recorded'],
 		["Opening Beam", "A gradient beam runs once round the edge shelf's outline each time it opens"],
-		["Copy Effect", "Light on the notch's edge when something is copied: the signature beam (both ways from the centre), one lap of light, a neon flash or a soft glow"],
+		["Copy Effect", "Light on the notch's edge when something is copied: the gradient beam (both ways from the centre), one lap of light, a neon flash or a soft glow"],
 		["Effect Colour", "The first swatch follows your accent colour"],
 		["History Size", "Oldest items go first; pinned items stay"],
 		["Auto-Delete", "Remove unpinned items after a while"],

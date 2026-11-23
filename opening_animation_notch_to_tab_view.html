@@ -1,0 +1,718 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Lotus Notch — Opening Animation & Lotus-Style Border Lining</title>
+  <style>
+    :root {
+      --bg: #0A0A0F;
+      --card-bg: #12131C;
+      --notch-black: #000000;
+      --lotus-pink: #FF5C7A;
+      --lotus-magenta: #E056FD;
+      --lotus-purple: #B83280;
+      --accent-blue: #5B9BFF;
+      --text-dim: #94A3B8;
+      --border-dark: #1E2235;
+    }
+
+    * {
+      box-sizing: border-box;
+      margin: 0;
+      padding: 0;
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Inter, sans-serif;
+      user-select: none;
+    }
+
+    body {
+      background: var(--bg);
+      color: #FFFFFF;
+      min-height: 100vh;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: flex-start;
+      padding: 30px 20px;
+      overflow-x: hidden;
+    }
+
+    header {
+      text-align: center;
+      max-width: 800px;
+      margin-bottom: 24px;
+    }
+
+    h1 {
+      font-size: 24px;
+      font-weight: 700;
+      letter-spacing: -0.5px;
+      margin-bottom: 8px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 10px;
+    }
+
+    .lotus-badge {
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      width: 28px;
+      height: 28px;
+      border-radius: 8px;
+      background: rgba(255, 92, 122, 0.15);
+      border: 1px solid rgba(255, 92, 122, 0.4);
+    }
+
+    p.subtitle {
+      color: var(--text-dim);
+      font-size: 14px;
+      line-height: 1.5;
+    }
+
+    /* Screen Simulator */
+    .viewport {
+      position: relative;
+      width: 960px;
+      height: 520px;
+      background: radial-gradient(circle at 50% 0%, #201D2E 0%, #12131C 55%, #0B0C12 100%);
+      border-radius: 20px;
+      border: 1px solid #232738;
+      box-shadow: 0 30px 70px rgba(0, 0, 0, 0.8), 0 0 0 1px rgba(255, 255, 255, 0.05);
+      overflow: hidden;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+    }
+
+    /* Top Desktop Bar */
+    .desktop-topbar {
+      width: 100%;
+      height: 28px;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      padding: 0 20px;
+      font-size: 11px;
+      color: #64748B;
+      z-index: 5;
+    }
+
+    /* Notch Stage Container */
+    .notch-stage {
+      position: absolute;
+      top: 0;
+      display: flex;
+      justify-content: center;
+      align-items: flex-start;
+      z-index: 50;
+      cursor: pointer;
+    }
+
+    /* Lotus Outer Glowing Aura */
+    .lotus-lining-aura {
+      position: absolute;
+      top: -2px;
+      border-radius: 0 0 26px 26px;
+      pointer-events: none;
+      transition: all 0.38s cubic-bezier(0.34, 1.3, 0.64, 1);
+      opacity: 0.2;
+      filter: blur(8px);
+      background: linear-gradient(180deg, transparent 40%, rgba(255, 92, 122, 0.5) 100%);
+    }
+
+    /* Lotus Petal-Style Outer Border Lining */
+    .lotus-border-line {
+      position: absolute;
+      top: 0;
+      border-radius: 0 0 24px 24px;
+      pointer-events: none;
+      transition: all 0.38s cubic-bezier(0.34, 1.3, 0.64, 1);
+      border: 2px solid rgba(255, 92, 122, 0.25);
+      border-top: none;
+      box-shadow: 0 4px 14px rgba(255, 92, 122, 0.15);
+    }
+
+    /* Lotus Central Petal Crest Bracket */
+    .lotus-petal-crest {
+      position: absolute;
+      bottom: -6px;
+      width: 32px;
+      height: 10px;
+      pointer-events: none;
+      transition: all 0.38s cubic-bezier(0.34, 1.3, 0.64, 1);
+      filter: drop-shadow(0 2px 6px rgba(255, 92, 122, 0.5));
+    }
+
+    /* The Notch Body Itself: Clean Obsidian, No extra body effect */
+    .notch-body {
+      background: var(--notch-black);
+      border-radius: 0 0 16px 16px;
+      overflow: hidden;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      transition: all 0.38s cubic-bezier(0.34, 1.3, 0.64, 1);
+      position: relative;
+      z-index: 10;
+      box-shadow: 0 10px 30px rgba(0, 0, 0, 0.9);
+    }
+
+    /* Closed Pill State */
+    .state-closed .lotus-lining-aura {
+      width: 136px;
+      height: 36px;
+      opacity: 0.15;
+    }
+    .state-closed .lotus-border-line {
+      width: 126px;
+      height: 34px;
+      border-radius: 0 0 16px 16px;
+      border-color: rgba(255, 92, 122, 0.35);
+      box-shadow: 0 2px 8px rgba(255, 92, 122, 0.2);
+    }
+    .state-closed .lotus-petal-crest {
+      bottom: -5px;
+      width: 22px;
+      opacity: 0.6;
+    }
+    .state-closed .notch-body {
+      width: 122px;
+      height: 32px;
+      border-radius: 0 0 14px 14px;
+      padding: 0 12px;
+      flex-direction: row;
+      justify-content: space-between;
+    }
+
+    /* Awakening State (Lotus Highlight) */
+    .state-awakening .lotus-lining-aura {
+      width: 172px;
+      height: 44px;
+      opacity: 0.85;
+      filter: blur(12px);
+      background: linear-gradient(180deg, transparent 20%, rgba(255, 92, 122, 0.9) 100%);
+    }
+    .state-awakening .lotus-border-line {
+      width: 162px;
+      height: 38px;
+      border-radius: 0 0 18px 18px;
+      border-width: 2.5px;
+      border-color: #FF5C7A;
+      box-shadow: 0 0 20px rgba(255, 92, 122, 0.8), 0 4px 12px rgba(224, 86, 253, 0.6);
+    }
+    .state-awakening .lotus-petal-crest {
+      bottom: -7px;
+      width: 36px;
+      opacity: 1;
+      filter: drop-shadow(0 2px 10px rgba(255, 92, 122, 0.9));
+    }
+    .state-awakening .notch-body {
+      width: 156px;
+      height: 36px;
+      border-radius: 0 0 16px 16px;
+      padding: 0 16px;
+      flex-direction: row;
+      justify-content: space-between;
+    }
+
+    /* Expanding State */
+    .state-expanding .lotus-lining-aura {
+      width: 400px;
+      height: 124px;
+      opacity: 0.9;
+      filter: blur(16px);
+      background: linear-gradient(180deg, transparent 20%, rgba(255, 92, 122, 0.95) 100%);
+    }
+    .state-expanding .lotus-border-line {
+      width: 390px;
+      height: 116px;
+      border-radius: 0 0 22px 22px;
+      border-width: 3px;
+      border-color: #FF5C7A;
+      box-shadow: 0 0 28px rgba(255, 92, 122, 0.85), 0 8px 18px rgba(224, 86, 253, 0.7);
+    }
+    .state-expanding .lotus-petal-crest {
+      bottom: -8px;
+      width: 52px;
+      opacity: 1;
+      filter: drop-shadow(0 4px 14px rgba(255, 92, 122, 1));
+    }
+    .state-expanding .notch-body {
+      width: 384px;
+      height: 112px;
+      border-radius: 0 0 19px 19px;
+      padding: 10px 16px;
+      flex-direction: column;
+      align-items: stretch;
+      gap: 10px;
+    }
+
+    /* Open Tab View State */
+    .state-open .lotus-lining-aura {
+      width: 636px;
+      height: 236px;
+      opacity: 0.95;
+      filter: blur(20px);
+      background: linear-gradient(180deg, transparent 20%, rgba(255, 92, 122, 0.85) 100%);
+    }
+    .state-open .lotus-border-line {
+      width: 624px;
+      height: 224px;
+      border-radius: 0 0 24px 24px;
+      border-width: 2.5px;
+      border-color: #FF5C7A;
+      box-shadow: 0 0 32px rgba(255, 92, 122, 0.8), 0 8px 24px rgba(224, 86, 253, 0.6);
+    }
+    .state-open .lotus-petal-crest {
+      bottom: -9px;
+      width: 68px;
+      opacity: 1;
+      filter: drop-shadow(0 4px 16px rgba(255, 92, 122, 1));
+    }
+    .state-open .notch-body {
+      width: 616px;
+      height: 218px;
+      border-radius: 0 0 22px 22px;
+      padding: 12px 18px 16px 18px;
+      flex-direction: column;
+      align-items: stretch;
+      gap: 10px;
+    }
+
+    /* Inner Notch Content Elements */
+    .closed-content {
+      width: 100%;
+      height: 100%;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      transition: opacity 0.25s ease;
+    }
+
+    .lotus-icon-svg {
+      width: 16px;
+      height: 16px;
+      fill: none;
+      stroke: var(--lotus-pink);
+      stroke-width: 2.5;
+      stroke-linecap: round;
+      stroke-linejoin: round;
+      transition: all 0.3s ease;
+    }
+
+    .state-awakening .lotus-icon-svg,
+    .state-expanding .lotus-icon-svg,
+    .state-open .lotus-icon-svg {
+      filter: drop-shadow(0 0 8px #FF5C7A);
+      transform: scale(1.15);
+    }
+
+    .pill-clock {
+      font-size: 13px;
+      font-weight: 600;
+      color: #FFFFFF;
+      letter-spacing: -0.2px;
+    }
+
+    .pill-battery {
+      font-size: 11px;
+      font-weight: 600;
+      color: var(--text-dim);
+    }
+
+    /* Tab View Full Content */
+    .tabview-content {
+      display: none;
+      flex-direction: column;
+      width: 100%;
+      height: 100%;
+      opacity: 0;
+      transition: opacity 0.3s ease;
+    }
+
+    .state-open .closed-content,
+    .state-expanding .closed-content {
+      display: none;
+    }
+
+    .state-open .tabview-content,
+    .state-expanding .tabview-content {
+      display: flex;
+      opacity: 1;
+    }
+
+    /* Tab Bar */
+    .tab-bar {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding-bottom: 8px;
+      border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+    }
+
+    .tabs-group {
+      display: flex;
+      align-items: center;
+      gap: 6px;
+    }
+
+    .tab-btn {
+      padding: 5px 12px;
+      border-radius: 8px;
+      font-size: 11.5px;
+      font-weight: 500;
+      color: #94A3B8;
+      cursor: pointer;
+      transition: all 0.2s;
+    }
+
+    .tab-btn.active {
+      background: rgba(91, 155, 255, 0.15);
+      color: #5B9BFF;
+      border: 1px solid rgba(91, 155, 255, 0.4);
+      font-weight: 600;
+    }
+
+    .tab-esc-label {
+      font-size: 10px;
+      color: #64748B;
+      padding: 3px 8px;
+      background: rgba(255, 255, 255, 0.04);
+      border-radius: 4px;
+    }
+
+    /* Card Panels Grid */
+    .card-grid {
+      display: grid;
+      grid-template-columns: 190px 180px 1fr;
+      gap: 12px;
+      background: #0D0E15;
+      border: 1px solid #1E2235;
+      border-radius: 12px;
+      padding: 12px;
+      height: 142px;
+    }
+
+    .panel {
+      background: #131520;
+      border-radius: 8px;
+      padding: 10px;
+      display: flex;
+      flex-direction: column;
+      justify-content: space-between;
+    }
+
+    .music-title {
+      font-size: 12px;
+      font-weight: 600;
+      color: #FFFFFF;
+      display: flex;
+      align-items: center;
+      gap: 6px;
+    }
+
+    .music-sub {
+      font-size: 10px;
+      color: #94A3B8;
+      margin-bottom: 8px;
+    }
+
+    .progress-track {
+      width: 100%;
+      height: 4px;
+      background: #232738;
+      border-radius: 2px;
+      overflow: hidden;
+      margin-bottom: 6px;
+    }
+
+    .progress-fill {
+      width: 65%;
+      height: 100%;
+      background: var(--lotus-pink);
+    }
+
+    .music-controls {
+      display: flex;
+      align-items: center;
+      justify-content: space-around;
+      font-size: 11px;
+      color: #E2E8F0;
+    }
+
+    .toggle-row {
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      padding: 5px 8px;
+      background: rgba(91, 155, 255, 0.1);
+      border: 1px solid rgba(91, 155, 255, 0.25);
+      border-radius: 6px;
+      font-size: 10.5px;
+      color: #5B9BFF;
+      font-weight: 500;
+    }
+
+    .toggle-row.lotus-active {
+      background: rgba(255, 92, 122, 0.12);
+      border-color: rgba(255, 92, 122, 0.35);
+      color: #FF5C7A;
+    }
+
+    .slider-row {
+      display: flex;
+      flex-direction: column;
+      gap: 4px;
+    }
+
+    .slider-label {
+      font-size: 10px;
+      color: #94A3B8;
+      display: flex;
+      justify-content: space-between;
+    }
+
+    .slider-bar {
+      width: 100%;
+      height: 5px;
+      background: #232738;
+      border-radius: 3px;
+      overflow: hidden;
+    }
+
+    .slider-bar-fill {
+      height: 100%;
+      border-radius: 3px;
+    }
+
+    /* Controls Bar Below */
+    .controls-strip {
+      margin-top: 24px;
+      display: flex;
+      align-items: center;
+      gap: 12px;
+    }
+
+    .btn {
+      padding: 8px 16px;
+      border-radius: 8px;
+      background: #1C1E2D;
+      border: 1px solid #2A2E44;
+      color: #FFFFFF;
+      font-size: 12px;
+      font-weight: 500;
+      cursor: pointer;
+      transition: all 0.2s;
+    }
+
+    .btn:hover {
+      background: #282C40;
+      border-color: #3E4466;
+    }
+
+    .btn.primary {
+      background: linear-gradient(135deg, #FF5C7A, #E056FD);
+      border: none;
+      font-weight: 600;
+      box-shadow: 0 4px 16px rgba(255, 92, 122, 0.4);
+    }
+
+    .btn.primary:hover {
+      box-shadow: 0 6px 20px rgba(255, 92, 122, 0.6);
+      transform: translateY(-1px);
+    }
+
+    .status-badge {
+      font-size: 12px;
+      color: #94A3B8;
+      margin-left: 12px;
+    }
+  </style>
+</head>
+<body>
+
+  <header>
+    <h1>
+      <span class="lotus-badge">
+        <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="#FF5C7A" stroke-width="2">
+          <path d="M12 2 C16 7 22 12 22 16 C22 19.5 17.5 21 12 21 C6.5 21 2 19.5 2 16 C2 12 8 7 12 2 Z"/>
+        </svg>
+      </span>
+      Lotus Notch — Opening Animation & Lotus-Style Border Lining
+    </h1>
+    <p class="subtitle">
+      Prototype showing the lotus-style border line outside the notch. The notch body remains sleek obsidian while the outer petal contour illuminates and highlights as the lotus blooms into the full tab view.
+    </p>
+  </header>
+
+  <!-- Interactive Screen Simulator -->
+  <div class="viewport" id="viewport">
+    
+    <div class="desktop-topbar">
+      <span>Lotus Desktop Environment</span>
+      <span>Click Notch or buttons below to trigger animation</span>
+      <span>100% Zoom</span>
+    </div>
+
+    <!-- The Notch Stage -->
+    <div class="notch-stage state-closed" id="notchStage" onclick="toggleNotch()">
+      
+      <!-- Ambient Lotus Bloom Aura -->
+      <div class="lotus-lining-aura"></div>
+
+      <!-- Outer Lotus-Style Petal Lining -->
+      <div class="lotus-border-line"></div>
+
+      <!-- Center Petal Crest Accent -->
+      <svg class="lotus-petal-crest" viewBox="0 0 60 12" fill="none">
+        <path d="M0 0 C15 10 45 10 60 0 C38 12 22 12 0 0 Z" fill="#FF5C7A"/>
+      </svg>
+
+      <!-- The Notch Body (Black Obsidian Glass) -->
+      <div class="notch-body" id="notchBody">
+        
+        <!-- Closed Notch Content -->
+        <div class="closed-content" id="closedContent">
+          <svg class="lotus-icon-svg" viewBox="0 0 24 24">
+            <path d="M12 2 C16 7 22 12 22 16 C22 19.5 17.5 21 12 21 C6.5 21 2 19.5 2 16 C2 12 8 7 12 2 Z"/>
+          </svg>
+          <span class="pill-clock">12:45</span>
+          <span class="pill-battery">92%</span>
+        </div>
+
+        <!-- Open Tab View Content -->
+        <div class="tabview-content" id="tabContent">
+          
+          <!-- Top Tab Bar -->
+          <div class="tab-bar">
+            <div class="tabs-group">
+              <div class="tab-btn active">Command Center</div>
+              <div class="tab-btn">Media</div>
+              <div class="tab-btn">Calendar</div>
+              <div class="tab-btn">Devices</div>
+              <div class="tab-btn">Shelf</div>
+            </div>
+            <div class="tab-esc-label">Esc to close</div>
+          </div>
+
+          <!-- Bottom Card Panels Grid -->
+          <div class="card-grid">
+            
+            <!-- Panel Left: Music -->
+            <div class="panel">
+              <div>
+                <div class="music-title">
+                  <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="#FF5C7A" stroke-width="2.5"><path d="M9 18V5l12-2v13"/></svg>
+                  Lotus Harmony
+                </div>
+                <div class="music-sub">Ambient Wave · 432 Hz</div>
+              </div>
+              <div>
+                <div class="progress-track"><div class="progress-fill"></div></div>
+                <div class="music-controls">
+                  <span>◀◀</span>
+                  <span style="color: #FF5C7A; font-size: 13px;">▶</span>
+                  <span>▶▶</span>
+                </div>
+              </div>
+            </div>
+
+            <!-- Panel Mid: Toggles -->
+            <div class="panel">
+              <div class="toggle-row">
+                <span>●</span> Wi-Fi: LotusNet 5G
+              </div>
+              <div class="toggle-row">
+                <span>●</span> Bluetooth: AirPods Pro
+              </div>
+              <div class="toggle-row lotus-active">
+                <span>✦</span> Lotus Lining: Glowing
+              </div>
+            </div>
+
+            <!-- Panel Right: Sliders -->
+            <div class="panel">
+              <div class="slider-row">
+                <div class="slider-label"><span>Brightness</span><span>85%</span></div>
+                <div class="slider-bar"><div class="slider-bar-fill" style="width: 85%; background: #5B9BFF;"></div></div>
+              </div>
+              <div class="slider-row">
+                <div class="slider-label"><span>Volume</span><span>70%</span></div>
+                <div class="slider-bar"><div class="slider-bar-fill" style="width: 70%; background: #FF5C7A;"></div></div>
+              </div>
+              <div style="font-size: 9.5px; color: #10B981; font-weight: 500;">
+                ● 92% Battery · Normal Mode
+              </div>
+            </div>
+
+          </div>
+
+        </div>
+
+      </div>
+
+    </div>
+
+  </div>
+
+  <!-- Interactive Controls Bar -->
+  <div class="controls-strip">
+    <button class="btn primary" onclick="playFullSequence()">▶ Play Full Opening Animation</button>
+    <button class="btn" onclick="setState('state-closed')">1. Closed Idle</button>
+    <button class="btn" onclick="setState('state-awakening')">2. Lotus Awakening</button>
+    <button class="btn" onclick="setState('state-expanding')">3. Expanding Bloom</button>
+    <button class="btn" onclick="setState('state-open')">4. Open Tab View</button>
+    <span class="status-badge" id="stateLabel">Current state: 1. Closed Idle</span>
+  </div>
+
+  <script>
+    const stage = document.getElementById('notchStage');
+    const label = document.getElementById('stateLabel');
+    let currentState = 'state-closed';
+
+    const states = [
+      { id: 'state-closed', name: '1. Closed Idle' },
+      { id: 'state-awakening', name: '2. Lotus Awakening (Lining Highlight)' },
+      { id: 'state-expanding', name: '3. Expanding Bloom' },
+      { id: 'state-open', name: '4. Open Tab View' }
+    ];
+
+    function setState(stateId) {
+      states.forEach(s => stage.classList.remove(s.id));
+      stage.classList.add(stateId);
+      currentState = stateId;
+      const found = states.find(s => s.id === stateId);
+      if (found) label.innerText = `Current state: ${found.name}`;
+    }
+
+    function toggleNotch() {
+      if (currentState === 'state-closed') {
+        playFullSequence();
+      } else {
+        setState('state-closed');
+      }
+    }
+
+    function playFullSequence() {
+      setState('state-awakening');
+      setTimeout(() => {
+        setState('state-expanding');
+        setTimeout(() => {
+          setState('state-open');
+        }, 320);
+      }, 260);
+    }
+
+    // Keyboard support: Space toggles, Esc closes
+    window.addEventListener('keydown', (e) => {
+      if (e.key === 'Escape') setState('state-closed');
+      if (e.key === ' ') {
+        e.preventDefault();
+        toggleNotch();
+      }
+    });
+  </script>
+</body>
+</html>

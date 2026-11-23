@@ -208,11 +208,13 @@ function SettingsApp() {
 		return () => window.removeEventListener("run-setup", again);
 	}, []);
 
-	// Remember the window size (not while maximized).
+	// Remember the window size (not while maximized). While the first-run setup
+	// runs the window stays maximized: restoring a saved size here would shrink it
+	// right after the setup filled the screen.
 	useEffect(() => {
 		try {
 			const saved = JSON.parse(localStorage.getItem("bloom-settings-size") ?? "null");
-			if (saved?.w >= 880 && saved?.h >= 600) appWindow.setSize(new LogicalSize(saved.w, saved.h)).catch(() => {});
+			if (!setup && saved?.w >= 880 && saved?.h >= 600) appWindow.setSize(new LogicalSize(saved.w, saved.h)).catch(() => {});
 		} catch {}
 		let timer = 0;
 		const un = appWindow.onResized(() => {
@@ -546,6 +548,7 @@ function SettingsApp() {
 					{shown === "dock" && (
 						<section data-tab="dock">
 							<DockTab
+								saveSetting={settings.saveSetting}
 								dockEnabled={settings.dockEnabled}
 								dockMode={settings.dockMode}
 								setDockModeValue={settings.setDockModeValue}

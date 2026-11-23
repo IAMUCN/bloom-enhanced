@@ -15,7 +15,7 @@ export const PROGRESS_STYLES: readonly (readonly [ProgressStyle, string])[] = [
 ];
 
 export const COPY_EFFECTS = [
-	["signature", "Signature"],
+	["signature", "Gradient Beam"],
 	["beam", "Beam"],
 	["neon", "Neon"],
 	["glow", "Glow"],

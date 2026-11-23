@@ -1,6 +1,5 @@
-import { useEffect, useState } from "react";
+import { useState } from "react";
 import { invoke } from "@tauri-apps/api/core";
-import { availableMonitors } from "@tauri-apps/api/window";
 import {
 	BellRing,
 	ClipboardCheck,
@@ -12,7 +11,6 @@ import {
 	Keyboard,
 	Layers,
 	ListChecks,
-	Monitor,
 	MousePointer2,
 	Network,
 	PanelLeft,
@@ -26,6 +24,7 @@ import {
 import { useClipboardSettings } from "../hooks/useClipboardSettings";
 import { SettingRow } from "./SettingRow";
 import { Section } from "./Section";
+import { DisplayRow } from "./DisplayRow";
 import { CopyEffectRows } from "./CopyEffectRows";
 import { Choice } from "./Choice";
 import { ScaleStepper } from "./ScaleStepper";
@@ -196,12 +195,6 @@ export function ClipboardTab({
 	toggleShelfPersist
 }: ClipboardTabProps) {
 	const options = useClipboardSettings();
-	const [monitors, setMonitors] = useState<string[]>([]);
-	useEffect(() => {
-		availableMonitors()
-			.then((list) => setMonitors(list.map((m) => m.name).filter((n): n is string => !!n)))
-			.catch(() => {});
-	}, []);
 	const [openBeam, setOpenBeam] = useState(() => localStorage.getItem("bloom-clipboard-open-beam") !== "false");
 	const featureRow = ([option, key, icon, label, desc]: (typeof FEATURE_TOGGLES)[number], i: number, all: readonly unknown[]) => (
 		<SettingRow key={key} icon={icon} label={label} desc={desc} divider={i < all.length - 1}>
@@ -258,15 +251,8 @@ export function ClipboardTab({
 						</SettingRow>
 						{(position === "left" || position === "right") && <EdgeOpenRow saveSetting={saveSetting} />}
 
-						{(position !== "notch" || !notchOn) && monitors.length > 1 && (
-							<SettingRow icon={Monitor} label="Shelf Monitor" desc="Which screen's edge the shelf slides out of">
-								<Choice
-									value={options.monitor}
-									options={[["", "Primary"], ...monitors.map((name, i) => [name, `Display ${i + 1}`] as const)]}
-									onChange={(v) => saveSetting("bloom-clipboard-monitor", v)}
-									label="Shelf display"
-								/>
-							</SettingRow>
+						{(position !== "notch" || !notchOn) && (
+							<DisplayRow storeKey="bloom-clipboard-monitor" label="Shelf Display" desc="Which screen's edge the shelf slides out of" value={options.monitor} saveSetting={saveSetting} />
 						)}
 
 						<SettingRow

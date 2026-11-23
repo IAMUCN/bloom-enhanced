@@ -7,6 +7,9 @@ import "../effects.css";
 import { PickTools } from "./PickTools";
 import { Choice } from "./Choice";
 
+/** The pending "window back to its size" of the setup: a remount cancels it. */
+let restoreTimer = 0;
+
 type ModuleId = "notch" | "dock" | "clipboard" | "files";
 export type SetupModules = Record<ModuleId, { on: boolean; toggle: () => void }>;
 type Step = "modules" | "notch-closed" | "notch-open" | "dock" | "shelf" | "radial" | "tools";
@@ -69,11 +72,16 @@ export function Setup({
 	];
 	const at = steps.indexOf(step);
 
-	// A white screen: the window fills it while setting up.
+	// A white screen: the window fills it while setting up (the window is opened
+	// maximized already). It goes back to its size only when setup really ends: a
+	// remount (dev double effects) must not shrink and re-grow it.
 	useEffect(() => {
 		const win = getCurrentWindow();
-		win.maximize().catch(() => {});
-		return () => void win.unmaximize().catch(() => {});
+		window.clearTimeout(restoreTimer);
+		win.isMaximized().then((m) => (m ? undefined : win.maximize())).catch(() => {});
+		return () => {
+			restoreTimer = window.setTimeout(() => void win.unmaximize().catch(() => {}), 200);
+		};
 	}, []);
 	// The notch shows what is being sized; let go of it when leaving.
 	useEffect(() => {

@@ -1361,6 +1361,60 @@ pub fn get_setting_str(_app: &tauri::AppHandle, key: &str) -> Option<String> {
     guard.get(key)?.as_str().map(|s| s.to_string())
 }
 
+pub const NOTCH_MONITOR: &str = "bloom-notch-monitor";
+pub const DOCK_MONITOR: &str = "bloom-dock-monitor";
+type MonitorCache = Vec<(String, std::time::Instant, Option<tauri::Monitor>)>;
+static SURFACE_MONITORS: std::sync::Mutex<MonitorCache> = std::sync::Mutex::new(Vec::new());
+
+/// The monitor a surface lives on: its setting (`bloom-notch-monitor`,
+/// `bloom-dock-monitor`) holds a monitor name; empty, or a monitor that is
+/// unplugged, means the primary monitor. Looked up at most once a second per
+/// surface (it is asked for in loops); `forget_surface_monitors` drops the cache
+/// when a monitor setting or the displays change.
+pub fn surface_monitor(app: &tauri::AppHandle, key: &str) -> Option<tauri::Monitor> {
+    if let Ok(cache) = SURFACE_MONITORS.lock() {
+        if let Some((_, at, m)) = cache.iter().find(|(k, _, _)| k == key) {
+            if at.elapsed() < std::time::Duration::from_secs(1) {
+                return m.clone();
+            }
+        }
+    }
+    let wanted = get_setting_str(app, key).filter(|n| !n.is_empty());
+    let monitor = wanted
+        .and_then(|name| {
+            app.available_monitors()
+                .ok()?
+                .into_iter()
+                .find(|m| m.name().is_some_and(|n| *n == name))
+        })
+        .or_else(|| app.primary_monitor().ok().flatten());
+    if let Ok(mut cache) = SURFACE_MONITORS.lock() {
+        cache.retain(|(k, _, _)| k != key);
+        cache.push((key.to_string(), std::time::Instant::now(), monitor.clone()));
+    }
+    monitor
+}
+
+/// Drop the remembered monitors (a monitor setting or the displays changed).
+pub fn forget_surface_monitors() {
+    if let Ok(mut cache) = SURFACE_MONITORS.lock() {
+        cache.clear();
+    }
+}
+
+/// `(x, y, width, height)` physical px and the scale factor of a surface's monitor.
+pub fn surface_monitor_rect(
+    app: &tauri::AppHandle,
+    key: &str,
+) -> Option<((i32, i32, i32, i32), f64)> {
+    let m = surface_monitor(app, key)?;
+    let (p, s) = (m.position(), m.size());
+    Some((
+        (p.x, p.y, s.width as i32, s.height as i32),
+        m.scale_factor(),
+    ))
+}
+
 fn module_setting_enabled(value: Option<&serde_json::Value>) -> bool {
     value.is_none_or(|value| value.as_str() == Some("true"))
 }

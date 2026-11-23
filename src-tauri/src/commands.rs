@@ -226,7 +226,11 @@ pub async fn init_dock(app: AppHandle, mode: String) {
                         .outer_size()
                         .map(|s| s.height as i32)
                         .unwrap_or(0);
-                    let monitor_info = dock_clone.primary_monitor().ok().flatten().map(|m| {
+                    let monitor_info = crate::utils::surface_monitor(
+                        dock_clone.app_handle(),
+                        crate::utils::DOCK_MONITOR,
+                    )
+                    .map(|m| {
                         let s = m.size();
                         let p = m.position();
                         (
@@ -386,7 +390,11 @@ pub async fn change_dock_mode(app: AppHandle, mode: String) {
                             .outer_size()
                             .map(|s| s.height as i32)
                             .unwrap_or(0);
-                        let monitor_info = dock_clone.primary_monitor().ok().flatten().map(|m| {
+                        let monitor_info = crate::utils::surface_monitor(
+                            dock_clone.app_handle(),
+                            crate::utils::DOCK_MONITOR,
+                        )
+                        .map(|m| {
                             let s = m.size();
                             let p = m.position();
                             (
@@ -498,7 +506,7 @@ pub fn resize_notch_window(app: &AppHandle) {
     let Some(main_win) = app.get_webview_window("main") else {
         return;
     };
-    if let Ok(Some(monitor)) = main_win.primary_monitor() {
+    if let Some(monitor) = crate::utils::surface_monitor(app, crate::utils::NOTCH_MONITOR) {
         let m_pos = monitor.position();
         let m_size = monitor.size();
         let scale = monitor.scale_factor();
@@ -2325,6 +2333,12 @@ pub fn open_settings_window(app: AppHandle) {
                 let _ = win.set_size(tauri::LogicalSize::new(w, h));
                 let _ = win.center();
             }
+            // The first-run setup fills the screen: open maximized, so the
+            // window does not show at its size and then jump to full screen.
+            let done = |key| crate::utils::get_setting_str(&app, key).as_deref() == Some("true");
+            if !done("bloom-setup-done") || !done("bloom-tools-picked") {
+                let _ = win.maximize();
+            }
             let closing = win.clone();
             win.on_window_event(move |event| {
                 if let tauri::WindowEvent::CloseRequested { api, .. } = event {
@@ -2405,7 +2419,8 @@ pub fn set_splash_fullscreen(app: AppHandle, fullscreen: bool) {
     if let Some(win) = app.get_webview_window("overlay") {
         if fullscreen {
             let _ = win.hide();
-            if let Ok(Some(monitor)) = win.primary_monitor() {
+            if let Some(monitor) = crate::utils::surface_monitor(&app, crate::utils::NOTCH_MONITOR)
+            {
                 let size = monitor.size();
                 let pos = monitor.position();
                 let _ = win.set_position(tauri::PhysicalPosition::new(pos.x, pos.y));
@@ -3506,6 +3521,11 @@ pub fn save_setting(app: AppHandle, key: String, value: serde_json::Value) -> Re
         "bloom-scale" | "bloom-notch-scale" | "bloom-notch-open-scale"
     ) {
         resize_notch_window(&app);
+    }
+    // A surface moved to another display: put the notch, dock and overlay there now.
+    if key == crate::utils::NOTCH_MONITOR || key == crate::utils::DOCK_MONITOR {
+        crate::utils::forget_surface_monitors();
+        crate::services::reposition_all_windows(&app);
     }
     Ok(())
 }

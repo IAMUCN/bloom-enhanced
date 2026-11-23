@@ -22,6 +22,7 @@ import {
 } from "lucide-react";
 import { SettingRow } from "./SettingRow";
 import { Section } from "./Section";
+import { DisplayRow } from "./DisplayRow";
 import { ScaleStepper } from "./ScaleStepper";
 import {
 	KNOWN_FOLDER_OPTIONS,
@@ -104,6 +105,7 @@ const startIconTileStyle = (active: boolean): CSSProperties => ({
 });
 
 interface DockTabProps {
+	saveSetting: (key: string, value: string | null) => Promise<boolean>;
 	dockEnabled: boolean;
 	dockMode: string;
 	setDockModeValue: (mode: string) => void;
@@ -141,6 +143,7 @@ interface DockTabProps {
 }
 
 export function DockTab({
+	saveSetting,
 	dockEnabled,
 	dockMode,
 	setDockModeValue,
@@ -192,6 +195,7 @@ export function DockTab({
 			<Section title="Showing">
 				{dockEnabled && (
 					<>
+						<DisplayRow storeKey="bloom-dock-monitor" label="Dock Display" desc="Which screen the dock sits on; Primary follows Windows' main display" saveSetting={saveSetting} />
 						<SettingRow
 							icon={dockMode === "fixed" ? EyeOff : Eye}
 							label="When It Shows"

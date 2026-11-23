@@ -15,7 +15,7 @@
       {
         "additionalBrowserArgs": "--disable-features=msWebOOUI,msPdfOOUI,msSmartScreenProtection --autoplay-policy=no-user-gesture-required --in-process-gpu",
         "label": "main",
-        "title": "",
+        "title": "LotusNotch",
         "width": 1920,
         "height": 420,
         "x": 0,
@@ -62,7 +62,7 @@
         "additionalBrowserArgs": "--disable-features=msWebOOUI,msPdfOOUI,msSmartScreenProtection --autoplay-policy=no-user-gesture-required --in-process-gpu",
         "label": "overlay",
         "create": false,
-        "title": "",
+        "title": "LotusNotch Overlay",
         "url": "overlay.html",
         "width": 1920,
         "height": 1080,
@@ -84,7 +84,7 @@
       {
         "additionalBrowserArgs": "--disable-features=msWebOOUI,msPdfOOUI,msSmartScreenProtection --autoplay-policy=no-user-gesture-required --in-process-gpu",
         "label": "dock",
-        "title": "",
+        "title": "LotusNotch Dock",
         "url": "dock.html",
         "width": 1920,
         "height": 600,
@@ -107,7 +107,7 @@
         "additionalBrowserArgs": "--disable-features=msWebOOUI,msPdfOOUI,msSmartScreenProtection --autoplay-policy=no-user-gesture-required --in-process-gpu",
         "label": "clipshelf",
         "create": false,
-        "title": "",
+        "title": "LotusNotch Shelf",
         "url": "clipshelf.html",
         "width": 360,
         "height": 560,
@@ -130,7 +130,7 @@
         "additionalBrowserArgs": "--disable-features=msWebOOUI,msPdfOOUI,msSmartScreenProtection --autoplay-policy=no-user-gesture-required --in-process-gpu",
         "label": "orbit",
         "create": false,
-        "title": "",
+        "title": "LotusNotch Radial Menu",
         "url": "orbit.html",
         "width": 360,
         "height": 360,
@@ -162,7 +162,7 @@
     "copyright": "Copyright © 2026 UCN INDUSTRIES (IAMUCN). Based on Bloom © 2026 Sehajveer Singh",
     "category": "Utility",
     "shortDescription": "A notch and dock for Windows",
-    "longDescription": "Bloom replaces the Windows taskbar with a dock and adds a notch for media, quick controls and status.",
+    "longDescription": "LotusNotch replaces the Windows taskbar with a dock and adds a notch for media, quick controls and status.",
     "windows": {
       "webviewInstallMode": {
         "type": "embedBootstrapper"

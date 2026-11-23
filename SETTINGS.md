@@ -126,6 +126,8 @@ Edit `settings.json` with any text editor while Bloom is running. Changes are ap
 | `bloom-clipboard-edge-speed` | px per second as string, `"300"`–`"3000"` | `"1000"` | Quick move: how fast the pointer must reach the edge to open a side shelf. Lower opens more easily. |
 | `bloom-clipboard-shortcut` | e.g. `"Alt+C"`, `"Ctrl+Shift+V"`, `"F9"` | `"Alt+C"` | Global shortcut that opens/closes the clipboard (notch panel or edge shelf). `""` = no shortcut. Letters, digits and Space need a modifier. |
 | `bloom-clipboard-monitor` | monitor device name as Windows reports it (ends in `DISPLAY2` etc.) | `""` | Screen whose edge the shelf uses; `""` = primary. Ignored when the clipboard is in the notch. |
+| `bloom-notch-monitor` | monitor name as Windows reports it | `""` | Screen the notch (and the overlay, the Shelf in the notch) lives on; `""` or an unplugged display = primary. Settings > Notch > Opening > Notch Display (shown with 2+ displays). |
+| `bloom-dock-monitor` | monitor name | `""` | Screen the dock (and its taskbar AppBar) lives on; `""` or an unplugged display = primary. Settings > Dock > Showing > Dock Display. |
 | `bloom-clipboard-notch-wide` | `"true"` / `"false"` | `"false"` | No longer used: the Shelf in the notch now always has the notch's one open width. |
 | `bloom-share-name` | string (≤ 48 chars) | (unset: the PC's name) | Your name, shown only to people you share your Shelf with (asked on first run; Settings › General › System). |
 | `bloom-clipboard-rich-text` | `"true"` / `"false"` | `"true"` | Keep the HTML of formatted text (up to 64 KB) and paste it back formatted. |
@@ -134,7 +136,7 @@ Edit `settings.json` with any text editor while Bloom is running. Changes are ap
 | `bloom-clipboard-multi-select` | `"true"` / `"false"` | `"true"` | Ctrl-click or the select button picks several items to group, copy, pin or delete. |
 | `bloom-clipboard-sounds` | `"true"` / `"false"` | `"true"` | Short synthesized sounds for copy, pin/group and delete in the panel. |
 | `bloom-clipboard-open-beam` | `"true"` / `"false"` | `"true"` | A gradient beam runs once round the edge shelf when it opens. |
-| `bloom-copy-effect` | `"signature"` / `"beam"` / `"neon"` / `"glow"` / `"off"` | `"beam"` | The light on the closed notch's edge with "Copied" (Shelf › Copy Effect). `signature` is the gradient beam (white head, colour body, faint tail, hue drift) running both ways from the bottom centre. |
+| `bloom-copy-effect` | `"signature"` / `"beam"` / `"neon"` / `"glow"` / `"off"` | `"beam"` | The light on the closed notch's edge with "Copied" (Shelf › Copy Effect). `signature` (shown as "Gradient Beam") is the gradient beam (white head, colour body, faint tail, hue drift) running both ways from the bottom centre. |
 | `bloom-copy-color` | hex or `""` | `""` | Its colour; empty follows the accent. |
 | `bloom-clipboard-copy-indicator` | `"true"` / `"false"` | `"true"` | The notch briefly shows "Copied" when something is recorded. |
 

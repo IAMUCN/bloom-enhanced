@@ -13,6 +13,7 @@ import {
 import { useState } from "react";
 import { SettingRow } from "./SettingRow";
 import { Section } from "./Section";
+import { DisplayRow } from "./DisplayRow";
 
 /** Notch behavior (`bloom-notch-mode`): name and what it does. */
 const NOTCH_MODES = [
@@ -403,7 +404,8 @@ export function NotchTab({
 							</SettingRow>
 						)}
 
-						<OpenOnRows saveSetting={saveSetting} />
+						<DisplayRow storeKey="bloom-notch-monitor" label="Notch Display" desc="Which screen the notch sits on; Primary follows Windows' main display" saveSetting={saveSetting} />
+							<OpenOnRows saveSetting={saveSetting} />
 
 						<OpeningRows saveSetting={saveSetting} />
 					</Section>

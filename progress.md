@@ -311,3 +311,9 @@ White box: dev build saves 16 frames (burst-<set>-<n>.bmp) when the notch region
 - Shared pieces: `settings/Section.tsx` (collapsible card, diamond toggles it), `settings/ColourPicker.tsx` (swatches + picker + hex), `readableOn.ts`.
 - **The Opening Beam is the signature effect** (see context.md); never remove it.
 - Next: About tab check; Tools list headers ("In your notch", "Available") are still plain labels; the user's "dock problem" is still undefined.
+
+## 2026-11-24 (latest): displays, names, setup flash
+- Notch, dock (and the overlay) can live on any display: `bloom-notch-monitor`, `bloom-dock-monitor` (Settings > Notch > Opening > Notch Display, Dock > Showing > Dock Display; the Shelf already had `bloom-clipboard-monitor`, now the same DisplayRow). One helper `utils::surface_monitor` (1 s cache, `forget_surface_monitors` on display changes and when the setting changes, then `reposition_all_windows`). Overlap/fullscreen detection, edge hover, AppBar, autohide placement and the notch window all follow the chosen display; primary stays the default. NOT tested on a real 2-display PC: the user must test (change display, change primary, unplug).
+- Names: window titles (LotusNotch, LotusNotch Dock/Shelf/Radial Menu/Overlay), dock menu (LotusNotch Options / Restart / Quit), bundle description. Installer already carried the logo + name (sidebar/header bmp). Dev exe is still bloom.exe (release is LotusNotch.exe).
+- Copy Effect "Gradient Beam" (key `signature`).
+- First-run setup window: opens maximized (Rust) and no longer gets shrunk by the saved-size restore (that was the full screen then back flash).

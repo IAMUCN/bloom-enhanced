@@ -421,7 +421,7 @@ fn main() {
             // still hidden), then go back, so growing later (opening the
             // notch) never needs re-layering (utils::refresh_layered).
             let first_size = window.outer_size().ok();
-            if let Ok(Some(m)) = window.primary_monitor() {
+            if let Some(m) = utils::surface_monitor(app.handle(), utils::NOTCH_MONITOR) {
                 let _ = window.set_size(*m.size());
             }
             let _ = window.set_ignore_cursor_events(true);

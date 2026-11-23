@@ -2051,7 +2051,7 @@ const Dock = memo(function Dock() {
 								onMouseEnter={() => setActiveSubmenu("bloom")}
 								onMouseLeave={() => setActiveSubmenu(null)}
 							>
-								Bloom Options
+								LotusNotch Options
 								<span className="submenu-arrow">▶</span>
 								<div className="submenu">
 									<div
@@ -2064,7 +2064,7 @@ const Dock = memo(function Dock() {
 										Open Settings
 									</div>
 									<div className="menu-item" onClick={() => invoke("restart_bloom")}>
-										Restart Bloom
+										Restart LotusNotch
 									</div>
 									<div
 										className="menu-item"
@@ -2077,7 +2077,7 @@ const Dock = memo(function Dock() {
 									</div>
 									<div className="menu-divider" />
 									<div className="menu-item quit" onClick={() => invoke("quit_bloom")}>
-										Quit Bloom
+										Quit LotusNotch
 									</div>
 								</div>
 							</div>
@@ -2161,7 +2161,7 @@ const Dock = memo(function Dock() {
 								onMouseEnter={() => setActiveSubmenu("bloom")}
 								onMouseLeave={() => setActiveSubmenu(null)}
 							>
-								Bloom Options
+								LotusNotch Options
 								<span className="submenu-arrow">▶</span>
 								<div className="submenu">
 									<div
@@ -2174,7 +2174,7 @@ const Dock = memo(function Dock() {
 										Open Settings
 									</div>
 									<div className="menu-item" onClick={() => invoke("restart_bloom")}>
-										Restart Bloom
+										Restart LotusNotch
 									</div>
 									<div
 										className="menu-item"
@@ -2187,7 +2187,7 @@ const Dock = memo(function Dock() {
 									</div>
 									<div className="menu-divider" />
 									<div className="menu-item quit" onClick={() => invoke("quit_bloom")}>
-										Quit Bloom
+										Quit LotusNotch
 									</div>
 								</div>
 							</div>
