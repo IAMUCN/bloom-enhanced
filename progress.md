@@ -298,3 +298,9 @@ White box: dev build saves 16 frames (burst-<set>-<n>.bmp) when the notch region
 - Fix: region = the pill's drawn box + a thin flare strip (no padding), applied 34 ms after it is measured (same lag for dock/overlay), page body hidden until the shell is near final size, immediate repaint on activation.
 - Test (dev build, solid red background form, injected hover/click with a different app focused, screen captured every frame, `flash.py` in the session scratchpad): padded region 3 of 8 cycles with a flash (plus 2 of 4 earlier); tight region 0 of 12 and 0 of 10 after the last change.
 - Dev-only tracing (diagnostics.log `t.*` lines, burst frames with per-frame stats) stays for the next time.
+
+## ▶ RESUME POINT (2026-11-24, after the white box was confirmed fixed by the user)
+- Branch `fix/weather-display-pairing-theme`, last commit 8ea59c0 (pushed). White box = DONE (user confirmed). Not yet merged: `perf/in-process-gpu`, `perf/idle-cpu`, this branch (merge only on the user's approval). Installer not rebuilt since these fixes (rebuild when asked).
+- NEXT (user, 2026-11-24): "on to the toggle functionality". Start from "LATER" above: verify the fixed toggles by hand (Timer Sound, Tools cards slide, Animations Off dock/shelf/radial, Launch at Login, accent colour), then the open ones: No Glass only affects the notch, Tools tab has no preview, Ambient Glow has no preview. Ask the user which toggles still do nothing for them.
+- Still to ask: what the "dock problem" is (problem list item 6).
+- Also open: pairing / second display / light mode / accent need real-device tests by the user.
