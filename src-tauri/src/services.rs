@@ -2233,42 +2233,6 @@ fn volume_mixer_physical_rect_for(app: &AppHandle) -> Option<(i32, i32, i32, i32
     ))
 }
 
-/// The mouse hook only runs on mouse movement, so a cursor that stops just
-/// outside the mixer would leave it open indefinitely. This watchdog re-checks
-/// the position and closes the card as soon as the cursor is off it.
-fn setup_volume_mixer_watchdog(app_handle: AppHandle) {
-    std::thread::spawn(move || loop {
-        std::thread::sleep(Duration::from_millis(200));
-        if SHUTTING_DOWN.load(Ordering::Relaxed) {
-            continue;
-        }
-        let Some((rx, ry, rw, rh)) = volume_mixer_physical_rect_for(&app_handle) else {
-            continue;
-        };
-        let mut pt = windows::Win32::Foundation::POINT::default();
-        if unsafe { windows::Win32::UI::WindowsAndMessaging::GetCursorPos(&mut pt) }.is_err() {
-            continue;
-        }
-        let inside = pt.x >= rx && pt.x <= rx + rw && pt.y >= ry && pt.y <= ry + rh;
-        if inside {
-            continue;
-        }
-        let at_left_edge = app_handle
-            .primary_monitor()
-            .ok()
-            .flatten()
-            .is_some_and(|m| {
-                let pos = m.position();
-                let size = m.size();
-                pt.x <= pos.x + 8 && pt.y >= pos.y && pt.y <= pos.y + size.height as i32
-            });
-        if !at_left_edge && MH_LAST_LEFT_EDGE_HOVER.swap(0, Ordering::Relaxed) != 0 {
-            MH_LEFT_EXPIRY_MS.store(0, Ordering::Relaxed);
-            let _ = app_handle.emit("volume-edge-hover", false);
-        }
-    });
-}
-
 fn now_ms() -> i64 {
     SystemTime::now()
         .duration_since(UNIX_EPOCH)
@@ -2427,7 +2391,6 @@ pub fn setup_mouse_hook(app_handle: AppHandle) {
     if MOUSE_HOOK_UPDATES.set(updates).is_err() {
         return;
     }
-    setup_volume_mixer_watchdog(app_handle.clone());
     setup_dock_edge_watchdog(app_handle.clone());
     setup_top_edge_watchdog(app_handle.clone());
     std::thread::Builder::new()

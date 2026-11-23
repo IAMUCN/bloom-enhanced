@@ -397,6 +397,7 @@ fn main() {
             let _ = window.set_ignore_cursor_events(true);
             if let Ok(hwnd) = window.hwnd() {
                 window_region::clear_on_erase(hwnd);
+                #[cfg(debug_assertions)]
                 window_region::watch_layered(hwnd);
             }
             if let Some(size) = first_size {

@@ -133,6 +133,7 @@ pub fn repaint_after_focus(hwnd: windows::Win32::Foundation::HWND) {
 /// layered: an un-layered moment with a region paints its clear pixels
 /// opaque, the suspect for the white boxes that still sometimes show beside
 /// the pill. Checked twice a second; costs one GetWindowLong.
+#[cfg(debug_assertions)]
 pub fn watch_layered(hwnd: windows::Win32::Foundation::HWND) {
     use windows::Win32::UI::WindowsAndMessaging::{GetWindowLongPtrW, GWL_EXSTYLE, WS_EX_LAYERED};
     let raw = hwnd.0 as isize;
