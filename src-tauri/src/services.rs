@@ -2850,6 +2850,12 @@ fn setup_top_edge_watchdog(app_handle: AppHandle) {
             if CAPTURE_UI_ACTIVE.load(Ordering::Relaxed) || SHUTTING_DOWN.load(Ordering::Relaxed) {
                 continue;
             }
+            // Notch and Shelf modules both off: nothing to watch here (the edge
+            // Shelf rides on this tick while the cursor rests on its edge).
+            if !crate::utils::notch_enabled() && !crate::utils::clipboard_enabled() {
+                wait = 1000;
+                continue;
+            }
             let mut pt = windows::Win32::Foundation::POINT::default();
             if unsafe { windows::Win32::UI::WindowsAndMessaging::GetCursorPos(&mut pt) }.is_err() {
                 continue;
@@ -3123,6 +3129,11 @@ fn setup_dock_edge_watchdog(app_handle: AppHandle) {
         loop {
             std::thread::sleep(Duration::from_millis(wait));
             if CAPTURE_UI_ACTIVE.load(Ordering::Relaxed) || SHUTTING_DOWN.load(Ordering::Relaxed) {
+                continue;
+            }
+            // Dock module off: nothing to hit-test here.
+            if !crate::utils::dock_enabled() {
+                wait = 1000;
                 continue;
             }
             let mut pt = windows::Win32::Foundation::POINT::default();

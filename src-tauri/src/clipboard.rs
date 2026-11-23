@@ -1395,7 +1395,21 @@ pub fn start_shortcut(app: AppHandle) {
                     toggle_from_shortcut(&app);
                 }
             }
-            std::thread::sleep(Duration::from_millis(100));
+            // Wakes at once for the hotkey; otherwise the setting is looked at
+            // every 250 ms (once a second while the Shelf is off).
+            let idle_ms = if current.as_deref() == Some("") {
+                1000
+            } else {
+                250
+            };
+            unsafe {
+                windows::Win32::UI::WindowsAndMessaging::MsgWaitForMultipleObjects(
+                    None,
+                    false,
+                    idle_ms,
+                    windows::Win32::UI::WindowsAndMessaging::QS_ALLINPUT,
+                );
+            }
         }
     });
 }
