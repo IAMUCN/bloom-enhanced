@@ -223,6 +223,7 @@ fn main() {
             change_notch_mode,
             take_setup_marker,
             set_setup_running,
+            set_notice_window,
             sync_appbar,
             open_app,
             launch_new_instance,

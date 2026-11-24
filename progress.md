@@ -354,3 +354,7 @@ Test: (1) install, Yes: `netsh advfirewall firewall show rule name="LotusNotch s
 ## 2026-11-24: v0.2.3 published (first release that worked)
 - v0.2.0, v0.2.1, v0.2.2 failed on GitHub: the repo had NO secrets; signing needs the repo secret TAURI_SIGNING_PRIVATE_KEY = the contents of ~/.tauri/bloom-enhanced.key (no password secret needed: the key has none). Added by the user 2026-11-24; release.yml now passes TAURI_SIGNING_PRIVATE_KEY_PASSWORD (empty ok). Those three tags have no release page; the first real one is v0.2.3.
 - Updater check verified (scripts/verify-updater.mjs, repo fixed to IAMUCN/bloom-enhanced): latest.json 0.2.3, nsis and msi assets reachable. An installed 0.2.0 should show the update dot.
+
+## 2026-11-24: modules work without the notch (notices)
+- Setup is the normal Settings size again (not full screen); title bar usable.
+- Notch module off: its window stays hidden, so Shelf notices ("X copied", sends, name/pairing notices) and the copy effect now bring it up for the length of the notice only (`set_notice_window`, App.tsx effect), then hide it. Radial Menu job progress already falls back to the pill at the pointer when the notch is off (Orbit.tsx `inNotch`). Not tested on screen: check with Notch off + Shelf on, and Notch off + only the Radial Menu.

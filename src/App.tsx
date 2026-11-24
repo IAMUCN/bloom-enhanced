@@ -1257,6 +1257,25 @@ function App() {
 			unlisten.then((fn) => fn());
 		};
 	}, [windowLabel, notchMode, triggerEventPeek]);
+	// Notch module off: its window is hidden, so a Shelf notice or the copy
+	// effect brings it up for as long as it lasts (the Shelf and the Radial Menu
+	// work without the notch; the Radial Menu's job progress shows at the pointer).
+	const noticeActive = !notchOn && (!!fileStatus || showCopyPulse);
+	const noticeShown = useRef(false);
+	useEffect(() => {
+		if (windowLabel !== "main" || notchOn) return;
+		if (noticeActive) {
+			noticeShown.current = true;
+			invoke("set_notice_window", { show: true }).catch(() => {});
+			return;
+		}
+		if (!noticeShown.current) return;
+		const t = window.setTimeout(() => {
+			noticeShown.current = false;
+			invoke("set_notice_window", { show: false }).catch(() => {});
+		}, 500);
+		return () => window.clearTimeout(t);
+	}, [noticeActive, notchOn, windowLabel]);
 	const [settingsTimerSoundEnabled, setSettingsTimerSoundEnabled] = useState(
 		() => localStorage.getItem("bloom-timer-sound-enabled") !== "false"
 	);

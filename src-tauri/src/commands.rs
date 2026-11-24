@@ -510,6 +510,27 @@ pub fn set_setup_running(running: bool) {
     crate::state::SETUP_RUNNING.store(running, Ordering::Relaxed);
 }
 
+/// With the Notch module off its window stays hidden; a notice (a Shelf
+/// message, the copy effect) shows it for as long as it lasts, then hides it
+/// again. With the Notch on this does nothing (the window is the notch).
+#[tauri::command]
+pub fn set_notice_window(app: AppHandle, show: bool) {
+    if crate::utils::notch_enabled() {
+        return;
+    }
+    let Some(win) = app.get_webview_window("main") else {
+        return;
+    };
+    if show {
+        crate::utils::show_without_activating(&win);
+        if let Ok(hwnd) = win.hwnd() {
+            re_assert_topmost(hwnd);
+        }
+    } else {
+        let _ = win.hide();
+    }
+}
+
 /// True once after a manual (re)install: the installer leaves a marker
 /// (installer/hooks.nsh) so the first-run setup opens again.
 #[tauri::command]
