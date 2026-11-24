@@ -1,6 +1,6 @@
-# Contributing to Bloom
+# Contributing to LotusNotch
 
-Bloom is a lightweight Windows desktop companion: a dock, a notch, and a small set of system controls. Contributions should make those surfaces more reliable, useful, and consistent.
+LotusNotch is a lightweight Windows desktop companion: a notch full of tools, a dock, a clipboard shelf, a radial file menu and a small set of system controls. Contributions should make those surfaces more reliable, useful, and consistent.
 
 ## Pick the shortest path
 
@@ -19,11 +19,18 @@ A replacement Start menu, embedded AI assistant, desktop widget framework, arbit
 
 Please discuss one substantial proposal at a time and wait for feedback before opening a batch of feature PRs. There is no numerical PR quota, and independent bug fixes are welcome. Keep speculative work in your fork or a draft while scope is discussed.
 
+## Where help is most wanted
+
+- **Memory use.** Idle memory is about 250 MB for the whole process tree and the goal is under 100 MB. Most of it is WebView2 pages (one per window) plus the browser and GPU processes. Ideas: fewer renderers, windows created only when needed, smaller bundles, a repeatable benchmark script. Say how you measured (Task Manager, private working set of the whole tree).
+- **UI/UX.** Accessibility, motion on integrated graphics, the light theme, empty states, the first-run experience, translations.
+
+Use the "Performance or UI/UX idea" issue form, say what you plan to try, and wait for a reply on scope before building a large change. The README's "Help wanted" section has more detail.
+
 ## Issues
 
 Use the bug or feature form and search both open and closed issues first.
 
-- Bugs: Bloom/Windows versions, expected versus actual behavior, and a short reproduction. Screenshots, logs, or a recording help when available; they are not a barrier to reporting.
+- Bugs: LotusNotch/Windows versions, expected versus actual behavior, and a short reproduction. Screenshots, logs, or a recording help when available; they are not a barrier to reporting.
 - Features: one user problem, a small proposed change, and how it fits the existing UI.
 - `needs-discussion`: scope or approach is not yet agreed. This is not a rejection.
 - `accepted`: a maintainer has agreed on the scope; it is not a delivery date or permission to expand the feature.
@@ -65,4 +72,4 @@ Feature PRs without agreed scope may be closed with a pointer back to the issue;
 
 ## License
 
-Bloom is GPL-3.0. Contributions are licensed under the same terms.
+LotusNotch is GPL-3.0. Contributions are licensed under the same terms.

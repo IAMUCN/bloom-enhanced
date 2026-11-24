@@ -1,0 +1,48 @@
+name: Performance or UI/UX idea
+description: Memory, CPU, smoothness, accessibility or design. Measurements and screenshots are especially welcome.
+labels: ["help wanted"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Thank you for helping make LotusNotch lighter and nicer. The goal is under 100 MB idle memory and
+        smooth motion on integrated graphics. See "Help wanted" in the README for what is most useful.
+
+  - type: dropdown
+    id: area
+    attributes:
+      label: What is this about?
+      options:
+        - Memory use (RAM)
+        - CPU or battery
+        - Smoothness of animations
+        - Accessibility
+        - Visual design or layout
+        - First-run experience
+        - Something else
+    validations:
+      required: true
+
+  - type: input
+    id: version
+    attributes:
+      label: LotusNotch and Windows version
+      placeholder: "LotusNotch 0.2.5, Windows 11 23H2"
+    validations:
+      required: true
+
+  - type: textarea
+    id: what
+    attributes:
+      label: What did you see or measure, or what would you change?
+      description: |
+        For memory, say how you measured it (Task Manager's private working set of the whole LotusNotch
+        process tree, with the modules and windows you had open). For design, a screenshot helps.
+    validations:
+      required: true
+
+  - type: textarea
+    id: idea
+    attributes:
+      label: Do you plan to work on it?
+      description: If you want to send a pull request, say what you plan to try so we can agree on scope first.

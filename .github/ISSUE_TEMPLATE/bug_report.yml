@@ -1,5 +1,5 @@
 name: Bug report
-description: Something in Bloom isn't working as expected
+description: Something in LotusNotch isn't working as expected
 title: "[Bug]: "
 labels:
   - bug
@@ -12,7 +12,7 @@ body:
   - type: input
     id: bloom-version
     attributes:
-      label: Bloom version
+      label: LotusNotch version
       description: "Settings → About (e.g. 3.8.6)"
       placeholder: "3.8.6"
     validations:
@@ -30,7 +30,7 @@ body:
   - type: dropdown
     id: component
     attributes:
-      label: Which part of Bloom?
+      label: Which part of LotusNotch?
       options:
         - Dock
         - Notch
@@ -55,7 +55,7 @@ body:
     attributes:
       label: Steps to reproduce
       placeholder: |
-        1. Open Bloom
+        1. Open LotusNotch
         2. Hover over the dock...
         3. See error
     validations:
