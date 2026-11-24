@@ -2746,19 +2746,20 @@ button.shortcut-icon:hover {
 	background: rgba(255, 255, 255, 0.12);
 }
 
-/* First-run setup (settings/Setup.tsx): a white screen (the window is
-   maximized meanwhile) so the real notch at the top and the dock at the
-   bottom are the live preview. Black on white, the accent only for "on". */
+/* First-run setup (settings/Setup.tsx): a white page in the Settings
+   window (normal size) while the real notch at the top and the dock at the
+   bottom of the screen are the live preview. Black on white, the accent only for "on". */
 .setup-screen {
 	--setup-ink: #111;
 	--setup-muted: rgba(17, 17, 17, 0.56);
 	--setup-line: rgba(17, 17, 17, 0.12);
 	position: fixed;
-	inset: 0;
+	/* Below the title bar, which stays usable (drag, close). */
+	inset: 48px 0 0 0;
 	z-index: 1000;
 	display: grid;
 	place-items: center;
-	padding: 140px 16px 96px;
+	padding: 24px 16px;
 	box-sizing: border-box;
 	overflow-y: auto;
 	background: #fff;

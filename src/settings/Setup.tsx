@@ -71,11 +71,9 @@ export function Setup({
 	];
 	const at = steps.indexOf(step);
 
-	// A white screen: the window fills the monitor while setting up (it opens at
-	// that size already; not maximized, which follows the work area and shrank
-	// when the dock appeared). The app also keeps the notch and dock from hiding
-	// meanwhile. It goes back to its size only when setup really ends: a remount
-	// (dev double effects) must not shrink and re-grow it.
+	// The window keeps the Settings size (not full screen). The app keeps the
+	// notch and dock from hiding meanwhile (the flag is cleared when setup ends;
+	// a remount must not flip it off and on).
 	useEffect(() => {
 		window.clearTimeout(restoreTimer);
 		invoke("set_setup_running", { running: true }).catch(() => {});
