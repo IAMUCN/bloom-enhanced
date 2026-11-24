@@ -61,6 +61,14 @@ fn main() {
         }
         return;
     }
+    if first.as_deref() == Some(std::ffi::OsStr::new("--restore-taskbar")) {
+        // The installer / uninstaller stopped the app (and its watchdog) by
+        // name: put the Windows taskbar back from the marker, then leave.
+        if let Some(marker) = args.next() {
+            utils::restore_taskbar_from_marker(marker.into());
+        }
+        return;
+    }
     if first.as_deref() == Some(std::ffi::OsStr::new("--taskbar-watchdog")) {
         if let (Some(pid), Some(marker)) = (args.next(), args.next()) {
             if let Ok(pid) = pid.to_string_lossy().parse::<u32>() {
@@ -214,6 +222,7 @@ fn main() {
             change_dock_mode,
             change_notch_mode,
             take_setup_marker,
+            set_setup_running,
             sync_appbar,
             open_app,
             launch_new_instance,

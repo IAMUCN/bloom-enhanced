@@ -11,6 +11,9 @@ pub static COMMAND_SENDER: OnceLock<Sender<SystemCommand>> = OnceLock::new();
 pub static DOCK_APPBAR_REGISTERED: AtomicBool = AtomicBool::new(false);
 /// Bloom's Settings window, the only Bloom window the dock lists as an app.
 pub static SETTINGS_HWND: AtomicIsize = AtomicIsize::new(0);
+/// The first-run setup is showing: its (maximized) window must not make the
+/// notch and dock hide as if an app covered them.
+pub static SETUP_RUNNING: AtomicBool = AtomicBool::new(false);
 pub static CURRENT_DOCK_OVERLAP: AtomicI32 = AtomicI32::new(-1);
 pub static CURRENT_NOTCH_OVERLAP: AtomicI32 = AtomicI32::new(-1);
 pub static NATIVE_TASKBAR_HIDDEN: AtomicBool = AtomicBool::new(false);

@@ -142,6 +142,15 @@ pub fn spawn_detached(args: &[&std::ffi::OsStr]) -> std::io::Result<()> {
         .map(|_| ())
 }
 
+/// `--restore-taskbar <marker>` (the installer, after it stopped the app): the
+/// same restore as after a crash, when a marker is left.
+pub fn restore_taskbar_from_marker(marker: PathBuf) {
+    if marker.exists() {
+        let _ = TASKBAR_MARKER.set(marker);
+        restore_taskbar_after_crash();
+    }
+}
+
 pub fn run_taskbar_watchdog(parent_pid: u32, marker: PathBuf) {
     use windows::Win32::Foundation::{
         CloseHandle, GetLastError, ERROR_INVALID_PARAMETER, WAIT_OBJECT_0,

@@ -77,6 +77,7 @@ import { ConnectedDevicesPanel } from "./components/ConnectedDevicesPanel";
 import { requestSend, sharePeerAt } from "./components/ShareColumn";
 import { useHideFromCapture } from "./hooks/useHideFromCapture";
 import { DeadlineList, dayKey, useDeadlines } from "./notchTools/Deadlines";
+import { NotchOutline } from "./components/NotchOutline";
 import { ClipboardPanel } from "./components/ClipboardPanel";
 import { useClipboardSettings } from "./hooks/useClipboardSettings";
 import { clipSounds } from "./clipboardSounds";
@@ -667,7 +668,7 @@ function App() {
 	const updatePulseTimerRef = useRef<any>(null);
 	// First-run setup's live preview (Settings › setup): the notch stays shown,
 	// closed or open, while its size sliders move.
-	const [setupPreview, setSetupPreview] = useState<"closed" | "open" | null>(null);
+	const [setupPreview, setSetupPreview] = useState<"closed" | "open" | "idle" | null>(null);
 	// Extra size for the open notch only (`bloom-notch-open-scale`).
 	const [openScale, setOpenScale] = useState(() => {
 		const v = parseFloat(localStorage.getItem("bloom-notch-open-scale") ?? "1");
@@ -2614,8 +2615,10 @@ function App() {
 	// on the Command Center while its size is chosen; null lets it go.
 	useEffect(() => {
 		if (windowLabel !== "main") return;
-		const off = listen<"closed" | "open" | null>("setup-preview", (e) => {
+		const off = listen<"closed" | "open" | "idle" | null>("setup-preview", (e) => {
 			const state = e.payload;
+			// "idle": the setup is on a page that does not size the notch; it
+			// stays shown (and outlined) all the same.
 			setSetupPreview(state);
 			notchPinnedRef.current = state === "open";
 			if (state === "open") {
@@ -4324,6 +4327,9 @@ function App() {
 					}}
 				>
 					<EdgeSurface edge="top" flares={attachedToEdge} />
+					{setupPreview && isVisible && (
+						<NotchOutline width={pillTargetWidth} height={pillTargetHeight} radius={minimalIdle ? 4 : isCalendarMode ? 28 : 18} flares={attachedToEdge} />
+					)}
 					{fileStatus && !isOpen && (
 						<ProgressEffect style={progressStyle} percent={fileStatus.percent} result={fileStatus.result} full={!attachedToEdge} shape={fxShape} />
 					)}

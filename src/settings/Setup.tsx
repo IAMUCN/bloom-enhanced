@@ -1,7 +1,6 @@
 import { useEffect, useState } from "react";
 import { invoke } from "@tauri-apps/api/core";
 import { emitTo } from "@tauri-apps/api/event";
-import { getCurrentWindow } from "@tauri-apps/api/window";
 import { Check } from "lucide-react";
 import "../effects.css";
 import { PickTools } from "./PickTools";
@@ -72,20 +71,21 @@ export function Setup({
 	];
 	const at = steps.indexOf(step);
 
-	// A white screen: the window fills it while setting up (the window is opened
-	// maximized already). It goes back to its size only when setup really ends: a
-	// remount (dev double effects) must not shrink and re-grow it.
+	// A white screen: the window fills the monitor while setting up (it opens at
+	// that size already; not maximized, which follows the work area and shrank
+	// when the dock appeared). The app also keeps the notch and dock from hiding
+	// meanwhile. It goes back to its size only when setup really ends: a remount
+	// (dev double effects) must not shrink and re-grow it.
 	useEffect(() => {
-		const win = getCurrentWindow();
 		window.clearTimeout(restoreTimer);
-		win.isMaximized().then((m) => (m ? undefined : win.maximize())).catch(() => {});
+		invoke("set_setup_running", { running: true }).catch(() => {});
 		return () => {
-			restoreTimer = window.setTimeout(() => void win.unmaximize().catch(() => {}), 200);
+			restoreTimer = window.setTimeout(() => void invoke("set_setup_running", { running: false }).catch(() => {}), 200);
 		};
 	}, []);
 	// The notch shows what is being sized; let go of it when leaving.
 	useEffect(() => {
-		emitTo("main", "setup-preview", step === "notch-closed" ? "closed" : step === "notch-open" ? "open" : null).catch(() => {});
+		emitTo("main", "setup-preview", step === "notch-closed" ? "closed" : step === "notch-open" ? "open" : "idle").catch(() => {});
 	}, [step]);
 	useEffect(() => () => void emitTo("main", "setup-preview", null).catch(() => {}), []);
 

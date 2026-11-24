@@ -489,6 +489,38 @@ pub async fn change_dock_mode(app: AppHandle, mode: String) {
     }
 }
 
+/// Settings' size: the whole monitor while the first-run setup runs (set
+/// exactly, not maximized: a maximized window follows the work area and shrank
+/// whenever the dock registered or was toggled), else 80 % of the screen
+/// (880×600 to 1400×920), centred.
+fn size_settings_window(win: &tauri::WebviewWindow, full: bool) {
+    let Ok(Some(monitor)) = win.current_monitor() else {
+        return;
+    };
+    if full {
+        let _ = win.unmaximize();
+        let _ = win.set_position(*monitor.position());
+        let _ = win.set_size(*monitor.size());
+    } else {
+        let size = monitor.size().to_logical::<f64>(monitor.scale_factor());
+        let _ = win.set_size(tauri::LogicalSize::new(
+            (size.width * 0.8).clamp(880.0, 1400.0),
+            (size.height * 0.8).clamp(600.0, 920.0),
+        ));
+        let _ = win.center();
+    }
+}
+
+/// The first-run setup starts or ends (Setup.tsx): the notch and dock stay
+/// out of the "an app covers the screen" rules meanwhile.
+#[tauri::command]
+pub fn set_setup_running(app: AppHandle, running: bool) {
+    crate::state::SETUP_RUNNING.store(running, Ordering::Relaxed);
+    if let Some(win) = app.get_webview_window("settings") {
+        size_settings_window(&win, running);
+    }
+}
+
 /// True once after a manual (re)install: the installer leaves a marker
 /// (installer/hooks.nsh) so the first-run setup opens again.
 #[tauri::command]
@@ -2323,22 +2355,14 @@ pub fn open_settings_window(app: AppHandle) {
         };
         if created {
             let _ = window_vibrancy::apply_mica(&win, None);
-            // Open large: 80 % of the screen, kept between the minimum
-            // (880×600) and 1400×920, centred.
-            if let Ok(Some(monitor)) = win.current_monitor() {
-                let scale = monitor.scale_factor();
-                let size = monitor.size().to_logical::<f64>(scale);
-                let w = (size.width * 0.8).clamp(880.0, 1400.0);
-                let h = (size.height * 0.8).clamp(600.0, 920.0);
-                let _ = win.set_size(tauri::LogicalSize::new(w, h));
-                let _ = win.center();
-            }
-            // The first-run setup fills the screen: open maximized, so the
-            // window does not show at its size and then jump to full screen.
+            // The first-run setup fills the screen: size it before it shows, so
+            // it does not appear at its size and then jump to full screen.
             let done = |key| crate::utils::get_setting_str(&app, key).as_deref() == Some("true");
-            if !done("bloom-setup-done") || !done("bloom-tools-picked") {
-                let _ = win.maximize();
+            let setup = !done("bloom-setup-done") || !done("bloom-tools-picked");
+            if setup {
+                crate::state::SETUP_RUNNING.store(true, Ordering::Relaxed);
             }
+            size_settings_window(&win, setup);
             let closing = win.clone();
             win.on_window_event(move |event| {
                 if let tauri::WindowEvent::CloseRequested { api, .. } = event {

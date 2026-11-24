@@ -5,6 +5,35 @@
 !define MUI_BGCOLOR "000000"
 !define MUI_TEXTCOLOR "FFFFFF"
 
+; Stop the running app before files are replaced or removed. The stock check
+; kills every LotusNotch.exe by name, the taskbar watchdog included, so the
+; Windows taskbar stayed hidden with nobody left to bring it back. Ask first
+; (not when silent), stop it, then restore the taskbar from the marker.
+!macro LOTUS_STOP_APP
+  nsExec::Exec 'cmd /c tasklist /NH /FI "IMAGENAME eq ${MAINBINARYNAME}.exe" | find /I "${MAINBINARYNAME}.exe"'
+  Pop $0
+  ${If} $0 = 0
+    ${IfNot} ${Silent}
+      MessageBox MB_OKCANCEL|MB_ICONINFORMATION "${PRODUCTNAME} is running.$\r$\n$\r$\nPress OK to close it and continue." IDOK +2
+      Abort
+    ${EndIf}
+    nsExec::Exec 'taskkill /F /T /IM "${MAINBINARYNAME}.exe"'
+    Pop $0
+    Sleep 600
+    ${If} ${FileExists} "$APPDATA\${BUNDLEID}\taskbar_hidden.flag"
+      ExecWait '"$INSTDIR\${MAINBINARYNAME}.exe" --restore-taskbar "$APPDATA\${BUNDLEID}\taskbar_hidden.flag"'
+    ${EndIf}
+  ${EndIf}
+!macroend
+
+!macro NSIS_HOOK_PREINSTALL
+  !insertmacro LOTUS_STOP_APP
+!macroend
+
+!macro NSIS_HOOK_PREUNINSTALL
+  !insertmacro LOTUS_STOP_APP
+!macroend
+
 ; A manual (re)install, not an automatic update: leave a marker so the next
 ; start opens the first-run setup again (notch size with its live preview,
 ; open size, your name). The app deletes the marker (take_setup_marker).

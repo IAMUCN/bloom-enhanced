@@ -1650,8 +1650,10 @@ pub fn setup_system_worker(app_handle: AppHandle) -> Sender<SystemCommand> {
                     is_known_shell = is_desktop || is_shell;
                 }
 
+                let setup_window = crate::state::SETUP_RUNNING.load(Ordering::Relaxed)
+                    && hwnd.0 as isize == crate::state::SETTINGS_HWND.load(Ordering::Relaxed);
                 if !hwnd.is_invalid() {
-                    if is_known_shell {
+                    if is_known_shell || setup_window {
                         should_overlap = false;
                         current_is_fs = false;
                     } else {
