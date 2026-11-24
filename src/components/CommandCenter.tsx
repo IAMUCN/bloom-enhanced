@@ -1,3 +1,4 @@
+import { LotusIcon } from "./LotusIcon";
 import { useEffect, useRef } from "react";
 import type { MouseEvent, WheelEvent } from "react";
 import { motion, useSpring, useTransform } from "framer-motion";
@@ -13,7 +14,6 @@ import {
 	Cast,
 	ChevronRight,
 	ChevronUp,
-	Flower2,
 	Leaf,
 	MonitorUp,
 	Moon,
@@ -63,7 +63,7 @@ export const CC_TILES = [
 	["tray", "System tray", ChevronUp],
 	["notifications", "Notifications", Bell],
 	["windows-settings", "Windows Settings", Settings],
-	["lotus-settings", "LotusNotch settings", Flower2],
+	["lotus-settings", "LotusNotch settings", LotusIcon],
 	["restart", "Restart LotusNotch", RotateCw]
 ] as const satisfies readonly (readonly [string, string, LucideIcon])[];
 

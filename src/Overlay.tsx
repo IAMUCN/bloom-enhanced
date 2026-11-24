@@ -148,16 +148,16 @@ function OverlayApp() {
 							src="/lotusnotch.png"
 							className="splash-logo"
 							draggable={false}
-							initial={{ scale: 0, opacity: 0, rotate: 0 }}
+							// A slow fade in, a calm hold, a slow fade out: no pop, no spin.
+							initial={{ scale: 0.97, opacity: 0 }}
 							animate={{
-								scale: [0, 1.1, 1, 1.2, 1, 1, 0.2],
-								opacity: [0, 1, 1, 1, 1, 1, 0],
-								rotate: [0, 0, 0, 0, 0, 540, 1080]
+								scale: [0.97, 1, 1, 1.015],
+								opacity: [0, 1, 1, 0]
 							}}
 							transition={{
 								duration: 3.2,
-								times: [0, 0.17, 0.3, 0.43, 0.56, 0.78, 1],
-								ease: ["easeOut", "easeInOut", "easeInOut", "easeInOut", "linear", "linear"]
+								times: [0, 0.3, 0.7, 1],
+								ease: "easeInOut"
 							}}
 							onAnimationComplete={onSplashComplete}
 						/>

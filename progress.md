@@ -358,3 +358,10 @@ Test: (1) install, Yes: `netsh advfirewall firewall show rule name="LotusNotch s
 ## 2026-11-24: modules work without the notch (notices)
 - Setup is the normal Settings size again (not full screen); title bar usable.
 - Notch module off: its window stays hidden, so Shelf notices ("X copied", sends, name/pairing notices) and the copy effect now bring it up for the length of the notice only (`set_notice_window`, App.tsx effect), then hide it. Radial Menu job progress already falls back to the pill at the pointer when the notch is off (Orbit.tsx `inNotch`). Not tested on screen: check with Notch off + Shelf on, and Notch off + only the Radial Menu.
+
+## 2026-11-24 (later): logo tile, default setup from the user's export, splash fade, region lag
+- Command Center "LotusNotch settings" tile now uses `LotusIcon` (outline of the 5-petal logo) instead of the lucide flower.
+- default-settings.json rebuilt from `S:\IN DESKTOP\UNORG FILES\lotusnotch-settings.json` (their export, 0.2.4). Left out on purpose: share name, weather city/lat/lon, shortcuts, setup-done, tools-picked. Changed vs before: copy effect `beam` (their value), keep-windows-loaded true, notch hide-from-capture false, theme brightness 0.14, tools list (their 10). Skipping "Pick your tools" keeps the tools as they are, so it gives this list.
+- First-run splash (Overlay.tsx): slow fade in, hold, fade out; no pop, no spin.
+- Notch window region lag follows the frame time (34 to 140 ms): a friend's slow laptop showed a black box racing ahead of the notch when opening/closing (recording 2026-11-24).
+- Open: with the dock on, the user reports the Minimize/Maximize/Close buttons missing at the top right of windows. A maximized Notepad probe here (dock on) showed nothing of ours above its caption area; not reproduced yet.
