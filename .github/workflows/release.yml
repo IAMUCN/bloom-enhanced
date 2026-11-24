@@ -144,7 +144,9 @@ jobs:
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
-          TAURI_SIGNING_PASSWORD: ${{ secrets.TAURI_SIGNING_PASSWORD }}
+          # The name Tauri reads. Set even when the secret is empty (the key has no
+          # password): unset, the signer waits for a prompt and the build fails.
+          TAURI_SIGNING_PRIVATE_KEY_PASSWORD: ${{ secrets.TAURI_SIGNING_PASSWORD }}
         with:
           tagName: ${{ github.ref_name }}
           releaseName: "Bloom Enhanced ${{ github.ref_name }}"
