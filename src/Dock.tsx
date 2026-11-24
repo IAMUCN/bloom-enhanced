@@ -7,6 +7,7 @@ import "./Dock.css";
 import "./lightFixes.css";
 import "./accentFixes.css";
 import { EdgeSurface } from "./components/EdgeSurface";
+import { NotchOutline } from "./components/NotchOutline";
 import { initTheme } from "./theme";
 import { useSettingsSync } from "./hooks/useSettingsSync";
 import { reloadIfMirrorWasStale } from "./hooks/settingsMirror";
@@ -240,6 +241,23 @@ const Dock = memo(function Dock() {
 	const iconPickerTargetRef = useRef<string | null>(null);
 	const toastTimerRef = useRef<any>(null);
 	const dockRef = useRef<HTMLDivElement>(null);
+	// First-run setup, "Size the dock" page: the white beam runs round the dock
+	// (the same outline as the notch's, turned upside down) while it is sized.
+	const [setupDock, setSetupDock] = useState(false);
+	const [dockBox, setDockBox] = useState({ w: 0, h: 0 });
+	useEffect(() => {
+		const off = listen<boolean>("setup-dock", (e) => setSetupDock(!!e.payload));
+		return () => void off.then((f) => f());
+	}, []);
+	useEffect(() => {
+		const el = dockRef.current;
+		if (!setupDock || !el) return;
+		const read = () => setDockBox({ w: el.offsetWidth, h: el.offsetHeight });
+		read();
+		const ro = new ResizeObserver(read);
+		ro.observe(el);
+		return () => ro.disconnect();
+	}, [setupDock]);
 	const [popupBottom, setPopupBottom] = useState(56);
 	const winNumberItemsRef = useRef<AppInfo[]>([]);
 	const handleAppClickRef = useRef<(app: AppInfo) => void>(() => {});
@@ -1409,6 +1427,11 @@ const Dock = memo(function Dock() {
 					onContextMenu={(e) => handleContextMenu(e, null)}
 				>
 					<EdgeSurface edge="bottom" flares={isExpanded && !isHidden} />
+					{setupDock && isExpanded && !isHidden && dockBox.w > 0 && (
+						<div style={{ position: "absolute", inset: 0, transform: "scaleY(-1)", pointerEvents: "none", zIndex: 30 }}>
+							<NotchOutline width={dockBox.w} height={dockBox.h} radius={18} flares />
+						</div>
+					)}
 					<AnimatePresence>
 						{isExpanded && (
 							<motion.div
