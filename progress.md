@@ -350,3 +350,7 @@ Test: (1) install, Yes: `netsh advfirewall firewall show rule name="LotusNotch s
 - While SETUP_RUNNING and the foreground window is Settings, the overlap thread treats it like the desktop: the notch and dock stay shown for the whole setup.
 - The white outline beam from the bottom centre (NotchOutline) is back on the notch during every setup step (setup-preview "idle" on pages that do not size it).
 - Installer: hooks.nsh LOTUS_STOP_APP (install and uninstall): asks, stops the app by name, then runs `LotusNotch.exe --restore-taskbar <marker>` because the stock kill also killed the taskbar watchdog and left the Windows taskbar hidden. NOT yet compiled into an installer: build and test uninstall on a clean PC.
+
+## 2026-11-24: v0.2.3 published (first release that worked)
+- v0.2.0, v0.2.1, v0.2.2 failed on GitHub: the repo had NO secrets; signing needs the repo secret TAURI_SIGNING_PRIVATE_KEY = the contents of ~/.tauri/bloom-enhanced.key (no password secret needed: the key has none). Added by the user 2026-11-24; release.yml now passes TAURI_SIGNING_PRIVATE_KEY_PASSWORD (empty ok). Those three tags have no release page; the first real one is v0.2.3.
+- Updater check verified (scripts/verify-updater.mjs, repo fixed to IAMUCN/bloom-enhanced): latest.json 0.2.3, nsis and msi assets reachable. An installed 0.2.0 should show the update dot.
