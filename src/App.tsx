@@ -3658,12 +3658,21 @@ function App() {
 		return true;
 	};
 	const wasOpen = useRef(isOpen);
+	// A slow PC (frames about 28 ms apart or worse, as seen while the pill
+	// animated) gets the same springs without the bounce: the shell would
+	// otherwise shrink back while the window's clip, which runs a little behind
+	// the picture, is still at the bigger size, and the gap showed as black
+	// pieces on both sides of the notch (a friend's laptop, 2026-11-24). The
+	// window region itself is not touched here.
+	const slowPaint = regionLagMs.current >= 56;
 	const shellSpring =
 		isOpen && !wasOpen.current
-			? { type: "spring" as const, visualDuration: 0.45, bounce: 0.4 }
+			? { type: "spring" as const, visualDuration: 0.45, bounce: slowPaint ? 0 : 0.4 }
 			: !isOpen
-				? { type: "spring" as const, visualDuration: 0.3, bounce: 0.15 }
-				: LIVELY;
+				? { type: "spring" as const, visualDuration: 0.3, bounce: slowPaint ? 0 : 0.15 }
+				: slowPaint
+					? { ...LIVELY, bounce: 0 }
+					: LIVELY;
 	useEffect(() => {
 		wasOpen.current = isOpen;
 	});

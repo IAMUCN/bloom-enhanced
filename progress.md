@@ -396,3 +396,8 @@ Next ideas (not started): Tools-list headings "In your notch" / "Available" are 
 - Merged: fix/setup-notch-close-dock-beam, docs/readme-screenshots, Dependabot bun (14 npm updates, with the `@tauri-apps/*` packages pinned back to 2.11 / `~` so they match the Rust crates), Dependabot GitHub Actions (setup-node 7.1.0, rust-cache 2.9.3, codeql 4.39.3, SHA-pinned), Dependabot website (12 updates, the website builds).
 - NOT merged on purpose: `origin/dependabot/cargo/src-tauri/cargo-version-updates-*`: the lockfile bump moves the `windows` crate and the Rust build fails. Needs a deliberate update of the `windows` crate (0.61 pin, Cargo.toml features) together with the tauri crates and npm packages.
 - No branch was deleted.
+
+## 2026-11-24: notch opening "split" on a friend's slow laptop (0.2.5), branch `fix/notch-no-bounce-slow-pc` (not merged)
+- Evidence: the recording and a frame from the friend (0.2.5): black pieces beside the pill, a wide top strip over a narrower square body while opening. Frame-by-frame measuring of the video showed ~7-10 distinct frames per second and a strip wider than the body by exactly the flare width.
+- Rule from the user: do NOT touch anything that fixed the white box (window region, REGION lag, erase fill, repaint). First attempt, page-only: on a slow PC (`regionLagMs >= 56`, read only) the shell springs have no bounce (open 0.4, close 0.15, in-open resize 0.3 become 0), so the shell never shrinks back while the lagging clip is still bigger. Fast PCs keep the bounce.
+- If this is not enough: new branch, change how the notch is clipped while it animates (the user agreed to try that only after this).
