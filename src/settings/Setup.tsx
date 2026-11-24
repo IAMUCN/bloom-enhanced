@@ -86,6 +86,11 @@ export function Setup({
 		emitTo("main", "setup-preview", step === "notch-closed" ? "closed" : step === "notch-open" ? "open" : "idle").catch(() => {});
 	}, [step]);
 	useEffect(() => () => void emitTo("main", "setup-preview", null).catch(() => {}), []);
+	// The dock shows its outline beam while its size is chosen.
+	useEffect(() => {
+		emitTo("dock", "setup-dock", step === "dock").catch(() => {});
+	}, [step]);
+	useEffect(() => () => void emitTo("dock", "setup-dock", false).catch(() => {}), []);
 
 	const finish = async () => {
 		await saveSetting("bloom-setup-done", "true");

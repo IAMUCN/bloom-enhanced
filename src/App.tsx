@@ -2651,10 +2651,14 @@ function App() {
 			// stays shown (and outlined) all the same.
 			setSetupPreview(state);
 			notchPinnedRef.current = state === "open";
+			releaseDeferredRef.current = false;
 			if (state === "open") {
 				setIsOpen(true);
 				setBloomMode("command-center");
 			} else {
+				// Letting go of the open size page: close for real (hover and the
+				// pointer flags too, or the pill stays expanded on the next pages).
+				releaseNotchHoverRef.current();
 				setIsOpen(false);
 				setBloomMode("status");
 			}
