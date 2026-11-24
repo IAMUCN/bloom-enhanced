@@ -901,17 +901,28 @@ function App() {
 	// draws, no padding: any region area the page isn't painting yet shows as a
 	// light box for a frame (the "white box", traced 2026-11-23/24 across ten
 	// recordings), so the region is the pill's measured box plus the thin strip
-	// the top flares need, and it is applied REGION_LAG_MS late, after the
+	// the top flares need, and it is applied regionLagMs late, after the
 	// compositor has shown the frame it was measured from. Both directions are
 	// then safe: it never exposes unpainted pixels, and clips at most ~2 frames
 	// of growth (black beside black).
-	const REGION_LAG_MS = 34;
+	// A slow PC paints later than a fast one: the lag follows the frame time
+	// seen while the pill animates (2 frames), 34 ms on a fast PC, at most 140 ms.
+	// A fixed 34 ms showed a black box racing ahead of the painted notch on a
+	// friend's laptop (recording 2026-11-24).
+	const regionLagMs = useRef(34);
+	const lastTickAt = useRef(0);
+	const noteFrame = () => {
+		const now = performance.now();
+		const dt = now - lastTickAt.current;
+		lastTickAt.current = now;
+		if (dt > 0 && dt < 500) regionLagMs.current = Math.min(140, Math.max(34, regionLagMs.current * 0.8 + dt * 2 * 0.2));
+	};
 	const regionQueue = useRef<{ t: number; rects: RegionRect[]; key: string }[]>([]);
 	const regionRaf = useRef(0);
 	const flushRegion = () => {
 		regionRaf.current = 0;
 		const q = regionQueue.current;
-		const due = performance.now() - REGION_LAG_MS;
+		const due = performance.now() - regionLagMs.current;
 		let idx = -1;
 		for (let i = 0; i < q.length; i++) if (q[i].t <= due) idx = i;
 		if (idx >= 0) {
@@ -3979,6 +3990,7 @@ function App() {
 		};
 		let raf = requestAnimationFrame(function tick() {
 			if (performance.now() < end) {
+				noteFrame();
 				settle();
 				updateNotchRegion();
 				raf = requestAnimationFrame(tick);
