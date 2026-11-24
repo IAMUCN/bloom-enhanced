@@ -9,8 +9,28 @@ export type App = { name: string; path: string; icon?: string | null };
 export default function AppLauncher({ setPinned }: ToolProps) {
 	const [apps, setApps] = useState<App[]>([]);
 	const [q, setQ] = useState("");
+	// The first scan can outlast the backend's 5 s wait and answer with nothing:
+	// ask again every 2 s (up to 20 s) instead of reading "Reading your apps…" for ever.
+	const [scanned, setScanned] = useState(false);
 	useEffect(() => {
-		invoke<App[]>("get_installed_apps").then(setApps).catch(() => {});
+		let alive = true;
+		let tries = 0;
+		let timer = 0;
+		const load = () =>
+			invoke<App[]>("get_installed_apps")
+				.then((list) => {
+					if (!alive) return;
+					if (list.length || tries++ >= 10) {
+						setApps(list);
+						setScanned(true);
+					} else timer = window.setTimeout(load, 2000);
+				})
+				.catch(() => alive && setScanned(true));
+		load();
+		return () => {
+			alive = false;
+			window.clearTimeout(timer);
+		};
 	}, []);
 	const words = q.toLowerCase().trim();
 	const hits = (words ? apps.filter((a) => a.name.toLowerCase().includes(words)) : apps).slice(0, 30);
@@ -37,7 +57,7 @@ export default function AppLauncher({ setPinned }: ToolProps) {
 						<span className="nt-grow">{a.name}</span>
 					</button>
 				))}
-				{!hits.length && <div className="nt-muted">{apps.length ? "No app matches." : "Reading your apps…"}</div>}
+				{!hits.length && <div className="nt-muted">{apps.length ? "No app matches." : scanned ? "No apps found." : "Reading your apps…"}</div>}
 			</div>
 		</div>
 	);

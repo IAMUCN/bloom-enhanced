@@ -365,3 +365,9 @@ Test: (1) install, Yes: `netsh advfirewall firewall show rule name="LotusNotch s
 - First-run splash (Overlay.tsx): slow fade in, hold, fade out; no pop, no spin.
 - Notch window region lag follows the frame time (34 to 140 ms): a friend's slow laptop showed a black box racing ahead of the notch when opening/closing (recording 2026-11-24).
 - Open: with the dock on, the user reports the Minimize/Maximize/Close buttons missing at the top right of windows. A maximized Notepad probe here (dock on) showed nothing of ours above its caption area; not reproduced yet.
+
+## 2026-11-24: typing in the notch, teleprompter, launcher, snippets (v0.2.5)
+- Typing into notch fields (notes, deadlines, todo, reminders, snippets...) stopped after the notch began to be shown without activating it (a2dbaf1): a WS_EX_NOACTIVATE window never got the keyboard from `keyboard_focus`. It now lifts the flag while a field has the keyboard and puts it back after (clipboard.rs `keyboard_focus`). Not tested on screen.
+- Teleprompter: mouse wheel moves the script back/forward, playing or paused.
+- App Launcher: asks again every 2 s (up to 20 s) when the first scan answered empty; says "No apps found." when there really are none. Snippets: the text box is a textarea (multi-line), saving waits until the saved list has loaded.
+- v0.2.5: release script run was interrupted after the bump commit; the unpushed local tag was moved to the commit with these fixes, then pushed with main.

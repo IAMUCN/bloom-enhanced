@@ -1639,21 +1639,39 @@ unsafe fn drag_text(text: &str) -> Result<(), String> {
 pub fn keyboard_focus(window: tauri::WebviewWindow, focus: bool) {
     use std::sync::atomic::{AtomicIsize, Ordering};
     use windows::Win32::Foundation::HWND;
-    use windows::Win32::UI::WindowsAndMessaging::{GetForegroundWindow, SetForegroundWindow};
+    use windows::Win32::UI::WindowsAndMessaging::{
+        GetForegroundWindow, GetWindowLongPtrW, SetForegroundWindow, SetWindowLongPtrW,
+        GWL_EXSTYLE, WS_EX_NOACTIVATE,
+    };
     static PREVIOUS: AtomicIsize = AtomicIsize::new(0);
 
     let Ok(hwnd) = window.hwnd() else { return };
     let foreground = unsafe { GetForegroundWindow() };
+    // While a field has the keyboard the window may be activated: a window
+    // that is WS_EX_NOACTIVATE for good never received typing since it is
+    // shown without activating (a2dbaf1). The flag goes back afterwards.
+    let set_noactivate = |on: bool| unsafe {
+        let ex = GetWindowLongPtrW(hwnd, GWL_EXSTYLE);
+        let flag = WS_EX_NOACTIVATE.0 as isize;
+        SetWindowLongPtrW(hwnd, GWL_EXSTYLE, if on { ex | flag } else { ex & !flag });
+    };
     if focus {
         if foreground != hwnd {
             PREVIOUS.store(foreground.0 as isize, Ordering::Relaxed);
         }
-        let _ = window.set_focus();
-    } else if foreground == hwnd {
-        let previous = PREVIOUS.swap(0, Ordering::Relaxed);
-        if previous != 0 {
-            let _ = unsafe { SetForegroundWindow(HWND(previous as *mut _)) };
+        set_noactivate(false);
+        unsafe {
+            let _ = SetForegroundWindow(hwnd);
         }
+        let _ = window.set_focus();
+    } else {
+        if foreground == hwnd {
+            let previous = PREVIOUS.swap(0, Ordering::Relaxed);
+            if previous != 0 {
+                let _ = unsafe { SetForegroundWindow(HWND(previous as *mut _)) };
+            }
+        }
+        set_noactivate(true);
     }
     // Activation makes the clear parts of the window's region show light.
     crate::window_region::repaint_after_focus(hwnd);

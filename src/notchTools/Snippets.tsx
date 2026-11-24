@@ -7,7 +7,7 @@ type Snippet = { id: string; name: string; text: string };
 
 /** Snippets: saved bits of text (address, signature, code); click to copy. */
 export default function Snippets({ setPinned }: ToolProps) {
-	const [data, setData] = useToolData<{ items: Snippet[] }>("snippets", { items: [] });
+	const [data, setData, ready] = useToolData<{ items: Snippet[] }>("snippets", { items: [] });
 	const [name, setName] = useState("");
 	const [text, setText] = useState("");
 	const [copied, setCopied] = useState("");
@@ -16,12 +16,13 @@ export default function Snippets({ setPinned }: ToolProps) {
 		<div style={{ ["--tool-color" as string]: "#9EE6CF", display: "contents" }}>
 			<div className="nt-row">
 				<input className="nt-input" style={{ width: 110, flex: "none" }} placeholder="Name" value={name} aria-label="Snippet name" {...pin} onChange={(e) => setName(e.target.value)} />
-				<input className="nt-input" placeholder="Text to save" value={text} aria-label="Snippet text" {...pin} onChange={(e) => setText(e.target.value)} />
+				{/* A textarea: an address, a signature or a bit of code runs over several lines. */}
+				<textarea className="nt-input" style={{ resize: "none", flex: 1, minWidth: 0 }} rows={1} placeholder="Text to save" value={text} aria-label="Snippet text" {...pin} onChange={(e) => setText(e.target.value)} />
 				<button
 					type="button"
 					className="nt-btn primary nt-icon-btn"
 					aria-label="Save snippet"
-					disabled={!text.trim()}
+					disabled={!ready || !text.trim()}
 					onClick={() => {
 						setData((d) => ({ items: [...d.items, { id: String(Date.now()), name: name.trim() || text.trim().slice(0, 16), text }] }));
 						setName("");

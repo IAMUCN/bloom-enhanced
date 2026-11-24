@@ -83,6 +83,15 @@ export default function Teleprompter({ setPinned }: ToolProps) {
 		return () => cancelAnimationFrame(frame);
 	}, [playing, data.speed]);
 
+	/** The mouse wheel moves the script (up = back), playing or paused: when it runs
+	 *  too slow or too fast, or a line is missed. */
+	const nudge = (e: React.WheelEvent) => {
+		e.stopPropagation();
+		const max = Math.max(0, (text.current?.scrollHeight ?? 0) - (box.current?.clientHeight ?? 0) / 2);
+		offset.current = Math.min(max, Math.max(0, offset.current + e.deltaY));
+		if (text.current) text.current.style.transform = `translateY(${-offset.current}px)`;
+	};
+
 	const restart = () => {
 		offset.current = 0;
 		if (text.current) text.current.style.transform = "translateY(0)";
@@ -104,7 +113,7 @@ export default function Teleprompter({ setPinned }: ToolProps) {
 					onChange={(e) => setData((d) => ({ ...d, script: e.target.value }))}
 				/>
 			) : (
-				<div ref={box} className="tp-view" onDoubleClick={() => setEditing(true)}>
+				<div ref={box} className="tp-view" onDoubleClick={() => setEditing(true)} onWheel={nudge}>
 					<div ref={text} className="tp-text" style={{ fontSize: data.size }}>
 						{data.script || <span className="tp-empty">Copy your script and press Ctrl+V here.</span>}
 					</div>
