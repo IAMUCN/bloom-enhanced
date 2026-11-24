@@ -40,7 +40,7 @@ import { useTrailingThrottle } from "./hooks/useTrailingThrottle";
 import { useAnnouncement } from "./hooks/useAnnouncement";
 import { NotchTabBar } from "./components/NotchTabBar";
 import { BloomTip } from "./components/BloomTip";
-import { BODY_VARIANTS, CC_EXIT, LIST_MOTION, LIVELY, bodyMotion } from "./motion";
+import { BODY_VARIANTS, CC_EXIT, LIST_MOTION, bodyMotion } from "./motion";
 import { Roll } from "./components/Roll";
 import { CopyEffect, ProgressEffect, asProgressStyle } from "./components/ProgressEffect";
 import { EXTRA_BY_ID, GRID_H, MAX_TABS, OPEN_WIDTH, TAB_BAR_HEIGHT, openingTool, pomodoroLength, orderTabs, TOOLS, parseEnabledTools, type ExtraToolId, type Tool } from "./tools";
@@ -3658,21 +3658,19 @@ function App() {
 		return true;
 	};
 	const wasOpen = useRef(isOpen);
-	// A slow PC (frames about 28 ms apart or worse, as seen while the pill
-	// animated) gets the same springs without the bounce: the shell would
-	// otherwise shrink back while the window's clip, which runs a little behind
-	// the picture, is still at the bigger size, and the gap showed as black
-	// pieces on both sides of the notch (a friend's laptop, 2026-11-24). The
-	// window region itself is not touched here.
-	const slowPaint = regionLagMs.current >= 56;
+	// The shell's springs (Apple's rule: a bounce only when the gesture carried
+	// momentum; opening from a hover or a click did not, and exits never bounce,
+	// see motion.ts). A 40 % overshoot made the shell shrink back right after
+	// opening, while the window's clip (which runs a little behind the picture)
+	// was still the bigger size, and the gap showed as black pieces beside the
+	// notch on a friend's laptop (2026-11-24). A hint of life stays (0.1 to 0.12).
+	// The window region itself is not touched.
 	const shellSpring =
 		isOpen && !wasOpen.current
-			? { type: "spring" as const, visualDuration: 0.45, bounce: slowPaint ? 0 : 0.4 }
+			? { type: "spring" as const, visualDuration: 0.4, bounce: 0.12 }
 			: !isOpen
-				? { type: "spring" as const, visualDuration: 0.3, bounce: slowPaint ? 0 : 0.15 }
-				: slowPaint
-					? { ...LIVELY, bounce: 0 }
-					: LIVELY;
+				? { type: "spring" as const, visualDuration: 0.28, bounce: 0 }
+				: { type: "spring" as const, visualDuration: 0.32, bounce: 0.1 };
 	useEffect(() => {
 		wasOpen.current = isOpen;
 	});
@@ -4609,10 +4607,11 @@ function App() {
 																		ref={leftWidgetsRef}
 																		className="passive-features-group"
 																		style={{ zoom: leftSize }}
+																		// Arrive once the shell has mostly grown (a short delay), leave at once:
+																		// the labels never hang outside a still-narrow pill.
 																		initial={{ opacity: 0 }}
-																		animate={{ opacity: 1 }}
-																		exit={{ opacity: 0 }}
-																		transition={{ duration: 0.2 }}
+																		animate={{ opacity: 1, transition: { duration: 0.2, delay: 0.14, ease: "easeOut" } }}
+																		exit={{ opacity: 0, transition: { duration: 0.1 } }}
 																	>
 																		{statusWidgets.left.map(renderStatusWidget)}
 																	</motion.div>
@@ -4813,9 +4812,8 @@ function App() {
 																		className="passive-features-group"
 																		style={{ zoom: rightSize }}
 																		initial={{ opacity: 0 }}
-																		animate={{ opacity: 1 }}
-																		exit={{ opacity: 0 }}
-																		transition={{ duration: 0.2 }}
+																		animate={{ opacity: 1, transition: { duration: 0.2, delay: 0.14, ease: "easeOut" } }}
+																		exit={{ opacity: 0, transition: { duration: 0.1 } }}
 																	>
 																		{statusWidgets.right.map(renderStatusWidget)}
 																	</motion.div>

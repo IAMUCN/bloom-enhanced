@@ -2288,7 +2288,7 @@ button.calendar-day:focus-visible {
 /* While the shell is still growing or shrinking toward its size (set from App.tsx),
    the page body stays hidden, then fades in: no wipe of hard-edged tiles. */
 .notch-body {
-	transition: opacity 0.12s ease;
+	transition: opacity 0.16s ease-out;
 }
 .bloom[data-settling] .notch-body {
 	opacity: 0 !important;
