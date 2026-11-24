@@ -122,7 +122,7 @@ jobs:
           done <<< "$(git log "$RANGE" --no-merges --pretty=format:'COMMIT|%s' --name-only)"
           emit
 
-          NOTES=$(printf "## Bloom %s\n" "$VERSION")
+          NOTES=$(printf "## LotusNotch %s\n" "$VERSION")
           if [ -n "$FEATURES" ]; then
             NOTES+=$(printf "\n### What's New\n%s\n" "$FEATURES")
           fi
@@ -149,9 +149,9 @@ jobs:
           TAURI_SIGNING_PRIVATE_KEY_PASSWORD: ${{ secrets.TAURI_SIGNING_PASSWORD }}
         with:
           tagName: ${{ github.ref_name }}
-          releaseName: "Bloom Enhanced ${{ github.ref_name }}"
-          # bloom-enhanced-0.1.0-setup.exe, bloom-enhanced-0.1.0.msi
-          assetNamePattern: "bloom-enhanced-[version][setup][ext]"
+          releaseName: "LotusNotch ${{ github.ref_name }}"
+          # LotusNotch-0.2.3-setup.exe, LotusNotch-0.2.3.msi
+          assetNamePattern: "LotusNotch-[version][setup][ext]"
           releaseBody: ${{ steps.notes.outputs.body }}
           releaseDraft: false
           prerelease: false
