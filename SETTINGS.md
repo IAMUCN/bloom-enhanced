@@ -319,3 +319,7 @@ with open(path, 'w') as f: json.dump(settings, f)
 ## Export and import
 
 Export writes every `bloom-*` preference grouped by page (general, appearance, notch, dock, shelf, radialMenu) plus the dock's pinned apps and custom icons. Left out on purpose: state keys, removed features (the volume/brightness edge HUDs) and the display names (`bloom-*-monitor`, they belong to one PC). History, notes, to-dos and pairings are data, not settings, and stay on the PC. Import keeps this PC's state and display keys, fills missing keys from the default setup, drops removed features and restarts LotusNotch.
+
+### Default setup, 2026-11-24 update
+
+`src-tauri/default-settings.json` was rebuilt from the author's export of 2026-11-24: Copy Effect `beam`, Keep Windows Loaded on, Hide Notch From Recordings off, theme brightness 0.14 and the author's ten tools. Skipping the first-run "Pick your tools" page keeps that tool list. Share name, weather city, shortcuts and the setup flags are not part of it.

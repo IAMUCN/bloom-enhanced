@@ -371,3 +371,18 @@ Test: (1) install, Yes: `netsh advfirewall firewall show rule name="LotusNotch s
 - Teleprompter: mouse wheel moves the script back/forward, playing or paused.
 - App Launcher: asks again every 2 s (up to 20 s) when the first scan answered empty; says "No apps found." when there really are none. Snippets: the text box is a textarea (multi-line), saving waits until the saved list has loaded.
 - v0.2.5: release script run was interrupted after the bump commit; the unpushed local tag was moved to the commit with these fixes, then pushed with main.
+
+## ▶ RESUME POINT (2026-11-24, release v0.2.5 published) — read this first
+State: `main` at the v0.2.5 tag (`d40b3bc` + release notes), published on GitHub as "LotusNotch v0.2.5" with `latest.json` (verify-updater passes). The working branch `fix/weather-display-pairing-theme` is one commit behind main (a CRLF-only change on `src-tauri/Cargo.toml` blocked the checkout: sync it with `git merge --ff-only main` when the tree is clean).
+Releases: v0.2.0 to v0.2.2 FAILED on GitHub (the repo had no secrets; they stay as empty tags). First working release v0.2.3, then 0.2.4, 0.2.5. Signing: repo secret `TAURI_SIGNING_PRIVATE_KEY` = contents of `~/.tauri/bloom-enhanced.key` (key has no password; do not put "iamucn" or any password in it). The release name/notes/assets say LotusNotch (`LotusNotch-<ver>-setup.exe`).
+Done this round (all in v0.2.5 unless noted):
+- Setup page = normal Settings size (no full screen, no maximize), notch and dock stay up during setup (SETUP_RUNNING), white outline beam on the notch back (NotchOutline, every setup step).
+- Installer: LOTUS_STOP_APP asks, stops the app, restores the taskbar (`--restore-taskbar <marker>`); compiled in local builds, uninstall not yet tested on a clean PC (the user did not say what failed with the old uninstaller).
+- Notch off: Shelf notices and the copy effect still show (`set_notice_window`); Radial Menu progress shows at the pointer (already so).
+- Notch window region lag adapts to the frame time (34 to 140 ms): friend's slow laptop black box.
+- Command Center "LotusNotch settings" tile = outline logo (`LotusIcon`). Splash logo fades (no pop, no spin). Default setup rebuilt from the user's export (see "2026-11-24 (later)" above).
+- Typing in notch fields fixed (`keyboard_focus` lifts WS_EX_NOACTIVATE while a field is focused). Teleprompter wheel scroll. App Launcher retry. Snippets textarea.
+Waiting on the user:
+- Update dot from 0.2.0/0.2.3/0.2.4 to 0.2.5 (in-app update), typing in Notes/Todo/Reminders/Deadlines/Snippets/Launcher on the real notch, setup look, fresh-install defaults, clean-PC installer + uninstall (firewall prompt, decline path, taskbar kept), friend's laptop opening animation.
+- "Window buttons missing at the top right of each window when the dock is on": not reproduced (a maximized Notepad with the dock on showed nothing of ours above its caption area). Needs a screenshot and which apps/states.
+Next ideas (not started): Tools-list headings "In your notch" / "Available" are plain labels; two-display test of notch/dock/shelf; sharing test on two PCs (it worked after the firewall rule, per the user).
