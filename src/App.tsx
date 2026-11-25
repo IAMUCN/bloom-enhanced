@@ -11,7 +11,10 @@ import { batteryTooltip, type BatteryDetails } from "./batteryTooltip";
 import {
 	createRegionSender,
 	flareSlices,
-	followShrink,
+	pickRegion,
+	regionKey,
+	type QueuedRegion,
+	type SentRegion,
 	measureElements,
 	notchPillBox,
 	type RegionRect
@@ -920,20 +923,19 @@ function App() {
 		lastTickAt.current = now;
 		if (dt > 0 && dt < 500) regionLagMs.current = Math.min(140, Math.max(34, regionLagMs.current * 0.8 + dt * 2 * 0.2));
 	};
-	const regionQueue = useRef<{ t: number; rects: RegionRect[]; key: string; n: number }[]>([]);
+	const regionQueue = useRef<QueuedRegion[]>([]);
+	const lastSentRegion = useRef<SentRegion | null>(null);
 	const regionRaf = useRef(0);
 	const flushRegion = () => {
 		regionRaf.current = 0;
 		const q = regionQueue.current;
-		const due = performance.now() - regionLagMs.current;
-		let idx = -1;
-		for (let i = 0; i < q.length; i++) if (q[i].t <= due) idx = i;
-		if (idx >= 0) {
-			const newest = q[q.length - 1];
-			sendNotchRegion(q[idx].n === newest.n ? followShrink(q[idx].rects, newest.rects, newest.n) : q[idx].rects);
-			q.splice(0, idx); // keeps the one just sent as the marker
+		const pick = pickRegion(q, performance.now(), regionLagMs.current, lastSentRegion.current);
+		if (pick.send && (!lastSentRegion.current || regionKey(pick.send.rects) !== regionKey(lastSentRegion.current.rects))) {
+			sendNotchRegion(pick.send.rects);
+			lastSentRegion.current = pick.send;
 		}
-		if (q.some((e) => e.t > due)) regionRaf.current = requestAnimationFrame(flushRegion);
+		q.splice(0, pick.keepFrom); // keeps the one just used as the marker
+		if (pick.pending) regionRaf.current = requestAnimationFrame(flushRegion);
 	};
 	const updateNotchRegion = () => {
 		const wanted: RegionRect[] = [];

@@ -46,27 +46,84 @@ export function flareSlices(pill: { left: number; top: number; width: number }, 
 	return out;
 }
 
+/** A measured notch region waiting out its delay: `rects` are the pill, then its
+ *  flare rows (`n` rectangles in all), then floating parts such as bubbles. */
+export interface QueuedRegion {
+	t: number;
+	rects: RegionRect[];
+	key: string;
+	n: number;
+}
+export interface SentRegion {
+	rects: RegionRect[];
+	n: number;
+}
+
+const clip = (a: RegionRect, b: RegionRect): RegionRect | null => {
+	const x = Math.max(a.x, b.x);
+	const y = Math.max(a.y, b.y);
+	const width = Math.min(a.x + a.width, b.x + b.width) - x;
+	const height = Math.min(a.y + a.height, b.y + b.height) - y;
+	return width > 0 && height > 0 ? { x, y, width, height } : null;
+};
+
 /**
- * The notch's region is applied a little late (so it never shows a frame the
- * page has not painted yet). That is right while the pill grows, but when it
- * shrinks (the spring's overshoot settling back, or closing) the late region is
- * still the bigger size, and the extra area shows as black pieces beside the
- * notch. So the first `count` rectangles (the pill and its flare rows) never go
- * beyond the newest measured ones: growth keeps its lag, shrink follows at once
- * (it clips at most the compositor's last frame or two of the old size, which
- * is black beside black). Rectangles that move, such as bubbles, keep the lag.
+ * Cuts a (late) region back to the newest measured shape: the intersection of
+ * the two shapes (pill plus flare rows), as rectangles. Not rectangle by
+ * rectangle: when the pill shrinks, the newest flare rows lie inside the old,
+ * bigger pill, not on the old rows. Rectangles after the shape, such as
+ * bubbles, are kept as they are: they move, and a moving one keeps its delay.
+ * The result is never bigger than the newest shape, so a shrinking notch
+ * leaves no extra area to show the window's black fill; growth is untouched
+ * (a late region is the smaller one, and stays). About 30 rectangles at most.
  */
-export function followShrink(lagged: RegionRect[], newest: RegionRect[], count = 2): RegionRect[] {
-	if (lagged.length !== newest.length) return lagged;
-	return lagged.map((r, i) => {
-		if (i >= count) return r;
-		const n = newest[i];
-		const x = Math.max(r.x, n.x);
-		const y = Math.max(r.y, n.y);
-		const width = Math.min(r.x + r.width, n.x + n.width) - x;
-		const height = Math.min(r.y + r.height, n.y + n.height) - y;
-		return width > 0 && height > 0 ? { x, y, width, height } : r;
-	});
+export function followShrink(
+	lagged: RegionRect[],
+	lagN: number,
+	newest: RegionRect[],
+	newN: number
+): SentRegion {
+	if (lagN < 1 || newN < 1) return { rects: lagged, n: lagN };
+	const shape: RegionRect[] = [];
+	for (const a of lagged.slice(0, lagN)) {
+		for (const b of newest.slice(0, newN)) {
+			const c = clip(a, b);
+			if (c) shape.push(c);
+		}
+	}
+	// nothing in common (the notch moved away, not shrunk): don't cut
+	if (!shape.length) return { rects: lagged, n: lagN };
+	return { rects: [...shape, ...lagged.slice(lagN)], n: shape.length };
+}
+
+/**
+ * What to send to the window now. The region used to go out only once an entry
+ * had waited `lagMs`, so at the start of a close nothing was old enough and the
+ * big open-size region stayed for ~50 ms while the notch shrank (profiled
+ * 2026-11-25: up to 95,000 px2 of black beside it). Now every flush cuts the
+ * region (the delayed entry, or else the last one sent) back to the newest
+ * measurement: shrinking applies at once, growth keeps its delay (the delayed
+ * entry is the smaller one) so it never shows a frame the page hasn't painted.
+ * `keepFrom` is how many queue entries to drop (the one used stays as the
+ * marker), `pending` whether a later flush is still needed.
+ */
+export function pickRegion(
+	q: QueuedRegion[],
+	now: number,
+	lagMs: number,
+	lastSent: SentRegion | null
+): { send: SentRegion | null; keepFrom: number; pending: boolean } {
+	const newest = q[q.length - 1];
+	if (!newest) return { send: null, keepFrom: 0, pending: false };
+	const due = now - lagMs;
+	let idx = -1;
+	for (let i = 0; i < q.length; i++) if (q[i].t <= due) idx = i;
+	const base: SentRegion | null = idx >= 0 ? { rects: q[idx].rects, n: q[idx].n } : lastSent;
+	return {
+		send: base ? followShrink(base.rects, base.n, newest.rects, newest.n) : null,
+		keepFrom: Math.max(idx, 0),
+		pending: q.some((e) => e.t > due)
+	};
 }
 
 /** An earlier region kept until an animation away from it has settled. */
@@ -187,7 +244,7 @@ export function createRegionSender(send: (rects: RegionRect[]) => void, holdMs =
 	return lagMs > 0 ? (wanted: RegionRect[]) => void setTimeout(() => update(wanted), lagMs) : update;
 }
 
-function regionKey(rects: RegionRect[]): string {
+export function regionKey(rects: RegionRect[]): string {
 	return rects.map((r) => `${r.x},${r.y},${r.width},${r.height}`).join(";");
 }
 
