@@ -38,7 +38,7 @@ body {
 	font-family: "Inter", "Segoe UI Variable Text", "Segoe UI", sans-serif;
 	pointer-events: none;
 	opacity: 0;
-	transition: all 0.2s ease;
+	transition: opacity 0.2s ease, transform 0.2s ease;
 	white-space: nowrap;
 }
 
@@ -107,7 +107,7 @@ body {
 	align-items: center;
 	gap: 6px;
 	cursor: pointer;
-	transition: all 0.15s ease;
+	transition: background 0.15s ease, transform 0.15s ease, border-color 0.15s ease;
 	padding: 6px;
 	border-radius: 8px;
 	pointer-events: auto;
@@ -133,7 +133,7 @@ body {
 	opacity: 0;
 	transform: scale(1);
 	transform-origin: center;
-	transition: all 0.15s cubic-bezier(0.16, 1, 0.3, 1);
+	transition: opacity 0.15s cubic-bezier(0.16, 1, 0.3, 1), transform 0.15s cubic-bezier(0.16, 1, 0.3, 1), background 0.15s cubic-bezier(0.16, 1, 0.3, 1), box-shadow 0.15s cubic-bezier(0.16, 1, 0.3, 1), color 0.15s cubic-bezier(0.16, 1, 0.3, 1);
 	z-index: 10;
 	outline: none;
 }
@@ -382,7 +382,7 @@ body {
 	border-radius: 6px;
 	cursor: pointer;
 	font-weight: 500;
-	transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+	transition: background 0.2s cubic-bezier(0.4, 0, 0.2, 1);
 }
 
 .menu-item:hover {
@@ -649,7 +649,7 @@ body {
 	font-weight: 500;
 	color: var(--bloom-text-muted, rgba(255, 255, 255, 0.25));
 	opacity: 0;
-	transition: all 0.15s ease;
+	transition: opacity 0.15s ease, color 0.15s ease, background 0.15s ease;
 	flex-shrink: 0;
 }
 
