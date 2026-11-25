@@ -3554,14 +3554,15 @@ function App() {
 
 	// Fixed mode only: 10 s after the notch was last used (closed, not
 	// hovered, nothing happening), it fades to 40% so it sits back; any use
-	// brings it back at once.
+	// (or a Copied / power / update notice) brings it back at once.
 	const [idleFaded, setIdleFaded] = useState(false);
 	useEffect(() => {
 		setIdleFaded(false);
-		if (notchMode !== "fixed" || isOpen || isHovered || fileStatus || isDragHovering) return;
+		const alerting = showCopyPulse || showPowerPulse || showLowBatteryPulse || showUpdatePulse;
+		if (notchMode !== "fixed" || isOpen || isHovered || fileStatus || isDragHovering || alerting) return;
 		const t = setTimeout(() => setIdleFaded(true), 10000);
 		return () => clearTimeout(t);
-	}, [notchMode, isOpen, isHovered, fileStatus, isDragHovering, bloomMode]);
+	}, [notchMode, isOpen, isHovered, fileStatus, isDragHovering, bloomMode, showCopyPulse, showPowerPulse, showLowBatteryPulse, showUpdatePulse]);
 
 	// Notch style (Settings > Notch > Style). "pill" floats below the edge
 	// with no flares; "minimal" shrinks the idle notch to a thin bar that shows
