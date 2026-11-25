@@ -41,7 +41,7 @@ import { useTrailingThrottle } from "./hooks/useTrailingThrottle";
 import { useAnnouncement } from "./hooks/useAnnouncement";
 import { NotchTabBar } from "./components/NotchTabBar";
 import { BloomTip } from "./components/BloomTip";
-import { BODY_VARIANTS, CC_EXIT, LIST_MOTION, bodyMotion } from "./motion";
+import { BODY_VARIANTS, CC_EXIT, LIST_MOTION, LIVELY, bodyMotion } from "./motion";
 import { Roll } from "./components/Roll";
 import { CopyEffect, ProgressEffect, asProgressStyle } from "./components/ProgressEffect";
 import { EXTRA_BY_ID, GRID_H, MAX_TABS, OPEN_WIDTH, TAB_BAR_HEIGHT, openingTool, pomodoroLength, orderTabs, TOOLS, parseEnabledTools, type ExtraToolId, type Tool } from "./tools";
@@ -3665,24 +3665,21 @@ function App() {
 		return true;
 	};
 	const wasOpen = useRef(isOpen);
-	// The shell's springs (Apple's rule: a bounce only when the gesture carried
-	// momentum; opening from a hover or a click did not, and exits never bounce,
-	// see motion.ts). A 40 % overshoot made the shell shrink back right after
-	// opening, while the window's clip (which runs a little behind the picture)
-	// was still the bigger size, and the gap showed as black pieces beside the
-	// notch on a friend's laptop (2026-11-24). A hint of life stays (0.1 to 0.12).
-	// The window region itself is not touched.
-	// Reduce Motion (Settings › General), or Battery saver's calmer motion: a
-	// short ease in place of every spring. Not Windows' own setting.
+	// The shell's springs. By default the full, springy motion (opening bounces
+	// like the Dynamic Island, closing settles, resizing is lively). Reduce Motion
+	// (Settings > General), or Battery saver's calmer motion, gives a short ease
+	// in place of every spring; that is also the way to avoid the black pieces a
+	// friend's laptop showed beside the notch while the shell bounced (2026-11-24).
+	// Not Windows' own setting. The window region itself is not touched.
 	const reduceMotion = useReduceMotion();
 	const calm = reduceMotion || (saverOn && saverPauses.motion);
 	const shellSpring = calm
 		? { duration: 0.15, ease: "easeOut" as const }
 		: isOpen && !wasOpen.current
-			? { type: "spring" as const, visualDuration: 0.4, bounce: 0.12 }
+			? { type: "spring" as const, visualDuration: 0.45, bounce: 0.4 }
 			: !isOpen
-				? { type: "spring" as const, visualDuration: 0.28, bounce: 0 }
-				: { type: "spring" as const, visualDuration: 0.32, bounce: 0.1 };
+				? { type: "spring" as const, visualDuration: 0.3, bounce: 0.15 }
+				: LIVELY;
 	useEffect(() => {
 		wasOpen.current = isOpen;
 	});
