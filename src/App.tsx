@@ -4316,7 +4316,6 @@ function App() {
 						borderTopRightRadius: attachedToEdge ? 0 : 18,
 						borderBottomLeftRadius: minimalIdle ? 4 : isCalendarMode ? 28 : 18,
 						borderBottomRightRadius: minimalIdle ? 4 : isCalendarMode ? 28 : 18,
-						filter: isVisible ? "blur(0px)" : "blur(8px)",
 						pointerEvents: isVisible ? "auto" : "none"
 					}}
 					onClick={(e) => {
