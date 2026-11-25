@@ -2,6 +2,8 @@ import { describe, expect, test } from "bun:test";
 import {
 	clipToWindow,
 	createRegionSender,
+	flareReach,
+	flareSlices,
 	followShrink,
 	nextRegion,
 	notchPillBox,
@@ -135,5 +137,40 @@ describe("followShrink", () => {
 		const b = [pill(260), pill(260), { x: 40, y: 0, width: 50, height: 20 }];
 		expect(followShrink(a, b)[2]).toEqual(a[2]);
 		expect(followShrink(a, b.slice(0, 2))).toBe(a);
+	});
+});
+
+describe("flare rows", () => {
+	test("the curve reaches out by the full flare at the screen edge and 0 at the pill's side", () => {
+		expect(flareReach(13, 0)).toBeCloseTo(13, 1);
+		expect(flareReach(13, 13)).toBeCloseTo(0, 1);
+		let last = 99;
+		for (let y = 0; y <= 13; y += 0.5) {
+			const r = flareReach(13, y);
+			expect(r).toBeLessThanOrEqual(last + 1e-9);
+			last = r;
+		}
+	});
+	test("rows hug the curve on both sides and never reach past the flare", () => {
+		const rows = flareSlices({ left: 100, top: 0, width: 300 }, 13);
+		expect(rows.length).toBeGreaterThan(20);
+		expect(rows.every((r) => r.height === 1 && r.width >= 1 && r.width <= 13)).toBe(true);
+		const left = rows.filter((r) => r.x + r.width === 100);
+		const right = rows.filter((r) => r.x === 400);
+		expect(left.length).toBe(right.length);
+		expect(left.length + right.length).toBe(rows.length);
+	});
+	test("a bigger (zoomed) or a smaller (minimal, 5 px) flare scales the rows", () => {
+		expect(flareSlices({ left: 0, top: 0, width: 100 }, 5).length).toBeLessThan(flareSlices({ left: 0, top: 0, width: 100 }, 19.5).length);
+		expect(Math.max(...flareSlices({ left: 0, top: 0, width: 100 }, 5).map((r) => r.width))).toBeLessThanOrEqual(5);
+	});
+	test("followShrink only touches the first count rectangles", () => {
+		const pill = { x: 100, y: 0, width: 300, height: 40 };
+		const small = { ...pill, width: 260 };
+		const bubble = { x: 0, y: 0, width: 50, height: 20 };
+		const moved = { x: 30, y: 0, width: 50, height: 20 };
+		const out = followShrink([pill, bubble], [small, moved], 1);
+		expect(out[0].width).toBe(260);
+		expect(out[1]).toEqual(bubble);
 	});
 });

@@ -10,6 +10,7 @@ import { trace } from "./trace";
 import { batteryTooltip, type BatteryDetails } from "./batteryTooltip";
 import {
 	createRegionSender,
+	flareSlices,
 	followShrink,
 	measureElements,
 	notchPillBox,
@@ -919,7 +920,7 @@ function App() {
 		lastTickAt.current = now;
 		if (dt > 0 && dt < 500) regionLagMs.current = Math.min(140, Math.max(34, regionLagMs.current * 0.8 + dt * 2 * 0.2));
 	};
-	const regionQueue = useRef<{ t: number; rects: RegionRect[]; key: string }[]>([]);
+	const regionQueue = useRef<{ t: number; rects: RegionRect[]; key: string; n: number }[]>([]);
 	const regionRaf = useRef(0);
 	const flushRegion = () => {
 		regionRaf.current = 0;
@@ -928,13 +929,15 @@ function App() {
 		let idx = -1;
 		for (let i = 0; i < q.length; i++) if (q[i].t <= due) idx = i;
 		if (idx >= 0) {
-			sendNotchRegion(followShrink(q[idx].rects, q[q.length - 1].rects));
+			const newest = q[q.length - 1];
+			sendNotchRegion(q[idx].n === newest.n ? followShrink(q[idx].rects, newest.rects, newest.n) : q[idx].rects);
 			q.splice(0, idx); // keeps the one just sent as the marker
 		}
 		if (q.some((e) => e.t > due)) regionRaf.current = requestAnimationFrame(flushRegion);
 	};
 	const updateNotchRegion = () => {
 		const wanted: RegionRect[] = [];
+		let shapeCount = 0;
 		const live = bloomRef.current?.getBoundingClientRect();
 		if (import.meta.env.DEV && live) {
 			const key = [live.left, live.top, live.width, live.height].map(Math.round).join(",");
@@ -945,12 +948,18 @@ function App() {
 		}
 		if (live && live.width > 0) {
 			wanted.push({ x: live.left, y: live.top, width: live.width, height: live.height });
-			// The flares at the top corners (13 px, see NotchOutline) and the light
-			// that runs along them.
-			const flare = 19 * pillZoom;
-			wanted.push({ x: live.left - flare, y: live.top, width: live.width + flare * 2, height: flare });
+			// The top flares, as rows hugging the painted curve: the size is read
+			// from the page itself (--flare animates 5 to 13 px with the Minimal
+			// style, and the shell is zoomed), so the region is what is painted.
+			const surface = bloomRef.current?.querySelector(".edge-surface.show-flares");
+			if (surface) {
+				const f = (parseFloat(getComputedStyle(surface).getPropertyValue("--flare")) || 13) * pillZoom;
+				wanted.push(...flareSlices(live, f));
+			}
+			shapeCount = wanted.length;
 		} else if (pillTargetRef.current) {
 			wanted.push(pillTargetRef.current);
+			shapeCount = 1;
 		}
 		// Floating parts drawn beside the pill: their own box, nearly unpadded. A
 		// padded ring that the page leaves clear shows the window's light fill
@@ -965,7 +974,7 @@ function App() {
 		const key = wanted.map((r) => `${Math.round(r.x)},${Math.round(r.y)},${Math.round(r.width)},${Math.round(r.height)}`).join(";");
 		const q = regionQueue.current;
 		if (q.length > 0 && q[q.length - 1].key === key) return;
-		q.push({ t: performance.now(), rects: wanted, key });
+		q.push({ t: performance.now(), rects: wanted, key, n: shapeCount });
 		if (!regionRaf.current) regionRaf.current = requestAnimationFrame(flushRegion);
 	};
 	const [systemSettingsReady, setSystemSettingsReady] = useState(false);

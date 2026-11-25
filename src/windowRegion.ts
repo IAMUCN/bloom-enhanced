@@ -7,19 +7,59 @@ export interface RegionRect {
 }
 
 /**
+ * How far the painted top flare reaches out from the pill's side, `y` px below
+ * the screen edge, for a flare `f` px big. It is the same cubic as
+ * EdgeSurface.css (from 0 0 to f f, handles at 0.77f,0 and f,0.23f): out by
+ * `f` at the edge, 0 at the pill's side.
+ */
+export function flareReach(f: number, y: number): number {
+	const Y = Math.min(1, Math.max(0, y / f));
+	let lo = 0;
+	let hi = 1;
+	for (let i = 0; i < 24; i++) {
+		const t = (lo + hi) / 2;
+		if (3 * (1 - t) * t * t * 0.23 + t * t * t < Y) lo = t;
+		else hi = t;
+	}
+	const t = (lo + hi) / 2;
+	return f * (1 - (3 * (1 - t) * (1 - t) * t * 0.77 + 3 * (1 - t) * t * t + t * t * t));
+}
+
+/**
+ * The two top flares as one-pixel rows hugging the painted curve (a row is as
+ * wide as the curve is at its top, so nothing painted is ever clipped), so the
+ * window region is the painted silhouette to within a pixel. A plain rectangle beside the pill covered the unpainted
+ * corner outside the curve too, which showed as a black ledge at each shoulder
+ * whenever Windows did not treat the window's black fill as clear.
+ * ponytail: rows are whole CSS px (the backend takes ints), so the curve is
+ * followed to within one CSS px; a finer slice needs the backend to take floats.
+ */
+export function flareSlices(pill: { left: number; top: number; width: number }, f: number): RegionRect[] {
+	const out: RegionRect[] = [];
+	for (let k = 0; k < Math.ceil(f); k++) {
+		const reach = Math.ceil(flareReach(f, k) - 1e-6);
+		if (reach <= 0) continue;
+		const y = pill.top + k;
+		out.push({ x: pill.left - reach, y, width: reach, height: 1 });
+		out.push({ x: pill.left + pill.width, y, width: reach, height: 1 });
+	}
+	return out;
+}
+
+/**
  * The notch's region is applied a little late (so it never shows a frame the
  * page has not painted yet). That is right while the pill grows, but when it
  * shrinks (the spring's overshoot settling back, or closing) the late region is
  * still the bigger size, and the extra area shows as black pieces beside the
- * notch. So the first two rectangles (the pill and its flare strip) never go
+ * notch. So the first `count` rectangles (the pill and its flare rows) never go
  * beyond the newest measured ones: growth keeps its lag, shrink follows at once
  * (it clips at most the compositor's last frame or two of the old size, which
  * is black beside black). Rectangles that move, such as bubbles, keep the lag.
  */
-export function followShrink(lagged: RegionRect[], newest: RegionRect[]): RegionRect[] {
+export function followShrink(lagged: RegionRect[], newest: RegionRect[], count = 2): RegionRect[] {
 	if (lagged.length !== newest.length) return lagged;
 	return lagged.map((r, i) => {
-		if (i > 1) return r;
+		if (i >= count) return r;
 		const n = newest[i];
 		const x = Math.max(r.x, n.x);
 		const y = Math.max(r.y, n.y);
