@@ -4466,15 +4466,15 @@ function App() {
 														fileStatus ? (
 															<motion.div
 																key="file-status-view"
-																initial={{ opacity: 0, scale: 0.9, filter: "blur(4px)" }}
+																initial={{ opacity: 0, scale: 0.9 }}
 																animate={
 																	fileStatus.result === "failed"
-																		? { opacity: 1, scale: 1, filter: "blur(0px)", x: [0, -6, 6, -4, 4, 0] }
+																		? { opacity: 1, scale: 1, x: [0, -6, 6, -4, 4, 0] }
 																		: fileStatus.result === "ok"
-																			? { opacity: 1, scale: [1, 1.08, 1], filter: "blur(0px)", x: 0 }
-																			: { opacity: 1, scale: 1, filter: "blur(0px)", x: 0 }
+																			? { opacity: 1, scale: [1, 1.08, 1], x: 0 }
+																			: { opacity: 1, scale: 1, x: 0 }
 																}
-																exit={{ opacity: 0, scale: 1.05, filter: "blur(4px)" }}
+																exit={{ opacity: 0, scale: 1.05 }}
 																transition={
 																	fileStatus.result
 																		? { duration: 0.45, ease: "easeOut" }
@@ -4522,9 +4522,9 @@ function App() {
 														) : showCopyPulse ? (
 															<motion.div
 																key="copy-pulse-view"
-																initial={{ opacity: 0, scale: 0.95, filter: "blur(4px)" }}
-																animate={{ opacity: 1, scale: 1, filter: "blur(0px)" }}
-																exit={{ opacity: 0, scale: 1.05, filter: "blur(4px)" }}
+																initial={{ opacity: 0, scale: 0.95 }}
+																animate={{ opacity: 1, scale: 1 }}
+																exit={{ opacity: 0, scale: 1.05 }}
 																className="power-pulse-content"
 															>
 																<ClipboardCheck size={14} />
@@ -4533,9 +4533,9 @@ function App() {
 														) : showUpdatePulse ? (
 															<motion.div
 																key="update-pulse-view"
-																initial={{ opacity: 0, scale: 0.95, filter: "blur(4px)" }}
-																animate={{ opacity: 1, scale: 1, filter: "blur(0px)" }}
-																exit={{ opacity: 0, scale: 1.05, filter: "blur(4px)" }}
+																initial={{ opacity: 0, scale: 0.95 }}
+																animate={{ opacity: 1, scale: 1 }}
+																exit={{ opacity: 0, scale: 1.05 }}
 																className="power-pulse-content"
 															>
 																<GreenDownArrowIcon />
@@ -4546,9 +4546,9 @@ function App() {
 														) : (
 															<motion.div
 																key="pulse-view"
-																initial={{ opacity: 0, scale: 0.95, filter: "blur(4px)" }}
-																animate={{ opacity: 1, scale: 1, filter: "blur(0px)" }}
-																exit={{ opacity: 0, scale: 1.05, filter: "blur(4px)" }}
+																initial={{ opacity: 0, scale: 0.95 }}
+																animate={{ opacity: 1, scale: 1 }}
+																exit={{ opacity: 0, scale: 1.05 }}
 																className="power-pulse-content"
 															>
 																{updateAvailable && <GreenDownArrowIcon />}
@@ -5004,7 +5004,7 @@ function App() {
 											}}
 											initial={{ opacity: 0 }}
 											animate={{ opacity: 1 }}
-											exit={{ opacity: 0, filter: "blur(4px)", transition: { duration: 0.12 } }}
+											exit={{ opacity: 0, transition: { duration: 0.12 } }}
 											transition={{ duration: 0.2 }}
 										>
 											<DeviceArt
