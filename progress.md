@@ -401,3 +401,12 @@ Next ideas (not started): Tools-list headings "In your notch" / "Available" are 
 - Evidence: the recording and a frame from the friend (0.2.5): black pieces beside the pill, a wide top strip over a narrower square body while opening. Frame-by-frame measuring of the video showed ~7-10 distinct frames per second and a strip wider than the body by exactly the flare width.
 - Rule from the user: do NOT touch anything that fixed the white box (window region, REGION lag, erase fill, repaint); target machines are 16 GB laptops, so no "slow PC" modes. Page-only fix (0.2.6): shell springs calmer for everyone (open bounce 0.4 to 0.12, close 0.15 to 0, in-open resize 0.3 to 0.1), status widgets fade in after a 140 ms delay and leave at once (no labels hanging outside a narrow pill), body fade 0.16 s ease-out. If black pieces still show: second step on a new branch (how the notch is clipped while it animates; also consider that a 144 Hz screen makes the per-frame region updates 2.4x more frequent).
 - If this is not enough: new branch, change how the notch is clipped while it animates (the user agreed to try that only after this).
+
+## 2026-11-25: animation pass 1 (branch `perf/animation-pass-1`, NOT merged, no release yet)
+Five isolated commits (user's research brief: page-level only, white-box code untouched, one change per commit so each can be measured or reverted alone):
+1. no animated blur on the small notices entering the notch (file status, copied, update, power);
+2. the notch shell lost its blur filter (blur(0px) at rest, blur(8px) when hiding; hiding is opacity only);
+3. the 11 `transition: all` rules (Dock.css, Settings.css) name their properties;
+4. CSS loops pause while the notch is hidden (`data-anim-paused` on the root, App.css);
+5. Windows reduced motion: notch shell and dock use a short ease, no widget delay, timer pulse still. The marquees and the signature beam (`fx-beam`) are deliberately left alone. The user's own Animations setting (bloom-motion) is separate and unchanged (earlier decision 2026-11-15: animations stay on whatever Windows says; this only softens them).
+To measure (needs the user): idle RAM/CPU, 10 open/close cycles, rapid tab switching, a 30-minute run, the friend's Victus. Release candidate only after those pass. Next, only on another branch: cap or coalesce the notch's per-frame region updates (a hard 60 Hz cap can judder on 144 Hz: test, do not assume).
