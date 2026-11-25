@@ -2390,3 +2390,11 @@ button.calendar-day:focus-visible {
 	background: var(--bloom-group-bg, rgba(255, 255, 255, 0.12));
 	color: var(--bloom-text, white);
 }
+
+/* Hidden notch (smart or peek mode, set from App.tsx): no CSS loop keeps
+   running behind the scenes. */
+:root[data-anim-paused] *,
+:root[data-anim-paused] *::before,
+:root[data-anim-paused] *::after {
+	animation-play-state: paused !important;
+}

@@ -1017,6 +1017,12 @@ function App() {
 			invoke("set_notch_visible", { visible: isVisible && !isHidden }).catch(() => {});
 		}
 	}, [isVisible, isHidden, windowLabel]);
+	// A notch that is hidden (smart/peek) keeps no CSS loop running (marquees,
+	// pulses, spinners): App.css pauses them while this flag is set.
+	useEffect(() => {
+		if (windowLabel !== "main") return;
+		document.documentElement.toggleAttribute("data-anim-paused", !(isVisible && !isHidden));
+	}, [isVisible, isHidden, windowLabel]);
 
 	useEffect(() => {
 		const updateRect = () => {
