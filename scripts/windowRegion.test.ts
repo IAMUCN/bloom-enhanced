@@ -2,6 +2,7 @@ import { describe, expect, test } from "bun:test";
 import {
 	clipToWindow,
 	createRegionSender,
+	followShrink,
 	nextRegion,
 	notchPillBox,
 	padRect,
@@ -118,5 +119,21 @@ describe("window region", () => {
 		const b = nextRegion(a.state, rects, 50, 700, 1.5);
 		expect(b.changed).toBe(true);
 		expect(b.rects).toEqual(rects);
+	});
+});
+
+describe("followShrink", () => {
+	const pill = (w: number) => ({ x: 100, y: 0, width: w, height: 40 });
+	test("a late bigger pill is cut to the newest, smaller one", () => {
+		expect(followShrink([pill(300)], [pill(260)])[0].width).toBe(260);
+	});
+	test("a late smaller pill (growing) keeps its lag", () => {
+		expect(followShrink([pill(200)], [pill(300)])[0].width).toBe(200);
+	});
+	test("rectangles after the first two, and a different count, are left alone", () => {
+		const a = [pill(300), pill(300), { x: 0, y: 0, width: 50, height: 20 }];
+		const b = [pill(260), pill(260), { x: 40, y: 0, width: 50, height: 20 }];
+		expect(followShrink(a, b)[2]).toEqual(a[2]);
+		expect(followShrink(a, b.slice(0, 2))).toBe(a);
 	});
 });

@@ -10,6 +10,7 @@ import { trace } from "./trace";
 import { batteryTooltip, type BatteryDetails } from "./batteryTooltip";
 import {
 	createRegionSender,
+	followShrink,
 	measureElements,
 	notchPillBox,
 	type RegionRect
@@ -927,7 +928,7 @@ function App() {
 		let idx = -1;
 		for (let i = 0; i < q.length; i++) if (q[i].t <= due) idx = i;
 		if (idx >= 0) {
-			sendNotchRegion(q[idx].rects);
+			sendNotchRegion(followShrink(q[idx].rects, q[q.length - 1].rects));
 			q.splice(0, idx); // keeps the one just sent as the marker
 		}
 		if (q.some((e) => e.t > due)) regionRaf.current = requestAnimationFrame(flushRegion);

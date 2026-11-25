@@ -6,6 +6,29 @@ export interface RegionRect {
 	height: number;
 }
 
+/**
+ * The notch's region is applied a little late (so it never shows a frame the
+ * page has not painted yet). That is right while the pill grows, but when it
+ * shrinks (the spring's overshoot settling back, or closing) the late region is
+ * still the bigger size, and the extra area shows as black pieces beside the
+ * notch. So the first two rectangles (the pill and its flare strip) never go
+ * beyond the newest measured ones: growth keeps its lag, shrink follows at once
+ * (it clips at most the compositor's last frame or two of the old size, which
+ * is black beside black). Rectangles that move, such as bubbles, keep the lag.
+ */
+export function followShrink(lagged: RegionRect[], newest: RegionRect[]): RegionRect[] {
+	if (lagged.length !== newest.length) return lagged;
+	return lagged.map((r, i) => {
+		if (i > 1) return r;
+		const n = newest[i];
+		const x = Math.max(r.x, n.x);
+		const y = Math.max(r.y, n.y);
+		const width = Math.min(r.x + r.width, n.x + n.width) - x;
+		const height = Math.min(r.y + r.height, n.y + n.height) - y;
+		return width > 0 && height > 0 ? { x, y, width, height } : r;
+	});
+}
+
 /** An earlier region kept until an animation away from it has settled. */
 export interface HeldRegion {
 	rects: RegionRect[];
