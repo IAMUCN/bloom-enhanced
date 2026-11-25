@@ -128,6 +128,8 @@ export async function applyTheme(
 	root.style.setProperty("--cc-on-soft", readableOn(cc) === "#000" ? "rgba(0,0,0,0.65)" : "rgba(255,255,255,0.85)");
 	// Animations off freezes the effects (effects.css).
 	root.classList[localStorage.getItem("bloom-motion") === "off" ? "add" : "remove"]("fx-off");
+	// Reduce Motion (Settings › General): CSS can follow it too.
+	root.classList[localStorage.getItem("bloom-reduce-motion") === "true" ? "add" : "remove"]("reduce-motion");
 
 	if (opacity === undefined || opacity === null) {
 		const cachedOpacity = localStorage.getItem("bloom-theme-opacity");
@@ -269,6 +271,8 @@ const THEME_DEFAULTS: Record<string, string> = {
 	"bloom-cc-accent": "",
 	// Re-applies the theme so effects freeze/resume (effects.css).
 	"bloom-motion": "on",
+	// Same: re-applies the reduce-motion class.
+	"bloom-reduce-motion": "false",
 	// Solid black by default (design: Glass is opt-in).
 	"bloom-theme-opacity": "1",
 	"bloom-theme-saturation": "0.5",

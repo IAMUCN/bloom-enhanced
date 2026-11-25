@@ -1,4 +1,5 @@
-import { motion, AnimatePresence, MotionConfig, useAnimation, useReducedMotion } from "framer-motion";
+import { motion, AnimatePresence, MotionConfig, useAnimation } from "framer-motion";
+import { useReduceMotion } from "./reduceMotion";
 import { useEffect, useLayoutEffect, useState, useCallback, useMemo, useRef, memo } from "react";
 import { listen } from "@tauri-apps/api/event";
 import { invoke } from "@tauri-apps/api/core";
@@ -3671,9 +3672,11 @@ function App() {
 	// was still the bigger size, and the gap showed as black pieces beside the
 	// notch on a friend's laptop (2026-11-24). A hint of life stays (0.1 to 0.12).
 	// The window region itself is not touched.
-	// Windows asks for reduced motion: a short ease in place of every spring.
-	const osReduce = useReducedMotion();
-	const shellSpring = osReduce
+	// Reduce Motion (Settings › General), or Battery saver's calmer motion: a
+	// short ease in place of every spring. Not Windows' own setting.
+	const reduceMotion = useReduceMotion();
+	const calm = reduceMotion || (saverOn && saverPauses.motion);
+	const shellSpring = calm
 		? { duration: 0.15, ease: "easeOut" as const }
 		: isOpen && !wasOpen.current
 			? { type: "spring" as const, visualDuration: 0.4, bounce: 0.12 }
@@ -4278,7 +4281,7 @@ function App() {
 
 	return (
 		<MotionConfig
-			reducedMotion={(saverOn && saverPauses.motion) || motionPref === "off" ? "always" : "never"}
+			reducedMotion={calm || motionPref === "off" ? "always" : "never"}
 		>
 		<div className="screen" style={{ overflow: "hidden" }}>
 			<div
@@ -4618,7 +4621,7 @@ function App() {
 																		// Arrive once the shell has mostly grown (a short delay), leave at once:
 																		// the labels never hang outside a still-narrow pill.
 																		initial={{ opacity: 0 }}
-																		animate={{ opacity: 1, transition: { duration: 0.2, delay: osReduce ? 0 : 0.14, ease: "easeOut" } }}
+																		animate={{ opacity: 1, transition: { duration: 0.2, delay: calm ? 0 : 0.14, ease: "easeOut" } }}
 																		exit={{ opacity: 0, transition: { duration: 0.1 } }}
 																	>
 																		{statusWidgets.left.map(renderStatusWidget)}
@@ -4820,7 +4823,7 @@ function App() {
 																		className="passive-features-group"
 																		style={{ zoom: rightSize }}
 																		initial={{ opacity: 0 }}
-																		animate={{ opacity: 1, transition: { duration: 0.2, delay: osReduce ? 0 : 0.14, ease: "easeOut" } }}
+																		animate={{ opacity: 1, transition: { duration: 0.2, delay: calm ? 0 : 0.14, ease: "easeOut" } }}
 																		exit={{ opacity: 0, transition: { duration: 0.1 } }}
 																	>
 																		{statusWidgets.right.map(renderStatusWidget)}

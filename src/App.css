@@ -2399,11 +2399,8 @@ button.calendar-day:focus-visible {
 	animation-play-state: paused !important;
 }
 
-/* Windows asks for reduced motion: the finished-timer pulse stands still
-   (the shell and the dock use a short ease; the app's own Animations
-   setting is separate). */
-@media (prefers-reduced-motion: reduce) {
-	.timer-section-new.state-finished .timer-clock {
-		animation: none;
-	}
+/* Reduce Motion (Settings > General, class set by theme.ts): the finished-timer
+   pulse stands still. The shell and the dock use a short ease (App.tsx, Dock.tsx). */
+:root.reduce-motion .timer-section-new.state-finished .timer-clock {
+	animation: none;
 }

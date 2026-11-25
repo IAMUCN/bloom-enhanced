@@ -1,10 +1,35 @@
 import { useState } from "react";
-import { Power, Download, Clock, BatteryWarning, RefreshCw, RotateCcw, LogOut, FileDown, Upload, Wand2, Gauge, Leaf, AudioLines, Sparkles, UserRound } from "lucide-react";
+import { Power, Download, Clock, BatteryWarning, RefreshCw, RotateCcw, LogOut, FileDown, Upload, Wand2, Gauge, Leaf, AudioLines, Sparkles, UserRound, Accessibility } from "lucide-react";
 import { invoke } from "@tauri-apps/api/core";
 import { Choice } from "./Choice";
 import { SettingRow } from "./SettingRow";
 import { HideFromCaptureRow } from "./HideFromCaptureRow";
 import { Section } from "./Section";
+
+/** Reduce Motion (`bloom-reduce-motion`, off by default): springs become a short ease
+ *  everywhere (notch, dock, shelf, radial menu), nothing bounces. Its own
+ *  preference: it does not follow Windows' "Animation effects". */
+function ReduceMotion({ saveSetting }: { saveSetting: (key: string, value: string | null) => Promise<boolean> }) {
+	const [on, setOn] = useState(() => localStorage.getItem("bloom-reduce-motion") === "true");
+	return (
+		<Section title="Motion">
+			<SettingRow icon={Accessibility} label="Reduce Motion" desc="Shorter, simpler animations: no springs, bounce or overshoot, in the notch, dock, shelf and menus" divider={false}>
+				<label className="toggle-switch">
+					<input
+						type="checkbox"
+						checked={on}
+						onChange={() => {
+							const next = !on;
+							setOn(next);
+							saveSetting("bloom-reduce-motion", String(next));
+						}}
+					/>
+					<span className="slider"></span>
+				</label>
+			</SettingRow>
+		</Section>
+	);
+}
 
 type Pauses = { visualizer: boolean; motion: boolean };
 const PAUSES: [keyof Pauses, typeof Leaf, string, string][] = [
@@ -196,6 +221,8 @@ export function GeneralTab({
 					/>
 				</SettingRow>
 			</Section>
+
+			<ReduceMotion saveSetting={saveSetting} />
 
 			<Section title="Privacy: leave out of recordings, screen shares and screenshots">
 				<HideFromCaptureRow label="Hide the Notch" settingKey="bloom-notch-hide-from-capture" byDefault what="the notch (and the Shelf inside it)" />

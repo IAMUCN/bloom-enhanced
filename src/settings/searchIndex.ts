@@ -28,6 +28,7 @@ export const SETTINGS_INDEX: SettingEntry[] = [
 		["Turn On Below", "Battery level that turns Battery saver on"],
 		["Pause Visualizer", "Battery saver stops listening to audio for the music bars"],
 		["Calmer Motion", "Battery saver uses shorter, simpler animations"],
+		["Reduce Motion", "Shorter, simpler animations: no springs, bounce or overshoot, in the notch, dock, shelf and menus"],
 		["Keep Windows Loaded", "Settings, the radial menu and the shelf open instantly but use more memory"],
 		["Low Memory Mode", "Share one web engine process between the notch, dock, shelf and Settings to use about 75 MB less"],
 		["Hide the Notch", "Recordings, screen shares and screenshots leave the notch out"],

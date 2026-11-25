@@ -1,5 +1,6 @@
 import { useState, useEffect, useLayoutEffect, useMemo, useRef, memo } from "react";
-import { motion, AnimatePresence, Reorder, useReducedMotion } from "framer-motion";
+import { motion, AnimatePresence, Reorder } from "framer-motion";
+import { useReduceMotion } from "./reduceMotion";
 import { invoke } from "@tauri-apps/api/core";
 import { listen } from "@tauri-apps/api/event";
 import { getCurrentWebview } from "@tauri-apps/api/webview";
@@ -241,8 +242,8 @@ const Dock = memo(function Dock() {
 	const iconPickerTargetRef = useRef<string | null>(null);
 	const toastTimerRef = useRef<any>(null);
 	const dockRef = useRef<HTMLDivElement>(null);
-	// Windows asks for reduced motion: the dock settles in a short ease, with no spring.
-	const osReduce = useReducedMotion();
+	// Reduce Motion (Settings › General): the dock settles in a short ease, with no spring.
+	const reduceMotion = useReduceMotion();
 	// First-run setup, "Size the dock" page: the white beam runs round the dock
 	// (the same outline as the notch's, turned upside down) while it is sized.
 	const [setupDock, setSetupDock] = useState(false);
@@ -1413,7 +1414,7 @@ const Dock = memo(function Dock() {
 						opacity: isVisible ? 1 : 0,
 						scale: scale
 					}}
-					transition={osReduce ? { duration: 0.15, ease: "easeOut" } : {
+					transition={reduceMotion ? { duration: 0.15, ease: "easeOut" } : {
 						y: { type: "spring", stiffness: 400, damping: 35, mass: 0.8 },
 						width: { type: "spring", stiffness: 250, damping: 22, mass: 0.8 },
 						height: { type: "spring", stiffness: 250, damping: 22, mass: 0.8 },
