@@ -8,7 +8,8 @@ import {
 	PanelLeft,
 	PanelRight,
 	Star,
-	History
+	History,
+	Moon
 } from "lucide-react";
 import { useState } from "react";
 import { SettingRow } from "./SettingRow";
@@ -78,6 +79,38 @@ const QUICK_RETURN = [
 	["15", "15 min"],
 	["30", "30 min"]
 ] as const;
+
+const IDLE_FADE = [
+	["2", "2 min"],
+	["5", "5 min"],
+	["10", "10 min"],
+	["off", "Never"]
+] as const;
+
+/** Fixed notch only: how long it sits untouched before it dims to 40 % (`bloom-notch-idle-fade`). */
+function IdleFadeRow({ saveSetting }: { saveSetting: (key: string, value: string | null) => Promise<boolean> }) {
+	const [fade, setFade] = useState(() => {
+		const v = localStorage.getItem("bloom-notch-idle-fade");
+		return v === "off" || v === "5" || v === "10" ? v : "2";
+	});
+	return (
+		<SettingRow
+			icon={Moon}
+			label="Fade When Idle"
+			desc={fade === "off" ? "Never: the notch stays fully dark" : `Dims to 40% after ${fade} minutes untouched; any use or notice brings it back`}
+		>
+			<Choice
+				value={fade}
+				options={IDLE_FADE}
+				onChange={(v) => {
+					setFade(v);
+					saveSetting("bloom-notch-idle-fade", v);
+				}}
+				label="Fade when idle"
+			/>
+		</SettingRow>
+	);
+}
 
 function OpeningRows({ saveSetting }: { saveSetting: (key: string, value: string | null) => Promise<boolean> }) {
 	const [favOn, setFavOn] = useState(() => localStorage.getItem("bloom-notch-favourite-on") !== "false");
@@ -381,6 +414,8 @@ export function NotchTab({
 								label="When the notch shows"
 							/>
 						</SettingRow>
+
+						{notchMode === "fixed" && <IdleFadeRow saveSetting={saveSetting} />}
 
 						{notchMode !== "fixed" && (
 							<SettingRow

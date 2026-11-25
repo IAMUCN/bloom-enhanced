@@ -58,6 +58,7 @@ export const SETTINGS_INDEX: SettingEntry[] = [
 		["Notch Display", "Which screen the notch sits on; Primary follows Windows' main display"],
 		["Open On", "Click or hover opens the notch"],
 		["Hover Delay", "How long to rest on the notch before it opens"],
+		["Fade When Idle", "A Fixed notch dims after 2, 5 or 10 minutes untouched, or never"],
 		["Peek Delay", "How long to rest on the top edge before it shows"],
 		["Style", "Notch, floating pill or minimal bar"],
 		["Notch Size", "Size of the notch only; the dock keeps its own"],

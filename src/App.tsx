@@ -61,6 +61,8 @@ const CC_VARIANTS = {
 	exit: (c: number | "list") => (c === "list" ? CC_EXIT : BODY_VARIANTS.exit(c))
 };
 
+/** `bloom-notch-idle-fade`: minutes before an idle Fixed notch dims (2, 5 or 10); `off` = never. */
+const parseIdleFade = (v: unknown): number => (v === "off" ? 0 : [2, 5, 10].includes(Number(v)) ? Number(v) : 2);
 type MotionPref = "on" | "off";
 const asMotionPref = (v: unknown): MotionPref => (v === "off" ? "off" : "on");
 
@@ -1678,6 +1680,7 @@ function App() {
 			"bloom-notch-favourite-on": (v: unknown) => setFavouriteOn(v !== false && v !== "false"),
 			"bloom-notch-favourite": (v: unknown) => setFavourite(String(v)),
 			"bloom-notch-quick-return": (v: unknown) => setQuickReturnMin(Number(v) || 0),
+			"bloom-notch-idle-fade": (v: unknown) => setIdleFadeMin(parseIdleFade(v)),
 			"bloom-game-glance": (v: unknown) => setGameGlance(v === "on"),
 			"bloom-notch-enabled": (v: unknown) => setNotchOn(v !== "false" && v !== false),
 			"bloom-tab-order": setTabOrder,
@@ -3568,13 +3571,16 @@ function App() {
 	// hovered, nothing happening), it fades to 40% so it sits back; any use
 	// (or a Copied / power / update notice) brings it back at once.
 	const [idleFaded, setIdleFaded] = useState(false);
+	// Settings > Notch > Fade When Idle: minutes before the fade (`off` = never).
+	const [idleFadeMin, setIdleFadeMin] = useState(() => parseIdleFade(localStorage.getItem("bloom-notch-idle-fade")));
 	useEffect(() => {
 		setIdleFaded(false);
+		if (idleFadeMin === 0) return;
 		const alerting = showCopyPulse || showPowerPulse || showLowBatteryPulse || showUpdatePulse;
 		if (notchMode !== "fixed" || isOpen || isHovered || fileStatus || isDragHovering || alerting) return;
-		const t = setTimeout(() => setIdleFaded(true), 10000);
+		const t = setTimeout(() => setIdleFaded(true), idleFadeMin * 60_000);
 		return () => clearTimeout(t);
-	}, [notchMode, isOpen, isHovered, fileStatus, isDragHovering, bloomMode, showCopyPulse, showPowerPulse, showLowBatteryPulse, showUpdatePulse]);
+	}, [notchMode, isOpen, isHovered, fileStatus, isDragHovering, bloomMode, showCopyPulse, showPowerPulse, showLowBatteryPulse, showUpdatePulse, idleFadeMin]);
 
 	// Notch style (Settings > Notch > Style). "pill" floats below the edge
 	// with no flares; "minimal" shrinks the idle notch to a thin bar that shows
