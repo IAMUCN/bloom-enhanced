@@ -85,6 +85,7 @@ function OverlayApp() {
 				invoke("set_splash_fullscreen", { fullscreen: false });
 			}
 		});
+		autoUpdatePromise.then(() => invoke("overlay_ready").catch(() => {}));
 		return () => {
 			autoUpdatePromise.then((fn) => fn());
 			document.removeEventListener("contextmenu", preventContext);

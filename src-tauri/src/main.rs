@@ -369,6 +369,7 @@ fn main() {
             updater::check_for_updates,
             updater::install_update,
             updater::get_update_state,
+            updater::overlay_ready,
             dock_extras::get_dock_extras,
             dock_extras::open_dock_extra,
             dock_extras::eject_dock_extra,

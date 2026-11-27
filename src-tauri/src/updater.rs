@@ -1,19 +1,18 @@
 use std::path::PathBuf;
-use std::sync::atomic::{AtomicBool, AtomicU64, Ordering};
+use std::sync::atomic::{AtomicBool, AtomicU32, AtomicU64, Ordering};
 use std::sync::{Arc, Mutex};
-use std::time::{Duration, SystemTime, UNIX_EPOCH};
+use std::time::{Duration, Instant, SystemTime, UNIX_EPOCH};
 
 use serde::{Deserialize, Serialize};
 use tauri::{AppHandle, Emitter, Manager};
-use tauri_plugin_updater::UpdaterExt;
+use tauri_plugin_updater::{Update, Updater, UpdaterExt};
 
 /// Minimum time between background update checks. Manual checks bypass this.
 const CHECK_INTERVAL_SECS: i64 = 24 * 60 * 60;
-/// Network timeout for a single manifest request. Generous on purpose: a
-/// stalled TCP connect to github.com can burn ~21s in SYN retries before
-/// succeeding, and the previous 10s cap made every check time out on such
-/// routes (no update found / no badge).
-const CHECK_TIMEOUT_SECS: u64 = 60;
+/// Total timeout for a single metadata check (manifest + redirect).
+const CHECK_TIMEOUT_SECS: u64 = 20;
+/// Minimum interval between download progress IPC events (~10 events/sec max).
+const PROGRESS_THROTTLE_MS: u128 = 100;
 /// A release must be at least this old before auto-update installs it, so a
 /// broken release cannot reach everyone within minutes of being published.
 const MIN_AUTO_INSTALL_AGE_SECS: i64 = 24 * 60 * 60;
@@ -23,10 +22,17 @@ const MIN_AUTO_INSTALL_AGE_SECS: i64 = 24 * 60 * 60;
 const AUTO_INSTALL_RETRY_SECS: i64 = 24 * 60 * 60;
 const STATE_FILE: &str = "update-state.json";
 
-/// Serializes manifest requests so concurrent callers share a single network hit.
-static CHECK_LOCK: tokio::sync::Mutex<()> = tokio::sync::Mutex::const_new(());
+/// Serializes background metadata checks without blocking user-initiated checks or installs.
+static BG_CHECK_LOCK: tokio::sync::Mutex<()> = tokio::sync::Mutex::const_new(());
+/// Prevents concurrent manual checks from duplicating network requests.
+static MANUAL_CHECK_LOCK: tokio::sync::Mutex<()> = tokio::sync::Mutex::const_new(());
 static UPDATE_BUSY: AtomicBool = AtomicBool::new(false);
 static LAST_CHECK: Mutex<Option<UpdateCheckResult>> = Mutex::new(None);
+/// Cached `Update` from the most recent check so `install` skips a second network check.
+static PENDING_UPDATE: Mutex<Option<Update>> = Mutex::new(None);
+/// Overlay readiness signal so `show_update_screen` avoids an arbitrary 1500ms sleep.
+static OVERLAY_READY: AtomicBool = AtomicBool::new(false);
+static OVERLAY_NOTIFY: tokio::sync::Notify = tokio::sync::Notify::const_new();
 
 #[derive(Clone, Default, Serialize)]
 pub struct UpdateCheckResult {
@@ -133,6 +139,36 @@ fn install_attempted_recently(state: &PersistedUpdateState, version: &str, now: 
         && now - state.attempted_at < AUTO_INSTALL_RETRY_SECS
 }
 
+fn build_updater(app: &AppHandle) -> Result<Updater, String> {
+    let hook_handle = app.clone();
+    app.updater_builder()
+        .on_before_exit(move || {
+            // The installer exits the process without going through
+            // restore_taskbar_and_exit, so do the same teardown here.
+            crate::state::SHUTTING_DOWN.store(true, Ordering::Relaxed);
+            crate::commands::release_appbars(&hook_handle);
+            crate::utils::set_taskbar_visibility(true, true);
+            crate::services::set_native_osd_suppressed(false);
+            let _ = hook_handle.emit(
+                "auto-update-status",
+                serde_json::json!({ "status": "installing" }),
+            );
+            hook_handle.cleanup_before_exit();
+        })
+        .build()
+        .map_err(|e| e.to_string())
+}
+
+/// Decides whether a download progress IPC event should be emitted for this chunk.
+/// Emits on integer percentage change when at least `PROGRESS_THROTTLE_MS` has
+/// elapsed, and always emits `100%` when reached.
+fn should_emit_progress(last_pct: u32, new_pct: u32, elapsed_ms: u128) -> bool {
+    if new_pct == last_pct {
+        return false;
+    }
+    new_pct >= 100 || elapsed_ms >= PROGRESS_THROTTLE_MS
+}
+
 /// Checks for an update at most once per `CHECK_INTERVAL_SECS` unless `force`
 /// is set. Development builds skip the automatic network check because their
 /// version never tracks releases; manual checks still work.
@@ -147,20 +183,34 @@ pub async fn check(app: &AppHandle, force: bool) -> Result<UpdateCheckResult, St
         }
     }
 
-    let _guard = CHECK_LOCK.lock().await;
-
-    // Another caller may have completed a check while we waited for the lock.
-    if !force {
+    // Manual checks use MANUAL_CHECK_LOCK so they never block behind a stalled
+    // background check; background checks use BG_CHECK_LOCK.
+    let _bg_guard;
+    let _manual_guard;
+    if force {
+        _manual_guard = MANUAL_CHECK_LOCK.lock().await;
+    } else {
+        _bg_guard = BG_CHECK_LOCK.lock().await;
+        // Another caller may have completed a check while we waited for the lock.
         if let Some(cached) = cached_result(app) {
             return Ok(cached);
         }
     }
 
-    let updater = app.updater().map_err(|e| e.to_string())?;
+    let started = Instant::now();
+    let updater = build_updater(app)?;
     let update = tokio::time::timeout(Duration::from_secs(CHECK_TIMEOUT_SECS), updater.check())
         .await
         .map_err(|_| "update check timed out".to_string())?
         .map_err(|e| e.to_string())?;
+    crate::diagnostics::record(
+        "updater_check",
+        &format!(
+            "force={force} available={} ms={}",
+            update.is_some(),
+            started.elapsed().as_millis()
+        ),
+    );
 
     let result = match &update {
         Some(update) => UpdateCheckResult {
@@ -175,6 +225,9 @@ pub async fn check(app: &AppHandle, force: bool) -> Result<UpdateCheckResult, St
         },
         None => UpdateCheckResult::default(),
     };
+    if let Ok(mut pending) = PENDING_UPDATE.lock() {
+        *pending = update;
+    }
 
     let previous = read_state(app);
     write_state(
@@ -204,39 +257,31 @@ pub async fn install(app: &AppHandle) -> Result<(), String> {
     if UPDATE_BUSY.swap(true, Ordering::SeqCst) {
         return Err("an update is already in progress".to_string());
     }
-    let result = install_inner(app).await;
-    UPDATE_BUSY.store(false, Ordering::SeqCst);
-    result
+    struct BusyGuard;
+    impl Drop for BusyGuard {
+        fn drop(&mut self) {
+            UPDATE_BUSY.store(false, Ordering::SeqCst);
+        }
+    }
+    let _busy_guard = BusyGuard;
+    install_inner(app).await
 }
 
 async fn install_inner(app: &AppHandle) -> Result<(), String> {
-    // Hold the check lock so a concurrent check cannot mutate state mid-install.
-    let _guard = CHECK_LOCK.lock().await;
-
-    let hook_handle = app.clone();
-    let updater = app
-        .updater_builder()
-        .on_before_exit(move || {
-            // The installer exits the process without going through
-            // restore_taskbar_and_exit, so do the same teardown here.
-            crate::state::SHUTTING_DOWN.store(true, Ordering::Relaxed);
-            crate::commands::release_appbars(&hook_handle);
-            crate::utils::set_taskbar_visibility(true, true);
-            crate::services::set_native_osd_suppressed(false);
-            let _ = hook_handle.emit(
-                "auto-update-status",
-                serde_json::json!({ "status": "installing" }),
-            );
-            hook_handle.cleanup_before_exit();
-        })
-        .build()
-        .map_err(|e| e.to_string())?;
-
-    let update = updater
-        .check()
-        .await
-        .map_err(|e| e.to_string())?
-        .ok_or_else(|| "no update available".to_string())?;
+    // Reuse the Update object fetched by the preceding check() when available,
+    // avoiding a redundant metadata round-trip to GitHub.
+    let cached_update = PENDING_UPDATE.lock().ok().and_then(|mut g| g.take());
+    let update = match cached_update {
+        Some(u) => u,
+        None => {
+            let updater = build_updater(app)?;
+            tokio::time::timeout(Duration::from_secs(CHECK_TIMEOUT_SECS), updater.check())
+                .await
+                .map_err(|_| "update check timed out".to_string())?
+                .map_err(|e| e.to_string())?
+                .ok_or_else(|| "no update available".to_string())?
+        }
+    };
 
     show_update_screen(app).await;
     let _ = app.emit(
@@ -247,6 +292,9 @@ async fn install_inner(app: &AppHandle) -> Result<(), String> {
     let progress_handle = app.clone();
     let downloaded = Arc::new(AtomicU64::new(0));
     let downloaded_cb = downloaded.clone();
+    let last_pct = Arc::new(AtomicU32::new(0));
+    let last_pct_cb = last_pct.clone();
+    let last_emit = Arc::new(Mutex::new(Instant::now()));
     let bytes = update
         .download(
             move |chunk_len, total| {
@@ -254,11 +302,22 @@ async fn install_inner(app: &AppHandle) -> Result<(), String> {
                     downloaded_cb.fetch_add(chunk_len as u64, Ordering::Relaxed) + chunk_len as u64;
                 if let Some(total) = total {
                     if total > 0 {
-                        let progress = (current.saturating_mul(100) / total) as u32;
-                        let _ = progress_handle.emit(
-                            "auto-update-status",
-                            serde_json::json!({ "status": "downloading", "progress": progress }),
-                        );
+                        let progress = ((current.saturating_mul(100)) / total).min(100) as u32;
+                        let prev = last_pct_cb.load(Ordering::Relaxed);
+                        let elapsed = last_emit
+                            .lock()
+                            .map(|t| t.elapsed().as_millis())
+                            .unwrap_or(PROGRESS_THROTTLE_MS);
+                        if should_emit_progress(prev, progress, elapsed) {
+                            last_pct_cb.store(progress, Ordering::Relaxed);
+                            if let Ok(mut t) = last_emit.lock() {
+                                *t = Instant::now();
+                            }
+                            let _ = progress_handle.emit(
+                                "auto-update-status",
+                                serde_json::json!({ "status": "downloading", "progress": progress }),
+                            );
+                        }
                     }
                 }
             },
@@ -266,6 +325,14 @@ async fn install_inner(app: &AppHandle) -> Result<(), String> {
         )
         .await
         .map_err(|e| e.to_string())?;
+
+    // Guarantee the final 100% progress event is emitted even if `total` was None.
+    if last_pct.swap(100, Ordering::Relaxed) < 100 {
+        let _ = app.emit(
+            "auto-update-status",
+            serde_json::json!({ "status": "downloading", "progress": 100 }),
+        );
+    }
 
     // Record the attempt before the installer is launched: on Windows the
     // process exits from inside `install`, so a failed install would otherwise
@@ -294,16 +361,28 @@ async fn install_inner(app: &AppHandle) -> Result<(), String> {
     Ok(())
 }
 
+/// Marks the overlay window's `auto-update-status` listener as ready.
+#[tauri::command]
+pub fn overlay_ready() {
+    OVERLAY_READY.store(true, Ordering::Release);
+    OVERLAY_NOTIFY.notify_waiters();
+}
+
+/// Resets overlay readiness when the overlay window is destroyed.
+pub fn reset_overlay_ready() {
+    OVERLAY_READY.store(false, Ordering::Release);
+}
+
 /// The update screen lives in the overlay window, which only exists while it
-/// is needed: create it and give its page time to start listening.
+/// is needed: create it and wait for `overlay_ready` (bounded by 2s timeout).
 async fn show_update_screen(app: &AppHandle) {
     let handle = app.clone();
-    let _ = tauri::async_runtime::spawn_blocking(move || {
-        if crate::commands::ensure_overlay(&handle) {
-            std::thread::sleep(Duration::from_millis(1500));
-        }
-    })
-    .await;
+    let created = tauri::async_runtime::spawn_blocking(move || crate::commands::ensure_overlay(&handle))
+        .await
+        .unwrap_or(false);
+    if created || !OVERLAY_READY.load(Ordering::Acquire) {
+        let _ = tokio::time::timeout(Duration::from_secs(2), OVERLAY_NOTIFY.notified()).await;
+    }
 }
 
 /// Startup entry point: always checks so the UI can show an update badge, and
@@ -431,9 +510,11 @@ fn days_from_civil(year: i64, month: i64, day: i64) -> i64 {
 #[cfg(test)]
 mod tests {
     use super::{
-        days_from_civil, install_attempted_recently, parse_rfc3339_utc, state_is_current,
-        PersistedUpdateState,
+        days_from_civil, install_attempted_recently, overlay_ready, parse_rfc3339_utc,
+        reset_overlay_ready, should_emit_progress, state_is_current, PersistedUpdateState,
+        OVERLAY_READY, PROGRESS_THROTTLE_MS,
     };
+    use std::sync::atomic::Ordering;
 
     #[test]
     fn parses_tauri_action_pub_date() {
@@ -503,5 +584,27 @@ mod tests {
 
         assert!(state_is_current(&state, "3.8.7"));
         assert!(!state_is_current(&state, "3.9.1"));
+    }
+
+    #[test]
+    fn throttles_progress_events_and_always_emits_100() {
+        // Same percentage is never re-emitted.
+        assert!(!should_emit_progress(10, 10, PROGRESS_THROTTLE_MS + 50));
+        // Percentage change before throttle window is suppressed (unless 100%).
+        assert!(!should_emit_progress(10, 11, PROGRESS_THROTTLE_MS - 1));
+        // Percentage change at or past throttle window is emitted.
+        assert!(should_emit_progress(10, 11, PROGRESS_THROTTLE_MS));
+        // 100% is always emitted regardless of elapsed time.
+        assert!(should_emit_progress(99, 100, 0));
+    }
+
+    #[test]
+    fn overlay_ready_flag_toggles_cleanly() {
+        reset_overlay_ready();
+        assert!(!OVERLAY_READY.load(Ordering::Acquire));
+        overlay_ready();
+        assert!(OVERLAY_READY.load(Ordering::Acquire));
+        reset_overlay_ready();
+        assert!(!OVERLAY_READY.load(Ordering::Acquire));
     }
 }

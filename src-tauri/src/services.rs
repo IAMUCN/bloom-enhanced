@@ -4828,6 +4828,8 @@ fn recover_single_window(handle: &AppHandle, label: &str) {
             "orbit" | "clipshelf" | "settings" | "overlay" => {
                 if label == "orbit" {
                     crate::orbit::reset_state();
+                } else if label == "overlay" {
+                    crate::updater::reset_overlay_ready();
                 }
                 if let Some(win) = handle.get_webview_window(&label) {
                     let _ = win.destroy();

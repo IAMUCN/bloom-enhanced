@@ -2447,6 +2447,9 @@ pub async fn show_splash_overlay(app: AppHandle) {
 #[tauri::command]
 pub fn hide_overlay(app: AppHandle) {
     if let Some(win) = app.get_webview_window("overlay") {
+        if !crate::utils::keep_windows_loaded() {
+            crate::updater::reset_overlay_ready();
+        }
         crate::utils::release_window(&win, true);
     }
 }
