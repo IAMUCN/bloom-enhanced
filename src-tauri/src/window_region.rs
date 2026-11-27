@@ -55,6 +55,12 @@ pub fn set_window_region(window: Window, rects: Vec<IntRect>) {
         ),
     );
     if window.label() == "main" {
+        // Never apply an empty region to the notch while it is supposed to be
+        // visible; an empty SetWindowRgn makes it both invisible and click-through.
+        if rects.is_empty() && crate::state::NOTCH_IS_VISIBLE.load(std::sync::atomic::Ordering::Relaxed) {
+            crate::diagnostics::trace("region.main.skip_empty", "skipped empty region while visible");
+            return;
+        }
         let bbox = (!rects.is_empty()).then(|| {
             (
                 rects.iter().map(|r| r.x).min().unwrap_or(0),

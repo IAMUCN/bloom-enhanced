@@ -1511,38 +1511,31 @@ pub fn ensure_window(app: &tauri::AppHandle, label: &str) -> Option<(tauri::Webv
         .and_then(|b| b.build())
         .map_err(|e| crate::diagnostics::record("window_create_failed", &format!("{label}: {e}")))
         .ok()?;
+    crate::services::watch_window_process(app, &win);
     Some((win, true))
 }
 
 /// Done with an on-demand window: destroyed, or with Keep Windows Loaded
-/// hidden (`hide`) or left as is, and asked to release memory.
+/// hidden (`hide`) while preserving the WebView2 instance.
 pub fn release_window(win: &tauri::WebviewWindow, hide: bool) {
     if keep_windows_loaded() {
         if hide {
             let _ = win.hide();
         }
-        set_memory_low(win, true);
     } else {
         let _ = win.destroy();
     }
 }
 
-/// Asks WebView2 to keep a window's memory low (hidden or parked) or normal
-/// (in use): Low lets it trim caches and page memory out.
-pub fn set_memory_low(win: &tauri::WebviewWindow, low: bool) {
+/// Sets WebView2's memory usage target level (`LOW` or `NORMAL`) without
+/// changing controller visibility.
+pub fn set_webview_memory_low(win: &tauri::WebviewWindow, low: bool) {
     let _ = win.with_webview(move |webview| unsafe {
         use webview2_com::Microsoft::Web::WebView2::Win32::{
             ICoreWebView2_19, COREWEBVIEW2_MEMORY_USAGE_TARGET_LEVEL_LOW,
             COREWEBVIEW2_MEMORY_USAGE_TARGET_LEVEL_NORMAL,
         };
-        let controller = webview.controller();
-        // Tauri's hide() hides the native window but the page still counts
-        // itself as visible: its timers and animations keep running. Hidden
-        // for real, they pause. Visible again before the level goes back up.
-        if !low {
-            let _ = controller.SetIsVisible(true);
-        }
-        let Ok(core) = controller.CoreWebView2() else {
+        let Ok(core) = webview.controller().CoreWebView2() else {
             return;
         };
         if let Ok(core) = core.cast::<ICoreWebView2_19>() {
@@ -1552,10 +1545,55 @@ pub fn set_memory_low(win: &tauri::WebviewWindow, low: bool) {
                 COREWEBVIEW2_MEMORY_USAGE_TARGET_LEVEL_NORMAL
             });
         }
-        if low {
-            let _ = controller.SetIsVisible(false);
-        }
     });
+}
+
+/// Sets WebView2's `ICoreWebView2Controller::IsVisible` without changing memory
+/// target level.
+pub fn set_webview_visibility(win: &tauri::WebviewWindow, visible: bool) {
+    let _ = win.with_webview(move |webview| unsafe {
+        let _ = webview.controller().SetIsVisible(visible);
+    });
+}
+
+/// Restores WebView2 memory target to `NORMAL` and controller visibility to
+/// `true`, waiting up to `timeout` for the UI-thread operation to complete.
+/// Returns `true` if the webview callback ran before `timeout`.
+/// Never call from the main/UI thread (it would deadlock waiting on itself).
+pub fn wake_webview_sync(win: &tauri::WebviewWindow, timeout: std::time::Duration) -> bool {
+    let (tx, rx) = std::sync::mpsc::sync_channel::<()>(1);
+    if win
+        .with_webview(move |webview| unsafe {
+            use webview2_com::Microsoft::Web::WebView2::Win32::{
+                ICoreWebView2_19, COREWEBVIEW2_MEMORY_USAGE_TARGET_LEVEL_NORMAL,
+            };
+            let controller = webview.controller();
+            let _ = controller.SetIsVisible(true);
+            if let Ok(core) = controller.CoreWebView2() {
+                if let Ok(core) = core.cast::<ICoreWebView2_19>() {
+                    let _ = core
+                        .SetMemoryUsageTargetLevel(COREWEBVIEW2_MEMORY_USAGE_TARGET_LEVEL_NORMAL);
+                }
+            }
+            let _ = tx.send(());
+        })
+        .is_err()
+    {
+        return false;
+    }
+    rx.recv_timeout(timeout).is_ok()
+}
+
+/// Asks WebView2 to keep a window's memory low (hidden or parked) or normal
+/// (in use): Low lets it trim caches and page memory out.
+pub fn set_memory_low(win: &tauri::WebviewWindow, low: bool) {
+    if low {
+        set_webview_memory_low(win, true);
+        set_webview_visibility(win, false);
+    } else {
+        set_webview_visibility(win, true);
+        set_webview_memory_low(win, false);
+    }
 }
 
 /// Makes a window click-through or not by its WS_EX_TRANSPARENT bit alone,

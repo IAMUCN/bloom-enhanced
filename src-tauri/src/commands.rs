@@ -75,13 +75,17 @@ pub async fn set_notch_visible(visible: bool) {
 pub fn setup_shelf_drop(app: AppHandle, window: tauri::WebviewWindow) {
     let label = window.label().to_string();
     let (first, first_label) = (app.clone(), label.clone());
-    let _ = app.run_on_main_thread(move || crate::shelf::setup(&first, &first_label));
+    let _ = app.run_on_main_thread(move || {
+        crate::shelf::setup(&first, &first_label);
+    });
     // WebView2 can create or recreate its render child after first paint;
     // re-register once it has settled so the drop target tracks the live window.
     tauri::async_runtime::spawn(async move {
         tokio::time::sleep(tokio::time::Duration::from_millis(1500)).await;
         let late = app.clone();
-        let _ = app.run_on_main_thread(move || crate::shelf::setup(&late, &label));
+        let _ = app.run_on_main_thread(move || {
+            crate::shelf::setup(&late, &label);
+        });
     });
 }
 

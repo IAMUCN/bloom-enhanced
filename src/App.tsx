@@ -976,6 +976,14 @@ function App() {
 			])
 		);
 		const key = wanted.map((r) => `${Math.round(r.x)},${Math.round(r.y)},${Math.round(r.width)},${Math.round(r.height)}`).join(";");
+		// Never queue an empty region while the notch is supposed to be visible;
+		// fall back to the last known region so SetWindowRgn never hides it.
+		if (wanted.length === 0 && isVisible && !isHidden) {
+			if (lastSentRegion.current?.rects.length) {
+				sendNotchRegion(lastSentRegion.current.rects);
+			}
+			return;
+		}
 		const q = regionQueue.current;
 		if (q.length > 0 && q[q.length - 1].key === key) return;
 		q.push({ t: performance.now(), rects: wanted, key, n: shapeCount });
@@ -1026,10 +1034,14 @@ function App() {
 
 	// Tell the backend whether the notch is actually on screen so a hidden
 	// notch (smart/peek mode) stays click-through instead of swallowing clicks
-	// in its footprint.
+	// in its footprint. Also sync immediately and reapply the region when visible.
 	useEffect(() => {
 		if (windowLabel === "main") {
-			invoke("set_notch_visible", { visible: isVisible && !isHidden }).catch(() => {});
+			const shouldBeVisible = isVisible && !isHidden;
+			invoke("set_notch_visible", { visible: shouldBeVisible }).catch(() => {});
+			if (shouldBeVisible) {
+				reportNotchRect.current();
+			}
 		}
 	}, [isVisible, isHidden, windowLabel]);
 	// A notch that is hidden (smart/peek) keeps no CSS loop running (marquees,
@@ -1624,11 +1636,29 @@ function App() {
 			releaseNotchHover();
 		});
 
+		const syncOnResume = () => {
+			if (windowLabel !== "main") return;
+			setIsVisible(true);
+			invoke("set_notch_visible", { visible: true }).catch(() => {});
+			document.documentElement.toggleAttribute("data-anim-paused", false);
+			reportNotchRect.current();
+			if (lastSentRegion.current?.rects.length) {
+				sendNotchRegion(lastSentRegion.current.rects);
+			}
+		};
+		const unlistenNotchResume = listen("notch-resume", syncOnResume);
+		const onVisibilityChange = () => {
+			if (document.visibilityState === "visible") syncOnResume();
+		};
+		document.addEventListener("visibilitychange", onVisibilityChange);
+
 		return () => {
 			unlistenVisibility.then((f) => f());
 			unlistenNotchOverlap.then((f) => f());
 			unlistenNotchEdgeHover.then((f) => f());
 			unlistenNotchPointerLeft.then((f) => f());
+			unlistenNotchResume.then((f) => f());
+			document.removeEventListener("visibilitychange", onVisibilityChange);
 			document.removeEventListener("contextmenu", preventContext);
 		};
 	}, [windowLabel]);

@@ -99,11 +99,44 @@ pub fn start(app: AppHandle) {
         let app = app.clone();
         std::thread::spawn(move || {
             if let Some((win, _)) = wheel_window(&app) {
-                crate::utils::set_memory_low(&win, true);
+                let _ = win.hide();
             }
         });
     }
     std::thread::spawn(move || detector(app));
+}
+
+/// True once the wheel's frontend has mounted and registered its event
+/// listeners ([`orbit_ready`]). Reset when the window is created/destroyed/reloaded.
+static ORBIT_READY: AtomicBool = AtomicBool::new(false);
+
+/// Resets transient wheel lifecycle state (on window destruction or WebView2 recovery).
+pub fn reset_state() {
+    RUNNING.store(false, Ordering::Relaxed);
+    OPEN.store(0, Ordering::Relaxed);
+    ARMED.store(false, Ordering::Relaxed);
+    CANCEL.store(false, Ordering::Relaxed);
+    ORBIT_READY.store(false, Ordering::Release);
+    if let Ok(mut pending) = PENDING_OPEN.lock() {
+        *pending = None;
+    }
+}
+
+/// Registers `ShelfDropTarget` for `orbit` on the main thread and waits up to
+/// `timeout` for completion. Returns `true` if at least one child HWND was registered.
+fn register_drop_target_sync(app: &AppHandle, timeout: Duration) -> bool {
+    let (tx, rx) = std::sync::mpsc::sync_channel::<bool>(1);
+    let inner = app.clone();
+    if app
+        .run_on_main_thread(move || {
+            let ok = crate::shelf::ensure_registered(&inner, "orbit");
+            let _ = tx.send(ok);
+        })
+        .is_err()
+    {
+        return false;
+    }
+    rx.recv_timeout(timeout).unwrap_or(false)
 }
 
 /// The wheel window, made if needed: parked on screen (off view) and shown so
@@ -113,15 +146,18 @@ pub fn start(app: AppHandle) {
 fn wheel_window(app: &AppHandle) -> Option<(tauri::WebviewWindow, bool)> {
     let (win, created) = crate::utils::ensure_window(app, "orbit")?;
     if created {
+        ORBIT_READY.store(false, Ordering::Release);
         let _ = win.set_position(tauri::PhysicalPosition::new(PARKED, PARKED));
         let _ = win.show();
+        // Register once the render child exists; orbit_ready() and open_wheel()
+        // also call ensure_registered() so late child creation is always covered.
         let inner = app.clone();
         tauri::async_runtime::spawn(async move {
-            for ms in [300, 2000] {
-                tokio::time::sleep(Duration::from_millis(ms)).await;
-                let again = inner.clone();
-                let _ = inner.run_on_main_thread(move || crate::shelf::setup(&again, "orbit"));
-            }
+            tokio::time::sleep(Duration::from_millis(300)).await;
+            let again = inner.clone();
+            let _ = inner.run_on_main_thread(move || {
+                crate::shelf::ensure_registered(&again, "orbit");
+            });
         });
     }
     Some((win, created))
@@ -134,6 +170,11 @@ static PENDING_OPEN: std::sync::Mutex<Option<serde_json::Value>> = std::sync::Mu
 /// The wheel's page is loaded and listening.
 #[tauri::command]
 pub fn orbit_ready(app: AppHandle) {
+    ORBIT_READY.store(true, Ordering::Release);
+    let inner = app.clone();
+    let _ = app.run_on_main_thread(move || {
+        crate::shelf::ensure_registered(&inner, "orbit");
+    });
     if let Some(payload) = PENDING_OPEN.lock().ok().and_then(|mut p| p.take()) {
         let _ = app.emit_to("orbit", "orbit-open", payload);
     }
@@ -479,7 +520,10 @@ fn open_wheel(app: &AppHandle, paths: Vec<String>, by: u8) {
         return;
     };
     WHEEL_GEN.fetch_add(1, Ordering::Relaxed);
-    crate::utils::set_memory_low(&win, false);
+    // 1. Synchronously restore WebView2 memory target and controller visibility.
+    let _ = crate::utils::wake_webview_sync(&win, Duration::from_millis(500));
+    // 2. Ensure the custom drop target is registered on the active WebView2 child HWND.
+    let _ = register_drop_target_sync(app, Duration::from_millis(250));
     let (x, y) = cursor();
     let monitor = app.monitor_from_point(x as f64, y as f64).ok().flatten();
     let scale = monitor.as_ref().map_or(1.0, |m| m.scale_factor());
@@ -493,11 +537,12 @@ fn open_wheel(app: &AppHandle, paths: Vec<String>, by: u8) {
     OPEN.store(by, Ordering::Relaxed);
     let _ = win.set_size(tauri::PhysicalSize::new(side as u32, side as u32));
     let _ = win.set_position(tauri::PhysicalPosition::new(left, top));
+    crate::utils::show_without_activating(&win);
     if let Ok(hwnd) = win.hwnd() {
         crate::utils::re_assert_topmost(hwnd);
     }
     let payload = serde_json::json!({ "paths": paths, "drag": by == BY_DRAG });
-    if loading {
+    if loading || !ORBIT_READY.load(Ordering::Acquire) {
         if let Ok(mut pending) = PENDING_OPEN.lock() {
             *pending = Some(payload);
         }
@@ -576,7 +621,10 @@ fn close_wheel(app: &AppHandle) {
             && !RUNNING.load(Ordering::Relaxed)
         {
             if let Some(win) = app.get_webview_window("orbit") {
-                crate::utils::release_window(&win, false);
+                if !crate::utils::keep_windows_loaded() {
+                    ORBIT_READY.store(false, Ordering::Release);
+                }
+                crate::utils::release_window(&win, true);
             }
         }
     });
@@ -2011,7 +2059,14 @@ pub async fn orbit_run(
     if paths.is_empty() {
         return Err("The files are no longer there.".into());
     }
+    struct RunningGuard;
+    impl Drop for RunningGuard {
+        fn drop(&mut self) {
+            RUNNING.store(false, Ordering::Relaxed);
+        }
+    }
     RUNNING.store(true, Ordering::Relaxed);
+    let _running_guard = RunningGuard;
     let opener = app.clone();
     // A chain's results sit beside the intermediates; whether to open them
     // depends on where the files first came from.
@@ -2030,7 +2085,7 @@ pub async fn orbit_run(
         }
         outcomes
     });
-    RUNNING.store(false, Ordering::Relaxed);
+    drop(_running_guard);
     crate::utils::release_freed_memory();
     // Something dragged out of a browser: show the result straight away (a
     // PDF opens in the default PDF viewer, usually the browser).
@@ -2300,5 +2355,24 @@ mod tests {
             assert!(parse_ranges(bad, 20).is_err(), "{bad}");
         }
         std::fs::remove_dir_all(&dir).unwrap();
+    }
+
+    #[test]
+    fn reset_state_clears_stale_lifecycle_flags() {
+        RUNNING.store(true, Ordering::Relaxed);
+        OPEN.store(BY_DRAG, Ordering::Relaxed);
+        ARMED.store(true, Ordering::Relaxed);
+        CANCEL.store(true, Ordering::Relaxed);
+        ORBIT_READY.store(true, Ordering::Release);
+        *PENDING_OPEN.lock().unwrap() = Some(serde_json::json!({ "paths": [], "drag": true }));
+
+        reset_state();
+
+        assert!(!RUNNING.load(Ordering::Relaxed));
+        assert_eq!(OPEN.load(Ordering::Relaxed), 0);
+        assert!(!ARMED.load(Ordering::Relaxed));
+        assert!(!CANCEL.load(Ordering::Relaxed));
+        assert!(!ORBIT_READY.load(Ordering::Acquire));
+        assert!(PENDING_OPEN.lock().unwrap().is_none());
     }
 }

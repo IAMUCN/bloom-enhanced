@@ -35,7 +35,11 @@ const MAX_TEXT_UNITS: usize = 1 << 17;
 
 /// Keeps every registered target alive for as long as OLE holds it. The COM
 /// pointers are only ever used by OLE, which marshals calls itself.
-struct TargetStore(#[allow(dead_code)] Vec<IDropTarget>);
+struct TargetStore {
+    #[allow(dead_code)]
+    targets: Vec<IDropTarget>,
+    children: Vec<isize>,
+}
 unsafe impl Send for TargetStore {}
 
 /// Live targets per window label.
@@ -445,30 +449,33 @@ impl IDropTarget_Impl for ShelfDropTarget_Impl {
     }
 }
 
-/// (Re)registers the drop target on a window (`main` or `clipshelf`) and all
-/// its current descendants. Safe to call repeatedly; that window's existing
-/// registrations are replaced.
-pub fn setup(app: &AppHandle, label: &str) {
+/// (Re)registers the drop target on a window (`main`, `clipshelf`, or `orbit`)
+/// and all its current descendants. Safe to call repeatedly; that window's
+/// existing registrations are replaced. Returns `true` when at least one child
+/// HWND (WebView2 render child) was registered.
+pub fn setup(app: &AppHandle, label: &str) -> bool {
     let prefix = match label {
         "clipshelf" => "clipshelf",
         "orbit" => "orbit",
         _ => "shelf",
     };
     let Some(win) = app.get_webview_window(label) else {
-        return;
+        return false;
     };
     let Ok(hwnd) = win.hwnd() else {
-        return;
+        return false;
     };
 
     struct Ctx {
         app: AppHandle,
         prefix: &'static str,
         targets: Vec<IDropTarget>,
+        children: Vec<isize>,
     }
 
     unsafe extern "system" fn child_proc(child: HWND, lparam: LPARAM) -> BOOL {
         let ctx = &mut *(lparam.0 as *mut Ctx);
+        ctx.children.push(child.0 as isize);
         unsafe { inject(child, &ctx.app, ctx.prefix, &mut ctx.targets) };
         BOOL(1)
     }
@@ -479,6 +486,7 @@ pub fn setup(app: &AppHandle, label: &str) {
             app: app.clone(),
             prefix,
             targets: Vec::new(),
+            children: Vec::new(),
         };
         inject(hwnd, app, prefix, &mut ctx.targets);
         let _ = EnumChildWindows(
@@ -486,11 +494,54 @@ pub fn setup(app: &AppHandle, label: &str) {
             Some(child_proc),
             LPARAM(&mut ctx as *mut Ctx as isize),
         );
+        let has_children = !ctx.children.is_empty();
         if let Ok(mut guard) = SHELF_DROP_TARGETS.lock() {
             guard.retain(|(l, _)| l != label);
-            guard.push((label.to_string(), TargetStore(ctx.targets)));
+            guard.push((
+                label.to_string(),
+                TargetStore {
+                    targets: ctx.targets,
+                    children: ctx.children,
+                },
+            ));
         }
+        has_children
     }
+}
+
+/// Ensures the drop target for `label` is registered against all of its
+/// current child HWNDs (re-registering if WebView2 created or recreated its
+/// render child). Must be called on the main thread.
+pub fn ensure_registered(app: &AppHandle, label: &str) -> bool {
+    let Some(win) = app.get_webview_window(label) else {
+        return false;
+    };
+    let Ok(hwnd) = win.hwnd() else {
+        return false;
+    };
+    unsafe extern "system" fn collect_proc(child: HWND, lparam: LPARAM) -> BOOL {
+        let list = &mut *(lparam.0 as *mut Vec<isize>);
+        list.push(child.0 as isize);
+        BOOL(1)
+    }
+    let mut current_children = Vec::<isize>::new();
+    unsafe {
+        let _ = EnumChildWindows(
+            Some(hwnd),
+            Some(collect_proc),
+            LPARAM(&mut current_children as *mut Vec<isize> as isize),
+        );
+    }
+    let matches = SHELF_DROP_TARGETS.lock().ok().is_some_and(|guard| {
+        guard
+            .iter()
+            .find(|(l, _)| l == label)
+            .is_some_and(|(_, store)| !store.children.is_empty() && store.children == current_children)
+    });
+    if matches {
+        return true;
+    }
+    setup(app, label)
 }
 
 unsafe fn inject(hwnd: HWND, app: &AppHandle, prefix: &'static str, out: &mut Vec<IDropTarget>) {

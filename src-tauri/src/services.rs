@@ -2469,6 +2469,11 @@ fn apply_capture_ui_state(app: &AppHandle, active: bool) {
         } else {
             if crate::utils::notch_enabled() {
                 crate::utils::show_without_activating(&main_win);
+                crate::utils::set_webview_visibility(&main_win, true);
+                if let Ok(hwnd) = main_win.hwnd() {
+                    re_assert_topmost(hwnd);
+                }
+                let _ = app.emit_to("main", "notch-resume", ());
             }
             reconcile_main_appbar(app);
         }
@@ -2739,12 +2744,26 @@ fn update_main_interaction(
     let Some(main_win) = app_handle.get_webview_window("main") else {
         return;
     };
+    let scale = main_win.scale_factor().unwrap_or(1.0);
     if !main_win.is_visible().unwrap_or(false) {
-        return;
+        // If the notch is enabled and no capture UI is active, never leave it
+        // permanently hidden when the user approaches the top edge.
+        if crate::utils::notch_enabled()
+            && !CAPTURE_UI_ACTIVE.load(Ordering::Relaxed)
+            && in_top_edge_band(cursor, scale)
+        {
+            crate::utils::show_without_activating(&main_win);
+            crate::utils::set_webview_visibility(&main_win, true);
+            if let Ok(hwnd) = main_win.hwnd() {
+                re_assert_topmost(hwnd);
+            }
+            let _ = app_handle.emit_to("main", "notch-resume", ());
+        } else {
+            return;
+        }
     }
 
     let in_notch_hover = NOTCH_IS_HOVERED.load(Ordering::Relaxed);
-    let scale = main_win.scale_factor().unwrap_or(1.0);
     // The top-edge reveal exists only to bring a hidden notch on screen: it is
     // dwell-gated, and fixed mode (always visible) skips it entirely. This is
     // about showing the notch — the hit-testing continuity below is separate
@@ -4642,6 +4661,9 @@ unsafe extern "system" fn display_monitor_proc(
                             let delay = if pw == PBT_APMRESUMESUSPEND { 500 } else { 300 };
                             tokio::time::sleep(std::time::Duration::from_millis(delay)).await;
                             reposition_all_windows(&ah);
+                            if pw == PBT_APMRESUMESUSPEND {
+                                recover_after_resume(&ah);
+                            }
                         });
                     }
                 }
@@ -4682,47 +4704,167 @@ static WEBVIEWS_WATCHED_AT: OnceLock<Instant> = OnceLock::new();
 static RECOVERING_FROM_WEBVIEW_FAILURE: AtomicBool = AtomicBool::new(false);
 
 /// If a webview's browser or renderer process exits (crash, or killed), the
-/// notch and dock windows stay on screen with dead content. They also stop
-/// switching click-through, so they keep swallowing clicks meant for the
-/// windows under them. Bloom restarts itself when that happens.
+/// Restores native/WebView2 visibility, regions, and interaction after Windows
+/// wakes from sleep (`PBT_APMRESUMESUSPEND`).
+fn recover_after_resume(app: &AppHandle) {
+    if SHUTTING_DOWN.load(Ordering::Relaxed) {
+        return;
+    }
+    if let Some(main_win) = app.get_webview_window("main") {
+        if crate::utils::notch_enabled() && !CAPTURE_UI_ACTIVE.load(Ordering::Relaxed) {
+            crate::utils::show_without_activating(&main_win);
+            let _ = crate::utils::wake_webview_sync(&main_win, Duration::from_millis(300));
+            if let Ok(hwnd) = main_win.hwnd() {
+                re_assert_topmost(hwnd);
+            }
+            let _ = app.emit_to("main", "notch-resume", ());
+        }
+        refresh_main_interaction(app);
+    }
+    if crate::utils::dock_enabled() {
+        if let Some(dock_win) = app.get_webview_window("dock") {
+            crate::utils::set_webview_visibility(&dock_win, true);
+        }
+    }
+}
+
+/// Watches every startup WebView2 window for renderer/browser crashes.
 pub fn watch_webview_processes(app: &AppHandle) {
     let _ = WEBVIEWS_WATCHED_AT.set(Instant::now());
     for (_, window) in app.webview_windows() {
-        let handle = app.clone();
-        let _ = window.with_webview(move |webview| unsafe {
-            use webview2_com::Microsoft::Web::WebView2::Win32::{
-                COREWEBVIEW2_PROCESS_FAILED_KIND,
-                COREWEBVIEW2_PROCESS_FAILED_KIND_BROWSER_PROCESS_EXITED,
-                COREWEBVIEW2_PROCESS_FAILED_KIND_RENDER_PROCESS_EXITED,
-            };
-            use webview2_com::ProcessFailedEventHandler;
-
-            let Ok(core) = webview.controller().CoreWebView2() else {
-                return;
-            };
-            let mut token = 0i64;
-            let _ = core.add_ProcessFailed(
-                &ProcessFailedEventHandler::create(Box::new(move |_, args| {
-                    let Some(args) = args else {
-                        return Ok(());
-                    };
-                    let mut kind = COREWEBVIEW2_PROCESS_FAILED_KIND::default();
-                    args.ProcessFailedKind(&mut kind)?;
-                    if kind == COREWEBVIEW2_PROCESS_FAILED_KIND_BROWSER_PROCESS_EXITED
-                        || kind == COREWEBVIEW2_PROCESS_FAILED_KIND_RENDER_PROCESS_EXITED
-                    {
-                        crate::diagnostics::record(
-                            "webview_failure",
-                            &format!("process_kind={kind:?}"),
-                        );
-                        recover_from_webview_failure(&handle);
-                    }
-                    Ok(())
-                })),
-                &mut token,
-            );
-        });
+        watch_window_process(app, &window);
     }
+}
+
+/// Bounded per-window recovery tracker: `(label, recent_recovery_times)`.
+type RecoveryHistory = Mutex<Vec<(String, Vec<Instant>)>>;
+static WINDOW_RECOVERY_HISTORY: std::sync::LazyLock<RecoveryHistory> =
+    std::sync::LazyLock::new(|| Mutex::new(Vec::new()));
+
+/// Returns `true` if `label` is within its recovery budget (at most 3
+/// recoveries within 60 seconds), recording this attempt.
+pub(crate) fn allow_window_recovery(label: &str) -> bool {
+    let now = Instant::now();
+    let window = Duration::from_secs(60);
+    let mut guard = WINDOW_RECOVERY_HISTORY
+        .lock()
+        .unwrap_or_else(|e| e.into_inner());
+    let entry = if let Some(e) = guard.iter_mut().find(|(l, _)| l == label) {
+        &mut e.1
+    } else {
+        guard.push((label.to_string(), Vec::new()));
+        &mut guard.last_mut().unwrap().1
+    };
+    entry.retain(|t| now.duration_since(*t) < window);
+    if entry.len() >= 3 {
+        return false;
+    }
+    entry.push(now);
+    true
+}
+
+/// Registers a `ProcessFailed` handler on a single WebView2 window (called for
+/// both startup windows and dynamically created windows in `ensure_window`).
+pub fn watch_window_process(app: &AppHandle, window: &tauri::WebviewWindow) {
+    let handle = app.clone();
+    let label = window.label().to_string();
+    let _ = window.with_webview(move |webview| unsafe {
+        use webview2_com::Microsoft::Web::WebView2::Win32::{
+            COREWEBVIEW2_PROCESS_FAILED_KIND,
+            COREWEBVIEW2_PROCESS_FAILED_KIND_BROWSER_PROCESS_EXITED,
+            COREWEBVIEW2_PROCESS_FAILED_KIND_RENDER_PROCESS_EXITED,
+        };
+        use webview2_com::ProcessFailedEventHandler;
+
+        let Ok(core) = webview.controller().CoreWebView2() else {
+            return;
+        };
+        let mut token = 0i64;
+        let _ = core.add_ProcessFailed(
+            &ProcessFailedEventHandler::create(Box::new(move |_, args| {
+                let Some(args) = args else {
+                    return Ok(());
+                };
+                let mut kind = COREWEBVIEW2_PROCESS_FAILED_KIND::default();
+                args.ProcessFailedKind(&mut kind)?;
+                if kind == COREWEBVIEW2_PROCESS_FAILED_KIND_BROWSER_PROCESS_EXITED {
+                    crate::diagnostics::record(
+                        "webview_failure",
+                        &format!("label={label} process_kind={kind:?}"),
+                    );
+                    recover_from_webview_failure(&handle);
+                } else if kind == COREWEBVIEW2_PROCESS_FAILED_KIND_RENDER_PROCESS_EXITED {
+                    crate::diagnostics::record(
+                        "webview_render_failure",
+                        &format!("label={label} process_kind={kind:?}"),
+                    );
+                    recover_single_window(&handle, &label);
+                }
+                Ok(())
+            })),
+            &mut token,
+        );
+    });
+}
+
+fn recover_single_window(handle: &AppHandle, label: &str) {
+    if SHUTTING_DOWN.load(Ordering::Relaxed) {
+        return;
+    }
+    if !allow_window_recovery(label) {
+        crate::diagnostics::record(
+            "webview_recovery_exhausted",
+            &format!("label={label}; falling back to app recovery"),
+        );
+        if label == "main" || label == "dock" {
+            recover_from_webview_failure(handle);
+        }
+        return;
+    }
+    let handle = handle.clone();
+    let label = label.to_string();
+    tauri::async_runtime::spawn(async move {
+        match label.as_str() {
+            "orbit" | "clipshelf" | "settings" | "overlay" => {
+                if label == "orbit" {
+                    crate::orbit::reset_state();
+                }
+                if let Some(win) = handle.get_webview_window(&label) {
+                    let _ = win.destroy();
+                }
+                if crate::utils::keep_windows_loaded()
+                    && (label == "orbit" || label == "clipshelf")
+                {
+                    let h = handle.clone();
+                    let l = label.clone();
+                    let _ = tauri::async_runtime::spawn_blocking(move || {
+                        if let Some((win, _)) = crate::utils::ensure_window(&h, &l) {
+                            let _ = win.hide();
+                            let h2 = h.clone();
+                            let l2 = l.clone();
+                            let _ = h.run_on_main_thread(move || {
+                                crate::shelf::setup(&h2, &l2);
+                            });
+                        }
+                    })
+                    .await;
+                }
+            }
+            "main" | "dock" => {
+                if let Some(win) = handle.get_webview_window(&label) {
+                    crate::utils::set_webview_visibility(&win, true);
+                    let _ = win.reload();
+                    if label == "main" {
+                        let h = handle.clone();
+                        let _ = handle.run_on_main_thread(move || {
+                            crate::shelf::setup(&h, "main");
+                        });
+                    }
+                }
+            }
+            _ => {}
+        }
+    });
 }
 
 fn recover_from_webview_failure(handle: &AppHandle) {
@@ -4888,5 +5030,15 @@ mod watchdog_tests {
         assert_eq!(edge_watchdog_sleep_ms(true, 500), TOP_EDGE_POLL_MS);
         assert_eq!(edge_watchdog_sleep_ms(false, 24), TOP_EDGE_POLL_MS);
         assert_eq!(edge_watchdog_sleep_ms(false, 25), 250);
+    }
+
+    #[test]
+    fn window_recovery_budget_is_bounded_per_window() {
+        assert!(allow_window_recovery("test-orbit"));
+        assert!(allow_window_recovery("test-orbit"));
+        assert!(allow_window_recovery("test-orbit"));
+        assert!(!allow_window_recovery("test-orbit"));
+        // Separate window retains its own independent recovery budget.
+        assert!(allow_window_recovery("test-main"));
     }
 }

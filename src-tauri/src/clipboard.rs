@@ -1133,10 +1133,12 @@ fn ensure_shelf_window(app: &AppHandle, wanted: bool) {
             for ms in [150, 1500] {
                 tokio::time::sleep(Duration::from_millis(ms)).await;
                 let inner = app.clone();
-                let _ = app.run_on_main_thread(move || crate::shelf::setup(&inner, "clipshelf"));
+                let _ = app.run_on_main_thread(move || {
+                    crate::shelf::setup(&inner, "clipshelf");
+                });
             }
         });
-        crate::utils::set_memory_low(&win, true);
+        let _ = win.hide();
     } else {
         SHELF_OPEN.store(false, Ordering::Relaxed);
         if let Some(win) = app.get_webview_window("clipshelf") {
@@ -1185,9 +1187,10 @@ fn set_shelf_open(app: &AppHandle, side: ShelfSide, open: bool) {
             ShelfSide::Top => (mx + (mw - w) / 2, my),
         };
         *SHELF_RECT.lock().unwrap() = (x, y, w, h);
-        crate::utils::set_memory_low(&win, false);
+        let _ = crate::utils::wake_webview_sync(&win, Duration::from_millis(300));
         let _ = win.set_size(tauri::PhysicalSize::new(w as u32, h as u32));
         let _ = win.set_position(tauri::PhysicalPosition::new(x, y));
+        crate::utils::show_without_activating(&win);
         if let Ok(hwnd) = win.hwnd() {
             crate::utils::re_assert_topmost(hwnd);
         }
@@ -1201,7 +1204,7 @@ fn set_shelf_open(app: &AppHandle, side: ShelfSide, open: bool) {
             if SHELF_GEN.load(Ordering::Relaxed) == generation {
                 if let Some(win) = app.get_webview_window("clipshelf") {
                     let _ = win.set_position(tauri::PhysicalPosition::new(PARKED, PARKED));
-                    crate::utils::set_memory_low(&win, true);
+                    crate::utils::release_window(&win, true);
                 }
             }
         });

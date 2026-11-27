@@ -23,6 +23,7 @@ import {
 	parseRanges,
 	splitPresets,
 	opsFor,
+	ordered,
 	parseLayout,
 	type OrbitInput,
 	type OrbitLayout,
@@ -178,7 +179,13 @@ function Orbit() {
 	}, []);
 	const modes = modesNow();
 	const viewInput = chainAfter(input, chain) ?? input;
-	const ops = opsFor(viewInput, mode, layout);
+	// When opened with no drag paths/text yet, show default file options for the
+	// current mode rather than an empty ring; orbit-drag-enter refines them.
+	const ops = hasInput(viewInput)
+		? opsFor(viewInput, mode, layout)
+		: ordered(mode, layout)
+				.filter((op) => !layout.hidden.includes(op.id) && !op.id.startsWith("text."))
+				.slice(0, 8);
 
 	const close = useCallback(() => {
 		setChain([]);
@@ -333,6 +340,19 @@ function Orbit() {
 		},
 		[finish, flash]
 	);
+
+	useEffect(() => {
+		const onVisibility = () => {
+			if (document.visibilityState === "visible") {
+				setPopping(false);
+				if (phaseRef.current.kind === "wheel") {
+					setBloomKey((k) => k + 1);
+				}
+			}
+		};
+		document.addEventListener("visibilitychange", onVisibility);
+		return () => document.removeEventListener("visibilitychange", onVisibility);
+	}, []);
 
 	useEffect(() => {
 		// Points arrive in physical client pixels.
@@ -575,7 +595,7 @@ function Orbit() {
 		<motion.div
 			key={bloomKey}
 			className="orbit"
-			initial={animOpen ? { scale: 0.4, opacity: 0 } : false}
+			initial={animOpen ? { scale: 0.72, opacity: 1 } : false}
 			animate={popping ? { scale: 1.04, opacity: 0 } : { scale: 1, opacity: 1 }}
 			transition={popping ? { duration: T.pop / 1000, ease: "easeIn" } : T.bloom}
 		>
@@ -611,7 +631,8 @@ function Orbit() {
 								className={`orbit-slice${hover === i ? " hover" : ""}`}
 								style={ORIGIN}
 								// Each slice swings in on its own, past its place and back, one after another.
-								initial={animSwitch ? { rotate: -16, opacity: 0 } : false}
+								// Keep opacity at 1 so slices remain visible even if rAF is throttled on resume.
+								initial={animSwitch ? { rotate: -12, opacity: 1 } : false}
 								animate={{ rotate: 0, opacity: 1, scale: hover === i ? 1.06 : 1 }}
 								transition={{
 									...SPRING,
@@ -746,7 +767,7 @@ function PickRing({
 	const { value, note, bad } = check(text);
 	const step = 360 / Math.max(1, presets.length);
 	return (
-		<motion.div className="orbit" initial={localStorage.getItem("bloom-files-anim-open") === "false" ? false : { scale: 0.4, opacity: 0 }} animate={{ scale: 1, opacity: 1 }} transition={BLOOM}>
+		<motion.div className="orbit" initial={localStorage.getItem("bloom-files-anim-open") === "false" ? false : { scale: 0.72, opacity: 1 }} animate={{ scale: 1, opacity: 1 }} transition={BLOOM}>
 			<svg
 				width={SIZE}
 				height={SIZE}
